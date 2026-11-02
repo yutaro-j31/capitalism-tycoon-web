@@ -324,6 +324,22 @@ No round writer, settlement, save, RNG, valuation policy, UI or legacy wealth/cr
 consumer changes. The canonical founder-wealth test covers empty evidence, account
 separation and a pending personal contribution that leaves wealth unchanged. This pure
 reader addition introduces no new native WebKit or IndexedDB path.
+
+## VC IPO lifecycle exclusion explanation (P3-11 consuming partial P3-8)
+
+When the P3-8 reader proves that a zeroed, dead, non-subsidiary startup carries an IPO
+source alias, the corresponding personal startup observation remains a historical
+exclusion. That exclusion now carries the matching detached `conversionLinks` row as
+source explanation. The link is matched by both durable startup source ID and exact
+startup array source path, so repeated or malformed IDs cannot cross-attach evidence.
+
+This does not create a listed lot or revive the startup as a current asset. Listed lot,
+share class, issuer identity, quantity, votes and wealth value remain unverified/null;
+the listed alias is only lifecycle source evidence. Contradictory subsidiary mirrors and
+residual startup fractions continue to fail closed in P3-8. No valuation, settlement,
+save, RNG, UI, credit/progression consumer or ownership authority changes. The focused
+wealth suite verifies the historical exclusion and unchanged known subtotal. No new
+native WebKit or IndexedDB path is introduced.
 missing identity, closed/exited metadata, reciprocal conversion success/failure,
 detached/frozen/JSON purity and same-week cash/rate/enterprise-value/conversion-link
 staleness checks. No writer, consumer/UI, save or RNG path changes; this is not OD-05

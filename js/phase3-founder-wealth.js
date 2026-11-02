@@ -201,7 +201,12 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
  const vc=vcInterests.projectVCSourceInterests(view),vcIssues=new Map(vc.issues.map(row=>[row.path,row.code]));
  for(const row of vc.observations){
   if(row.account==='company'){if(row.economicFraction>0)ownership.exclusions.push({sourcePath:row.sourcePath,basis:'company-owned',includedBy:null});continue;}
-  if(row.assetRole==='historical'){ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical',includedBy:null});continue;}
+  if(row.assetRole==='historical'){
+   const sourceRoot=row.sourcePath.slice(0,row.sourcePath.lastIndexOf('.'));
+   ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical',includedBy:null,
+    sourceEvidence:{conversionLinks:vc.conversionLinks.filter(link=>link.startupSourceId===row.startupSourceId&&link.sourcePath===sourceRoot+'.ipoStockID')
+     .map(link=>({...link,reasons:link.reasons.map(item=>({...item}))}))}});continue;
+  }
   if(row.assetRole==='no-interest')continue;
   ownership.vc.push({sourcePath:row.sourcePath,startupSourceId:row.startupSourceId,status:row.status,economicFraction:row.economicFraction,code:vcIssues.get(row.sourcePath)||null,
    roundEvidence:vc.roundObservations.filter(evidence=>evidence.startupSourceId===row.startupSourceId&&evidence.account==='personal'
