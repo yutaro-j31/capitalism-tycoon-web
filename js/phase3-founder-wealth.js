@@ -91,7 +91,7 @@ const SOURCE_SPEC={fields:{
  peFirm:{fields:{funds:'deep'}},
  angelInvestments:{rows:['id','status']},
  startups:{rows:['id','ownedCompany','ownedPersonal','ddNegotiatedOwnedCompany','ddNegotiatedOwnedPersonal','ipoStockID','alive','subsidiary','activeFundingRound']},
- subsidiaries:{rows:['id','startupID','peDealID','sourcePEFundID','sourcePEDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredWeek','restructuredFrom','source','status','ownership']}
+ subsidiaries:{rows:['id','startupID','peDealID','sourcePEFundID','sourcePEDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredWeek','restructuredFrom','source','sourceType','status','ownership']}
 }};
 function captureView(raw){
  if(!record(raw))invalid('$');
@@ -224,8 +224,10 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
  // P3-7 GP fund capital evidence: a contribution ratio is not NAV, carry or title to fund assets.
  const pe=peFundInterests.projectPEFundInterests(view);
  const fundValuation=peFundInterests.projectFundValuationEvidence(view);
+ const parentConversions=peFundInterests.projectFundParentConversions(view);
  ownership.peFundSourceEvidence={fundInterests:pe.fundInterests,waterfallTerms:pe.waterfallTerms,
-  valuationFunds:fundValuation.funds,valuationIssues:fundValuation.issues};
+  valuationFunds:fundValuation.funds,valuationIssues:fundValuation.issues,
+  parentConversions:parentConversions.conversions,parentConversionIssues:parentConversions.issues};
  for(const row of pe.fundInterests){
   if(row.current===false&&row.status==='observed'){ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical',includedBy:null});continue;}
   ownership.peSources.push(ref(row.sourcePath,row.fundId,'pe-fund'));
@@ -527,7 +529,9 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
  result.components.push(component('asset:pe-interests','asset',{sourceRefs:ownership.peSources.map(r=>({...r})),includesKeys:ownership.peSources.map(r=>r.path),
   sourceEvidence:{fundInterests:fundEvidence.fundInterests.map(row=>({...row})),waterfallTerms:fundEvidence.waterfallTerms.map(row=>({...row})),
    valuationFunds:fundEvidence.valuationFunds.map(row=>({...row,reasons:copied(row.reasons),
-    heldAssetInputs:row.heldAssetInputs.map(asset=>({...asset,reasons:copied(asset.reasons)}))})),valuationIssues:copied(fundEvidence.valuationIssues)},
+    heldAssetInputs:row.heldAssetInputs.map(asset=>({...asset,reasons:copied(asset.reasons)}))})),valuationIssues:copied(fundEvidence.valuationIssues),
+   parentConversions:fundEvidence.parentConversions.map(row=>({...row,sourceRefs:row.sourceRefs.map(source=>({...source})),reasons:copied(row.reasons)})),
+   parentConversionIssues:copied(fundEvidence.parentConversionIssues)},
   reasons:[...ownership.peDirectIssues.map(row=>reason(row.code,row.path,'Direct PE ownership/alias evidence is unresolved.')),
    ...ownership.peCodes.map(code=>reason(code,'peFirm.funds','PE fund-interest source evidence is unresolved.')),
    reason('VALUATION_INCOMPLETE','peDeals','Unresolved direct PE stakes and GP fund interests remain unvalued; fund NAV, liabilities and waterfall/carry (OD-05) are not established.')]}));
