@@ -85,6 +85,30 @@ for(const change of [
  const invalid=project(getter);assert.equal(reads,0);assert.equal(invalid.issues[0].code,'INPUT_INVALID');assert.equal(invalid.roundObservations.length,0);
  const closed=pending();closed.startups[0].activeFundingRound=null;assert.equal(project(closed).roundObservations.length,0);
 }
+// Selected evidence must be own enumerable JSON data; hidden claims cannot certify fractions.
+for(const location of ['root','startup-index','id','ownedPersonal','alive','subsidiary-root','subsidiary-index','subsidiary-ownership']){
+ const s=fixture();let obj,key;
+ if(location==='root'){obj=s;key='startups';}
+ else if(location==='startup-index'){obj=s.startups;key='0';}
+ else if(location.startsWith('subsidiary-')){
+  s.startups[0].subsidiary=true;s.subsidiaries=[{id:'sub',startupID:'s',ownership:.6,status:'active'}];
+  if(location==='subsidiary-root'){obj=s;key='subsidiaries';}
+  else if(location==='subsidiary-index'){obj=s.subsidiaries;key='0';}
+  else{obj=s.subsidiaries[0];key='ownership';}
+ }else{obj=s.startups[0];key=location;}
+ Object.defineProperty(obj,key,{value:obj[key],enumerable:false});
+ const r=project(s);assert.equal(r.issues[0]?.code,'INPUT_INVALID',location);
+ assert.equal(r.observations.length,0,location+' hidden data supplies no current equity');
+ assert.equal(r.roundObservations.length,0);
+ if(!location.endsWith('-index')){const account=location.startsWith('subsidiary-')?'company':'personal',stake=account==='company'?.6:.1;
+  assert(!project(plain(s)).observations.some(row=>row.account===account&&row.economicFraction===stake),location+' JSON omission cannot certify the hidden claim');
+ }
+}
+{
+ const s=fixture();s.startups[0].activeFundingRound={id:'round',status:'open'};
+ Object.defineProperty(s.startups[0].activeFundingRound,'contributedPersonal',{value:2,enumerable:false});
+ const r=project(s);assert.equal(r.issues[0].code,'INPUT_INVALID');assert.equal(r.roundObservations.length,0);
+}
 assert.throws(()=>vm.runInNewContext(code,ctx),/already registered/);
 // Reuse production harness and actual installed conversion/round writers.
 const {loadGame}=require('./harness');let seed=1,draws=0;
