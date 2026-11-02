@@ -94,3 +94,27 @@ stale lifecycle/round/DD/alias/generation, foreign/copied-state handles, ignored
 fields, hidden/accessor input, JSON/frozen output and no state/RNG mutation. Existing
 VC, subsidiary composition and wealth suites remain the compatibility checks. PR/handoff
 record actual final-HEAD CI and browser applicability; no native WebKit claim is implied.
+
+
+## VC source composition in the common ownership snapshot
+
+When called with the explicit VC source-scope index, projectOwnershipSnapshot now
+includes vcSourceEvidence from projectVCSourceSnapshot with the same bound token,
+and vcAliasLinks for the reader's unique source-matched company subsidiary aliases.
+The reference link connects the company's startup fraction source to the matching
+subsidiary source. A personal startup observation remains separate. A conflicting or
+duplicate alias yields no supported link; source diagnostics also enter common issues.
+
+These are source-alias-reference links only: canonical position/issuer, quantity, voting
+and wealth remain null. No VC economic position is appended and no existing listed or
+founder position is replaced, so a subsidiary alias cannot become a second asset.
+The separate vc-source coverage reports source observations; canonical vc coverage
+remains not-implemented. Default/narrow-scope snapshots retain their existing shape.
+No settlement, authority, consumer, save/RNG or UI path changes.
+
+The existing snapshot suite proves same-token source composition, one company alias,
+separate personal source evidence, missing legal/valuation authority, unchanged position
+arrays, conflict/duplicate quarantine, replacement-root and stale-alias rejection,
+JSON/frozen output and source/RNG purity. This source integration does not certify full
+P3-6/P3-8 canonical alias arbitration or writer-family closure. PR/handoff hold the actual
+checks and final-HEAD CI results.

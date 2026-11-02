@@ -851,6 +851,19 @@ function projectOwnershipSnapshot(rawState,identityIndex){
   for(const position of listed.positions)result.sourceReplacements.push({sourcePath:position.sourceRefs[0].path,positionId:position.positionId,resolvedByAdapter:'projectExternalListedHoldings'});
   result.issues=[...listed.issues,...reasons,...player.issues.map(row=>ownershipReason(row.reason,row.sourcePath)),...result.listingObservations.flatMap(row=>row.reasons)];
   result.coverage[0]={family:'player-and-listed',status:result.issues.length?'partial':'observed',personalOwnLot:delegated?'delegated':ownRetained?'retained-unresolved':'absent'};
+  if(indexed.includeVC){
+    const vc=projectVCSourceSnapshot(rawState,index);
+    result.vcSourceEvidence=vc;
+    // These reference links explain a source alias; no canonical position/issuer is inferred.
+    result.vcAliasLinks=vc.observations.filter(row=>row.account==='company'&&row.status==='source-matched'&&
+      row.assetRole==='relationship-only'&&typeof row.aliasSourcePath==='string').map(row=>({
+      startupSourceId:row.startupSourceId,account:'company',sourcePath:row.sourcePath,aliasSourcePath:row.aliasSourcePath,
+      linkRole:'source-alias-reference',canonicalPositionId:null,issuerEntityId:null,quantity:null,votingFraction:null,wealthValue:null,
+      sourceRefs:[{path:row.sourcePath,family:'vc',role:'source'},{path:row.aliasSourcePath,family:'subsidiary',role:'alias'}]}));
+    result.issues.push(...vc.issues.map(row=>ownershipReason(row.code,row.path)));
+    result.coverage.push({family:'vc-source',status:vc.issues.length?'partial':'observed'});
+  }
+
   return freezeOwned(result);
 }
 
