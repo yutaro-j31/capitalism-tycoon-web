@@ -59,3 +59,4 @@ try {
   assert.notEqual(bad.status, 0); assert.equal(bad.stdout, '');
 } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 console.log('cgroup memory observations: PASS (synthetic files only; no workload/cgroup association or qualification)');
+require('./parallel-shard-cgroup-memory-window-test.cjs');

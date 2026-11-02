@@ -41,3 +41,35 @@ local versus hierarchical counters, unknown/missing keys, read failures, malform
 or oversized values, no writes, and incomplete evidence. This adds no production
 parallelism, runner setting or new test-workflow job. Any live local snapshot is
 only that environment's point observation; hosted I remains unqualified.
+
+## Bounded live observation window
+
+```sh
+node scripts/parallel-shard-cgroup-memory-window.cjs /path/to/verified/cgroup 1000
+```
+
+This Linux-only optional CLI holds one read-only directory descriptor across two
+captures separated by1–10000 milliseconds. Reads use `/proc/self/fd` for that
+handle, so a pathname replacement cannot silently substitute a different group.
+Device/inode identity and both raw point records are retained. Missing files after
+removal remain missing. No fallback reopens the original pathname. The tool does
+not run a command, discover the job's group, write/reset counters or change limits.
+The requested window and actual monotonic elapsed time (including capture reads)
+are separate. It is a bounded observation window, not whole-test coverage.
+
+Event deltas compare like-named counters separately for events/localEvents. A
+missing point file is unavailable; new/disappearing keys and decreased counters
+have null deltas with explicit statuses, never zero or a negative event count.
+Unknown keys are preserved. Endpoint counter decreases may indicate reset or
+invalid continuity; resets followed by regrowth between endpoints are not detected.
+`completeEventDeltas` means only that the observed keys can be subtracted. It does
+not establish authentic kernel provenance or prove a workload had no OOM. Source
+files/limits may change during reads. A change in current bytes is signed endpoint
+change, not allocated bytes, peak or pressure. Endpoint max/high changes are
+reported separately; unavailable limit evidence remains null.
+
+The held descriptor pins filesystem identity only within this live call. Job/
+cgroup mapping, mount options, workload causality, peak/parallel qualification
+remain unverified. Missing/error data is retained in both point records. The
+required self-test uses synthetic directories, including a renamed original and a
+replacement at the same path; no hosted I workload or production setting changes.
