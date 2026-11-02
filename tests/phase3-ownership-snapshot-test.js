@@ -105,6 +105,33 @@ assert.equal(state.saveVersion,9);
  const hidden=plain(raw);Object.defineProperty(hidden.startups[0].activeFundingRound,'contributedPersonal',{value:2,enumerable:false});
  assert(api.projectVCSourceSnapshot(hidden).issues.some(i=>i.code==='INPUT_INVALID'));
 }
+// Compose bound VC source/alias explanations without appending duplicate economic positions.
+{
+ const scope='player-listed-and-vc-source-v1',raw=fixture();
+ raw.startups=[{id:'VC',alive:true,subsidiary:true,ownedCompany:.6,ownedPersonal:.1}];
+ raw.subsidiaries=[{id:'vc-sub',startupID:'VC',status:'active',ownership:.6}];
+ const before=JSON.stringify(raw),n=draws,index=api.buildOwnershipIdentityIndex(raw,scope);
+ const r=api.projectOwnershipSnapshot(raw,index),vc=api.projectVCSourceSnapshot(raw,index),narrow=api.projectOwnershipSnapshot(raw);
+ assert(r.vcSourceEvidence);assert.equal(r.vcSourceEvidence.sourceSnapshotToken,r.sourceSnapshotToken);
+ assert.deepEqual(plain(r.vcSourceEvidence),plain(vc));assert.deepEqual(plain(r.positions),plain(narrow.positions));
+ assert.equal(r.vcAliasLinks.length,1);const link=r.vcAliasLinks[0];
+ assert.equal(link.startupSourceId,'VC');assert.equal(link.aliasSourcePath,'subsidiaries[0]');assert.equal(link.sourcePath,'startups[0].ownedCompany');
+ assert.equal(link.linkRole,'source-alias-reference');assert.equal(link.account,'company');
+ for(const key of ['canonicalPositionId','issuerEntityId','quantity','votingFraction','wealthValue'])assert.equal(link[key],null);
+ assert.equal(r.vcSourceEvidence.observations.find(x=>x.account==='personal').assetRole,'economic-interest');
+ assert.equal(r.coverage.find(x=>x.family==='vc').status,'not-implemented','source linkage is not canonical VC completion');
+ assert.equal(narrow.vcSourceEvidence,undefined);assert.equal(narrow.vcAliasLinks,undefined,'narrow contract stays unchanged');
+ assert.equal(JSON.stringify(raw),before);assert.equal(draws,n);frozen(r);assert(!Object.isFrozen(raw));
+ assert.deepEqual(plain(api.projectOwnershipSnapshot(plain(raw),api.buildOwnershipIdentityIndex(plain(raw),scope))).positions,[],'different raw roots reject evidence');
+ const reloaded=plain(raw);assert.deepEqual(plain(api.projectOwnershipSnapshot(reloaded,api.buildOwnershipIdentityIndex(reloaded,scope))),plain(r));
+ for(const change of [x=>x.subsidiaries[0].ownership=.5,x=>x.subsidiaries[0].peDealID='PE',x=>x.subsidiaries.push(plain(x.subsidiaries[0]))]){
+  const bad=plain(raw);change(bad);const result=api.projectOwnershipSnapshot(bad,api.buildOwnershipIdentityIndex(bad,scope));
+  assert.equal(result.vcAliasLinks.length,0);assert(result.issues.some(x=>x.code==='ALIAS_CONFLICT'));
+  assert.deepEqual(plain(result.positions),plain(api.projectOwnershipSnapshot(bad).positions),'conflicts do not mint positions');
+ }
+ const old=api.buildOwnershipIdentityIndex(raw,scope);raw.subsidiaries[0].status='sold';
+ const stale=api.projectOwnershipSnapshot(raw,old);assert.equal(stale.positions.length,0);assert.equal(stale.vcSourceEvidence,undefined);
+}
 console.log('PASS phase3 ownership snapshot: composition, dedup, generation quarantine, scoped tokens, purity and v9 reload');
 
 // P3-4 partial replacement-boundary evidence: production v9 compaction/import/load and an actual rejected transaction.
