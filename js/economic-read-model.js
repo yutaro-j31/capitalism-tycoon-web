@@ -636,7 +636,8 @@ function inspectListedSources(raw,includePlayer=false,includeSubsidiaries=false,
         if(path==='peFirm')fields=['funds'];
         if(/^peFirm\["funds"\]\["[0-9]+"\]$/.test(path))fields=['id','size','gpCommit','lpContributed','status','terms','gpDistributed','lpDistributed','gpCarryPaid','managementFeesPaid','deals','cash'];
         if(/^peFirm\["funds"\]\["[0-9]+"\]\["terms"\]$/.test(path))fields=['fee','carry','hurdle'];
-        if(/^peFirm\["funds"\]\["[0-9]+"\]\["deals"\]\["[0-9]+"\]$/.test(path))fields=['id','status','settlement','fundPortion','coinvestPortion','investedAmount'];
+        if(/^peFirm\["funds"\]\["[0-9]+"\]\["deals"\]\["[0-9]+"\]$/.test(path))fields=['id','status','settlement','fundPortion','coinvestPortion','investedAmount','convertedToSubsidiaryID','exitMethod'];
+        if(/^subsidiaries\["[0-9]+"\]$/.test(path))fields=['id','status','source','sourceType','sourcePEFundID','sourcePEDealID','startupID','peDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredFrom','restructuredWeek'];
       }
       if(fields&&!fields.includes(key))continue;
       if((includeVC||includePEFund)&&!descriptor.enumerable){issues.push(ownershipReason('INPUT_INVALID',path));continue;}
@@ -653,7 +654,7 @@ function inspectListedSources(raw,includePlayer=false,includeSubsidiaries=false,
   for(const key of Reflect.ownKeys(descriptors)){
     if(typeof key!=='string'||!Object.hasOwn(descriptors[key],'value'))issues.push(ownershipReason('INPUT_INVALID','$'));
   }
-  for(const key of ['ticker','currentCompanySerial','isCompanySold','market','startups','personalStocks','companyStocks',...(includePlayer?commonOwnershipFields:[]),...(includeSubsidiaries?subsidiaryOwnershipRoots:[]),...(includeVC?['subsidiaries']:[]),...(includePEFund?['peFirm']:[])]){
+  for(const key of ['ticker','currentCompanySerial','isCompanySold','market','startups','personalStocks','companyStocks',...(includePlayer?commonOwnershipFields:[]),...(includeSubsidiaries?subsidiaryOwnershipRoots:[]),...(includeVC?['subsidiaries']:[]),...(includePEFund?['peFirm','subsidiaries']:[])]){
     if((includeVC||includePEFund)&&Object.hasOwn(descriptors,key)&&!descriptors[key].enumerable)issues.push(ownershipReason('INPUT_INVALID',key));
     if(Object.hasOwn(descriptors,key)&&Object.hasOwn(descriptors[key],'value'))source[key]=copy(descriptors[key].value,key);
   }
@@ -818,14 +819,20 @@ function projectPEFundSourceSnapshot(rawState,identityIndex){
   const indexed=commonOwnershipIndexes.get(index),captured=captureListedSources(rawState,true,false,false,true);
   const empty={authority:'read-only',adapterVersion:1,sourceScope:peFundSourceScope,sourceSnapshotToken:null,
     complete:false,wealthComplete:false,commandEligible:false,fundInterests:[],portfolioParticipations:[],
-    managementRelationships:[],distributionEvidence:[],waterfallTerms:[],issues:[],sourceCoverage:[],valuationStatus:'unknown'};
+    managementRelationships:[],distributionEvidence:[],waterfallTerms:[],parentConversions:[],issues:[],sourceCoverage:[],valuationStatus:'unknown'};
   if(!indexed||!indexed.includePEFund||indexed.rawState!==rawState||!sameListedSources(indexed.source,captured.source)){
     empty.issues.push(ownershipReason('STALE_EVIDENCE','$'));return freezeOwned(empty);
   }
   if(index.issues.length||captured.issues.length){empty.issues.push(...index.issues,...captured.issues);return freezeOwned(empty);}
   const adapter=modules.phase3PeFundInterests;
-  if(typeof adapter?.projectPEFundInterests!=='function'){empty.issues.push(ownershipReason('SOURCE_ADAPTER_UNAVAILABLE','peFirm'));return freezeOwned(empty);}
-  return freezeOwned({...adapter.projectPEFundInterests(indexed.source),sourceScope:peFundSourceScope,sourceSnapshotToken:index.sourceSnapshotToken});
+  if(typeof adapter?.projectPEFundInterests!=='function'||typeof adapter?.projectFundParentConversions!=='function'){
+    empty.issues.push(ownershipReason('SOURCE_ADAPTER_UNAVAILABLE','peFirm'));return freezeOwned(empty);
+  }
+  const interests=adapter.projectPEFundInterests(indexed.source),conversions=adapter.projectFundParentConversions(indexed.source);
+  const issues=Array.from(new Map([...interests.issues,...conversions.issues].map(row=>[`${row.code}\u0000${row.path}`,row])).values())
+    .sort((a,b)=>compareText(a.path,b.path)||compareText(a.code,b.code));
+  return freezeOwned({...interests,parentConversions:conversions.conversions,issues,
+    sourceScope:peFundSourceScope,sourceSnapshotToken:index.sourceSnapshotToken});
 }
 function projectOwnershipSnapshot(rawState,identityIndex){
   const index=identityIndex===undefined?buildOwnershipIdentityIndex(rawState):identityIndex;
