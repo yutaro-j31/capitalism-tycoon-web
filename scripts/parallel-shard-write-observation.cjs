@@ -98,4 +98,5 @@ if (require.main === module) {
   selfTest();
   require('./parallel-shard-write-wrapper-test.cjs');
   require('./parallel-shard-write-worker-test.cjs');
+  require('./parallel-shard-resource-candidates-test.cjs');
 }
