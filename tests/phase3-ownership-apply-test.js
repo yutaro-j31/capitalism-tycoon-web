@@ -17,7 +17,7 @@ vm.runInContext(read('js/phase3-ownership-apply.js'),ctx,{filename:'phase3-owner
 const planner=registry.phase3OwnershipPlanner,api=registry.phase3OwnershipApply,apply=api.applyOwnershipPlan;
 const plain=x=>JSON.parse(JSON.stringify(x));
 
-assert.deepEqual(Object.keys(api).sort(),['ACTIVATION','KINDS','VERSION','applyOwnershipPlan','beginOwnershipLeg','confirmOwnershipLeg']);
+assert.deepEqual(Object.keys(api).sort(),['ACTIVATION','KINDS','VERSION','applyOwnershipPlan','beginOwnershipLeg','confirmOwnershipLeg','insideOwnershipBoundary','withOwnershipBoundary']);
 assert.equal(api.ACTIVATION,'disabled');assert.ok(Object.isFrozen(api));
 assert.deepEqual(plain(api.KINDS),['personal-buy','personal-sell','founder-sale','external-issue','buyback','split']);
 assert.equal(planner.applyOwnershipPlan,undefined,'the planner stays read-only');
@@ -149,7 +149,7 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  const routed=sources.filter(f=>read('js/'+f).includes('beginOwnershipLeg'));
  assert.deepEqual(routed,['engine.js','expansion.js','ma-acquisition-financing.js','ma-deal-room.js','personal-stock-margin.js','player-crisis-actions.js','player-crisis-turnaround-fund.js','shareholder-returns.js']);
  assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,3,'expansion.js: W-SPLIT, W-FOUNDER-SALE and W-INVESTOR only');
- assert.equal((read('js/engine.js').match(/beginOwnershipLeg\(/g)||[]).length,3,'engine.js: W-BUY, W-SELL and the W-IPO-CHAIN base only');
+ assert.equal((read('js/engine.js').match(/beginOwnershipLeg\(/g)||[]).length,4,'engine.js: W-BUY, W-SELL, the W-IPO-CHAIN base and the W-ACQUIRE-COMPAT legacy share swap only');
  assert.equal((read('js/ma-acquisition-financing.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'ma-acquisition-financing.js: W-MA-EQUITY/SH only');
 
  assert.equal((read('js/personal-stock-margin.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'personal-stock-margin.js: W-MARGIN-LIQ forced own-share sale only');

@@ -211,8 +211,8 @@ not apply to it. The leg sits in the base `executeIPO`, which production reaches
 (difficulty → PE network → PE fund wrappers) whose outer transaction is the boundary.
 
 The forced margin sale is a weekly writer: a mismatch refuses the whole week. Each own-ticker raw sale plans against
-the state the previous sale left. The exported `liquidate` / `processWeek` called directly, outside a transaction, keep
-the documented boundary gap and stay unchecked; closing it is a separate atomicity change.
+the state the previous sale left. Since the G3/G4 bypass closure below, the exported `liquidate` / `processWeek` called
+directly, outside a transaction, open their own boundary, so those legs are checked as well.
 
 ## Limits
 
@@ -234,7 +234,8 @@ no new transaction or standalone atomicity guarantee.
 `settle` plans the external-issue leg before changing issued shares and confirms after the existing quantity, fund
 metadata, own listing mirror and ownership-ratio writes. A mismatch throws into the canonical weekly transaction.
 It does not skip the ratchet, book a cash receipt, change dilution, invent a registered fund holder, save independently,
-or activate `applyOwnershipPlan`. Direct settlement outside a transaction remains unchecked as before.
+or activate `applyOwnershipPlan`. Since the G3/G4 bypass closure below, a direct settlement outside a transaction opens
+its own boundary and is checked.
 
 `turnaround-ratchet-listed-mirror-test` proves first-generation listed and unlisted normal weeks, a one-share skew
 with a consistent mirror refused with full live/RNG/mirror/cache/durable rollback, fresh durable-only hydration,
@@ -242,3 +243,42 @@ unskewed retry, terminal idempotence and the next ordinary week. Second-generati
 The registered canonical week save-fault and actual WebKit suites remain applicable; success never relies on repairing
 an invalid input mirror in the verifier. #1211 is a prerequisite: a stale listed mirror would otherwise falsely block
 this deterministic weekly writer on every retry. Genuine corrupt writer output is still refused by design.
+
+### G3/G4 bypass closure (step 2 of the activation readiness memo)
+
+[PHASE_3_P3_4_ACTIVATION_READINESS.md](PHASE_3_P3_4_ACTIVATION_READINESS.md) G3 and G4 listed raw entries that could
+write player-common facts without a planned leg. The Owner approved closing them on 2026-11-03. Each now follows one
+rule: no player-common write outside a boundary.
+
+| Entry | Writer | Behaviour now |
+| --- | --- | --- |
+| Base `executeIPO` (`js/engine.js`) | W-IPO-BASE | Called directly outside a boundary, it opens its own transaction, so the IPO leg plans. The installed chain is unchanged. |
+| Ratchet `settle` (`js/player-crisis-turnaround-fund.js`) | W-TURNAROUND-RATCHET | Same: a direct call opens its own transaction. The installed week is unchanged. |
+| `liquidate` / `processWeek` (`js/personal-stock-margin.js`) | W-MARGIN-LIQ / W-MARGIN-RAW | Same: a direct call opens its own transaction, so each own-ticker raw sale's leg plans. The installed week is unchanged. |
+| `issueSharesToExternalHolders` (`js/engine.js`) | W-ISSUE-RAW | An internal helper: it throws outside a transaction or shadow boundary and writes nothing. The deal room calls it inside its transaction. The equity-raise wrapper now marks its shadow engine as the boundary (`ownershipShadowBoundary`), which it already was. |
+| Base `buybackOwnShares` (`js/engine.js`) | W-BUYBACK-BASE | Refuses and writes nothing. `js/shareholder-returns.js` installs the routed buyback (W-BUYBACK) over it. The legacy settlement had no leg and is removed. |
+| Legacy `acquireTarget(…, 'shareSwap')` (`js/engine.js`) | W-ACQUIRE-COMPAT | Routed: a direct call opens its own transaction, and the issuance plans its own `external-issue` leg (operation `acquire-target-share-swap-<target>`). The planner moves W-ACQUIRE-COMPAT from `INTERNAL_ENTRY` to the supported writers, for a listed company only, like W-SHARE-SWAP. Its acquisition, accounting and PMI outcomes are unchanged. Cash acquisitions are unchanged. |
+
+The shared helper is `phase3OwnershipApply.withOwnershipBoundary(engine, work)`. Inside a boundary it runs the work as
+is. Outside one it runs the work in `engine.runTransaction`, and a `null`, `undefined` or `false` result commits nothing,
+so an inert direct call neither saves nor emits. An object without `runTransaction`, such as a state-only stub, cannot
+plan a leg and runs as is.
+
+No supported outcome changes. The installed command and weekly paths were already inside a boundary, and the legacy share
+swap keeps its outcome. Only the base buyback is removed: it had no UI caller, and its legacy settlement had no leg, no
+treasury book and no whole-yen rounding. The tests that drove it now assert the refusal and that nothing is written or
+persisted (`tests/shareholder-buyback-save-atomicity-test.js`, `tests/player-own-share-conservation-test.js`).
+
+Two direct-call test contracts change on purpose:
+
+- A margin pass called outside the week now commits once at the end of its own boundary, never per lot
+  (`tests/player-own-share-conservation-test.js`). A call with no margin balance opens no boundary.
+- The raw issuance helper is called inside `runTransaction` in two fixtures
+  (`tests/activate-defense-ownership-ratios-test.js`, `tests/competitor-stake-float-test.js`).
+
+`tests/p3-4-raw-entry-boundary-test.js` and the new direct-call cases in `tests/player-own-share-conservation-test.js`
+show that a skewed direct call of each command entry (base IPO, legacy share swap, ratchet, margin) is refused and
+rolled back. Both fail with the production change
+reverted.
+
+This closes G3 and G4 only. Generation 2+ (G1), replacement (G2), the competitor stake (G6) and activation stay deferred.

@@ -289,6 +289,7 @@ const nodeTests = [
   ['week-transaction-atomicity', 'tests/week-transaction-atomicity-test.js'],
   ['player-crisis-turnaround-ratchet-week-rollback', 'tests/player-crisis-turnaround-ratchet-week-rollback-test.js'],
   ['turnaround-ratchet-listed-mirror', 'tests/turnaround-ratchet-listed-mirror-test.js'],
+  ['p3-4-raw-entry-boundary', 'tests/p3-4-raw-entry-boundary-test.js'],
   ['reload-canonical-state', 'tests/reload-canonical-state-test.js'],
   ['simulation-rng', 'tests/simulation-rng-test.js'],
   ['simulation-long-run-reload-fork', 'tests/simulation-long-run-reload-fork-test.js'],

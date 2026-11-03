@@ -160,8 +160,8 @@ function sellPersonalStockRaw(state,stockID,qty,engine){
   const quote=stockOrderQuote(stock,Math.min(Math.floor(qty),Math.floor(finite(holding.qty))),'sell');
   if(quote.filledQty<1)return 0;
   // P3-4 verification leg (W-MARGIN-LIQ, through this raw helper): each forced sale of the player's own shares must
-  // leave the planned lot. It plans only inside a transaction (the installed week); a mismatch throws, so the whole
-  // week is refused and rolled back. A direct call outside a transaction stays unchecked.
+  // leave the planned lot. It plans inside the installed week's transaction, or inside the transaction liquidate() and
+  // processWeek() open when called directly (G4); a mismatch throws, so the whole boundary is refused and rolled back.
   const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=engine&&stockID===state.ticker
     ?ownership.beginOwnershipLeg(engine,{writerId:'W-MARGIN-LIQ',kind:'personal-sell',
       operationId:`margin-liquidation-${stockID}-${Math.floor(finite(state.week))}`,change:{quantity:quote.filledQty}}):null;
@@ -179,7 +179,14 @@ function sellPersonalStockRaw(state,stockID,qty,engine){
 
 // Forced settlement: sell down personal holdings, largest first, until the loan is covered or
 // the portfolio is exhausted. Any shortfall follows the borrower into personalDebt.
+// G4: a direct call outside a boundary runs inside the engine's own transaction, so each raw sale's leg plans. With no
+// loan there is nothing to sell, so that inert call runs as before and opens no boundary (no save, no emit).
+function hasMarginBalance(engine){return finite(engine?.g?.personalMarginLoan?.balance)>0;}
 function liquidate(engine){
+  if(!hasMarginBalance(engine))return liquidateInBoundary(engine);
+  return globalThis.__capitalismTycoonModules.phase3OwnershipApply.withOwnershipBoundary(engine,()=>liquidateInBoundary(engine));
+}
+function liquidateInBoundary(engine){
   const state=engine.g;
   const loan=ensure(state);
   if(loan.balance<=0)return {raised:0,repaid:0,shortfall:0};
@@ -221,7 +228,12 @@ function liquidate(engine){
 // Called once per week from the personal-property weekly loop. No random numbers: interest is
 // a pure function of balance and rate, and the margin-call trigger is a pure function of
 // balance vs. whatever the market pass already set stock prices to this week.
+// G4: as liquidate(), a direct call outside a boundary runs inside the engine's own transaction.
 function processWeek(engine){
+  if(!hasMarginBalance(engine))return processWeekInBoundary(engine);
+  return globalThis.__capitalismTycoonModules.phase3OwnershipApply.withOwnershipBoundary(engine,()=>processWeekInBoundary(engine));
+}
+function processWeekInBoundary(engine){
   const state=engine.g;
   const week=Math.floor(finite(state.week));
   const loan=ensure(state);
@@ -242,7 +254,7 @@ function processWeek(engine){
     loan.interestCapitalized=finite(loan.interestCapitalized)+unpaid;
   }
 
-  if(currentLTV(state)>MAINTENANCE_LTV)return {interest,paid,unpaid,liquidated:true,...liquidate(engine)};
+  if(currentLTV(state)>MAINTENANCE_LTV)return {interest,paid,unpaid,liquidated:true,...liquidateInBoundary(engine)};
   return {interest,paid,unpaid,liquidated:false,balance:loan.balance,ltv:currentLTV(state)};
 }
 

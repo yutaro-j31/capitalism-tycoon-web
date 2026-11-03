@@ -175,7 +175,12 @@ function ratchetSharesFor(state){
  const sharesOut=Math.max(1,finite(state.sharesOut,1));
  return Math.max(1,Math.round(sharesOut*RATCHET_EQUITY/(1-RATCHET_EQUITY)));
 }
+// G3: the installed week calls settle() inside its transaction. A direct call outside a boundary runs inside the
+// engine's own transaction, so the ratchet leg plans and a mismatch rolls back.
 function settle(instance){
+ return modules.phase3OwnershipApply.withOwnershipBoundary(instance,()=>settleInBoundary(instance));
+}
+function settleInBoundary(instance){
  const state=instance.g,fund=ensure(state);
  if(fund.status!=='active')return null;
  const plan=turnaroundPlan.ensure(state);

@@ -11,10 +11,12 @@ const supported={
  'W-SPLIT':['split'],'W-FOUNDER-SALE':['founder-sale'],'W-INVESTOR':['external-issue'],
  'W-IPO-CHAIN':['ipo'],'W-SHARE-SWAP':['external-issue'],'W-MA-EQUITY/SH':['external-issue'],
  'W-BUYBACK':['buyback'],'W-SPONSOR':['external-issue'],'W-TURNAROUND-ACCEPT':['external-issue'],
- 'W-TURNAROUND-RATCHET':['external-issue']
+ 'W-TURNAROUND-RATCHET':['external-issue'],
+ // The legacy acquireTarget share swap, routed by the G3 bypass closure (listed company only, as W-SHARE-SWAP).
+ 'W-ACQUIRE-COMPAT':['external-issue']
 };
 const groups={
- INTERNAL_ENTRY:['W-MARGIN-RAW','W-IPO-BASE','W-ISSUE-RAW','W-ACQUIRE-COMPAT','W-BUYBACK-BASE'],
+ INTERNAL_ENTRY:['W-MARGIN-RAW','W-IPO-BASE','W-ISSUE-RAW','W-BUYBACK-BASE'],
  REPLACEMENT_UNSUPPORTED:['W-INIT','W-NEW-COMPANY','W-LOAD-NORMALIZE','W-LOAD-IMPORT','W-COMPACTION','W-RESTORE/SH-REPLACE'],
  NO_COMMON_QUANTITY_CHANGE:['W-INVESTOR-AUX','W-RATIOS','W-DECLINE','W-DIV-SET','W-DIV-PAY','W-WEEK-MARKET','W-WEEK-EXPANDED','W-EARNINGS','W-CAPALLOC-PRICE'],
  HOLDER_UNPROVEN:['W-DEFENSE','W-WEEK-COMPETITOR'],
@@ -155,7 +157,7 @@ function planOwnershipChange(state,intent){try{
  const before=evidence.quantities,pre=exact(field(expected,'quantities','intent.expected'),BUCKETS,'intent.expected.quantities');
  for(const k of BUCKETS){quantity(before[k],`before.${k}`,true);if(quantity(field(pre,k,'intent.expected.quantities'),`expected.${k}`,true)!==before[k])fail('STALE_SOURCE',`intent.expected.quantities.${k}`,'Expected quantity differs.');}
  if(before.outstanding===0)fail('DENOMINATOR_UNSUPPORTED','before.outstanding','Planning requires a positive existing outstanding quantity.');
- const publicOnly=kind!=='external-issue'||['W-SHARE-SWAP','W-MA-EQUITY/SH'].includes(writerId);
+ const publicOnly=kind!=='external-issue'||['W-SHARE-SWAP','W-MA-EQUITY/SH','W-ACQUIRE-COMPAT'].includes(writerId);
  if(kind==='ipo'?evidence.publicCompany:publicOnly&&!evidence.publicCompany)fail('LIFECYCLE_UNSUPPORTED','state.publicCompany','Listing lifecycle does not match the command.');
  const change=field(intent,'change','intent'),after=Object.fromEntries(BUCKETS.map(k=>[k,before[k]]));let listingRequirement=null;
  const changed=kind==='split'?BUCKETS:kind.startsWith('personal-')?['personalOwnShares']:kind==='founder-sale'?['founderShares']:kind==='buyback'?['treasuryBuybackShares']:kind==='ipo'?['sharesOut','founderShares']:['sharesOut'];

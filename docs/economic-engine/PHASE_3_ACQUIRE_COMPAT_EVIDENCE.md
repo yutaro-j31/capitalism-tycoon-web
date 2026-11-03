@@ -33,3 +33,11 @@ unchanged. No new transaction/rollback framework, economic policy or settlement 
 Partial Node/fake-IDB only: not all helper/caller/fault/compaction/browser paths, native WebKit or physical iPhone,
 whole-family S_PASS, Authority Cutover, Phase3 formal Exit or Phase4 Entry. SAVE_KEY/saveVersion9, old-save loader,
 production, test registration, WorkB CI/runner/config/workflow and vNext are untouched.
+
+## Routed by the G3 bypass closure
+
+Since the G3/G4 bypass closure ([PHASE_3_P3_4_OWNERSHIP_APPLY.md](PHASE_3_P3_4_OWNERSHIP_APPLY.md)), `W-ACQUIRE-COMPAT` is
+a supported planner writer (`external-issue`, listed company only), no longer `INTERNAL_ENTRY`. The captured body plans
+its own leg inside the caller transaction above, and the cases here are unchanged: the same issuance, accounting,
+rollback and replay oracles pass with the leg in place. A direct call outside any transaction now opens its own
+boundary; `tests/p3-4-raw-entry-boundary-test.js` shows a skewed direct share swap refused and rolled back.
