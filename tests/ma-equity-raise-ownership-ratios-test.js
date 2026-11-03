@@ -52,5 +52,47 @@ const money=g=>({cash:g.companyCash,debt:g.companyDebt,personal:g.personalCash,s
  // 5. Deterministic.
  {const a=await scenario(),b=await scenario();a.game.closeMADeal(a.deal.id);b.game.closeMADeal(b.deal.id);
   const eco=x=>{const c=snapshot(x);delete c.lastSaveDate;delete c.saveSequence;return JSON.stringify(c);};assert.equal(eco(a.game),eco(b.game),'deterministic');}
+ // 6. P3-4 verification leg (W-MA-EQUITY/SH), planned on the financing wrapper's shadow engine: with the listing's own
+ // market row present, the raise issues exactly the computed shares and mirrors them on that row; an issued-share write
+ // skewed by one share is refused and the whole financed closing is rolled back (nothing durable); a second-generation
+ // company keeps the existing closing.
+ async function listed(serial=1){
+  const s=await scenario(),g=s.game.g;g.currentCompanySerial=serial;
+  g.market=g.market.filter(x=>x.id!==g.ticker);g.market.push({id:g.ticker,name:g.companyName,price:1000,issuedShares:g.sharesOut,marketCap:1000*g.sharesOut,priceHistory:[{week:g.week,price:1000}]});
+  assert.equal(s.game.save(),true);await s.modules.saveStorageIDB.flush();return s;
+ }
+ {const s=await listed(),g=s.game.g,before=g.sharesOut;
+  assert.equal(s.modules.phase3OwnershipPlanner.inspectOwnershipAuthority(g,{family:'player-common',issuerEntityId:'entity:company:player',securityClassId:'security:player-company:common',currentCompanySerial:1}).status,'OBSERVED','listed: the leg is plannable');
+  assert.equal(s.game.closeMADeal(s.deal.id),true,'listed: financed closing');
+  assert.equal(g.sharesOut,before+20000,'listed: exactly the computed new shares');
+  const own=g.market.find(x=>x.id===g.ticker);assert.equal(own.issuedShares,g.sharesOut,'listed: own market row mirrors the issued quantity');}
+ {const s=await listed(),prior=JSON.stringify(s.game.g),bytes=s.modules.saveStorageIDB.readSync(s.key),ratios=s.game.updateOwnershipRatios;
+  s.game.updateOwnershipRatios=function(...args){this.g.sharesOut+=1;return ratios.apply(this,args);};
+  assert.equal(s.game.closeMADeal(s.deal.id),false,'a skewed issued-share write is refused');
+  assert.equal(JSON.stringify(s.game.g),prior,'and the whole financed closing is rolled back');
+  await s.modules.saveStorageIDB.flush();assert.equal(s.modules.saveStorageIDB.readSync(s.key),bytes,'nothing durable');
+  s.game.updateOwnershipRatios=ratios;assert.equal(s.game.closeMADeal(s.deal.id),true,'the unskewed retry commits');}
+ // The custom wrapper owns the whole shadow closing, not just executeFinancing. A later shadow write must also be
+ // checked before publication. finance.validate is the final real closing stage and share counts are not book values.
+ {const s=await listed(),prior=JSON.stringify(s.game.g),bytes=s.modules.saveStorageIDB.readSync(s.key),validate=s.modules.finance.validate;
+  let hits=0;
+  s.modules.finance.validate=function(state,...args){
+   if(state!==s.game.g&&state.sharesOut===1000000+20000){
+    state.founderShares-=1;hits++; // simulate an inner closing writer, after the issuance leg
+   }
+   return validate.call(this,state,...args);
+  };
+  assert.equal(s.game.closeMADeal(s.deal.id),false,'a later shadow closing bucket write is refused before live replacement');
+  assert(hits>0,'the final shadow stage was reached');
+  s.modules.finance.validate=validate;
+  assert.equal(JSON.stringify(s.game.g),prior,'later shadow skew rolls the entire closing back');
+  await s.modules.saveStorageIDB.flush();
+  assert.equal(s.modules.saveStorageIDB.readSync(s.key),bytes,'later shadow skew leaves cache unchanged');
+  assert.equal(s.durable.get(s.key),bytes,'later shadow skew leaves durable state unchanged');
+  assert.equal(s.game.closeMADeal(s.deal.id),true,'unskewed full closing retry commits');}
+ {const s=await listed(2),ratios=s.game.updateOwnershipRatios;
+  s.game.updateOwnershipRatios=function(...args){this.g.sharesOut+=1;return ratios.apply(this,args);};
+  assert.equal(s.game.closeMADeal(s.deal.id),true,'second generation keeps the existing closing (unchecked)');}
+ console.log('equity raise P3-4 verification leg: listed issuance + mirror, skewed write refused and rolled back, second generation unchanged PASS');
  console.log('M&A equity raise ownership ratios PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

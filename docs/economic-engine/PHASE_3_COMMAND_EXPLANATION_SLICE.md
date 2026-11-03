@@ -43,3 +43,24 @@ No engine method, UI button, proposal/resolution lifecycle, durable receipt, new
 is enabled. The existing financial writers and permissions remain authoritative. P3-4 family closure and explicit
 Authority Cutover, concrete P3-10 effect/issuer/accounting permissions, formal P3-12 acceptance and Phase 4 Entry remain
 separate approvals. This API must not be used as an authorization guard: its executable field is always false.
+
+## Partial state-replacement integration evidence
+
+Baseline: `1d73f146b056671a70d75feb617ad1281cc058a0`. The same registered control-eligibility suite additionally
+uses production reconciliation and the existing v9 critical-compaction/import path. The fixture has150legacy
+founder shares plus1personal own share out of300; ordinary-resolution eligibility is ELIGIBLE. Importing149legacy
+plus1personal share replaces the root and changes the freshly explained eligibility to INELIGIBLE at exactly half.
+A rejected existing transaction briefly restores151/300, then must restore the entire imported state and150/300
+explanation with no candidate put. Production reload and fresh durable-only fake-IDB must explain the same result.
+
+Every explanation stays non-executable/NOT_AUTHORIZED with both authority/effect blockers, even with an asset-sale
+payload. Each read preserves full state/RNG, request and mirror/cache/durable bytes and admits no put; save, emit,
+finance posting and clock are trapped, with actual VM intrinsics restored afterward. Fresh-VM host RNG is trapped.
+Both cash accounts remain unchanged across import/hydration. Existing synthetic/catalog/boundary tests remain.
+
+This pure API explains its supplied snapshot: an earlier snapshot may still explain earlier eligibility and remains
+non-executable. It is not a live-state/stale-index authorization guard. Current consumers must obtain current evidence;
+future executable commands still require their separate in-transaction revalidation contract. This adds partial
+read-only integration evidence for acceptance preparation, not a formal P3-12 gate, command/UI enablement, family
+S_PASS, Authority Cutover, Phase3 Exit, Phase4 Entry, native WebKit or physical-iPhone proof. Production and WorkB
+CI/runner/registration/vNext files are unchanged.

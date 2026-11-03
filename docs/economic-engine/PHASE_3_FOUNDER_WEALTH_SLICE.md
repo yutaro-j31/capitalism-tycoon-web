@@ -38,7 +38,8 @@ An invalid raw root returns `INPUT_INVALID` at `rawState`. Reasons are sorted by
 | `liability:margin` | `personalMarginLoan.balance` | An outside-aggregate identity. |
 | `liability:untracked-property-loan:*` | personal `realEstateMarket` loans that are not `accountingTracked` | Unknown (`LIABILITY_COVERAGE_UNKNOWN`). |
 | `asset:vc-personal:*`, `asset:angel:*` | P3-8 personal observations; active angel rows | Unvalued (`VALUATION_INCOMPLETE`). |
-| `asset:pe-interests` | personal `peDeals` rows plus P3-7 `projectPEFundInterests` GP fund interests | Always unvalued. A GP contribution ratio is not NAV or title to fund assets. Paid distributions/carry are excluded as already-paid cash. |
+| `asset:pe-direct:<source ID>` | P3-7 `projectPEOwnership` accepted personal direct position + captured `peDeals.currentValuation` | Owner-stake value once, without multiplying by the ownership fraction again. Unique active personal source, no conflicting mirror claim and finite non-negative value required. |
+| `asset:pe-interests` | unresolved personal `peDeals` rows plus P3-7 `projectPEFundInterests` GP fund interests | Always unvalued. Accepted direct positions appear only in their dedicated component. A GP contribution ratio is not NAV or title to fund assets. Paid distributions/carry are excluded as already-paid cash. |
 
 Company-owned stocks, startup fractions and PE deals appear only as `company-owned` exclusions. They are never personal amounts.
 
@@ -49,7 +50,7 @@ Only an explicit `currency === 'JPY'` is accepted on valuation and liability ent
 ## Deferred, with reasons
 
 - **A complete total.** `totalNetWorth` is null and `complete` is false in every state this slice can see. Three components are always unknown:
-  - PE: fund NAV, liabilities and waterfall/carry are under OD-05, and P3-9 entitlement is not merged.
+  - PE: fund NAV, liabilities and waterfall/carry remain under OD-05; read-only control eligibility is not a valuation policy.
   - Unadapted personal families: personal real-estate holdings, investments, luxury assets, sports teams, the personal real-estate corporation and the family trust. Contract §4 says raw personal components need separate approval, and family/trust fractions are under OD-05.
   - Unreconciled liability coverage: mortgages on personal real-estate holdings, corporation and trust liabilities. Phase 4 debt identity is not adopted, and P4-AUD-003–008 remain external.
 - **Private Equity Value source (OD-04).** No production producer exists, and legacy `companyValue` is not accepted as Equity Value. In game, a private own company stays unknown. Caller-supplied `externalEvidence.valuations` (own company only, with explicit coverage lists) and `externalEvidence.liabilities` are bound at capture time as `provenance:'supplied'`. This exercises the fixed formulas, EV rejection and the currency gate until Phase 6 supplies a real source.
@@ -89,3 +90,258 @@ Real WebKit and physical iPhone are not claimed. No UI is added.
 - **Repeated founder-loan identities:** they collapse to one unknown `ALIAS_CONFLICT` component, regardless of input order.
 - **Malformed rows in a repeated identity:** a malformed supplied liability with a valid key keeps its identity claim through grouping. It still reports `INPUT_INVALID` under `liabilityEvidence`, and it turns the whole identity into one unknown `ALIAS_CONFLICT` component, including a captured row of that identity. A lone malformed row only reports `INPUT_INVALID`.
 - **Coverage that overlaps other claims:** supplied Equity Value `coveredAssets` are checked against the other asset claims, and `coveredLiabilities` against the personal liability claims (exact key, or a parent/child path). Any overlap leaves own-company and every overlapped component unknown with `ALIAS_CONFLICT`, because counting both would recognize the same economics twice. A company payable covered inside Equity Value is not matched against the founder's receivable, since they are distinct legal positions (contract §6). Coverage that names nothing else projected is unaffected.
+
+
+## Direct personal PE component extension — 2026-11-01
+
+Base: `9ef31b1f20b1c0e6d4acfeaa9157128bf2132243`. The P3-11 contract §3/§8
+and P3-7 §3 already define legacy direct `currentValuation` as the owner's stake
+value. This extension connects that existing basis; it defines no fund NAV or new
+settlement policy and does not depend on the company mirror precision fix #1260.
+
+The trusted capture now includes direct PE amount/fraction/link facts and the minimal
+M&A/overseas subsidiary alias claims. It calls the existing pure P3-7 ownership adapter
+on that detached view. Only accepted personal direct positions receive a dedicated
+`stakeValue` entry and `asset:pe-direct:<encoded source ID>` component. Company holdings,
+exited/sold stakes, duplicate identities, unknown owners/fractions and contradictory
+mirror links never add a personal amount. Unresolved direct ownership retains adapter
+reason codes in the aggregate unknown component. Invalid/missing amounts and positive
+values with a zero economic fraction remain unknown, never a fabricated zero.
+
+The new source fields participate in committed-snapshot binding: a same-week valuation,
+owner, fraction, lifecycle or mirror-link change invalidates prior evidence before
+arithmetic. Supplied Equity Value coverage is checked against the direct claim through
+the existing overlap gate. Descriptor validation rejects valuation getters without
+executing them. An installed personal acquisition verifies the same source semantics.
+
+No UI, consumer, credit limit, `personalNetWorth`, save field, writer, RNG or receipt
+changes. Total wealth remains incomplete because unadapted personal/fund assets and
+liabilities are unresolved. Existing registered founder-wealth tests are extended;
+no duplicate test registration or workflow change is introduced. This is a pure
+read-model extension; targeted new WebKit/IndexedDB behavior is not introduced.
+
+
+## Personal investment inventory (partial P3-11 §3)
+
+The trusted capture additionally binds `personalInvestments` ID, currentValue,
+optional explicit owner/account and lifecycle fields. Installed buy/weekly/sell
+writers maintain this personal-only current inventory; its `currentValue` is a gross
+JPY source mark. One unique supported personal row contributes once as
+`asset:personal-investment:<encoded durable ID>` with basis `reportedCurrentValue`.
+Principal is not added again. This value is not a promise of redemption proceeds:
+whole-yen settlement and contingent performance carry remain in the existing writer.
+
+Missing/invalid amounts or IDs, duplicate IDs, conflicting explicit ownership and
+unsupported lifecycle leave the component unknown; duplicate IDs produce one
+unvalued claim with every source reference. These captured source facts participate
+in the existing same-revision token boundary and Equity Value coverage conflict gate.
+No investment history is reconstructed, no asset or receipt is persisted, and no
+wealth/credit/progression/UI consumer changes. Other unsupported personal families
+and liability coverage keep totalNetWorth null and completeness false.
+
+The existing canonical wealth suite covers RED/GREEN, invalid inputs/identity,
+getter non-execution, stale marks, duplicate attribution, coverage overlap,
+JSON/frozen purity and installed bond purchase/redemption. Native browser or writer
+fault coverage is not newly claimed for this pure projection addition; see PR/#909
+for executed focused checks and exact final-HEAD CI.
+
+
+## Luxury inventory (partial P3-11 §3)
+
+The same captured personal-inventory mark calculation now supports `luxuryAssets`
+independently of investment products, using `asset:personal-luxury:<encoded ID>`.
+The installed store and auction writers add current personal holdings; sell removes
+the holding. Only unique supported personal rows with valid gross `currentValue`
+contribute. Purchase price is not added again. Equal IDs or names across different
+collections do not establish an alias; source-family identity remains explicit.
+
+Gross current marks are not liquidation proceeds: the existing sell writer's 95%
+conversion and yen rounding remain unchanged. The reader calls no auction/store,
+weekly, sale, save or RNG helper. Duplicate/missing identity, invalid value,
+conflicting explicit owner/account or unsupported lifecycle stay unknown. The same
+revision token and Equity Value coverage gate protect this family as well. Other
+unadapted families and liability gaps keep the total incomplete, with no UI/credit/
+progression consumer switch or new valuation policy.
+
+Existing canonical wealth tests cover new-family RED/GREEN, separate collections,
+duplicate quarantine, source changes/getters, frozen/JSON purity and actual luxury
+purchase→projection→sale with unchanged sale proceeds. PR/#909 record executed focused
+checks and exact final-HEAD CI; no new native WebKit/persistence proof is claimed.
+
+
+## Sports team inventory (partial P3-11 §3)
+
+The captured mark calculation supports `sportsTeams.value` as a separate gross JPY
+source mark in `asset:personal-sports:<encoded ID>`. Unlike the personal-only investment
+and luxury collections, this is a mixed-account inventory: only explicit `owner=personal`
+with consistent optional account evidence can contribute. A unique consistent company
+row is excluded from direct personal wealth and remains indirect through parent equity.
+Missing/unknown ownership stays unvalued; no legacy default owner is invented.
+
+Identity grouping precedes company exclusion, so duplicate IDs across personal/company
+rows cannot select a convenient owner or value. Unknown identity/lifecycle/value and
+coverage conflicts remain unresolved. Sale listings/offers are not another asset or a
+price source. Source value is not predicted sale cash, and no sports writer, fee model,
+RNG, accounting, save or consumer is changed. Existing revision/coverage gates apply;
+other personal families and liability gaps keep the global total incomplete.
+
+The existing canonical wealth suite covers source-account separation, duplicate owner
+conflicts, missing/invalid evidence, stale ownership, getters, frozen/JSON purity,
+parent coverage overlap and installed personal/company team purchases followed by
+personal disposal. PR/#909 retain exact executed checks and CI; no new native WebKit
+or writer persistence proof is claimed for this pure read-only extension.
+
+
+## Personal property catalog (partial P3-11 §3)
+
+The trusted capture supports the separate `personalRealEstateHoldings` catalog using
+its purchase-specific `assetID`, not its reusable offer `id`. Unique current `owned`
+rows with supported direct personal title contribute gross `currentValue` as
+`asset:personal-property:<encoded assetID>`. Repeated purchases of one catalog offer
+remain distinct. Identity grouping occurs before lifecycle exclusion: duplicate
+owned/sold rows are unresolved rather than selecting a convenient value. Unique sold
+or foreclosed rows are historical, not retained assets.
+
+A true or malformed `ownerCorp` marker prevents direct personal valuation; corporation
+beneficial interest/NAV stays unvalued. Absent/false markers follow the installed direct
+purchase/withdrawal source boundary without calling its mutating helpers. Explicit
+owner/account conflicts stay unknown. Revision and parent coverage gates apply.
+
+This is gross property evidence, not sale cash or net equity. No mortgage/tax principal
+is defaulted to zero or deducted speculatively: liability coverage remains explicitly
+incomplete, and totalNetWorth remains null. The general properties inventory, corporate
+interest and trust still need their own evidence. No writer, ledger, pricing, save,
+RNG or consumer/UI changes. The canonical wealth suite covers duplicate catalog offers,
+asset-ID conflicts, current/historical/corporate transitions, invalid/getter/frozen/JSON
+inputs, stale ownership, coverage overlap and actual purchase→corp contribution→
+withdrawal→sale. PR/#909 record executed checks and exact CI; no new native WebKit or
+writer persistence proof is claimed.
+
+
+## General property inventory (partial P3-11 §3)
+
+The separate `properties` collection now contributes gross `value` source marks only
+for unique explicit personal ownership, under `asset:personal-general-property:<ID>`.
+Company holdings are excluded from direct personal wealth; a unique explicit null
+owner is unowned market inventory and is excluded. Missing/unknown owner is unresolved,
+never defaulted to personal. Duplicate owned/unowned/company IDs are grouped before
+exclusion. The general inventory and personal catalog remain distinct families; names
+or coincident IDs alone do not establish a cross-collection alias.
+
+The reader uses no valuation helper and does not substitute book/purchase/sale price.
+Gross source value is not liquidation proceeds or net equity. Mortgage/tax completeness,
+corporate interest and trust remain unknown, preserving null totalNetWorth. The existing
+revision and Equity Value coverage conflict gates apply; writers, settlement/save/RNG
+and wealth/credit/UI consumers are unchanged.
+
+The canonical wealth suite covers account/market separation, duplicate/invalid claims,
+stale ownership/getters, frozen/JSON purity, parent coverage overlap and actual installed
+personal/company purchases followed by sale. The Phase0.5 lexical candidate declaration
+is updated for the additional properties token after source review; exactAuthority is
+unchanged. PR/#909 retain executed checks and exact CI, with no new native WebKit claim.
+
+
+## Personal real-estate corporation evidence (partial P3-11 §3/§18)
+
+`asset:personal-real-estate-corporation` separates corporate source evidence from the
+founder's direct cash and property marks. Capture binds the raw establishment flag,
+corporate cash and selected corporate-held property source links. The component reports
+finite non-negative `reportedCash` only as source metadata, explicit cash status/reasons,
+and `entity-asset-reference` links for owned properties with a true ownerCorp marker.
+No holding identity or corporate beneficial ownership is certified; coverage is partial.
+Missing/invalid cash remains null without a default or normalizer.
+
+The component's beneficialOwnerEntityId and amountJPY remain null, as do NAV and every
+linked property's personalWealthValue. Ownership, liabilities and corporate valuation
+are unproven: no corporate cash/underlying property is added to personal cash or the
+known subtotal. The remaining generic unadapted family is trust. This is an explicit
+unvalued component, not a corporate NAV/founder entitlement policy (OD-05).
+
+Source facts join the existing immutable-revision binding, frozen JSON projection and
+coverage boundary. Existing installed corporation and rental/sale writers, saves,
+RNG, legacy net-worth/credit/UI consumers remain unchanged. Canonical tests cover
+source/non-personal cash separation, absent/invalid/frozen/getter sources, stale corporate
+cash, and installed establishment/property contribution. PR/#909 retain actual checks
+and exact CI; no new native WebKit/persistence route is claimed.
+
+
+## Family-trust source evidence (partial P3-11 §18 / OD-05)
+
+`asset:family-trust` replaces the generic unadapted-family placeholder with explicit,
+revision-bound source metadata: establishment flag, finite non-negative reported cash
+and non-negative safe-integer reported share count. Missing/invalid amounts remain null;
+selected getters and hidden descriptors fail closed without invocation. An establishment
+flag is only source status, not legal or beneficial ownership evidence.
+
+No trust issuer, founder beneficiary/fraction, share rights, liability coverage or NAV is
+inferred. Beneficial owner, security ID, beneficial fraction, NAV and component amount
+remain null. Trust cash is never added to personal cash or knownNetWorth, and the share
+count never expands founder-company shares. OD-05 remains open. Existing wealth/credit,
+trust writers, save, RNG and UI are unchanged. Total net worth remains incomplete.
+
+The canonical wealth suite covers source/JSON purity, frozen output, missing/invalid
+balances, hidden/accessor rejection, same-week stale fields and installed establishment/
+transfer (personal cash decreases while the trust source balance increases). Exact test
+and CI results belong to the PR/handoff; no new native WebKit claim is made.
+
+
+## PE fund source explanation (P3-11 consuming partial P3-7)
+
+The existing unvalued `asset:pe-interests` component now exposes `sourceEvidence`:
+fundInterests, waterfallTerms, valuationFunds, valuationIssues, parentConversions and
+parentConversionIssues from the existing P3-7 readers. Capture derives these from its
+revision-bound peFirm/subsidiary view; the projector returns detached copies. This
+connects fund source and reciprocal parent-conversion explanations to the wealth result
+without requiring callers to combine independently captured financial inputs.
+
+A contribution ratio is capital-source metadata, never fund NAV or target shares.
+Reported fund cash, external coinvest cash and whole-enterprise inputs remain separate;
+paid distributions/carry remain historical cash already represented elsewhere. Closed
+fund metadata may explain history but cannot revive a held asset. Unknown identity,
+liability coverage and valuation issues stay explicit. No source amount is added to
+knownNetWorth; the PE fund component amount/NAV/founder valuation remain null. Existing
+personal direct PE values continue once under their separate supported component.
+
+A reciprocal parent conversion is only a lifecycle source link between an exited fund
+deal and its installed subsidiary source record. It does not create a second asset,
+adopt legal equity or voting rights, assign founder beneficial ownership, or value the
+subsidiary. Broken/ambiguous reciprocal identifiers remain unresolved and explicit.
+
+The canonical wealth suite adds source-reader wiring, source/account separation,
+
+## VC pending-round source explanation (P3-11 consuming partial P3-8)
+
+Each current personal startup component now carries the matching P3-8 personal
+`roundObservations` rows under `sourceEvidence.rounds`. These are detached,
+revision-bound explanations of declared round terms and reported contribution only.
+`paymentStatus` remains `unverified`; quantity, voting fraction, wealth value and
+issuer/class identity remain null. The declared contribution is never added to cash,
+current equity or `knownNetWorth`, and the component remains unvalued.
+
+Company round rows are not attached to the founder's personal component. Invalid or
+contradictory round evidence retains the P3-8 reason and cannot establish an asset.
+No round writer, settlement, save, RNG, valuation policy, UI or legacy wealth/credit
+consumer changes. The canonical founder-wealth test covers empty evidence, account
+separation and a pending personal contribution that leaves wealth unchanged. This pure
+reader addition introduces no new native WebKit or IndexedDB path.
+
+## VC IPO lifecycle exclusion explanation (P3-11 consuming partial P3-8)
+
+When the P3-8 reader proves that a zeroed, dead, non-subsidiary startup carries an IPO
+source alias, the corresponding personal startup observation remains a historical
+exclusion. That exclusion now carries the matching detached `conversionLinks` row as
+source explanation. The link is matched by both durable startup source ID and exact
+startup array source path, so repeated or malformed IDs cannot cross-attach evidence.
+
+This does not create a listed lot or revive the startup as a current asset. Listed lot,
+share class, issuer identity, quantity, votes and wealth value remain unverified/null;
+the listed alias is only lifecycle source evidence. Contradictory subsidiary mirrors and
+residual startup fractions continue to fail closed in P3-8. No valuation, settlement,
+save, RNG, UI, credit/progression consumer or ownership authority changes. The focused
+wealth suite verifies the historical exclusion and unchanged known subtotal. No new
+native WebKit or IndexedDB path is introduced.
+missing identity, closed/exited metadata, reciprocal conversion success/failure,
+detached/frozen/JSON purity and same-week cash/rate/enterprise-value/conversion-link
+staleness checks. No writer, consumer/UI, save or RNG path changes; this is not OD-05
+resolution, canonical fund ownership adoption or complete wealth/Phase-3 acceptance.
+Exact executed checks and CI are in the PR/handoff.

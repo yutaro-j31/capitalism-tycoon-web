@@ -1,0 +1,1290 @@
+{
+  "snapshotSourceSha": "42d774598aef785a91cbb325758f4df9e4be1260",
+  "timingSourceSha": "0d2b60267e23489076b25b8d4e85336cab72a907",
+  "runId": 41070752147,
+  "precisionSeconds": 0.1,
+  "readOnly": true,
+  "shards": {
+    "H": {
+      "jobId": 124123918124,
+      "count": 54,
+      "digest": "042169a86d6b26f831438660daf8c3fa212efd7a1be0f35e31507f1f455d636a",
+      "canonicalExecuted": 54,
+      "canonicalSeen": 628,
+      "jobElapsedSeconds": 1629,
+      "canonicalTotalSeconds": 1622.834,
+      "peakMemory": null,
+      "physicalMemory": null,
+      "cpuModel": null,
+      "nproc": null,
+      "memoryEvidence": "not emitted for H/I by current workflow; historical I parallel2 ~4.4GB is an Owner-provided caution, not a fresh measurement",
+      "heuristic": {
+        "tests/stock-split-price-history-test.js": [
+          "stock-split-price-history-test.js:process.env.SPLIT_EXTERNAL_FIRST="
+        ],
+        "tests/map-phase2-lazy-load-recovery-test.js": [
+          "map-phase2-lazy-load-recovery-test.js:unlinkSync",
+          "map-phase2-lazy-load-recovery-test.js:writeFileSync"
+        ],
+        "tests/static-asset-cache-coherence-test.js": [
+          "asset-revision.js:writeFileSync",
+          "static-asset-cache-coherence-test.js:writeFileSync"
+        ],
+        "tests/cash-write-runtime-guard-test.js": [
+          "cash-write-runtime-guard-test.js:process.env.UPDATE_CASH_WRITE_RUNTIME_BASELINE =",
+          "cash-write-runtime-guard-test.js:writeFileSync"
+        ]
+      },
+      "knownSerialCandidates": [
+        "tests/map-phase2-lazy-load-recovery-test.js",
+        "tests/static-asset-cache-coherence-test.js"
+      ],
+      "modeledMakespanSeconds": {
+        "two": 821.4,
+        "four": 421.2
+      },
+      "modelsAreNotMeasurements": true,
+      "commands": [
+        {
+          "index": 0,
+          "label": "test:finance-history",
+          "command": "npm",
+          "args": [
+            "run",
+            "test:finance-history",
+            "--silent"
+          ],
+          "seconds": 175.8,
+          "directFile": "tests/finance-history-retention-test.js",
+          "directFileSha256": "8c5d58488b8593899e6b4fb3ea011f289d819ba09ced2702a067a985f67f3baf",
+          "npmScript": "node --max-old-space-size=4096 tests/finance-history-retention-test.js",
+          "directFiles": [
+            {
+              "path": "tests/finance-history-retention-test.js",
+              "sha256": "8c5d58488b8593899e6b4fb3ea011f289d819ba09ced2702a067a985f67f3baf"
+            }
+          ],
+          "explicitHeapCapsMiB": [
+            4096
+          ]
+        },
+        {
+          "index": 1,
+          "label": "test:procurement",
+          "command": "npm",
+          "args": [
+            "run",
+            "test:procurement",
+            "--silent"
+          ],
+          "seconds": 47.1,
+          "directFile": "tests/procurement-order-test.js",
+          "directFileSha256": "b638dd3d359ecde13638690fa9d38d98418e3ac8f7c7ad47e99adf9e719c9c7a",
+          "npmScript": "node tests/procurement-order-test.js && node tests/supplier-contract-test.js && node tests/supplier-material-coverage-test.js && node tests/supply-procurement-cash-budget-test.js",
+          "directFiles": [
+            {
+              "path": "tests/procurement-order-test.js",
+              "sha256": "b638dd3d359ecde13638690fa9d38d98418e3ac8f7c7ad47e99adf9e719c9c7a"
+            },
+            {
+              "path": "tests/supplier-contract-test.js",
+              "sha256": "304db672d1fe8586c67eb870b593756504207bc34daeeb8d878ac4f0cf9ec18e"
+            },
+            {
+              "path": "tests/supplier-material-coverage-test.js",
+              "sha256": "fb95c1888e5e95db874a989b7ce1842932cdcb0168369f1fc077aa9d9180bbd8"
+            },
+            {
+              "path": "tests/supply-procurement-cash-budget-test.js",
+              "sha256": "dba8c5e99866ef986b82efebd1a5ea0ff2bd7b162e20d218fcdbabcb483f7062"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 2,
+          "label": "test:supply-rng",
+          "command": "npm",
+          "args": [
+            "run",
+            "test:supply-rng",
+            "--silent"
+          ],
+          "seconds": 41,
+          "directFile": "tests/supply-rng-regression-test.js",
+          "directFileSha256": "828be3779a62e1decb59b8b731dce67a77fdb35c830f2e8276061b7487c32cfb",
+          "npmScript": "node --max-old-space-size=4096 tests/supply-rng-regression-test.js",
+          "directFiles": [
+            {
+              "path": "tests/supply-rng-regression-test.js",
+              "sha256": "828be3779a62e1decb59b8b731dce67a77fdb35c830f2e8276061b7487c32cfb"
+            }
+          ],
+          "explicitHeapCapsMiB": [
+            4096
+          ]
+        },
+        {
+          "index": 3,
+          "label": "test:supplier-coverage",
+          "command": "npm",
+          "args": [
+            "run",
+            "test:supplier-coverage",
+            "--silent"
+          ],
+          "seconds": 44.1,
+          "directFile": "tests/supplier-material-coverage-test.js",
+          "directFileSha256": "fb95c1888e5e95db874a989b7ce1842932cdcb0168369f1fc077aa9d9180bbd8",
+          "npmScript": "node tests/supplier-material-coverage-test.js",
+          "directFiles": [
+            {
+              "path": "tests/supplier-material-coverage-test.js",
+              "sha256": "fb95c1888e5e95db874a989b7ce1842932cdcb0168369f1fc077aa9d9180bbd8"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 4,
+          "label": "tests/save-storage-compaction-test.js",
+          "command": "node",
+          "args": [
+            "tests/save-storage-compaction-test.js"
+          ],
+          "seconds": 59.6,
+          "directFile": "tests/save-storage-compaction-test.js",
+          "directFileSha256": "9c00b6f80eae5828010dd6669ad938f1b5b26571dfa662d431e4882f1c27c960",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/save-storage-compaction-test.js",
+              "sha256": "9c00b6f80eae5828010dd6669ad938f1b5b26571dfa662d431e4882f1c27c960"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 5,
+          "label": "tests/save-storage-idb-authoritative-boot-test.js",
+          "command": "node",
+          "args": [
+            "tests/save-storage-idb-authoritative-boot-test.js"
+          ],
+          "seconds": 5.5,
+          "directFile": "tests/save-storage-idb-authoritative-boot-test.js",
+          "directFileSha256": "be715324640d84033724f848ff9827f77b250570ff10e231cac962413a42c494",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/save-storage-idb-authoritative-boot-test.js",
+              "sha256": "be715324640d84033724f848ff9827f77b250570ff10e231cac962413a42c494"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 6,
+          "label": "tests/save-storage-commit-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/save-storage-commit-atomicity-test.js"
+          ],
+          "seconds": 27,
+          "directFile": "tests/save-storage-commit-atomicity-test.js",
+          "directFileSha256": "4d223fcae4008086bcf5215b11753a826c03b22980c507d659ce4566627f7edc",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/save-storage-commit-atomicity-test.js",
+              "sha256": "4d223fcae4008086bcf5215b11753a826c03b22980c507d659ce4566627f7edc"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 7,
+          "label": "tests/ma-share-swap-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/ma-share-swap-save-atomicity-test.js"
+          ],
+          "seconds": 63.2,
+          "directFile": "tests/ma-share-swap-save-atomicity-test.js",
+          "directFileSha256": "43085455b794deb11af8552dd21c8045e065d159c48cad389dea760695dd02e7",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/ma-share-swap-save-atomicity-test.js",
+              "sha256": "43085455b794deb11af8552dd21c8045e065d159c48cad389dea760695dd02e7"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 8,
+          "label": "tests/investor-offer-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/investor-offer-save-atomicity-test.js"
+          ],
+          "seconds": 37.9,
+          "directFile": "tests/investor-offer-save-atomicity-test.js",
+          "directFileSha256": "ee732e28a6cec60f37daf9e9d8e085d66681314f9b5f4621d06513b1a68d0eca",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/investor-offer-save-atomicity-test.js",
+              "sha256": "ee732e28a6cec60f37daf9e9d8e085d66681314f9b5f4621d06513b1a68d0eca"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 9,
+          "label": "tests/founder-share-sale-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/founder-share-sale-save-atomicity-test.js"
+          ],
+          "seconds": 37.8,
+          "directFile": "tests/founder-share-sale-save-atomicity-test.js",
+          "directFileSha256": "0814003899a7bf5ea692ddae377dc82921c5a1d7ff5718b493d69f92353a2220",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/founder-share-sale-save-atomicity-test.js",
+              "sha256": "0814003899a7bf5ea692ddae377dc82921c5a1d7ff5718b493d69f92353a2220"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 10,
+          "label": "tests/stock-purchase-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/stock-purchase-save-atomicity-test.js"
+          ],
+          "seconds": 65.1,
+          "directFile": "tests/stock-purchase-save-atomicity-test.js",
+          "directFileSha256": "0a22bfbb1d2a717df22dee9d8b8262a833a133be6713781b4288b878a9f6523c",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/stock-purchase-save-atomicity-test.js",
+              "sha256": "0a22bfbb1d2a717df22dee9d8b8262a833a133be6713781b4288b878a9f6523c"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 11,
+          "label": "tests/stock-sale-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/stock-sale-save-atomicity-test.js"
+          ],
+          "seconds": 74.5,
+          "directFile": "tests/stock-sale-save-atomicity-test.js",
+          "directFileSha256": "a43ccd22f5a1bb39f69f1f129d0c0db15585a09faddf40294d4bdfc193483ddc",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/stock-sale-save-atomicity-test.js",
+              "sha256": "a43ccd22f5a1bb39f69f1f129d0c0db15585a09faddf40294d4bdfc193483ddc"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 12,
+          "label": "tests/stock-split-price-history-test.js",
+          "command": "node",
+          "args": [
+            "tests/stock-split-price-history-test.js"
+          ],
+          "seconds": 38.8,
+          "directFile": "tests/stock-split-price-history-test.js",
+          "directFileSha256": "8f97e142bac5e37fac568754894526d15b02fd22cb13abc1cc398eb751eef85b",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/stock-split-price-history-test.js",
+              "sha256": "8f97e142bac5e37fac568754894526d15b02fd22cb13abc1cc398eb751eef85b"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 13,
+          "label": "tests/parent-ipo-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/parent-ipo-save-atomicity-test.js"
+          ],
+          "seconds": 40.2,
+          "directFile": "tests/parent-ipo-save-atomicity-test.js",
+          "directFileSha256": "f7adb8b71e4c24866aa9f00a68a014f25916d9c17b01d6480a62d4839bced93f",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/parent-ipo-save-atomicity-test.js",
+              "sha256": "f7adb8b71e4c24866aa9f00a68a014f25916d9c17b01d6480a62d4839bced93f"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 14,
+          "label": "tests/internal-venture-business-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/internal-venture-business-save-atomicity-test.js"
+          ],
+          "seconds": 189.5,
+          "directFile": "tests/internal-venture-business-save-atomicity-test.js",
+          "directFileSha256": "e93f94f956d4c8f89e0d2d9e2d4a94533626eb1a75e5a2e14387b9e565411628",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/internal-venture-business-save-atomicity-test.js",
+              "sha256": "e93f94f956d4c8f89e0d2d9e2d4a94533626eb1a75e5a2e14387b9e565411628"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 15,
+          "label": "tests/ma-subsidiary-sale-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/ma-subsidiary-sale-save-atomicity-test.js"
+          ],
+          "seconds": 31.1,
+          "directFile": "tests/ma-subsidiary-sale-save-atomicity-test.js",
+          "directFileSha256": "87bec63268b961f61f33f02a01b60539e3439f831c47d18b2daad87456581f6c",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/ma-subsidiary-sale-save-atomicity-test.js",
+              "sha256": "87bec63268b961f61f33f02a01b60539e3439f831c47d18b2daad87456581f6c"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 16,
+          "label": "tests/d-ui-reference-fidelity-test.js",
+          "command": "node",
+          "args": [
+            "tests/d-ui-reference-fidelity-test.js"
+          ],
+          "seconds": 0,
+          "directFile": "tests/d-ui-reference-fidelity-test.js",
+          "directFileSha256": "a7d0fef5a1c2a61eb9a5f48d24763071c81aa86dce75ab57555a9785816e6cab",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/d-ui-reference-fidelity-test.js",
+              "sha256": "a7d0fef5a1c2a61eb9a5f48d24763071c81aa86dce75ab57555a9785816e6cab"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 17,
+          "label": "tests/map-canvas-foundation-test.js",
+          "command": "node",
+          "args": [
+            "tests/map-canvas-foundation-test.js"
+          ],
+          "seconds": 0.1,
+          "directFile": "tests/map-canvas-foundation-test.js",
+          "directFileSha256": "cb0eee850b0ca16f8daf1da34a23d291ced6454cabf79707359ccf5d920b5709",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/map-canvas-foundation-test.js",
+              "sha256": "cb0eee850b0ca16f8daf1da34a23d291ced6454cabf79707359ccf5d920b5709"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 18,
+          "label": "tests/map-phase2-lazy-load-recovery-test.js",
+          "command": "node",
+          "args": [
+            "tests/map-phase2-lazy-load-recovery-test.js"
+          ],
+          "seconds": 20.3,
+          "directFile": "tests/map-phase2-lazy-load-recovery-test.js",
+          "directFileSha256": "5e0d3090fd12b2a8e8e37bf4baa7ca195dc0ec17476eff1063307208a8214910",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/map-phase2-lazy-load-recovery-test.js",
+              "sha256": "5e0d3090fd12b2a8e8e37bf4baa7ca195dc0ec17476eff1063307208a8214910"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 19,
+          "label": "tests/static-asset-cache-coherence-test.js",
+          "command": "node",
+          "args": [
+            "tests/static-asset-cache-coherence-test.js"
+          ],
+          "seconds": 0.1,
+          "directFile": "tests/static-asset-cache-coherence-test.js",
+          "directFileSha256": "36ef79dbc628b975e28b55fa0aef7473388fa4ddb7ee4ce1013f65b4ab9a2c39",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/static-asset-cache-coherence-test.js",
+              "sha256": "36ef79dbc628b975e28b55fa0aef7473388fa4ddb7ee4ce1013f65b4ab9a2c39"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 20,
+          "label": "tests/company-recall-crisis-test.js",
+          "command": "node",
+          "args": [
+            "tests/company-recall-crisis-test.js"
+          ],
+          "seconds": 0.9,
+          "directFile": "tests/company-recall-crisis-test.js",
+          "directFileSha256": "9848ab06aaf387e1b65cbfe24b55e0bf2877b5e514d50d9a6d286c24f58c8df2",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/company-recall-crisis-test.js",
+              "sha256": "9848ab06aaf387e1b65cbfe24b55e0bf2877b5e514d50d9a6d286c24f58c8df2"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 21,
+          "label": "tests/founder-shareholder-loan-lender-test.js",
+          "command": "node",
+          "args": [
+            "tests/founder-shareholder-loan-lender-test.js"
+          ],
+          "seconds": 6.3,
+          "directFile": "tests/founder-shareholder-loan-lender-test.js",
+          "directFileSha256": "74b9d0177b4fa67c48889a7ed37176836f74e7a7dc77bf1229c605a3c5a51740",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/founder-shareholder-loan-lender-test.js",
+              "sha256": "74b9d0177b4fa67c48889a7ed37176836f74e7a7dc77bf1229c605a3c5a51740"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 22,
+          "label": "tests/reload-canonical-state-test.js",
+          "command": "node",
+          "args": [
+            "tests/reload-canonical-state-test.js"
+          ],
+          "seconds": 99.8,
+          "directFile": "tests/reload-canonical-state-test.js",
+          "directFileSha256": "6bf79ab60e702c5db2a0973d4e54b5dca64f2b54a2e4a657b9be3e6bc38ea7d0",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/reload-canonical-state-test.js",
+              "sha256": "6bf79ab60e702c5db2a0973d4e54b5dca64f2b54a2e4a657b9be3e6bc38ea7d0"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 23,
+          "label": "tests/gym-membership-strategy-test.js",
+          "command": "node",
+          "args": [
+            "tests/gym-membership-strategy-test.js"
+          ],
+          "seconds": 66.4,
+          "directFile": "tests/gym-membership-strategy-test.js",
+          "directFileSha256": "c4c67479706814ab1fae27eece16a2801416c20258fbedb620d5fd9c9f595e02",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/gym-membership-strategy-test.js",
+              "sha256": "c4c67479706814ab1fae27eece16a2801416c20258fbedb620d5fd9c9f595e02"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 24,
+          "label": "tests/macro-cycle-test.js",
+          "command": "node",
+          "args": [
+            "tests/macro-cycle-test.js"
+          ],
+          "seconds": 39.6,
+          "directFile": "tests/macro-cycle-test.js",
+          "directFileSha256": "d5e2f4477e6f78cfc0a12fab51ad8c5d9edffebda131cdb84fe2fe3167857529",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/macro-cycle-test.js",
+              "sha256": "d5e2f4477e6f78cfc0a12fab51ad8c5d9edffebda131cdb84fe2fe3167857529"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 25,
+          "label": "tests/stock-trade-panel-test.js",
+          "command": "node",
+          "args": [
+            "tests/stock-trade-panel-test.js"
+          ],
+          "seconds": 94.6,
+          "directFile": "tests/stock-trade-panel-test.js",
+          "directFileSha256": "60dee11da26904f3e129d47213819d1875fbdf5aa92c0b9a24cb517821e1b82d",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/stock-trade-panel-test.js",
+              "sha256": "60dee11da26904f3e129d47213819d1875fbdf5aa92c0b9a24cb517821e1b82d"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 26,
+          "label": "tests/pe-pending-initiative-exit-lifecycle-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-pending-initiative-exit-lifecycle-test.js"
+          ],
+          "seconds": 20.9,
+          "directFile": "tests/pe-pending-initiative-exit-lifecycle-test.js",
+          "directFileSha256": "52941e1bc7388eb212b118f98841504b576c155e542d1c95491bc3db5562f03a",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-pending-initiative-exit-lifecycle-test.js",
+              "sha256": "52941e1bc7388eb212b118f98841504b576c155e542d1c95491bc3db5562f03a"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 27,
+          "label": "tests/pe-pending-initiative-transfer-lifecycle-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-pending-initiative-transfer-lifecycle-test.js"
+          ],
+          "seconds": 9,
+          "directFile": "tests/pe-pending-initiative-transfer-lifecycle-test.js",
+          "directFileSha256": "61791f762881994a32bb7693c1cb8af4b41f2de485cf188c84d3823178c2c9c2",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-pending-initiative-transfer-lifecycle-test.js",
+              "sha256": "61791f762881994a32bb7693c1cb8af4b41f2de485cf188c84d3823178c2c9c2"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 28,
+          "label": "tests/store-status-kpi-display-test.js",
+          "command": "node",
+          "args": [
+            "tests/store-status-kpi-display-test.js"
+          ],
+          "seconds": 9.5,
+          "directFile": "tests/store-status-kpi-display-test.js",
+          "directFileSha256": "5f08de544c6ff0f9a8a664e57da4dd27a4f8245faa4a0a47a2b6ced94d6741ca",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/store-status-kpi-display-test.js",
+              "sha256": "5f08de544c6ff0f9a8a664e57da4dd27a4f8245faa4a0a47a2b6ced94d6741ca"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 29,
+          "label": "tests/executeipo-base-class-accounting-test.js",
+          "command": "node",
+          "args": [
+            "tests/executeipo-base-class-accounting-test.js"
+          ],
+          "seconds": 1.1,
+          "directFile": "tests/executeipo-base-class-accounting-test.js",
+          "directFileSha256": "eec87e19036fef214d90c8e972b4ddb26289449206c29b7aee92718637ed248e",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/executeipo-base-class-accounting-test.js",
+              "sha256": "eec87e19036fef214d90c8e972b4ddb26289449206c29b7aee92718637ed248e"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 30,
+          "label": "tests/founding-tutorial-non-target-business-test.js",
+          "command": "node",
+          "args": [
+            "tests/founding-tutorial-non-target-business-test.js"
+          ],
+          "seconds": 20.8,
+          "directFile": "tests/founding-tutorial-non-target-business-test.js",
+          "directFileSha256": "735512a54504ba035d3553a5fe70e62cb3912a104151fb3c924c2efa4f4a658c",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/founding-tutorial-non-target-business-test.js",
+              "sha256": "735512a54504ba035d3553a5fe70e62cb3912a104151fb3c924c2efa4f4a658c"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 31,
+          "label": "tests/pe-lp-ddq-workflow-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-lp-ddq-workflow-test.js"
+          ],
+          "seconds": 4.2,
+          "directFile": "tests/pe-lp-ddq-workflow-test.js",
+          "directFileSha256": "3461b5f8215cf37bf13e8f7942df0c4864d6474655a59dc081769a72bafe72f0",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-lp-ddq-workflow-test.js",
+              "sha256": "3461b5f8215cf37bf13e8f7942df0c4864d6474655a59dc081769a72bafe72f0"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 32,
+          "label": "tests/pe-fund-capital-gates-ui-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-fund-capital-gates-ui-test.js"
+          ],
+          "seconds": 4.2,
+          "directFile": "tests/pe-fund-capital-gates-ui-test.js",
+          "directFileSha256": "f959a54fd0eb0c998d5f72a99894f17dfa21bcf1bd69725d9ba54d128d0e3a63",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-fund-capital-gates-ui-test.js",
+              "sha256": "f959a54fd0eb0c998d5f72a99894f17dfa21bcf1bd69725d9ba54d128d0e3a63"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 33,
+          "label": "tests/pe-fund-gp-commit-ui-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-fund-gp-commit-ui-test.js"
+          ],
+          "seconds": 4.4,
+          "directFile": "tests/pe-fund-gp-commit-ui-test.js",
+          "directFileSha256": "5d0319b33dd417e88e49a960d00852d39539eddaa0fd2c60439e3d03d62c34ef",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-fund-gp-commit-ui-test.js",
+              "sha256": "5d0319b33dd417e88e49a960d00852d39539eddaa0fd2c60439e3d03d62c34ef"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 34,
+          "label": "tests/pe-network-referral-supply-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-network-referral-supply-test.js"
+          ],
+          "seconds": 4.7,
+          "directFile": "tests/pe-network-referral-supply-test.js",
+          "directFileSha256": "68dd4f293b6db22b36d4ec42ec2d02d790c841da1fafbe767d0804db950bd044",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-network-referral-supply-test.js",
+              "sha256": "68dd4f293b6db22b36d4ec42ec2d02d790c841da1fafbe767d0804db950bd044"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 35,
+          "label": "tests/pe-portfolio-action-cost-preview-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-portfolio-action-cost-preview-test.js"
+          ],
+          "seconds": 4.2,
+          "directFile": "tests/pe-portfolio-action-cost-preview-test.js",
+          "directFileSha256": "3d395c3297cecb3239fdca38922c8943503209b95e54d02ce78e05eb2648ed21",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-portfolio-action-cost-preview-test.js",
+              "sha256": "3d395c3297cecb3239fdca38922c8943503209b95e54d02ce78e05eb2648ed21"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 36,
+          "label": "tests/pe-parent-company-acquisition-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-parent-company-acquisition-test.js"
+          ],
+          "seconds": 4.5,
+          "directFile": "tests/pe-parent-company-acquisition-test.js",
+          "directFileSha256": "7daf5319325fe2055a41efdcb97d8d55197e3b7ce4489c2c6700a39b1fdedf73",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-parent-company-acquisition-test.js",
+              "sha256": "7daf5319325fe2055a41efdcb97d8d55197e3b7ce4489c2c6700a39b1fdedf73"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 37,
+          "label": "tests/pe-parent-company-acquisition-negative-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-parent-company-acquisition-negative-test.js"
+          ],
+          "seconds": 18,
+          "directFile": "tests/pe-parent-company-acquisition-negative-test.js",
+          "directFileSha256": "580bc425392a90acf7e1400d07a71c254df3b5a906cffb848fa2e8d8e13e2b39",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-parent-company-acquisition-negative-test.js",
+              "sha256": "580bc425392a90acf7e1400d07a71c254df3b5a906cffb848fa2e8d8e13e2b39"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 38,
+          "label": "tests/pe-portfolio-weekly-settlement-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-portfolio-weekly-settlement-test.js"
+          ],
+          "seconds": 0.3,
+          "directFile": "tests/pe-portfolio-weekly-settlement-test.js",
+          "directFileSha256": "4d3fd53a86fe5e987b93ffbb830744cba11186e0c9f3a237a5cffc9b81fd6a7f",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-portfolio-weekly-settlement-test.js",
+              "sha256": "4d3fd53a86fe5e987b93ffbb830744cba11186e0c9f3a237a5cffc9b81fd6a7f"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 39,
+          "label": "tests/pe-exit-preview-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-exit-preview-test.js"
+          ],
+          "seconds": 0.6,
+          "directFile": "tests/pe-exit-preview-test.js",
+          "directFileSha256": "6874831f429b3454ea37308417d3a2c3d04532574c9715fadce83c01f50952a4",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-exit-preview-test.js",
+              "sha256": "6874831f429b3454ea37308417d3a2c3d04532574c9715fadce83c01f50952a4"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 40,
+          "label": "tests/pe-management-context-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-management-context-test.js"
+          ],
+          "seconds": 0.6,
+          "directFile": "tests/pe-management-context-test.js",
+          "directFileSha256": "eac9f9f6746ccb5b7babd73521ffdcbbf28f47662a13cdef0d31fddf208e488c",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-management-context-test.js",
+              "sha256": "eac9f9f6746ccb5b7babd73521ffdcbbf28f47662a13cdef0d31fddf208e488c"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 41,
+          "label": "tests/pe-product-ventures-portfolio-bridge-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-product-ventures-portfolio-bridge-test.js"
+          ],
+          "seconds": 0.3,
+          "directFile": "tests/pe-product-ventures-portfolio-bridge-test.js",
+          "directFileSha256": "868e4e6adeae491ef683c728550ece88bc1d88ce505daff8c8a6f58ff6a028ea",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-product-ventures-portfolio-bridge-test.js",
+              "sha256": "868e4e6adeae491ef683c728550ece88bc1d88ce505daff8c8a6f58ff6a028ea"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 42,
+          "label": "tests/pe-product-ventures-ui-connection-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-product-ventures-ui-connection-test.js"
+          ],
+          "seconds": 4.2,
+          "directFile": "tests/pe-product-ventures-ui-connection-test.js",
+          "directFileSha256": "d023ea92e15a3a1e5a6465514ea8fcd215c5c4dbd268bfc9c44c6a4afabfe5e4",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-product-ventures-ui-connection-test.js",
+              "sha256": "d023ea92e15a3a1e5a6465514ea8fcd215c5c4dbd268bfc9c44c6a4afabfe5e4"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 43,
+          "label": "tests/pe-ramen-portfolio-bridge-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-ramen-portfolio-bridge-test.js"
+          ],
+          "seconds": 0.2,
+          "directFile": "tests/pe-ramen-portfolio-bridge-test.js",
+          "directFileSha256": "5986803b6042bdfcec7156776e09f52a234c48bfb66f57e4e3c79af80b4f6492",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-ramen-portfolio-bridge-test.js",
+              "sha256": "5986803b6042bdfcec7156776e09f52a234c48bfb66f57e4e3c79af80b4f6492"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 44,
+          "label": "tests/pe-ramen-bridge-isolation-negative-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-ramen-bridge-isolation-negative-test.js"
+          ],
+          "seconds": 0.7,
+          "directFile": "tests/pe-ramen-bridge-isolation-negative-test.js",
+          "directFileSha256": "df4c83a3914ccf6c75b329c6a9314e05e88d27de6a009cabe63c4c26c66edbea",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-ramen-bridge-isolation-negative-test.js",
+              "sha256": "df4c83a3914ccf6c75b329c6a9314e05e88d27de6a009cabe63c4c26c66edbea"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 45,
+          "label": "tests/pe-conveni-portfolio-bridge-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-conveni-portfolio-bridge-test.js"
+          ],
+          "seconds": 0.5,
+          "directFile": "tests/pe-conveni-portfolio-bridge-test.js",
+          "directFileSha256": "25c5a62e4c431161b5000c0dfec17fc17ddf839ddf47d85d2e3b59e526d018a8",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-conveni-portfolio-bridge-test.js",
+              "sha256": "25c5a62e4c431161b5000c0dfec17fc17ddf839ddf47d85d2e3b59e526d018a8"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 46,
+          "label": "tests/pe-conveni-bridge-208week-regression-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-conveni-bridge-208week-regression-test.js"
+          ],
+          "seconds": 23.9,
+          "directFile": "tests/pe-conveni-bridge-208week-regression-test.js",
+          "directFileSha256": "887496b4ad87fe92af0cc7eaab09361b78fa6181bcc05d621e81d3323c3e80b9",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-conveni-bridge-208week-regression-test.js",
+              "sha256": "887496b4ad87fe92af0cc7eaab09361b78fa6181bcc05d621e81d3323c3e80b9"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 47,
+          "label": "tests/pe-conveni-bridge-negative-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-conveni-bridge-negative-test.js"
+          ],
+          "seconds": 4.4,
+          "directFile": "tests/pe-conveni-bridge-negative-test.js",
+          "directFileSha256": "60a70048288333697e62261f2f3efb02de64c49f2bf9a00d3745bb2e6279e9ad",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-conveni-bridge-negative-test.js",
+              "sha256": "60a70048288333697e62261f2f3efb02de64c49f2bf9a00d3745bb2e6279e9ad"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 48,
+          "label": "tests/pe-full-playloop-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-full-playloop-test.js"
+          ],
+          "seconds": 26.1,
+          "directFile": "tests/pe-full-playloop-test.js",
+          "directFileSha256": "ab03511fc8532927806fd7cbfb5c3b91fa25a3c968d9e89c320d1d28038f6fce",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-full-playloop-test.js",
+              "sha256": "ab03511fc8532927806fd7cbfb5c3b91fa25a3c968d9e89c320d1d28038f6fce"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 49,
+          "label": "tests/pe-ui-phase1-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-ui-phase1-test.js"
+          ],
+          "seconds": 0.1,
+          "directFile": "tests/pe-ui-phase1-test.js",
+          "directFileSha256": "85a4608231cad9521191a2ca40eb53270034f5fa54c5bb31236e14b7acdf5bb2",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-ui-phase1-test.js",
+              "sha256": "85a4608231cad9521191a2ca40eb53270034f5fa54c5bb31236e14b7acdf5bb2"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 50,
+          "label": "tests/pe-ui-screen-ownership-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-ui-screen-ownership-test.js"
+          ],
+          "seconds": 0,
+          "directFile": "tests/pe-ui-screen-ownership-test.js",
+          "directFileSha256": "50d6408194fa0cac2f500608139dd47063a8d1d4d4e41bd0117b400d7d12e431",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-ui-screen-ownership-test.js",
+              "sha256": "50d6408194fa0cac2f500608139dd47063a8d1d4d4e41bd0117b400d7d12e431"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 51,
+          "label": "tests/pe-conveni-ui-connection-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-conveni-ui-connection-test.js"
+          ],
+          "seconds": 4.2,
+          "directFile": "tests/pe-conveni-ui-connection-test.js",
+          "directFileSha256": "ca64f107b6b67c7588f4747e785b0777e95a1665f5b1ed3020d31d56aa5286e3",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-conveni-ui-connection-test.js",
+              "sha256": "ca64f107b6b67c7588f4747e785b0777e95a1665f5b1ed3020d31d56aa5286e3"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 52,
+          "label": "tests/pe-d-ui-management-levers-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-d-ui-management-levers-test.js"
+          ],
+          "seconds": 4.2,
+          "directFile": "tests/pe-d-ui-management-levers-test.js",
+          "directFileSha256": "4fd57c27140bb1dec274d0f5cbfe391c4f3d17a80a153563165e49b3c6ac6b50",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-d-ui-management-levers-test.js",
+              "sha256": "4fd57c27140bb1dec274d0f5cbfe391c4f3d17a80a153563165e49b3c6ac6b50"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 53,
+          "label": "tests/cash-write-runtime-guard-test.js",
+          "command": "node",
+          "args": [
+            "tests/cash-write-runtime-guard-test.js"
+          ],
+          "seconds": 140.2,
+          "directFile": "tests/cash-write-runtime-guard-test.js",
+          "directFileSha256": "07d8784d3cdab14e98377449d6e0b29f13d33001e9f1684765c1d96a85f4af39",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/cash-write-runtime-guard-test.js",
+              "sha256": "07d8784d3cdab14e98377449d6e0b29f13d33001e9f1684765c1d96a85f4af39"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        }
+      ]
+    },
+    "I": {
+      "jobId": 124123918155,
+      "count": 8,
+      "digest": "0b26dd22cdd1b2e25b2de8b9181952607415b145c271e7d6fa5925af4f0d917e",
+      "canonicalExecuted": 8,
+      "canonicalSeen": 628,
+      "jobElapsedSeconds": 1019,
+      "canonicalTotalSeconds": 1013.279,
+      "peakMemory": null,
+      "physicalMemory": null,
+      "cpuModel": null,
+      "nproc": null,
+      "memoryEvidence": "not emitted for H/I by current workflow; historical I parallel2 ~4.4GB is an Owner-provided caution, not a fresh measurement",
+      "heuristic": {},
+      "knownSerialCandidates": [],
+      "modeledMakespanSeconds": {
+        "two": 509.5,
+        "four": 270
+      },
+      "modelsAreNotMeasurements": true,
+      "commands": [
+        {
+          "index": 0,
+          "label": "test:digital-portfolio-profitability",
+          "command": "npm",
+          "args": [
+            "run",
+            "test:digital-portfolio-profitability",
+            "--silent"
+          ],
+          "seconds": 149.4,
+          "directFile": "tests/digital-portfolio-profitability-test.js",
+          "directFileSha256": "0202d41c2e2cbcc4e81f7eb4953b672351ae05fea31b11cdeb97f080fac5c1bd",
+          "npmScript": "node tests/digital-portfolio-profitability-test.js",
+          "directFiles": [
+            {
+              "path": "tests/digital-portfolio-profitability-test.js",
+              "sha256": "0202d41c2e2cbcc4e81f7eb4953b672351ae05fea31b11cdeb97f080fac5c1bd"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 1,
+          "label": "tests/vc-writeoff-week-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/vc-writeoff-week-save-atomicity-test.js"
+          ],
+          "seconds": 50.9,
+          "directFile": "tests/vc-writeoff-week-save-atomicity-test.js",
+          "directFileSha256": "a38d8f07e87b55349ca69272561f098d8efb8f32ed4e6e4e4dd205dd6cdd5274",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/vc-writeoff-week-save-atomicity-test.js",
+              "sha256": "a38d8f07e87b55349ca69272561f098d8efb8f32ed4e6e4e4dd205dd6cdd5274"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 2,
+          "label": "tests/subsidiary-relist-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/subsidiary-relist-save-atomicity-test.js"
+          ],
+          "seconds": 91.4,
+          "directFile": "tests/subsidiary-relist-save-atomicity-test.js",
+          "directFileSha256": "dc938ef0bbdeb5acfc79f4bf7b82a734e47261588392f9028353b179c7b75f12",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/subsidiary-relist-save-atomicity-test.js",
+              "sha256": "dc938ef0bbdeb5acfc79f4bf7b82a734e47261588392f9028353b179c7b75f12"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 3,
+          "label": "tests/pe-transfer-save-atomicity-test.js",
+          "command": "node",
+          "args": [
+            "tests/pe-transfer-save-atomicity-test.js"
+          ],
+          "seconds": 50.8,
+          "directFile": "tests/pe-transfer-save-atomicity-test.js",
+          "directFileSha256": "0c0a4f379f945537c975768a93f43b44133b260e0c851fc0298e873508efc1a5",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/pe-transfer-save-atomicity-test.js",
+              "sha256": "0c0a4f379f945537c975768a93f43b44133b260e0c851fc0298e873508efc1a5"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 4,
+          "label": "tests/competitor-product-counter-reachability-test.js",
+          "command": "node",
+          "args": [
+            "tests/competitor-product-counter-reachability-test.js"
+          ],
+          "seconds": 212.1,
+          "directFile": "tests/competitor-product-counter-reachability-test.js",
+          "directFileSha256": "c4524816b590267a5db431823b112579b9af331c63c179a548f20dd16e3a9668",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/competitor-product-counter-reachability-test.js",
+              "sha256": "c4524816b590267a5db431823b112579b9af331c63c179a548f20dd16e3a9668"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 5,
+          "label": "tests/simulation-long-run-reload-fork-test.js",
+          "command": "node",
+          "args": [
+            "tests/simulation-long-run-reload-fork-test.js"
+          ],
+          "seconds": 120.6,
+          "directFile": "tests/simulation-long-run-reload-fork-test.js",
+          "directFileSha256": "6888a94bfd53285fd4e7d988070e40291cebe37fad76bd6b94429c3c71190158",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/simulation-long-run-reload-fork-test.js",
+              "sha256": "6888a94bfd53285fd4e7d988070e40291cebe37fad76bd6b94429c3c71190158"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 6,
+          "label": "tests/exploration-style-test.js",
+          "command": "node",
+          "args": [
+            "tests/exploration-style-test.js"
+          ],
+          "seconds": 185.9,
+          "directFile": "tests/exploration-style-test.js",
+          "directFileSha256": "70c5e4bd4265d4b5b871804f1d6731406177162f9962ae847ce7ee5295c9e561",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/exploration-style-test.js",
+              "sha256": "70c5e4bd4265d4b5b871804f1d6731406177162f9962ae847ce7ee5295c9e561"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        },
+        {
+          "index": 7,
+          "label": "tests/industry-event-response-plans-reachability-test.js",
+          "command": "node",
+          "args": [
+            "tests/industry-event-response-plans-reachability-test.js"
+          ],
+          "seconds": 152.2,
+          "directFile": "tests/industry-event-response-plans-reachability-test.js",
+          "directFileSha256": "1611c0e2e3a0f5d3a189cace8c8c432160798b1b5198a360579ad67502c70211",
+          "npmScript": null,
+          "directFiles": [
+            {
+              "path": "tests/industry-event-response-plans-reachability-test.js",
+              "sha256": "1611c0e2e3a0f5d3a189cace8c8c432160798b1b5198a360579ad67502c70211"
+            }
+          ],
+          "explicitHeapCapsMiB": []
+        }
+      ]
+    }
+  },
+  "K": {
+    "count": 29,
+    "digest": "4754f096494cac2753f5d41d59afe3790e70962fa10c8f4b028b6d6c12aaf5ef",
+    "changedDirectFilesSincePin": [],
+    "pendingWorkA1231": "phase3-ownership-snapshot-test.js changes are not part of this snapshot; requalify future merged HEAD",
+    "changedSensitivePathsSincePin": []
+  },
+  "notes": {
+    "H": "Two unconditional checkout writers; stock split process.env flag is an equality/read false-positive, baseline write is opt-in only. Asset-revision writeStamps is defined but not invoked by this H test.",
+    "I": "No heuristic hits is not proof; memory and runtime process/port evidence not collected for H/I.",
+    "models": "LPT uses rounded standalone durations and assumes no CPU/memory contention; H places the two known checkout writers in a serial phase before all readers. Not a tested safe schedule or speedup."
+  }
+}
