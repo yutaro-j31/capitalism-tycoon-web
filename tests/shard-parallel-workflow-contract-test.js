@@ -47,4 +47,113 @@ for (const needle of ['nproc', 'free -m', '/proc/cpuinfo', 'cpu.max', 'memory.ma
 // The aggregate job still requires every shard.
 assert.match(text, /test "\$\{\{ needs\.test-shards\.result \}\}" = "success"/);
 
+// Owner-authorized residue diagnosis is restricted to its own PR branch. It never
+// changes canonical J/C parallelism or starts on main, schedule, dispatch or other PRs.
+function jobBlock(id) {
+  const start = text.indexOf(`\n  ${id}:`);
+  assert.ok(start >= 0, `${id} job exists`);
+  const tail = text.slice(start + 1);
+  const next = tail.slice(1).search(/^  [A-Za-z0-9_-]+:\s*$/m);
+  return next < 0 ? tail : tail.slice(0, next + 1);
+}
+const diagnostic = jobBlock('parallel-process-diagnostic');
+assert.ok(text.includes('\n  parallel-process-diagnostic:'), 'dedicated process diagnostic job exists');
+const processGate = "    if: github.event_name == 'pull_request' && (github.head_ref == 'ci/parallel-shard-process-diagnostic' || github.head_ref == 'ci/i-serial-resource-evidence')";
+assert.equal(diagnostic.split('\n').find(line => line.trim().startsWith('if:')), processGate);
+for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: read', 'fail-fast: false',
+  'node scripts/parallel-shard-runner-process-diagnostic.js --report',
+  'node tests/parallel-shard-runner-test.js', '--full-e', '--root diagnostic-e-source',
+  '--source-sha 20dcfe71a3fc5e8ad662c8f8497fac1120162ae1', 'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
+  assert.ok(diagnostic.includes(token), `process diagnostic must retain ${token}`);
+assert.doesNotMatch(diagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+function verifyISerialWorkflow(block) {
+  assert.equal(block.split('\n').find(line => line.trim().startsWith('if:')), processGate);
+  function step(name) {
+    const marker = `      - name: ${name}\n`, at = block.indexOf(marker);
+    assert.ok(at >= 0, `${name} step retained`);
+    const next = block.indexOf('\n      - ', at + marker.length);
+    return block.slice(at, next < 0 ? undefined : next);
+  }
+  for (const name of ['Checkout exact E HEAD for full reproduction', 'Compare all 33 E commands serial and parallel two'])
+    assert.ok(step(name).includes("if: github.head_ref == 'ci/parallel-shard-process-diagnostic'"), 'E experiment does not run on I branch');
+  const checkout = step('Checkout fixed I source for serial resource evidence');
+  for (const token of ['ref: 555ca4042f183ba01aebb4c1df06be094fdf09bb', 'path: diagnostic-i-source', 'persist-credentials: false'])
+    assert.ok(checkout.includes(token));
+  for (const name of ['Checkout fixed I source for serial resource evidence', 'Validate all 8 I invocation metadata', 'Profile all 8 I commands serial only with retained bytes'])
+    assert.ok(step(name).includes("if: github.head_ref == 'ci/i-serial-resource-evidence'"), 'I is opt-in only');
+  const plan = step('Validate all 8 I invocation metadata'), profile = step('Profile all 8 I commands serial only with retained bytes');
+  for (const run of [plan, profile]) {
+    assert.ok(run.includes('--full-shard I'));
+    assert.ok(run.includes('--root diagnostic-i-source --source-sha 555ca4042f183ba01aebb4c1df06be094fdf09bb'));
+  }
+  assert.ok(plan.includes('--plan-only')); assert.ok(profile.includes('--retain-output'));
+  assert.doesNotMatch(profile, /--plan-only|--write-audit-root|--full-e/);
+  for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: read', 'fail-fast: false',
+    'node tests/parallel-shard-runner-test.js', 'if: always()', 'if-no-files-found: error', 'retention-days: 14']) assert.ok(block.includes(token));
+  assert.doesNotMatch(block, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+}
+verifyISerialWorkflow(diagnostic);
+for (const mutate of [
+  b => b.replace(processGate, "    if: github.event_name == 'pull_request'"),
+  b => b.replace("if: github.head_ref == 'ci/parallel-shard-process-diagnostic'", "if: always()"),
+  b => b.replace("if: github.head_ref == 'ci/i-serial-resource-evidence'", "if: always()"),
+  b => b.replace('ref: 555ca4042f183ba01aebb4c1df06be094fdf09bb', 'ref: main'),
+  b => b.replaceAll('--source-sha 555ca4042f183ba01aebb4c1df06be094fdf09bb', '--source-sha 94aaee741c6dd8af5ca15193931c4723667518f1'),
+  b => b.replace('--retain-output', ''),
+  b => b.replace('--full-shard I --retain-output', '--full-shard I --plan-only --retain-output'),
+  b => b.replace('contents: read', 'contents: write'),
+  b => b.replaceAll('persist-credentials: false', 'persist-credentials: true'),
+  b => b.replace('if: always()', 'if: success()'),
+  b => b.replace('if-no-files-found: error', 'if-no-files-found: warn'),
+  b => b + '\n    continue-on-error: true',
+  b => b + '\n    TEST_SHARD_PARALLELISM_I: 2'
+]) assert.throws(() => verifyISerialWorkflow(mutate(diagnostic)), 'unsafe I evidence mutation rejected');
+
+
+const kDiagnostic = jobBlock('parallel-k-diagnostic');
+assert.ok(kDiagnostic.includes("if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-k-parallel-diagnostic'"));
+for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: read', 'fail-fast: false',
+  '--full-shard K', '--root diagnostic-k-source', '--source-sha 165d924423f1e4bde8be8c801c28b15bbac76e72',
+  'node tests/parallel-shard-runner-test.js', 'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
+  assert.ok(kDiagnostic.includes(token), `K diagnostic must retain ${token}`);
+assert.doesNotMatch(kDiagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+assert.ok(!diagnostic.includes('--full-shard K'), 'E and K contracts examine separate job blocks');
+const writeDiagnostic = jobBlock('parallel-k-write-observation');
+function verifyKWriteDiagnostic(block) {
+  assert.equal(block.split("\n").find(line => line.trim().startsWith("if:")),
+    "    if: github.event_name == 'pull_request' && github.head_ref == 'ci/k-current-source-refresh'");
+  for (const token of ["node: ['22', '24']", 'timeout-minutes: 120', 'contents: read', 'fail-fast: false',
+    '--full-shard K', '--root diagnostic-k-source', '--source-sha daa5236d2483a9dbd1b208bb6b84e44d88a39762',
+    '--retain-output --write-audit-root', 'node scripts/parallel-shard-write-observation.cjs',
+    'node tests/parallel-shard-runner-test.js', 'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
+    assert.ok(block.includes(token), `K write observation must retain ${token}`);
+  assert.ok(block.includes('ref: daa5236d2483a9dbd1b208bb6b84e44d88a39762'), 'checkout and claimed source SHA stay pinned together');
+  assert.doesNotMatch(block, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+}
+verifyKWriteDiagnostic(writeDiagnostic);
+// Keep this source refresh confined to its opt-in branch, complete evidence
+// and immutable checkout/claimed-source pair. No production setting can enter.
+for (const mutate of [
+  b => b.replace("github.event_name == 'pull_request' && github.head_ref == 'ci/k-current-source-refresh'", "github.event_name == 'pull_request'"),
+  b => b.replace('ref: daa5236d2483a9dbd1b208bb6b84e44d88a39762', 'ref: main'),
+  b => b.replace('--source-sha daa5236d2483a9dbd1b208bb6b84e44d88a39762', '--source-sha 9223004d0bd2e9b0ebb435edf599d01b72020fd0'),
+  b => b.replace('contents: read', 'contents: write'),
+  b => b.replace('fail-fast: false', 'fail-fast: true'),
+  b => b.replace('--retain-output', ''),
+  b => b.replace('--write-audit-root', ''),
+  b => b.replace('persist-credentials: false', 'persist-credentials: true'),
+  b => b.replace('if: always()', 'if: success()'),
+  b => b.replace('if-no-files-found: error', 'if-no-files-found: warn'),
+  b => b + '\n    continue-on-error: true',
+  b => b + '\n    TEST_SHARD_PARALLELISM: 2'
+]) assert.throws(() => verifyKWriteDiagnostic(mutate(writeDiagnostic)), 'unsafe K refresh workflow mutation rejected');
+const cDiagnostic = jobBlock('parallel-c-process-evidence');
+assert.equal(cDiagnostic.split('\n').find(line => line.trim().startsWith('if:')),
+  "    if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-c-process-evidence'");
+for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: read', 'fail-fast: false',
+  'node tests/parallel-shard-runner-test.js', '--full-shard C', '--retain-output',
+  'ref: d10a971eb99fb4111fd3a169ba9c34ccb7a81971', '--source-sha d10a971eb99fb4111fd3a169ba9c34ccb7a81971',
+  'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
+  assert.ok(cDiagnostic.includes(token), `C diagnostic must retain ${token}`);
+assert.doesNotMatch(cDiagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
 console.log('shard-parallel-workflow-contract-test: ok');

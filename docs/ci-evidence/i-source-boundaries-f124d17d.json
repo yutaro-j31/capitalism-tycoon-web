@@ -1,0 +1,450 @@
+{
+  "sourceSha": "f124d17d3533f9ade7a135d42056bd208dcf404d",
+  "enumerationDigest": "0b26dd22cdd1b2e25b2de8b9181952607415b145c271e7d6fa5925af4f0d917e",
+  "schema": "i-source-boundary-inventory-v1",
+  "packageSha256": "dcc56ae059006d27a07dce600d3d6991b576b3fa815ec70b604fb4caeeca49c3",
+  "maxDepth": 2,
+  "invocations": [
+    {
+      "index": 0,
+      "label": "test:digital-portfolio-profitability",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:digital-portfolio-profitability",
+        "--silent"
+      ],
+      "entry": "tests/digital-portfolio-profitability-test.js",
+      "npmScript": "node tests/digital-portfolio-profitability-test.js",
+      "files": [
+        {
+          "path": "tests/digital-portfolio-profitability-test.js",
+          "sha256": "0202d41c2e2cbcc4e81f7eb4953b672351ae05fea31b11cdeb97f080fac5c1bd",
+          "depth": 0,
+          "hits": []
+        },
+        {
+          "path": "tests/harness.js",
+          "sha256": "3fce23c4116dabb449864e0bfda51c0624401dcdd8c135dabe1af0f11cc6d85a",
+          "depth": 1,
+          "hits": [
+            {
+              "kind": "dynamic-code",
+              "line": 175,
+              "token": "new vm.Script("
+            },
+            {
+              "kind": "dynamic-code",
+              "line": 178,
+              "token": "runInContext("
+            }
+          ]
+        },
+        {
+          "path": "tests/digital-portfolio-scenario.js",
+          "sha256": "d101ec6b1be2303721c1f5b6cc7536585ef69bc5d707f83c52c68d2d106b3b10",
+          "depth": 1,
+          "hits": []
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "index": 1,
+      "label": "tests/vc-writeoff-week-save-atomicity-test.js",
+      "command": "node",
+      "args": [
+        "tests/vc-writeoff-week-save-atomicity-test.js"
+      ],
+      "entry": "tests/vc-writeoff-week-save-atomicity-test.js",
+      "npmScript": null,
+      "files": [
+        {
+          "path": "tests/vc-writeoff-week-save-atomicity-test.js",
+          "sha256": "a38d8f07e87b55349ca69272561f098d8efb8f32ed4e6e4e4dd205dd6cdd5274",
+          "depth": 0,
+          "hits": []
+        },
+        {
+          "path": "tests/fixtures/vc-writeoff-week-atomicity.js",
+          "sha256": "1f52cf52fa0b81756670b859d9b9cf2d61166734b8c2d1db90eb83e1a898554e",
+          "depth": 1,
+          "hits": []
+        },
+        {
+          "path": "tests/harness.js",
+          "sha256": "3fce23c4116dabb449864e0bfda51c0624401dcdd8c135dabe1af0f11cc6d85a",
+          "depth": 2,
+          "hits": [
+            {
+              "kind": "dynamic-code",
+              "line": 175,
+              "token": "new vm.Script("
+            },
+            {
+              "kind": "dynamic-code",
+              "line": 178,
+              "token": "runInContext("
+            }
+          ]
+        },
+        {
+          "path": "tests/fixtures/pe-fund-acquisition-faults.js",
+          "sha256": "0e679b99ab58420e920638187a8b62bbcfa06bb580bc07fd83b526f34954c8c0",
+          "depth": 2,
+          "hits": []
+        },
+        {
+          "path": "tests/fixtures/stock-split-atomicity.js",
+          "sha256": "c790a01d2da7156d4a972f84e67aad7ce77a22affed8dd7aae994ec3aeaa1958",
+          "depth": 2,
+          "hits": []
+        },
+        {
+          "path": "tests/helpers/transaction-fault-case.js",
+          "sha256": "5d81a57cd28be831d6b8d1e61ace8e31d73290ba15adff985f4ba73ca8f61514",
+          "depth": 1,
+          "hits": []
+        }
+      ],
+      "gaps": [
+        {
+          "kind": "depth-boundary",
+          "from": "tests/fixtures/stock-split-atomicity.js",
+          "target": "tests/harness.js"
+        },
+        {
+          "kind": "depth-boundary",
+          "from": "tests/fixtures/stock-split-atomicity.js",
+          "target": "tests/fixtures/pe-fund-acquisition-faults.js"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "label": "tests/subsidiary-relist-save-atomicity-test.js",
+      "command": "node",
+      "args": [
+        "tests/subsidiary-relist-save-atomicity-test.js"
+      ],
+      "entry": "tests/subsidiary-relist-save-atomicity-test.js",
+      "npmScript": null,
+      "files": [
+        {
+          "path": "tests/subsidiary-relist-save-atomicity-test.js",
+          "sha256": "dc938ef0bbdeb5acfc79f4bf7b82a734e47261588392f9028353b179c7b75f12",
+          "depth": 0,
+          "hits": []
+        },
+        {
+          "path": "tests/fixtures/subsidiary-relist-atomicity.js",
+          "sha256": "bba6c0d0ee8a785dcd3cb118d977eb383f0a989e16657a884c0e3ad6aa15209b",
+          "depth": 1,
+          "hits": []
+        },
+        {
+          "path": "tests/fixtures/subsidiary-quarter-close.js",
+          "sha256": "03a18a67b73ec2123880fb2e7d44b530f25275619d1c93ad8b9dbe2485cff2e1",
+          "depth": 2,
+          "hits": []
+        },
+        {
+          "path": "tests/fixtures/subsidiary-ipo-atomicity.js",
+          "sha256": "265e680774e8cd108950c24b8b8ec4aadb46b126ff18b3a4f6ab456ca028de94",
+          "depth": 2,
+          "hits": []
+        },
+        {
+          "path": "tests/helpers/transaction-fault-case.js",
+          "sha256": "5d81a57cd28be831d6b8d1e61ace8e31d73290ba15adff985f4ba73ca8f61514",
+          "depth": 1,
+          "hits": []
+        },
+        {
+          "path": "tests/harness.js",
+          "sha256": "3fce23c4116dabb449864e0bfda51c0624401dcdd8c135dabe1af0f11cc6d85a",
+          "depth": 2,
+          "hits": [
+            {
+              "kind": "dynamic-code",
+              "line": 175,
+              "token": "new vm.Script("
+            },
+            {
+              "kind": "dynamic-code",
+              "line": 178,
+              "token": "runInContext("
+            }
+          ]
+        },
+        {
+          "path": "tests/fixtures/pe-fund-acquisition-faults.js",
+          "sha256": "0e679b99ab58420e920638187a8b62bbcfa06bb580bc07fd83b526f34954c8c0",
+          "depth": 2,
+          "hits": []
+        }
+      ],
+      "gaps": [
+        {
+          "kind": "depth-boundary",
+          "from": "tests/fixtures/subsidiary-quarter-close.js",
+          "target": "tests/harness.js"
+        },
+        {
+          "kind": "depth-boundary",
+          "from": "tests/fixtures/subsidiary-quarter-close.js",
+          "target": "tests/fixtures/pe-fund-acquisition-faults.js"
+        },
+        {
+          "kind": "depth-boundary",
+          "from": "tests/fixtures/subsidiary-ipo-atomicity.js",
+          "target": "tests/fixtures/subsidiary-quarter-close.js"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "label": "tests/pe-transfer-save-atomicity-test.js",
+      "command": "node",
+      "args": [
+        "tests/pe-transfer-save-atomicity-test.js"
+      ],
+      "entry": "tests/pe-transfer-save-atomicity-test.js",
+      "npmScript": null,
+      "files": [
+        {
+          "path": "tests/pe-transfer-save-atomicity-test.js",
+          "sha256": "0c0a4f379f945537c975768a93f43b44133b260e0c851fc0298e873508efc1a5",
+          "depth": 0,
+          "hits": []
+        },
+        {
+          "path": "tests/fixtures/pe-transfer-atomicity.js",
+          "sha256": "5ac1e528e71f32e0c4426d365d8eca5ebdee8c44b51b92119599ade2c2a5c9a1",
+          "depth": 1,
+          "hits": []
+        },
+        {
+          "path": "tests/fixtures/subsidiary-quarter-close.js",
+          "sha256": "03a18a67b73ec2123880fb2e7d44b530f25275619d1c93ad8b9dbe2485cff2e1",
+          "depth": 2,
+          "hits": []
+        },
+        {
+          "path": "tests/helpers/transaction-fault-case.js",
+          "sha256": "5d81a57cd28be831d6b8d1e61ace8e31d73290ba15adff985f4ba73ca8f61514",
+          "depth": 1,
+          "hits": []
+        },
+        {
+          "path": "tests/harness.js",
+          "sha256": "3fce23c4116dabb449864e0bfda51c0624401dcdd8c135dabe1af0f11cc6d85a",
+          "depth": 2,
+          "hits": [
+            {
+              "kind": "dynamic-code",
+              "line": 175,
+              "token": "new vm.Script("
+            },
+            {
+              "kind": "dynamic-code",
+              "line": 178,
+              "token": "runInContext("
+            }
+          ]
+        },
+        {
+          "path": "tests/fixtures/pe-fund-acquisition-faults.js",
+          "sha256": "0e679b99ab58420e920638187a8b62bbcfa06bb580bc07fd83b526f34954c8c0",
+          "depth": 2,
+          "hits": []
+        }
+      ],
+      "gaps": [
+        {
+          "kind": "depth-boundary",
+          "from": "tests/fixtures/subsidiary-quarter-close.js",
+          "target": "tests/harness.js"
+        },
+        {
+          "kind": "depth-boundary",
+          "from": "tests/fixtures/subsidiary-quarter-close.js",
+          "target": "tests/fixtures/pe-fund-acquisition-faults.js"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "label": "tests/competitor-product-counter-reachability-test.js",
+      "command": "node",
+      "args": [
+        "tests/competitor-product-counter-reachability-test.js"
+      ],
+      "entry": "tests/competitor-product-counter-reachability-test.js",
+      "npmScript": null,
+      "files": [
+        {
+          "path": "tests/competitor-product-counter-reachability-test.js",
+          "sha256": "c4524816b590267a5db431823b112579b9af331c63c179a548f20dd16e3a9668",
+          "depth": 0,
+          "hits": []
+        },
+        {
+          "path": "tests/harness.js",
+          "sha256": "3fce23c4116dabb449864e0bfda51c0624401dcdd8c135dabe1af0f11cc6d85a",
+          "depth": 1,
+          "hits": [
+            {
+              "kind": "dynamic-code",
+              "line": 175,
+              "token": "new vm.Script("
+            },
+            {
+              "kind": "dynamic-code",
+              "line": 178,
+              "token": "runInContext("
+            }
+          ]
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "index": 5,
+      "label": "tests/simulation-long-run-reload-fork-test.js",
+      "command": "node",
+      "args": [
+        "tests/simulation-long-run-reload-fork-test.js"
+      ],
+      "entry": "tests/simulation-long-run-reload-fork-test.js",
+      "npmScript": null,
+      "files": [
+        {
+          "path": "tests/simulation-long-run-reload-fork-test.js",
+          "sha256": "6888a94bfd53285fd4e7d988070e40291cebe37fad76bd6b94429c3c71190158",
+          "depth": 0,
+          "hits": [
+            {
+              "kind": "dynamic-code",
+              "line": 37,
+              "token": "runInContext("
+            },
+            {
+              "kind": "dynamic-code",
+              "line": 38,
+              "token": "runInContext("
+            }
+          ]
+        },
+        {
+          "path": "tests/harness.js",
+          "sha256": "3fce23c4116dabb449864e0bfda51c0624401dcdd8c135dabe1af0f11cc6d85a",
+          "depth": 1,
+          "hits": [
+            {
+              "kind": "dynamic-code",
+              "line": 175,
+              "token": "new vm.Script("
+            },
+            {
+              "kind": "dynamic-code",
+              "line": 178,
+              "token": "runInContext("
+            }
+          ]
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "index": 6,
+      "label": "tests/exploration-style-test.js",
+      "command": "node",
+      "args": [
+        "tests/exploration-style-test.js"
+      ],
+      "entry": "tests/exploration-style-test.js",
+      "npmScript": null,
+      "files": [
+        {
+          "path": "tests/exploration-style-test.js",
+          "sha256": "70c5e4bd4265d4b5b871804f1d6731406177162f9962ae847ce7ee5295c9e561",
+          "depth": 0,
+          "hits": []
+        },
+        {
+          "path": "tests/exploration-case-matrix.js",
+          "sha256": "b921f254800de2a5b95baa43fbeedd48230f408cb2d6551a41beb379af5d261a",
+          "depth": 1,
+          "hits": []
+        },
+        {
+          "path": "tests/exploration-runner.js",
+          "sha256": "b7b0c969d6f32845f218335a9570e1cd97e8b879f706f340831885ed57ec2db0",
+          "depth": 1,
+          "hits": []
+        },
+        {
+          "path": "tests/harness.js",
+          "sha256": "3fce23c4116dabb449864e0bfda51c0624401dcdd8c135dabe1af0f11cc6d85a",
+          "depth": 2,
+          "hits": [
+            {
+              "kind": "dynamic-code",
+              "line": 175,
+              "token": "new vm.Script("
+            },
+            {
+              "kind": "dynamic-code",
+              "line": 178,
+              "token": "runInContext("
+            }
+          ]
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "index": 7,
+      "label": "tests/industry-event-response-plans-reachability-test.js",
+      "command": "node",
+      "args": [
+        "tests/industry-event-response-plans-reachability-test.js"
+      ],
+      "entry": "tests/industry-event-response-plans-reachability-test.js",
+      "npmScript": null,
+      "files": [
+        {
+          "path": "tests/industry-event-response-plans-reachability-test.js",
+          "sha256": "1611c0e2e3a0f5d3a189cace8c8c432160798b1b5198a360579ad67502c70211",
+          "depth": 0,
+          "hits": []
+        },
+        {
+          "path": "tests/harness.js",
+          "sha256": "3fce23c4116dabb449864e0bfda51c0624401dcdd8c135dabe1af0f11cc6d85a",
+          "depth": 1,
+          "hits": [
+            {
+              "kind": "dynamic-code",
+              "line": 175,
+              "token": "new vm.Script("
+            },
+            {
+              "kind": "dynamic-code",
+              "line": 178,
+              "token": "runInContext("
+            }
+          ]
+        }
+      ],
+      "gaps": []
+    }
+  ],
+  "lexicalCandidatesOnly": true,
+  "dependencyClosureVerified": false,
+  "runtimeExecuted": false,
+  "sharedWriteSafetyQualified": false,
+  "parallelExecutionQualified": false,
+  "productionAuthorized": false
+}

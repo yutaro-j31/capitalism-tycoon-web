@@ -1,0 +1,51 @@
+{
+  "context": "local Work scratch; no shard workload; not hosted CI",
+  "checkoutSourceSha": "3e18399645323c14ff663361ff02875702bf5308",
+  "diagnosticPath": "scripts/parallel-shard-memory-snapshot.cjs",
+  "diagnosticSha256": "a81475a79866a94f3e9bbf7647146369a1189fdab263d76f8d27fb2b62000b53",
+  "snapshot": {
+    "schema": "memory-capacity-point-v1",
+    "startedAt": "2026-11-01T16:46:09.390Z",
+    "completedAt": "2026-11-01T16:46:09.391Z",
+    "node": "v24.22.1",
+    "platform": "linux",
+    "arch": "x64",
+    "observations": {
+      "hostPhysical": {
+        "source": "os.totalmem()",
+        "status": "observed",
+        "bytes": 10451427328
+      },
+      "hostFree": {
+        "source": "os.freemem()",
+        "status": "observed",
+        "bytes": 9728970752
+      },
+      "processConstrained": {
+        "source": "process.constrainedMemory()",
+        "status": "observed",
+        "bytes": 8589934592
+      },
+      "processAvailable": {
+        "source": "process.availableMemory()",
+        "status": "observed",
+        "bytes": 6584410112
+      },
+      "selfRss": {
+        "source": "process.memoryUsage().rss",
+        "status": "observed",
+        "bytes": 40423424
+      },
+      "v8HeapLimit": {
+        "source": "v8.getHeapStatistics().heap_size_limit",
+        "status": "observed",
+        "bytes": 2348810240
+      }
+    },
+    "atomicSnapshot": false,
+    "peakMeasured": false,
+    "processTreeMeasured": false,
+    "parallelExecutionQualified": false,
+    "productionAuthorized": false
+  }
+}

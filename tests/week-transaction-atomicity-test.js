@@ -96,3 +96,77 @@ function throwOnceFrom(modules, method, where) {
 }
 
 console.log('week transaction atomicity tests passed');
+
+// P3-4 W-WEEK-MARKET: the cases above use a private company. Exercise the actual listed
+// weekly price/history/issued mirror writer with the real save and fake-IDB checkpoint.
+(async () => {
+  const { scenario, snapshot, economic } = require('./fixtures/stock-split-atomicity');
+  const { injectFault } = require('./helpers/transaction-fault-case');
+  const { indexedDBFor } = require('./fixtures/pe-fund-acquisition-faults');
+  async function restored(s, expected) {
+    const wanted = economic(new s.engineModule.TycoonEngine(JSON.parse(JSON.stringify(expected))).g);
+    assert.deepEqual(economic(s.engineModule.TycoonEngine.load().g), wanted, 'public week production reload');
+    const fresh = loadGame({ headless:true, indexedDB:indexedDBFor(s.durable, { attempts:[] }) });
+    await fresh.modules.saveStorageIDB.hydrate();
+    assert.deepEqual(economic(fresh.engineModule.TycoonEngine.load().g), wanted, 'public week fresh durable-only hydration');
+  }
+  for (const mirror of [1000000, 900000]) {
+    let reference;
+    for (const mode of ['normal', 'save-false', 'save-throw']) {
+      const s = await scenario('own'), game = s.game;
+      delete game.g.companyStocks.CPTY; // Remove only the fixture's unadopted company own-share alias.
+      const own = game.stock('CPTY');
+      Object.assign(own, { issuedShares:mirror, marketCap:own.price*mirror, trend:.01 });
+      game.stock('EXT').trend = .02;
+      game.g.finance = s.modules.finance.defaultFinanceState(game.g);
+      assert.equal(s.modules.finance.validate(snapshot(game)).ok, true, 'fixture accounting agrees with retained holdings');
+      assert.equal(game.save(), true); await s.backend.flush();
+      const prior = snapshot(game), bytes = s.backend.readSync(s.key), puts = s.control.attempts.length, draws = s.host.draws;
+      assert.equal(prior.market.find(row => row.id === 'CPTY').issuedShares, mirror, 'saved predecessor carries fixture mirror');
+      let calls = 0;
+      const update = game.updateMarket;
+      game.updateMarket = function(...args) {
+        assert.equal(this.inTransaction(), true, 'market runs inside the actual weekly transaction');
+        const before = snapshot(this), result = update.apply(this, args), after = snapshot(this);
+        calls++;
+        for (const id of ['CPTY', 'EXT']) {
+          const old = before.market.find(row => row.id === id), stock = this.stock(id);
+          assert.notEqual(stock.price, old.price, id+' actual price movement');
+          assert.equal(stock.previous, old.price, id+' prior quote');
+          assert.equal(stock.marketCap, stock.price*stock.issuedShares, id+' quote/cap consistency');
+          assert.equal(stock.priceHistory.filter(row => row.week === this.g.week).length, 1, id+' one current-week quote');
+          assert.equal(stock.priceHistory.find(row => row.week === this.g.week).price, stock.price);
+        }
+        assert.equal(this.stock('CPTY').issuedShares, before.sharesOut, 'market mirrors authoritative issued quantity');
+        assert.equal(this.g.stockPrice, this.stock('CPTY').price, 'player quote mirrors market quote');
+        for (const key of ['sharesOut','founderShares','treasuryBuybackShares','companyCash','personalCash','companyDebt','personalDebt','companyStocks','personalStocks','finance'])
+          assert.deepEqual(after[key], before[key], 'market helper alone preserves '+key);
+        return result;
+      };
+      const fault = mode === 'normal' ? null : injectFault(s, mode);
+      try {
+        if (mode === 'save-throw') assert.throws(() => game.advanceWeek(false), /save accepted then threw/);
+        else assert.equal(game.advanceWeek(false), mode === 'normal');
+      } finally { fault?.restore(); }
+      assert.equal(calls, 1, 'fault is after the actual market writer');
+      if (fault) {
+        assert.ok(fault.hits() > 0); assert.deepEqual(snapshot(game), prior, 'whole public week and stale/valid mirror roll back');
+        await s.backend.flush();
+        assert.equal(s.backend.readSync(s.key), bytes); assert.equal(s.ctx.localStorage.getItem(s.key), bytes);
+        assert.equal(s.durable.get(s.key), bytes); assert.equal(s.control.attempts.length, puts, 'rejected public week starts no put');
+        await restored(s, prior);
+        calls = 0; assert.equal(game.advanceWeek(false), true); assert.equal(calls, 1, 'retry runs market once');
+      }
+      assert.equal(game.g.week, prior.week+1); assert.equal(s.host.draws, draws, 'no host RNG during weekly processing');
+      assert.equal(game.g.sharesOut, prior.sharesOut); assert.equal(game.g.founderShares, prior.founderShares);
+      assert.equal(game.g.treasuryBuybackShares, prior.treasuryBuybackShares);
+      assert.equal(game.stock('CPTY').issuedShares, prior.sharesOut, 'committed own mirror, no share issuance');
+      assert.equal(s.modules.finance.validate(snapshot(game)).ok, true);
+      if (reference) assert.deepEqual(economic(game.g), reference, 'failed week + retry equals uninterrupted state/RNG');
+      else reference = economic(game.g);
+      await s.backend.flush(); assert.equal(s.control.attempts.length, puts+1, 'exactly one successful public-week put');
+      await restored(s, game.g);
+      console.log(`public weekly market mirror=${mirror} ${mode}: rollback / retry / fresh fake-IDB PASS`);
+    }
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1745,6 +1745,13 @@
         ]
       },
       {
+        "file": "js/phase3-founder-wealth.js",
+        "tokens": [
+          "personalRealEstateHoldings",
+          "properties"
+        ]
+      },
+      {
         "file": "js/player-crisis-restructuring.js",
         "tokens": [
           "properties"

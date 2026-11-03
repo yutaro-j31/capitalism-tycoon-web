@@ -575,6 +575,8 @@ function compareLegacyParity(state,readModel=snapshot(state)){
 const ownershipIndexes=new WeakMap();
 const commonOwnershipIndexes=new WeakMap();
 const subsidiaryOwnershipScope='player-listed-and-subsidiary-ownership-v1';
+const vcSourceScope='player-listed-and-vc-source-v1';
+const peFundSourceScope='player-listed-and-pe-fund-source-v1';
 const subsidiaryOwnershipRoots=['subsidiaries','maSubsidiaries','overseasSubsidiaries','maDealRooms','acquisitionTargets','internalVentures','peDeals','startups'];
 const commonOwnershipFields=['companyName','playerName','publicCompany','sharesOut','treasuryBuybackShares','founderShares','week'];
 function freezeOwned(value){
@@ -592,7 +594,7 @@ function plainOwnershipObject(value){
 }
 // Inspect descriptors before reading values; never invoke source getters or helpers.
 // Only this adapter's source branches are copied, never the entire game state.
-function inspectListedSources(raw,includePlayer=false,includeSubsidiaries=false){
+function inspectListedSources(raw,includePlayer=false,includeSubsidiaries=false,includeVC=false,includePEFund=false){
   const issues=[],ancestors=new Set();
   function copy(value,path){
     if(typeof value==='string'){
@@ -625,7 +627,20 @@ function inspectListedSources(raw,includePlayer=false,includeSubsidiaries=false)
         if(familyFields[family])fields=familyFields[family];
         if(/^maDealRooms\["[0-9]+"\]\["acceptedTerms"\]$/.test(path))fields=['method'];
       }
+      if(includeVC){
+        if(/^startups\["[0-9]+"\]$/.test(path))fields=['id','ipoStockID','ownedCompany','ownedPersonal','alive','subsidiary','ddNegotiatedOwnedCompany','ddNegotiatedOwnedPersonal','activeFundingRound'];
+        if(/^startups\["[0-9]+"\]\["activeFundingRound"\]$/.test(path))fields=['id','status','round','openedWeek','closesWeek','preMoneyValuation','targetRaise','postMoneyValuation','preRoundOwnedCompany','preRoundOwnedPersonal','contributedCompany','contributedPersonal'];
+        if(/^subsidiaries\["[0-9]+"\]$/.test(path))fields=['id','startupID','ownership','status','source','peDealID','sourcePEFundID','sourcePEDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredWeek','restructuredFrom'];
+      }
+      if(includePEFund){
+        if(path==='peFirm')fields=['funds'];
+        if(/^peFirm\["funds"\]\["[0-9]+"\]$/.test(path))fields=['id','size','gpCommit','lpContributed','status','terms','gpDistributed','lpDistributed','gpCarryPaid','managementFeesPaid','deals','cash'];
+        if(/^peFirm\["funds"\]\["[0-9]+"\]\["terms"\]$/.test(path))fields=['fee','carry','hurdle'];
+        if(/^peFirm\["funds"\]\["[0-9]+"\]\["deals"\]\["[0-9]+"\]$/.test(path))fields=['id','status','settlement','fundPortion','coinvestPortion','investedAmount','convertedToSubsidiaryID','exitMethod'];
+        if(/^subsidiaries\["[0-9]+"\]$/.test(path))fields=['id','status','source','sourceType','sourcePEFundID','sourcePEDealID','startupID','peDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredFrom','restructuredWeek'];
+      }
       if(fields&&!fields.includes(key))continue;
+      if((includeVC||includePEFund)&&!descriptor.enumerable){issues.push(ownershipReason('INPUT_INVALID',path));continue;}
       if(typeof key==='string'){try{encodeURIComponent(key);}catch(_){issues.push(ownershipReason('INPUT_INVALID',path));continue;}}
       if(typeof key!=='string'||!Object.hasOwn(descriptor,'value')){
         issues.push(ownershipReason('INPUT_INVALID',path));continue;
@@ -639,13 +654,14 @@ function inspectListedSources(raw,includePlayer=false,includeSubsidiaries=false)
   for(const key of Reflect.ownKeys(descriptors)){
     if(typeof key!=='string'||!Object.hasOwn(descriptors[key],'value'))issues.push(ownershipReason('INPUT_INVALID','$'));
   }
-  for(const key of ['ticker','currentCompanySerial','isCompanySold','market','startups','personalStocks','companyStocks',...(includePlayer?commonOwnershipFields:[]),...(includeSubsidiaries?subsidiaryOwnershipRoots:[])]){
+  for(const key of ['ticker','currentCompanySerial','isCompanySold','market','startups','personalStocks','companyStocks',...(includePlayer?commonOwnershipFields:[]),...(includeSubsidiaries?subsidiaryOwnershipRoots:[]),...(includeVC?['subsidiaries']:[]),...(includePEFund?['peFirm','subsidiaries']:[])]){
+    if((includeVC||includePEFund)&&Object.hasOwn(descriptors,key)&&!descriptors[key].enumerable)issues.push(ownershipReason('INPUT_INVALID',key));
     if(Object.hasOwn(descriptors,key)&&Object.hasOwn(descriptors[key],'value'))source[key]=copy(descriptors[key].value,key);
   }
   return {source,issues};
 }
-function captureListedSources(raw,includePlayer=false,includeSubsidiaries=false){
-  try{return inspectListedSources(raw,includePlayer,includeSubsidiaries);}
+function captureListedSources(raw,includePlayer=false,includeSubsidiaries=false,includeVC=false,includePEFund=false){
+  try{return inspectListedSources(raw,includePlayer,includeSubsidiaries,includeVC,includePEFund);}
   catch(_){return {source:null,issues:[ownershipReason('INPUT_INVALID','$')]};}
 }
 function sameListedSources(a,b){
@@ -662,7 +678,7 @@ function buildListedHoldingsIdentityIndex(rawState){
 }
 function projectExternalListedHoldings(rawState,identityIndex){
   if(commonOwnershipIndexes.has(identityIndex)){
-    const indexed=commonOwnershipIndexes.get(identityIndex),current=captureListedSources(rawState,true,indexed?.includeSubsidiaries);
+    const indexed=commonOwnershipIndexes.get(identityIndex),current=captureListedSources(rawState,true,indexed?.includeSubsidiaries,indexed?.includeVC,indexed?.includePEFund);
     if(indexed.rawState===rawState&&!current.issues.length&&!identityIndex.issues.length&&sameListedSources(indexed.source,current.source))return indexed.listed;
     return freezeOwned({authority:'read-only',adapterVersion:1,complete:false,entities:[],classes:[],positions:[],relationships:[],unresolved:[],sourceCoverage:[],issues:[ownershipReason('STALE_EVIDENCE','$')]});
   }
@@ -766,8 +782,10 @@ function projectExternalListedHoldings(rawState,identityIndex){
 // It deliberately certifies neither financial balances nor unsupported families.
 function buildOwnershipIdentityIndex(rawState,sourceScope='player-and-listed-ownership-v2'){
   const includeSubsidiaries=sourceScope===subsidiaryOwnershipScope;
-  const scopeValid=includeSubsidiaries||sourceScope==='player-and-listed-ownership-v2';
-  const captured=captureListedSources(rawState,true,includeSubsidiaries),source=captured.source;
+  const includeVC=sourceScope===vcSourceScope;
+  const includePEFund=sourceScope===peFundSourceScope;
+  const scopeValid=includeSubsidiaries||includeVC||includePEFund||sourceScope==='player-and-listed-ownership-v2';
+  const captured=captureListedSources(rawState,true,includeSubsidiaries,includeVC,includePEFund),source=captured.source;
   if(!scopeValid)captured.issues.push(ownershipReason('INPUT_INVALID','$scope'));
   if(source){
     if(typeof source.ticker!=='string'||!source.ticker.trim())captured.issues.push(ownershipReason('INPUT_INVALID','ticker'));
@@ -777,14 +795,50 @@ function buildOwnershipIdentityIndex(rawState,sourceScope='player-and-listed-own
   const sourceSnapshotToken=Object.freeze({});
   const index=freezeOwned({authority:'read-only',indexVersion:2,sourceScope:scopeValid?sourceScope:null,sourceSnapshotToken,issues:captured.issues});
   const listed=freezeOwned({...projectExternalListedHoldings(source),sourceSnapshotToken});
-  commonOwnershipIndexes.set(index,{rawState,source:freezeOwned(source),listed,includeSubsidiaries});
+  commonOwnershipIndexes.set(index,{rawState,source:freezeOwned(source),listed,includeSubsidiaries,includeVC,includePEFund});
   return index;
+}
+// Source-only VC observations share the existing index registry; no second token or positions.
+function projectVCSourceSnapshot(rawState,identityIndex){
+  const index=identityIndex===undefined?buildOwnershipIdentityIndex(rawState,vcSourceScope):identityIndex;
+  const indexed=commonOwnershipIndexes.get(index),captured=captureListedSources(rawState,true,false,true);
+  const empty={authority:'read-only',adapterVersion:1,sourceScope:vcSourceScope,sourceSnapshotToken:null,
+    complete:false,wealthComplete:false,commandEligible:false,observations:[],roundObservations:[],issues:[]};
+  if(!indexed||!indexed.includeVC||indexed.rawState!==rawState||!sameListedSources(indexed.source,captured.source)){
+    empty.issues.push(ownershipReason('STALE_EVIDENCE','$'));return freezeOwned(empty);
+  }
+  if(index.issues.length||captured.issues.length){empty.issues.push(...index.issues,...captured.issues);return freezeOwned(empty);}
+  const adapter=modules.phase3VCSourceInterests;
+  if(typeof adapter?.projectVCSourceInterests!=='function'){empty.issues.push(ownershipReason('SOURCE_ADAPTER_UNAVAILABLE','vc'));return freezeOwned(empty);}
+  return freezeOwned({...adapter.projectVCSourceInterests(indexed.source),sourceScope:vcSourceScope,sourceSnapshotToken:index.sourceSnapshotToken});
+}
+// Source-only PE fund observations share the existing index registry; no NAV,
+// legal fund units, portfolio equity or founder wealth is inferred.
+function projectPEFundSourceSnapshot(rawState,identityIndex){
+  const index=identityIndex===undefined?buildOwnershipIdentityIndex(rawState,peFundSourceScope):identityIndex;
+  const indexed=commonOwnershipIndexes.get(index),captured=captureListedSources(rawState,true,false,false,true);
+  const empty={authority:'read-only',adapterVersion:1,sourceScope:peFundSourceScope,sourceSnapshotToken:null,
+    complete:false,wealthComplete:false,commandEligible:false,fundInterests:[],portfolioParticipations:[],
+    managementRelationships:[],distributionEvidence:[],waterfallTerms:[],parentConversions:[],issues:[],sourceCoverage:[],valuationStatus:'unknown'};
+  if(!indexed||!indexed.includePEFund||indexed.rawState!==rawState||!sameListedSources(indexed.source,captured.source)){
+    empty.issues.push(ownershipReason('STALE_EVIDENCE','$'));return freezeOwned(empty);
+  }
+  if(index.issues.length||captured.issues.length){empty.issues.push(...index.issues,...captured.issues);return freezeOwned(empty);}
+  const adapter=modules.phase3PeFundInterests;
+  if(typeof adapter?.projectPEFundInterests!=='function'||typeof adapter?.projectFundParentConversions!=='function'){
+    empty.issues.push(ownershipReason('SOURCE_ADAPTER_UNAVAILABLE','peFirm'));return freezeOwned(empty);
+  }
+  const interests=adapter.projectPEFundInterests(indexed.source),conversions=adapter.projectFundParentConversions(indexed.source);
+  const issues=Array.from(new Map([...interests.issues,...conversions.issues].map(row=>[`${row.code}\u0000${row.path}`,row])).values())
+    .sort((a,b)=>compareText(a.path,b.path)||compareText(a.code,b.code));
+  return freezeOwned({...interests,parentConversions:conversions.conversions,issues,
+    sourceScope:peFundSourceScope,sourceSnapshotToken:index.sourceSnapshotToken});
 }
 function projectOwnershipSnapshot(rawState,identityIndex){
   const index=identityIndex===undefined?buildOwnershipIdentityIndex(rawState):identityIndex;
-  const indexed=commonOwnershipIndexes.get(index),current=captureListedSources(rawState,true,indexed?.includeSubsidiaries);
+  const indexed=commonOwnershipIndexes.get(index),current=captureListedSources(rawState,true,indexed?.includeSubsidiaries,indexed?.includeVC,indexed?.includePEFund);
   const result={authority:'read-only',snapshotVersion:2,sourceScope:'player-and-listed-ownership-v2',sourceSnapshotToken:null,
-    complete:false,commandEligible:false,wealthComplete:false,entities:[],classes:[],positions:[],listingObservations:[],sourceReplacements:[],issues:[],
+    complete:false,commandEligible:false,wealthComplete:false,entities:[],classes:[],positions:[],listingObservations:[],conversionLinks:[],sourceReplacements:[],issues:[],
     coverage:[{family:'player-and-listed',status:'invalid'},...['subsidiary-ma','pe','vc','control-ladder','founder-wealth'].map(family=>({family,status:'not-implemented'}))]};
   if(!indexed||indexed.rawState!==rawState||current.issues.length||!sameListedSources(indexed.source,current.source)){
     result.issues.push(...current.issues,ownershipReason('STALE_EVIDENCE','$'));return freezeOwned(result);
@@ -797,6 +851,7 @@ function projectOwnershipSnapshot(rawState,identityIndex){
     result.issues.push(...listed.issues);return freezeOwned(result);
   }
   result.listingObservations=observeOwnershipListings(state,listed);
+  result.conversionLinks=observeVCListingConversions(state,listed,result.listingObservations);
   // Only a source explicitly delegated by P3-5 may enter the legacy own bucket.
   // A reused ticker or conflicting IPO alias stays a separate unresolved asset.
   const ownPath=`personalStocks[${JSON.stringify(state.ticker)}]`;
@@ -827,6 +882,27 @@ function projectOwnershipSnapshot(rawState,identityIndex){
   for(const position of listed.positions)result.sourceReplacements.push({sourcePath:position.sourceRefs[0].path,positionId:position.positionId,resolvedByAdapter:'projectExternalListedHoldings'});
   result.issues=[...listed.issues,...reasons,...player.issues.map(row=>ownershipReason(row.reason,row.sourcePath)),...result.listingObservations.flatMap(row=>row.reasons)];
   result.coverage[0]={family:'player-and-listed',status:result.issues.length?'partial':'observed',personalOwnLot:delegated?'delegated':ownRetained?'retained-unresolved':'absent'};
+  if(indexed.includeVC){
+    const vc=projectVCSourceSnapshot(rawState,index);
+    result.vcSourceEvidence=vc;
+    // These reference links explain a source alias; no canonical position/issuer is inferred.
+    result.vcAliasLinks=vc.observations.filter(row=>row.account==='company'&&row.status==='source-matched'&&
+      row.assetRole==='relationship-only'&&typeof row.aliasSourcePath==='string').map(row=>({
+      startupSourceId:row.startupSourceId,account:'company',sourcePath:row.sourcePath,aliasSourcePath:row.aliasSourcePath,
+      linkRole:'source-alias-reference',canonicalPositionId:null,issuerEntityId:null,quantity:null,votingFraction:null,wealthValue:null,
+      sourceRefs:[{path:row.sourcePath,family:'vc',role:'source'},{path:row.aliasSourcePath,family:'subsidiary',role:'alias'}]}));
+    result.issues.push(...vc.issues.map(row=>ownershipReason(row.code,row.path)));
+    result.coverage.push({family:'vc-source',status:vc.issues.length?'partial':'observed'});
+  }
+  if(indexed.includePEFund){
+    const peFund=projectPEFundSourceSnapshot(rawState,index);
+    // This is bound source evidence only. Canonical PE positions, fund units,
+    // issuer identities, NAV and founder wealth remain deliberately absent.
+    result.peFundSourceEvidence=peFund;
+    result.issues.push(...peFund.issues.map(row=>ownershipReason(row.code,row.path)));
+    result.coverage.push({family:'pe-fund-source',status:peFund.issues.length?'partial':'observed'});
+  }
+
   return freezeOwned(result);
 }
 
@@ -1180,6 +1256,39 @@ function observeOwnershipListings(state,listed){
   });
 }
 
+// P3-8 IPO links reuse existing P3-5 identity/quantity evidence. A current listed
+// lot is not the original IPO allotment: subsequent trades or missing history are unknown.
+function observeVCListingConversions(state,listed,listings){
+  const validId=x=>typeof x==='string'&&x.trim().length>0;
+  const encode=x=>encodeURIComponent(x).replace(/[!'()*]/g,c=>`%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  const observed=new Map(listings.map(row=>[row.instrumentAlias,row])),lots=new Map();
+  for(const position of listed.positions)lots.set(`${position.accountKind}:${position.instrumentAlias}`,position);
+  const links=[];
+  for(const [i,startup] of (state.startups||[]).entries()){
+    if(startup.ipoStockID===undefined||startup.ipoStockID===null)continue;
+    const path=`startups[${i}]`,alias=validId(startup.ipoStockID)?startup.ipoStockID:null;
+    const expected=validId(startup.id)?`entity:company:startup:${encode(startup.id)}`:null,listing=observed.get(alias);
+    const linked=expected!==null&&listing?.issuerEntityId===expected;
+    const currentPositions=['company','personal'].map(account=>{
+      const position=alias===null?undefined:lots.get(`${account}:${alias}`),sourcePath=alias===null?`${path}.ipoStockID`:`${account}Stocks[${JSON.stringify(alias)}]`;
+      const quantity=position?{...position.quantity,sourceRefs:position.quantity.sourceRefs.map(row=>({...row})),reasons:position.quantity.reasons.map(row=>({...row}))}
+        :{status:'unknown',value:null,sourceRefs:[],reasons:[ownershipReason('SOURCE_UNKNOWN',sourcePath)]};
+      return {account,sourcePath,positionId:position?.positionId||null,issuerEntityId:position?.issuer.entityId||null,
+        matchedToStartup:!!position&&expected!==null&&position.issuer.entityId===expected,quantity,
+        parentGenerationStatus:account==='company'?'unproven':'not-applicable',
+        reasons:position?position.reasons.map(row=>({...row})):[ownershipReason('SOURCE_UNKNOWN',sourcePath)],
+        securityClassId:null,votingFraction:null,wealthValue:null};
+    });
+    links.push({startupSourceId:validId(startup.id)?startup.id:null,instrumentAlias:alias,sourcePath:path,
+      status:linked?'source-linked':'unresolved',issuerEntityId:linked?expected:null,securityClassId:null,
+      linkRole:'source-history-to-current-listed-positions',currentPositions,conversionQuantity:null,roundingResidual:null,
+      votingFraction:null,wealthValue:null,sourceRefs:[{path,durableId:validId(startup.id)?startup.id:null,family:'vc',role:'historical'},
+        ...(listing?.sourceRefs||[]).map(row=>({...row}))],
+      reasons:[...(!linked?[ownershipReason('ALIAS_BINDING_UNPROVEN',path)]:[]),ownershipReason('CONVERSION_UNPROVEN',`${path}.ipoStockID`)]});
+  }
+  return links.sort((a,b)=>compareText(a.startupSourceId,b.startupSourceId)||compareText(a.instrumentAlias,b.instrumentAlias)||compareText(a.sourcePath,b.sourcePath));
+}
+
 modules.economicReadModel=Object.freeze({
   READ_MODEL_VERSION,
   PLAYER_COMPANY_ENTITY_ID,
@@ -1190,6 +1299,8 @@ modules.economicReadModel=Object.freeze({
   snapshot,
   buildOwnershipIdentityIndex,
   projectOwnershipSnapshot,
+  projectVCSourceSnapshot,
+  projectPEFundSourceSnapshot,
   projectSubsidiaryRelationships,
   projectPEOwnership,
   projectSubsidiaryOwnershipSnapshot,

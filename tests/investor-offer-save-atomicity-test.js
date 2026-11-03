@@ -208,6 +208,74 @@ async function successful(s) {
       'cancelled attempted sequence is not reused');
     await successful(s);
   }
+  // P3-4 partial replay evidence: retry a rejected issuance from durable-only hydration, then reject the same
+  // accepted offer after compaction/import and another fresh hydration. No operation-receipt authority is added.
+  {
+    const s = await scenario(), before = observe(s), offerID = s.offer.id;
+    const issued = Math.max(1, Math.round(before.state.sharesOut * s.offer.amount / s.offer.preMoneyValuation));
+    const restore = fault(s, 'save-throw');
+    try { assert.throws(() => s.game.acceptInvestorOffer(offerID), /threw/); } finally { restore(); }
+    await assertRollback(s, before);
+    async function durableOnly(source) {
+      const control = { attempts: [] }, host = { draws: 0 }, random = randomFor();
+      const loaded = loadGame({ headless: true, random: () => { host.draws++; return random(); },
+        indexedDB: indexedDBFor(source.durable, control) });
+      const backend = loaded.modules.saveStorageIDB, key = loaded.engineModule.SAVE_KEY;
+      assert.equal(loaded.ctx.__localStorageData.has(key), false, 'fresh context starts without a mirror');
+      await backend.hydrate();
+      const game = loaded.engineModule.TycoonEngine.load(); assert.ok(game, 'hydrate from durable storage alone');
+      return { ...loaded, game, backend, key, durable: source.durable, control, host };
+    }
+    const retry = await durableOnly(s);
+    assert.equal(retry.game.g.investorOffers.find(o => o.id === offerID).status, 'pending');
+    assert.equal(retry.game.acceptInvestorOffer(offerID), true, 'failed issuance remains retryable after fresh hydration');
+    assert.equal(retry.game.g.sharesOut, before.state.sharesOut + issued);
+    assert.equal(retry.game.g.companyCash, before.state.companyCash + s.offer.amount);
+    assert.equal(retry.game.g.personalCash, before.state.personalCash);
+    assert.equal(retry.game.g.finance.balances.capitalSurplus, before.state.finance.balances.capitalSurplus + s.offer.amount);
+    await retry.backend.flush();
+    for (const profile of ['normal', 'critical']) {
+      const captured = retry.game.acceptInvestorOffer, oldRoot = retry.game.g;
+      const compact = retry.modules.saveStorage.compactStateForStorage(retry.game.g, profile).state;
+      retry.game.importSave(JSON.stringify(compact));
+      assert.notEqual(retry.game.g, oldRoot, 'import actually replaces the root');
+      await retry.backend.flush();
+      // A stale-root invocation must be distinguishable from a correct rejection: give the detached root the
+      // genuine pre-acceptance state (including its pending offer and valid books), not another accepted copy.
+      for (const key of Object.keys(oldRoot)) delete oldRoot[key];
+      Object.assign(oldRoot, plain(before.state));
+      const detached = JSON.stringify(oldRoot);
+      async function refuses(current, invoke, label) {
+        const prior = observe(current), attempts = current.control.attempts.length;
+        const history = current.ctx.__localStorageHistory;
+        const mirrorCalls = { set: history.setItem.length, remove: history.removeItem.length };
+        const rows = current.game.g.finance.transactions.filter(t => t.sourceType === 'investorOffer' && t.sourceID === offerID);
+        assert.equal(rows.length, 1, 'one surviving financing row');
+        assert.equal(rows[0].cashEffect, s.offer.amount); assert.equal(rows[0].equityEffect, s.offer.amount);
+        assert.equal(current.game.g.sharesOut, before.state.sharesOut + issued);
+        assert.equal(current.game.g.companyCash, before.state.companyCash + s.offer.amount);
+        assert.equal(current.modules.finance.validate(snapshot(current.game)).ok, true);
+        assert.equal(current.game.g.investorOffers.find(o => o.id === offerID).status, 'accepted');
+        const backend = current.modules.saveStorageIDB, calls = { write: 0, remove: 0 };
+        current.modules.saveStorageIDB = { ...backend,
+          writeSync(...args) { calls.write++; return backend.writeSync(...args); },
+          removeSync(...args) { calls.remove++; return backend.removeSync(...args); } };
+        try { assert.equal(invoke(), false, label); await current.backend.flush(); }
+        finally { current.modules.saveStorageIDB = backend; }
+        assert.deepEqual(observe(current), prior, label + ': full state/RNG/mirror/cache/durable unchanged');
+        assert.equal(current.control.attempts.length, attempts, label + ': no durable put');
+        assert.deepEqual(calls, { write: 0, remove: 0 }, label + ': no cache write/remove attempt');
+        assert.deepEqual({ set: history.setItem.length, remove: history.removeItem.length }, mirrorCalls,
+          label + ': no mirror write/remove attempt, even of identical bytes');
+        assert.equal(JSON.stringify(oldRoot), detached, label + ': detached pending root untouched');
+      }
+      await refuses(retry, () => captured.call(retry.game, offerID), profile + ' captured installed method after import');
+      const fresh = await durableOnly(retry);
+      await refuses(fresh, () => fresh.game.acceptInvestorOffer(offerID), profile + ' fresh direct replay');
+      await refuses(fresh, () => fresh.game.runTransaction(() => fresh.game.acceptInvestorOffer(offerID)), profile + ' fresh nested replay');
+    }
+    console.log('P3-4 investor replay: failed save / durable-only retry / compact import / captured installed method / fresh replay PASS');
+  }
   // Same saved seed and command/reload sequence produce the same full economic outcome.
   const a = await scenario(), b = await scenario();
   const before = observe(a), restore = fault(a, 'change-throw');
