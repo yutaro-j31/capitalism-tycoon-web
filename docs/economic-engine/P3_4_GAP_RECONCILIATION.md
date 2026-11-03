@@ -27,7 +27,10 @@ This is a **presence-and-scope check**. It reads each evidence document's stated
 re-run each S obligation of #1091 (F/A/M/S/L/R/D/W/P) case by case. A row marked EVIDENCED therefore means
 "targeted evidence exists in both runtimes, both cover the shared fault set (save, mirror, enqueue, saved/change and,
 where reachable, pending and nested cases), and no stated limit names a remaining gap". It does not mean S_PASS.
-The fault-set check compares the fault names each test file uses; it is not a case-by-case audit. Every evidence
+The fault-set check compares the fault names each test file uses; it is not a case-by-case audit. Weekly writers
+(G15–G17) replace `change` and `notify` with the week's own terminal events (`finalize`, `week`); that counts as the
+shared set. The memo-G5 competitor dilution (step 4) is a gameplay correction, not an evidence obligation, so it does
+not count against EVIDENCED; it is noted on G06, G11, G12 and G13 for tracking. Every evidence
 document also disclaims "raw/helper bypass closure". That family-wide item is tracked once, under G01 and step 2, not
 against each row.
 
@@ -64,10 +67,10 @@ correction. Both are approved.
 | G34 | `createInitialState` and the second-game reset | Covered with G02. | DEFERRED | Same as G02. |
 | G35 | `refreshInvestorOffers`, `declineInboundBuyoutOffer` | `investor-offer-aux-save-atomicity` (Node only, #1207); `decline-buyout-ownership-save-atomicity` Node + WebKit. | PARTIAL | No WebKit for the auxiliary offer commands. |
 | G36 | Load, compaction, restore | `PHASE_3_OWNERSHIP_REPLACEMENT_EVIDENCE.md` (partial). | DEFERRED | Import failure atomicity is not certified. Replacement rule (memo G2). |
-| G38 | M&A equity raise `executeFinancing` | `ma-equity-raise-shadow-atomicity` Node + WebKit; leg (#1210). | PARTIAL | The WebKit test covers mirror and notify faults only; the Node test has the full set. |
+| G38 | M&A equity raise `executeFinancing` | `ma-equity-raise-shadow-atomicity` Node + WebKit; leg (#1210). | PARTIAL | The WebKit test covers save-throw and notify faults only; the Node test has the full set. |
 | G41 | Share swap `completeTargetAcquisition` | `ma-share-swap-save-atomicity` Node + WebKit; `PHASE_3_RAW_ISSUANCE_EVIDENCE.md`. | PARTIAL | Legacy `acquireTarget('shareSwap')` and standalone `issueSharesToExternalHolders`: step 2. The WebKit test covers mirror and change faults only. |
 | G42 | `activateDefense` | `activate-defense-save-atomicity` (Node fault set); `activate-defense-ownership-ratios-webkit` (healthy run only). | DEFERRED | No WebKit fault set. `HOLDER_UNPROVEN`: holder binding for the competitor stake (memo G6). |
-| G43 | Activism `accept` | `shareholder-activism-accept-save-atomicity` Node + WebKit. | PARTIAL | The WebKit test covers mirror and save-false faults only. |
+| G43 | Activism `accept` | `shareholder-activism-accept-save-atomicity` Node + WebKit. | PARTIAL | The WebKit test covers save-false and save-throw faults only. |
 
 ### Writers outside the player-common family
 
