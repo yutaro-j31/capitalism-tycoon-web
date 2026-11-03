@@ -66,7 +66,7 @@ Do **not** autonomously:
 
 **Owner-approved conditional autonomous merges (#1055):** Agents may merge an otherwise eligible **low-risk** PR without a fresh Owner request when it does not change an authoritative economic writer or cash/ledger/debt/ownership/save semantics; its latest HEAD and base are verified; all applicable required final-HEAD CI, focused tests, and relevant compatibility/browser checks have passed; no material in-scope finding or unresolved PR-specific approval remains; and the repository's permissions and protection rules allow the merge. A separate Claude session/subagent may provide scoped review while Codex is unavailable; when Claude also authored the diff this is **same-model review, not independent review**; report that limitation. The substitute-review rule below defines when such a review counts as independent. Existing specific Owner conditions still apply. High-impact financial writers, save/IndexedDB persistence, asset/cash/ownership/debt authority, legacy migrations and cutovers require their existing independent-review/Owner gates or a new **specific** Owner authorization; otherwise hold that PR's merge and continue unrelated safe work. Never weaken or skip tests to qualify. After any merge, verify the new main and report the result.
 
-**When Codex review is unavailable (Owner decision 2026-11-03, recorded in #1313):** these are **unavailability, not a finding**:
+**When Codex review is unavailable (Owner instruction given in the Owner's Claude Code session on 2026-11-03; this paragraph, added by #1313, is the written form):** these are **unavailability, not a finding**:
 
 - a Codex usage-limit notice ("You have reached your Codex usage limits");
 - a review that ends `Failed` / "We couldn't complete this review";
@@ -74,14 +74,14 @@ Do **not** autonomously:
 
 The review summary may show `has_any_findings: true` even though no finding was posted; read the actual comments. Do not wait for Codex, and do not post further `@codex review` requests while the limit holds. Substitute this review instead:
 
-1. **Reviewer.** A review is **independent** only when no commit or fixup in the PR came from the reviewer's model family. For example, Claude reviewing a PR whose every commit is Codex-authored is independent. Otherwise use a **fresh-context** reviewer that wrote none of the diff, such as a separate session or subagent. That is a **same-model** review: label it so and never call it independent. The record names the model families that authored the PR and the reviewer families that were available.
+1. **Reviewer.** A review is **independent** only when no commit or fixup in the PR came from the reviewer's model family. Determine authorship from each commit's author and trailers (for example `Co-Authored-By`, `Claude-Session`) and from authorship statements in the PR. If the authorship of any commit is unknown, treat the review as same-model. For example, Claude reviewing a PR whose every commit is Codex-authored is independent. Otherwise use a **fresh-context** reviewer that wrote none of the diff, such as a separate session or subagent. That is a **same-model** review: label it so and never call it independent. The record names the model families that authored the PR and the reviewer families that were available.
 2. **Scope.** Review the exact final-HEAD diff against the current base: production code first, then tests, then docs. For each production change, trace:
    - its caller;
    - its boundary and rollback;
    - unplannable and second-generation paths;
    - cash, ledger, ownership and save effects.
 3. **Evidence.** Merge the head onto the current base locally and run the focused tests for every touched writer. For a production change, also show that the new regression test fails with the change reverted (a mutation check). Confirm final-HEAD CI is green and the merge is conflict-free.
-4. **Freshness.** The review covers one HEAD. If the HEAD changes after the review, through new commits or a base merge, redo steps 2–4 for the new HEAD before merging.
+4. **Freshness.** The review covers one HEAD. If the HEAD changes after the review, through new commits or a base merge, redo steps 2–5 for the new HEAD and post a new record before merging.
 5. **Record.** Post one PR comment headed "Substitute review (Codex unavailable)". This comment is the record of truth. It names:
    - the reviewer;
    - whether the review is independent or same-model;
@@ -94,7 +94,7 @@ The review summary may show `has_any_findings: true` even though no finding was 
 Gates:
 
 - **Low-risk PRs.** The #1055 conditional merge rule applies with the substitute review in place of Codex.
-- **High-impact financial, persistence or authority PRs.** These are never merged autonomously under #1055. An independent substitute review meets only the independent-review requirement; any existing or specific Owner condition still applies. A same-model substitute review does not meet the independent-review requirement. Merge only with a specific Owner authorization for that PR; otherwise hold the merge, continue unrelated work, and report the hold once.
+- **High-impact financial, persistence or authority PRs.** These are never merged autonomously under the low-risk part of #1055. As #1055 states, they need their existing independent-review/Owner gates **or** a new specific Owner authorization. An independent substitute review satisfies the independent-review part of those gates; any other existing Owner condition still applies. A same-model substitute review never satisfies the independent-review part. Without the gates or a specific authorization, hold the merge, continue unrelated work, and report the hold once.
 
 When Codex becomes available again, it resumes as the default reviewer for new heads. Already-merged PRs do not need a retroactive Codex review.
 
