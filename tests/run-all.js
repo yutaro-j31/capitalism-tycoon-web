@@ -191,6 +191,7 @@ const nodeTests = [
   ['phase3-founder-wealth', 'tests/phase3-founder-wealth-test.js'],
   ['phase3-control-eligibility', 'tests/phase3-control-eligibility-test.js'],
   ['phase3-ownership-planner', 'tests/phase3-ownership-planner-test.js'],
+  ['phase3-writer-inventory-contract', 'tests/phase3-writer-inventory-contract-test.js'],
   ['phase3-ownership-apply', 'tests/phase3-ownership-apply-test.js'],
   ['player-own-share-conservation', 'tests/player-own-share-conservation-test.js'],
   ['economic-foundation-draws', 'tests/economic-foundation-draws-test.js'],
