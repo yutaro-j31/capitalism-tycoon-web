@@ -53,7 +53,10 @@ The raw entries for G3:
 - the dormant legacy `acquireTarget('shareSwap')` (W-ACQUIRE-COMPAT);
 - the overridden base `buybackOwnShares` (W-BUYBACK-BASE);
 - the base `executeIPO` (W-IPO-BASE), which is routed but reachable directly;
-- `settle` called outside a transaction.
+- the ratchet `settle` in `js/player-crisis-turnaround-fund.js` (W-TURNAROUND-RATCHET), when called outside a
+  transaction;
+- the raw margin sale `sellPersonalStockRaw` (W-MARGIN-RAW, `INTERNAL_ENTRY`), which is reached through the exports
+  covered by G4.
 
 ## 3. Recommendation
 
@@ -64,13 +67,24 @@ Do not activate yet. Work in this order, one PR each:
 2. **G3 and G4 bypass closure.** Make the raw entries refuse to write player-common facts outside a routed boundary,
    or delegate them to one. Today this changes no supported outcome, because the installed paths already go through
    routed writers.
-3. **Owner decisions on G1, G2 and G6.** These are scope decisions, not code. The recommended scope for the first
-   activation: generation 1 only, competitor stake outside the family, and replacement treated as invalidate-and-rebind.
+3. **Owner decisions on G1, G2 and G6.** These are scope decisions, not code. They would **reopen approved
+   decisions**:
+   - §5 of the preflight approved "all player-common fact writers closed before activation" and rejected the narrow
+     alternative.
+   - §3.2 row 5 puts current-generation replacement inside the same authority.
+
+   A narrower first activation is still possible. If the Owner chooses it, the recommended scope is generation 1 only,
+   the competitor stake outside the family, and replacement treated as invalidate-and-rebind. That requires the Owner
+   to explicitly revise those two decisions. Otherwise G1, G2 and G6 must be closed in code before activation.
 4. **G5 dilution correction.** Gameplay-visible, so it gets its own PR, tests and a note in the change log.
 5. **Activation PR.** Swap the writers' own quantity writes for `applyOwnershipPlan`, one fact leg at a time, behind
    the `ACTIVATION` switch. It needs a targeted independent review and the Owner's explicit decision.
 
-Steps 1–4 are preparation and can proceed under existing approvals. Step 5 is the decision this memo prepares.
+Step 1 is docs only. The §5 approval covers design choices only, so each code step needs its own approval:
+
+- step 2 changes writer entry points;
+- step 4 changes gameplay;
+- step 5 is the activation decision this memo prepares.
 
 ## Limits
 
