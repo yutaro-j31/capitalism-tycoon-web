@@ -19,7 +19,8 @@ CLAUDE.md記載のとおり、2026-08時点の開発方針は「約30業種を�
   メニューlifecycle（開発直後の話題性が時間で減衰する。age 0-3週:100%→4-12週:75%→
   13-25週:45%→26週以降:20%。減衰するのはnoveltyDeltaのみで品質・価格・レシピは不変。
   旧saveでcompletion timestamp欠落済みのmenuはfull novelty維持）
-- **将来候補**: 季節メニュー、他業種カタログ（CLAUDE.mdの「全業種に一括で広げない」
+  季節メニュー（冷やし中華=夏、味噌煮込み=冬。旬は話題性×1.6、旬外は×0.3、`js/store-equipment.js`）。
+- **将来候補**: 他業種カタログ（CLAUDE.mdの「全業種に一括で広げない」
   方針の対象。1業種ずつ広げアンロック順を守る）
 
 ### conveni（第2の柱）
@@ -59,7 +60,10 @@ CLAUDE.md記載のとおり、2026-08時点の開発方針は「約30業種を�
   4つの案件セグメント（residential/luxury/investment/corporateDeal、canonical IDは
   corporateDeal。都道府県ごとに出やすいセグメントへ決定論的バイアス）、
   営業重点方針（balanced/4セグメントの5ポリシー。新規案件のsegment mixのみに作用し、
-  close rate・deal value・capacity・inquiriesは変えない。全ポリシーで全セグメント到達可能）
+  close rate・deal value・capacity・inquiriesは変えない。全ポリシーで全セグメント到達可能）、
+  店舗別の営業担当（0〜3人。1人ごとに問い合わせ+12%・商談枠+3件・人件費 週7万円を物価・営業時間倍率込みで
+  給与行に計上。繁盛立地や好況では利益増、閑散立地では2人目から赤字。商談中案件が減員後の枠を超える減員は拒否。
+  旧saveは0人で挙動不変）
 - **将来候補**: 現時点で明示的な次項目なし。プレイテスト後に判断
 
 ## Phase 8A: Competition and markets
