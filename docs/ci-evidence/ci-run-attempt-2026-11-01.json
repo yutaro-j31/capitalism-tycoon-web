@@ -1,0 +1,308 @@
+{
+  "schema": "ci-run-attempt-projection-v1",
+  "sourceUrls": [
+    "https://api.github.com/repos/yutaro-j31/capitalism-tycoon-web/actions/runs/41294566245",
+    "https://api.github.com/repos/yutaro-j31/capitalism-tycoon-web/actions/runs/41294566245/attempts/1/jobs?per_page=100"
+  ],
+  "asOf": "2026-11-01T10:45:28.805Z",
+  "run": {
+    "id": 41294566245,
+    "run_attempt": 1,
+    "head_sha": "680706132e3cc656795bae347d3cc3fa891296b6",
+    "event": "pull_request",
+    "created_at": "2026-11-01T09:46:27Z",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "jobs": {
+    "total_count": 26,
+    "jobs": [
+      {
+        "id": 124812582674,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "capital-allocation",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:47:30Z",
+        "completed_at": "2026-11-01T09:48:04Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124812582859,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "competitor-ai",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:48:06Z",
+        "completed_at": "2026-11-01T09:48:19Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124812582913,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "Phase 0.5 Acceptance Smoke",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:47:37Z",
+        "completed_at": "2026-11-01T09:48:26Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124812582920,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-contract",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:51:22Z",
+        "completed_at": "2026-11-01T09:51:32Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124812582975,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "product-innovation",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:51:34Z",
+        "completed_at": "2026-11-01T09:51:40Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124812583016,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "release-readiness",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:52:39Z",
+        "completed_at": "2026-11-01T10:12:19Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124812583049,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "iPhone Acceptance Playthrough",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:54:02Z",
+        "completed_at": "2026-11-01T09:57:47Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124812583588,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "K parallel diagnostic (Node ${{ matrix.node }})",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:46:28Z",
+        "completed_at": "2026-11-01T09:46:28Z",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 124812583617,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "K write observation (Node ${{ matrix.node }})",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:46:28Z",
+        "completed_at": "2026-11-01T09:46:28Z",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 124812583621,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "iPhone WebKit Smoke",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:46:28Z",
+        "completed_at": "2026-11-01T09:46:28Z",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 124812583651,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "Parallel process diagnostic (Node ${{ matrix.node }})",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:46:28Z",
+        "completed_at": "2026-11-01T09:46:28Z",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 124812583658,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "C process evidence (Node ${{ matrix.node }})",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:46:28Z",
+        "completed_at": "2026-11-01T09:46:28Z",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 124812583706,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "Phase 0.5 Extended Acceptance",
+        "created_at": "2026-11-01T09:46:28Z",
+        "started_at": "2026-11-01T09:46:28Z",
+        "completed_at": "2026-11-01T09:46:28Z",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "id": 124813648179,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-E",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T09:54:24Z",
+        "completed_at": "2026-11-01T10:11:10Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648180,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-K",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T09:56:53Z",
+        "completed_at": "2026-11-01T10:16:34Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648191,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-J",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T09:57:13Z",
+        "completed_at": "2026-11-01T10:05:49Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648202,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-B",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T10:00:40Z",
+        "completed_at": "2026-11-01T10:23:44Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648204,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-I",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T10:05:32Z",
+        "completed_at": "2026-11-01T10:32:55Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648210,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-D",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T10:03:58Z",
+        "completed_at": "2026-11-01T10:24:49Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648226,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-G",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T10:10:56Z",
+        "completed_at": "2026-11-01T10:36:21Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648237,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-C",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T10:04:07Z",
+        "completed_at": "2026-11-01T10:15:39Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648239,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-F",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T10:07:31Z",
+        "completed_at": "2026-11-01T10:36:38Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648243,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-L",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T09:58:22Z",
+        "completed_at": "2026-11-01T10:21:34Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648244,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-A",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T10:11:11Z",
+        "completed_at": "2026-11-01T10:35:15Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124813648252,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test-shard-H",
+        "created_at": "2026-11-01T09:51:33Z",
+        "started_at": "2026-11-01T10:06:36Z",
+        "completed_at": "2026-11-01T10:28:53Z",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 124823563786,
+        "run_id": 41294566245,
+        "run_attempt": 1,
+        "name": "test",
+        "created_at": "2026-11-01T10:36:39Z",
+        "started_at": "2026-11-01T10:42:41Z",
+        "completed_at": "2026-11-01T10:42:43Z",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  }
+}

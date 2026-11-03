@@ -189,6 +189,10 @@ function settle(instance){
  }
  const shares=ratchetSharesFor(state);
  state.sharesOut=finite(state.sharesOut)+shares;
+ // A company that listed during the fund term mirrors the issued quantity on its own market row at once; settle runs
+ // after this week's updateMarket, which would otherwise leave the row stale until next week.
+ const own=state.publicCompany?(state.market||[]).find(row=>row.id===state.ticker):null;
+ if(own){own.issuedShares=state.sharesOut;own.marketCap=finite(own.price)*state.sharesOut;}
  fund.ratchetShares=integer(fund.ratchetShares)+shares;
  fund.shares=integer(fund.shares)+shares;
  fund.status='ratcheted';

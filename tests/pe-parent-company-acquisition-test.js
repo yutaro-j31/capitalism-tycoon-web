@@ -63,6 +63,13 @@ const rngBefore=randomCalls;
 const plan=ops.previewParentCompanyAcquisition(engine.g,fund.id,deal.id);
 
 assert.equal(engine.acquirePEPortfolioCompany(fund.id,deal.id),true,'company can acquire active PE holding');
+const conversionBefore=JSON.stringify(engine.g),conversionDraws=randomCalls;
+const conversion=require('../js/phase3-pe-fund-interests.js').projectFundParentConversions(JSON.parse(conversionBefore));
+assert.equal(conversion.conversions.length,1);assert.equal(conversion.conversions[0].status,'source-observed');
+assert.equal(conversion.conversions[0].subsidiarySourceId,deal.convertedToSubsidiaryID);
+assert.equal(conversion.conversions[0].wealthValue,null);assert.equal(conversion.conversions[0].legalEquityFraction,null);
+assert.equal(JSON.stringify(engine.g),conversionBefore);assert.equal(randomCalls,conversionDraws);
+
 assert.equal(saveCalls,1,'successful acquisition commits exactly once');
 assert.equal(randomCalls,rngBefore,'parent acquisition consumes no simulation RNG');
 assert.equal(buyerCashBefore-engine.g.companyCash,plan.purchasePrice,'buyer company pays the exact PE sale proceeds');

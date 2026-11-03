@@ -153,12 +153,18 @@ function prepay(engine,amount){
 
 // Mirrors engine.sellStock's personal-account math exactly, minus its notify/save/emit --
 // liquidate() below fires possibly several of these in one silent pass and reports once itself.
-function sellPersonalStockRaw(state,stockID,qty){
+function sellPersonalStockRaw(state,stockID,qty,engine){
   const stock=(state.market||[]).find(s=>s.id===stockID);
   const holding=state.personalStocks?.[stockID];
   if(!stock||!holding||qty<1)return 0;
   const quote=stockOrderQuote(stock,Math.min(Math.floor(qty),Math.floor(finite(holding.qty))),'sell');
   if(quote.filledQty<1)return 0;
+  // P3-4 verification leg (W-MARGIN-LIQ, through this raw helper): each forced sale of the player's own shares must
+  // leave the planned lot. It plans only inside a transaction (the installed week); a mismatch throws, so the whole
+  // week is refused and rolled back. A direct call outside a transaction stays unchecked.
+  const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=engine&&stockID===state.ticker
+    ?ownership.beginOwnershipLeg(engine,{writerId:'W-MARGIN-LIQ',kind:'personal-sell',
+      operationId:`margin-liquidation-${stockID}-${Math.floor(finite(state.week))}`,change:{quantity:quote.filledQty}}):null;
   const proceeds=quote.cashAmount;
   const profit=proceeds-holding.avg*quote.filledQty;
   state.personalCash=finite(state.personalCash)+proceeds;
@@ -167,6 +173,7 @@ function sellPersonalStockRaw(state,stockID,qty){
   state.realizedPersonalStockPL=finite(state.realizedPersonalStockPL)+profit;
   stock.price=quote.quoteAfter;
   stock.marketCap=stock.price*stock.issuedShares;
+  if(!ownership.confirmOwnershipLeg(engine,leg))throw new Error('株式数の整合を確認できませんでした。');
   return proceeds;
 }
 
@@ -188,7 +195,7 @@ function liquidate(engine){
       const liveHolding=state.personalStocks?.[holding.id];
       if(!stock||!(stock.price>0)||!liveHolding||finite(liveHolding.qty)<1)break;
       const qty=Math.min(Math.floor(finite(liveHolding.qty)),Math.max(1,Math.ceil((loan.balance-raised)/stock.price)));
-      const proceeds=sellPersonalStockRaw(state,holding.id,qty);
+      const proceeds=sellPersonalStockRaw(state,holding.id,qty,engine);
       if(proceeds<=0)break;
       raised+=proceeds;
     }
