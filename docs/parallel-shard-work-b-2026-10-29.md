@@ -1,5 +1,7 @@
 # Work B takeover — C activation gate / E preparation
 
+> **更新（2026-11-03）: 以下は 2026-10-29 時点の履歴スナップショット。その後 Owner が C の変数を 2026-10-29 06:45 UTC に設定し、C は 201 run で全て成功（中央値 14.4 分、ピークメモリ 14〜19%）。本文の「C は直列」「0/10」は現状ではない。**
+
 Evidence snapshot: 2026-10-29 JST. Main: `e731bacb48049cf81765bcb526042bed1795b552`.
 This is a dated observation, not a claim about future run state. No production economic source was edited.
 
