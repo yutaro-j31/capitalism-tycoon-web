@@ -82,6 +82,13 @@ function ensureStore(store,business,week,seed,siteMultiplier=1){
   store.brokeragePipeline={schemaVersion:SCHEMA_VERSION,capacity,activeDeals:active.slice(0,capacity),lastWeek:raw.lastWeek&&typeof raw.lastWeek==='object'?raw.lastWeek:null,totals:{inquiries:integer(totals.inquiries),mandates:integer(totals.mandates),closedDeals:integer(totals.closedDeals),singleClosedDeals:integer(totals.singleClosedDeals),doubleClosedDeals:integer(totals.doubleClosedDeals),closedBySegment:sanitizeSegmentCounts(totals.closedBySegment),lostDeals:integer(totals.lostDeals),closedTransactionVolume:integer(totals.closedTransactionVolume),commissionRevenue:integer(totals.commissionRevenue),capacityLostInquiries:integer(totals.capacityLostInquiries)},history:Array.isArray(raw.history)?raw.history.filter(x=>x&&typeof x==='object').slice(-HISTORY_LIMIT):[]};
   return store.brokeragePipeline;
 }
+// Resize one store's pipeline (after its agents change) without touching any other store.
+function normalizeStore(g,store){
+  if(!store||store.businessID!==BUSINESS_ID||!store.brokeragePipeline||typeof store.brokeragePipeline!=='object')return null;
+  const business=(Array.isArray(g?.businesses)?g.businesses:[]).find(x=>x?.id===BUSINESS_ID);
+  const siteMultiplier=globalThis.__capitalismTycoonModules?.tenantSiteSuitability?.forStore?.(g,store)?.multiplier??1;
+  return ensureStore(store,business,integer(g.week,1),seedOf(g),siteMultiplier);
+}
 function normalize(g){
   const businesses=Array.isArray(g?.businesses)?g.businesses:[],business=businesses.find(x=>x?.id===BUSINESS_ID);
   for(const store of Array.isArray(g?.stores)?g.stores:[])if(store?.businessID===BUSINESS_ID&&store.brokeragePipeline&&typeof store.brokeragePipeline==='object'){
@@ -119,5 +126,5 @@ function processStore(g,store,business,pref,siteMultiplier=1){
   for(const segment of SEGMENTS)pipeline.totals.closedBySegment[segment]+=closedBySegment[segment];
   return {sales:commissionRevenue,variable:Math.round(commissionRevenue*.1),kpi:row};
 }
-modules.realEstateAgencyPipeline=Object.freeze({MAX_AGENTS,SLOTS_PER_AGENT,AGENT_WEEKLY_WAGE,INQUIRY_BOOST_PER_AGENT,agentsFor,agentWeeklyWage,BUSINESS_ID,SCHEMA_VERSION,CLOSE_PACE,MANDATE_PACE,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,eligibleStores,ensureStore,normalize,processStore});
+modules.realEstateAgencyPipeline=Object.freeze({normalizeStore,MAX_AGENTS,SLOTS_PER_AGENT,AGENT_WEEKLY_WAGE,INQUIRY_BOOST_PER_AGENT,agentsFor,agentWeeklyWage,BUSINESS_ID,SCHEMA_VERSION,CLOSE_PACE,MANDATE_PACE,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,eligibleStores,ensureStore,normalize,processStore});
 })();

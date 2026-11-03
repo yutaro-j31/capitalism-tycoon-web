@@ -84,6 +84,12 @@ const plain = value => JSON.parse(JSON.stringify(value));
     const expected = baseRow * (wage + 2 * hired.mod.AGENT_WEEKLY_WAGE) / wage;
     assert.ok(Math.abs(hiredRow - expected) <= 3, `week ${hired.game.g.week}: payroll row carries the agent wage (${hiredRow} vs ${expected})`);
     assert.equal(rows(hired, 'weekly-store-rent').at(-1).amount, rows(base, 'weekly-store-rent').at(-1).amount, 'rent unchanged');
+    // The agent wage must be a real extra cost: maintenance (fixed - rent - wage) stays the same, so the store's total
+    // posted cost rises by exactly the payroll difference and none of it is absorbed by the maintenance row.
+    assert.equal(rows(hired, 'weekly-store-maintenance').at(-1).amount, rows(base, 'weekly-store-maintenance').at(-1).amount, 'maintenance unchanged');
+    const sales = s => rows(s, 'weekly-store-revenue').at(-1).amount, cogs = s => rows(s, 'weekly-store-cogs').at(-1).amount;
+    assert.equal(hired.store.lastProfit - base.store.lastProfit,
+      (sales(hired) - sales(base)) - (cogs(hired) - cogs(base)) - (hiredRow - baseRow), 'store profit carries the whole agent wage');
   }
   assert.ok(inquiriesHired > inquiriesBase, `agents prospect more inquiries (${inquiriesHired} vs ${inquiriesBase})`);
   assert.equal(hired.game.g.simulationRng.draws, base.game.g.simulationRng.draws, 'agents draw no RNG');

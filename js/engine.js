@@ -1306,7 +1306,7 @@ class TycoonEngine extends EventTarget {
     const capacity=mod.capacityFor(b,site,next),active=store.brokeragePipeline?.activeDeals?.length||0;
     if(active>capacity)return this.fail(`商談中の案件が${active}件あるため、商談枠${capacity}件まで減らせません。成約・失注で減るまでお待ちください。`);
     return this.runTransaction(()=>{
-      store.brokerageAgents=next;mod.normalize(this.g);
+      store.brokerageAgents=next;mod.normalizeStore(this.g,store);
       this.notify(`${store.name}の営業担当を${next}人にしました（商談枠 ${store.brokeragePipeline?.capacity??capacity}件・人件費 週約${yen(mod.agentWeeklyWage(store)*this.g.inflation)}）。`);
       return true;
     });
