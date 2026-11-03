@@ -45,7 +45,7 @@ correction. Both are approved.
 
 | Gap | Writer | Evidence on `main` | Status | What remains |
 | --- | --- | --- | --- | --- |
-| G01 | Player-common writer and bypass closure | Every `supported` planner writer is routed (see Method). | PARTIAL | Raw entries: step 2. Generation 2+: DEFERRED (memo G1). |
+| G01 | Player-common writer and bypass closure | Every `supported` planner writer is routed (see Method). | PARTIAL | Raw entries: step 2. Generation 2+: DEFERRED (memo G1). A leg is also left unchecked whenever inspection is not `OBSERVED` or the planner throws (`beginOwnershipLeg` returns null); activation must turn that into a refusal. |
 | G02 | Refounding (`foundNewCompanyAfterBuyout`, `migrateSave`) | `found-new-company-save-atomicity` Node + WebKit; `PHASE_3_REFOUNDING_IDENTITY_EVIDENCE.md` (partial). | DEFERRED | Replacement rule and generation binding (memo G1, G2). |
 | G03 | `buyStock` | `stock-purchase-save-atomicity` Node + WebKit; routed. | PARTIAL | The WebKit test covers mirror faults only (unchanged since #1043). |
 | G04 | `sellStock` | `stock-sale-save-atomicity` Node + WebKit; routed. | PARTIAL | The WebKit test covers mirror faults only (unchanged since #1043). |
