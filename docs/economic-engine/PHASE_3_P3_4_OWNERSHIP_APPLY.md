@@ -107,7 +107,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-INVESTOR `acceptInvestorOffer` (`js/expansion.js`), pre-IPO | `external-issue` | #1199 |
 | W-SHARE-SWAP `completeTargetAcquisition` (`js/ma-deal-room.js`), listed company, deal-room share swap | `external-issue` | #1204 |
 | W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | #1202 |
-| W-MA-EQUITY/SH financing wrapper of `completeTargetAcquisition` (`js/ma-acquisition-financing.js`), listed company, M&A public equity raise, live plan / final shadow confirmation | `external-issue` | this PR |
+| W-MA-EQUITY/SH financing wrapper of `completeTargetAcquisition` (`js/ma-acquisition-financing.js`), listed company, M&A public equity raise, live plan / final shadow confirmation | `external-issue` | #1210 |
+| W-IPO-CHAIN base `executeIPO` (`js/engine.js`), reached through the installed IPO chain's outer transaction; verified only | `ipo` | this PR |
 
 | W-MARGIN-LIQ forced margin sale (`liquidate` → `sellPersonalStockRaw`, `js/personal-stock-margin.js`), the player's own ticker only, one leg per forced sale | `personal-sell` | #1212 |
 
@@ -169,6 +170,13 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 - **Unit:** a shadow engine plans only with its own `ownershipShadowBoundary: true`; an inherited or false marker, or no
   boundary, does not.
 
+- **IPO (verification only):**
+  - unit: an unlisted company's IPO leg plans and carries the planned listing; a listed company cannot plan one;
+    confirmation needs the planned buckets *and* the listing (listed, under the planned ticker, consistent issued
+    mirror); a different founder secondary or an inconsistent mirror is rejected;
+  - installed chain (zero-store investment route): the IPO succeeds unchanged; a bucket write skewed by one share is
+    refused and the whole IPO is rolled back; a second-generation company keeps the existing IPO.
+
 - **Writer suite** (`tests/player-own-share-conservation-test.js`), forced margin liquidation of an own-share lot:
   - inside a transaction and through the installed week, the forced sale leaves exactly the planned lot (the lot is
     sold as before);
@@ -195,6 +203,11 @@ The M&A equity raise runs on the financing wrapper's shadow engine, outside any 
 gate would never plan it. The wrapper now plans against the live state via its explicitly marked boundary facade, before cloning. It confirms the leg
 against the final shadow after financing, inner completion and finance validation, before live replacement; a mismatch throws into the wrapper's existing catch, which restores the live
 state and the save checkpoint. This adds no nested transaction and does not change how §1 treats the shadow boundary.
+
+IPO legs are verified only (Owner decision 2026-10-29). `applyOwnershipPlan` still refuses `ipo` plans, because the
+listing record and any lot rebinding stay with the existing writer; verification writes nothing, so those reasons do
+not apply to it. The leg sits in the base `executeIPO`, which production reaches only through the installed chain
+(difficulty → PE network → PE fund wrappers) whose outer transaction is the boundary.
 
 The forced margin sale is a weekly writer: a mismatch refuses the whole week. Each own-ticker raw sale plans against
 the state the previous sale left. The exported `liquidate` / `processWeek` called directly, outside a transaction, keep
