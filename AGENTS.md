@@ -81,7 +81,7 @@ The review summary may show `has_any_findings: true` even though no finding was 
    - unplannable and second-generation paths;
    - cash, ledger, ownership and save effects.
 3. **Evidence.** Merge the head onto the current base locally and run the focused tests for every touched writer. For a production change, also show that the new regression test fails with the change reverted (a mutation check). Confirm final-HEAD CI is green and the merge is conflict-free.
-4. **Freshness.** The review covers one HEAD. If the HEAD changes after the review, through new commits or a base merge, redo steps 2–5 for the new HEAD and post a new record before merging.
+4. **Freshness.** The review covers one HEAD. If the HEAD changes after the review, through new commits or a base merge, redo steps 1–5 for the new HEAD before merging. Re-determine independence (step 1) against every commit at the new HEAD, and post a new record.
 5. **Record.** Post one PR comment headed "Substitute review (Codex unavailable)". This comment is the record of truth. It names:
    - the reviewer;
    - whether the review is independent or same-model;
