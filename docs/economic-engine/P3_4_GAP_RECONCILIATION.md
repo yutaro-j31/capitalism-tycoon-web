@@ -27,7 +27,9 @@ This is a **presence-and-scope check**. It reads each evidence document's stated
 re-run each S obligation of #1091 (F/A/M/S/L/R/D/W/P) case by case. A row marked EVIDENCED therefore means
 "targeted evidence exists in both runtimes, both cover the shared fault set (save, mirror, enqueue, saved/change and,
 where reachable, pending and nested cases), and no stated limit names a remaining gap". It does not mean S_PASS.
-The fault-set check compares the fault names each test file uses; it is not a case-by-case audit.
+The fault-set check compares the fault names each test file uses; it is not a case-by-case audit. Every evidence
+document also disclaims "raw/helper bypass closure". That family-wide item is tracked once, under G01 and step 2, not
+against each row.
 
 | Status | Meaning |
 | --- | --- |
@@ -47,12 +49,12 @@ correction. Both are approved.
 | --- | --- | --- | --- | --- |
 | G01 | Player-common writer and bypass closure | Every `supported` planner writer is routed (see Method). | PARTIAL | Raw entries: step 2. Generation 2+: DEFERRED (memo G1). A leg is also left unchecked whenever inspection is not `OBSERVED` or the planner throws (`beginOwnershipLeg` returns null); activation must turn that into a refusal. |
 | G02 | Refounding (`foundNewCompanyAfterBuyout`, `migrateSave`) | `found-new-company-save-atomicity` Node + WebKit; `PHASE_3_REFOUNDING_IDENTITY_EVIDENCE.md` (partial). | DEFERRED | Replacement rule and generation binding (memo G1, G2). |
-| G03 | `buyStock` | `stock-purchase-save-atomicity` Node + WebKit; routed. | PARTIAL | The WebKit test covers mirror faults only (unchanged since #1043). |
-| G04 | `sellStock` | `stock-sale-save-atomicity` Node + WebKit; routed. | PARTIAL | The WebKit test covers mirror faults only (unchanged since #1043). |
-| G05 | `sellFounderShares` | `founder-share-sale-save-atomicity` Node + WebKit; routed; R10b. | PARTIAL | The WebKit test covers mirror faults only (unchanged since #1043). |
-| G06 | `acceptInvestorOffer` | `investor-offer-save-atomicity` Node + WebKit; `PHASE_3_INVESTOR_REPLAY_EVIDENCE.md`; routed. | PARTIAL | The WebKit test covers mirror and pending faults only. Competitor dilution: step 4 (memo G5). |
-| G07 | `executeIPO` chain | `parent-ipo-save-atomicity` Node + WebKit; `PHASE_3_CAPTURED_IPO_EVIDENCE.md`; IPO leg (#1213). | PARTIAL | A standalone base `executeIPO` call: step 2. |
-| G08 | Margin liquidation | `personal-stock-margin-save-atomicity` Node + WebKit; `PHASE_3_MARGIN_TRANSACTION_EVIDENCE.md`; legs (#1212). | PARTIAL | Direct `liquidate` / `processWeek` calls have no boundary: step 2 (memo G4). |
+| G03 | `buyStock` | `stock-purchase-save-atomicity` Node + WebKit; routed. | PARTIAL | The WebKit test covers mirror and change faults only (unchanged since #1043). |
+| G04 | `sellStock` | `stock-sale-save-atomicity` Node + WebKit; routed. | PARTIAL | The WebKit test covers mirror and change faults only (unchanged since #1043). |
+| G05 | `sellFounderShares` | `founder-share-sale-save-atomicity` Node + WebKit; routed; R10b. | PARTIAL | The WebKit test covers mirror and change faults only (unchanged since #1043). |
+| G06 | `acceptInvestorOffer` | `investor-offer-save-atomicity` Node + WebKit; `PHASE_3_INVESTOR_REPLAY_EVIDENCE.md`; routed. | PARTIAL | The WebKit test covers mirror and change faults only. Competitor dilution: step 4 (memo G5). |
+| G07 | `executeIPO` chain | `parent-ipo-save-atomicity` Node + WebKit; `PHASE_3_CAPTURED_IPO_EVIDENCE.md`; IPO leg (#1213). | PARTIAL | A standalone base `executeIPO` call: step 2. The WebKit test has no nested, notify or enqueue-throw cases. |
+| G08 | Margin liquidation | `personal-stock-margin-save-atomicity` Node + WebKit; `PHASE_3_MARGIN_TRANSACTION_EVIDENCE.md`; legs (#1212). | PARTIAL | Direct `liquidate` / `processWeek` calls have no boundary: step 2 (memo G4). The WebKit test has no pending or nested cases (#1091 FC-G08-05). |
 | G09 | Buyback | `shareholder-buyback-save-atomicity` Node + WebKit; base rejection and export evidence. | PARTIAL | The base `buybackOwnShares`: step 2. Its evidence document lists standalone base calls as unproved. |
 | G10 | Dividend declaration and payment | `shareholder-dividend-declaration-` and `-payment-save-atomicity` Node + WebKit. | PARTIAL | The payment evidence does not certify additional personal own-company lots or all holder classes (its Limits). |
 | G11 | `requestSponsorInjection` | `sponsor-injection-save-atomicity` Node + WebKit; routed. | EVIDENCED | Competitor dilution: step 4. |
@@ -63,7 +65,7 @@ correction. Both are approved.
 | G35 | `refreshInvestorOffers`, `declineInboundBuyoutOffer` | `investor-offer-aux-save-atomicity` (Node only, #1207); `decline-buyout-ownership-save-atomicity` Node + WebKit. | PARTIAL | No WebKit for the auxiliary offer commands. |
 | G36 | Load, compaction, restore | `PHASE_3_OWNERSHIP_REPLACEMENT_EVIDENCE.md` (partial). | DEFERRED | Import failure atomicity is not certified. Replacement rule (memo G2). |
 | G38 | M&A equity raise `executeFinancing` | `ma-equity-raise-shadow-atomicity` Node + WebKit; leg (#1210). | PARTIAL | The WebKit test covers mirror and notify faults only; the Node test has the full set. |
-| G41 | Share swap `completeTargetAcquisition` | `ma-share-swap-save-atomicity` Node + WebKit; `PHASE_3_RAW_ISSUANCE_EVIDENCE.md`. | PARTIAL | Legacy `acquireTarget('shareSwap')` and standalone `issueSharesToExternalHolders`: step 2. |
+| G41 | Share swap `completeTargetAcquisition` | `ma-share-swap-save-atomicity` Node + WebKit; `PHASE_3_RAW_ISSUANCE_EVIDENCE.md`. | PARTIAL | Legacy `acquireTarget('shareSwap')` and standalone `issueSharesToExternalHolders`: step 2. The WebKit test covers mirror and change faults only. |
 | G42 | `activateDefense` | `activate-defense-save-atomicity` (Node fault set); `activate-defense-ownership-ratios-webkit` (healthy run only). | DEFERRED | No WebKit fault set. `HOLDER_UNPROVEN`: holder binding for the competitor stake (memo G6). |
 | G43 | Activism `accept` | `shareholder-activism-accept-save-atomicity` Node + WebKit. | PARTIAL | The WebKit test covers mirror and save-false faults only. |
 
@@ -78,7 +80,7 @@ player-common activation.
 | G15 | VC round close | `vc-round-close-week-save-atomicity` Node + WebKit. | EVIDENCED | — |
 | G16 | VC write-off | `vc-writeoff-week-save-atomicity` Node + WebKit. | EVIDENCED | — |
 | G17 | `listStartup` | `vc-listing-week-save-atomicity` Node + WebKit. | EVIDENCED | — |
-| G18 | Subsidiary IPO, `makeSubsidiary` | `subsidiary-ipo-` and `make-subsidiary-save-atomicity` Node + WebKit. | EVIDENCED | — |
+| G18 | Subsidiary IPO, `makeSubsidiary` | `subsidiary-ipo-` and `make-subsidiary-save-atomicity` Node + WebKit. | PARTIAL | The `make-subsidiary` WebKit test has no nested case; the Node test has it. |
 | G19 | Subsidiary IPO secondary sale | `subsidiary-secondary-sale-save-atomicity` Node + WebKit. | EVIDENCED | — |
 | G20 | Listed subsidiary market trade | `subsidiary-market-trade-save-atomicity` Node + WebKit. | EVIDENCED | — |
 | G21 | Listed subsidiary tender offer and squeeze-out | `subsidiary-control-save-atomicity` Node + WebKit. | EVIDENCED | — |
@@ -94,13 +96,13 @@ player-common activation.
 | G31 | Weekly PE fund `processFundsWeek` | `week-pe-fund-save-atomicity` (Node only). | PARTIAL | No WebKit. |
 | G32 | Weekly `updateMarket` | `PHASE_3_WEEKLY_MARKET_EVIDENCE.md` (partial). | PARTIAL | Unknown holder, class and control evidence stays unsupported. |
 | G33 | Expanded week `updateCapitalMarketsExpandedWeekly` | Margin hook covered by G08. | PARTIAL | No dedicated fault set for the PE-mirror and public-listing hooks. |
-| G39 | `executeMBO`, fund exit | `execute-mbo-` and `pe-portfolio-exit-save-atomicity` Node + WebKit. | PARTIAL | The MBO Node test has no pending or nested cases (#1089: E09 incomplete). |
+| G39 | `executeMBO`, fund exit | `execute-mbo-` and `pe-portfolio-exit-save-atomicity` Node + WebKit. | PARTIAL | The MBO Node test has no pending or nested cases (#1089: E09 incomplete). Neither WebKit test, nor the fund-exit Node test, has nested cases. |
 
 ### Cross-cutting
 
 | Gap | Subject | Evidence on `main` | Status | What remains |
 | --- | --- | --- | --- | --- |
-| G40 | Shared browser fault-applicability matrix: `stockSplit`, `declineInboundBuyoutOffer`, VC and subsidiary helpers (obligations S, L, R, D, W) | Per-writer WebKit tests only. | OPEN | No read-only applicability matrix. It covers player-common writers (split, decline). |
+| G40 | Shared browser fault-applicability matrix: `stockSplit`, `declineInboundBuyoutOffer`, `investStartup`, `participateStartupFundingRound`, `sellStartupSecondary`, `makeSubsidiary`, `executeGroupRestructuringSale`, `sellMASubsidiary`, `createPEDeal`, `exitPEDeal`, `createAngelInvestment` (obligations S, L, R, D, W) | Per-writer WebKit tests only. | OPEN | No read-only applicability matrix. It covers player-common writers (split, decline). |
 
 ### Money oracles (M0)
 
@@ -110,7 +112,7 @@ These gaps ask for whole-yen conservation oracles. Each is owned by a rounding s
 | --- | --- | --- | --- | --- |
 | G37 | Engine buy, sell, IPO, listing, market | R2 | PARTIAL | Slice DONE. This reconciliation did not re-check each row's acceptance. |
 | G44 | Refounding, decline, earnings | R2c | PARTIAL | As G37. #1091 records that R2c covers HQ and completion rows, not every refounding ownership case. |
-| G45 | `expansion.js` money writers | R2, R10a, R10b | PARTIAL | As G37. |
+| G45 | `expansion.js` money writers | R2d (as #1091 assigns it), R10a, R10b | PARTIAL | As G37. |
 | G46 | Margin, buy, sell | R4c | PARTIAL | As G37. |
 | G47 | Buyback, dividend | R5c | PARTIAL | As G37. |
 | G48 | M&A, PE, subsidiary IPO, exit, group sale | R6 | PARTIAL | As G37. |
@@ -125,19 +127,20 @@ For the player-common family, 21 gaps:
 | Status | Count | Gaps |
 | --- | --- | --- |
 | EVIDENCED | 2 | G11, G12 |
-| PARTIAL, closed by step 2 | 6 | G01, G07, G08, G09, G13, G41 |
+| PARTIAL, closed by step 2 | 3 | G01, G09, G13 |
+| PARTIAL, step 2 and a WebKit fault set | 3 | G07, G08, G41 |
 | PARTIAL, WebKit fault set incomplete | 6 | G03, G04, G05, G06, G38, G43 |
 | PARTIAL, other | 2 | G10 (holder classes), G35 (WebKit for the auxiliary offer commands) |
 | DEFERRED | 5 | G02, G14, G34, G36, G42 |
 
-Steps 2 and 4 do **not** close the player-common family on their own. The six WebKit fault-set gaps, G10, G35 and the
-cross-cutting G40 also stay open. Each needs test-only evidence: the shared fault set in the existing WebKit tests,
-and the applicability matrix of G40.
+Steps 2 and 4 do **not** close the player-common family on their own. Nine gaps also need a fuller WebKit fault set
+(G03–G08, G38, G41, G43), and G10, G35 and the cross-cutting G40 stay open too. Each needs test-only evidence: the shared
+fault set in the existing WebKit tests, the holder-class cases of G10 and the applicability matrix of G40.
 
 Outside the family, 20 gaps:
 
-- 12 are EVIDENCED.
-- G24, G26, G27, G31, G32, G33 and G39 are PARTIAL.
+- 11 are EVIDENCED.
+- G18, G24, G26, G27, G31, G32, G33 and G39 are PARTIAL.
 - G30 is OPEN.
 
 None of these blocks player-common activation. As #1091 §1 summarises #1080 §5, activation waits for every
