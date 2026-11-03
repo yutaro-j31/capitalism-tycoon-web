@@ -108,6 +108,45 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
 {const{e,d}=acquire('company',81),s=e.g.subsidiaries[0];e.updatePersonalExpandedWeekly();stakeMatches(d,s);const value=s.valuation;e.updateSubsidiaries();assert.equal(s.valuation,value);}
 // Existing subsidiary IPO pipeline updates PE ownership, stake valuation and remaining basis and never rolls them back.
 {const{e,d}=acquire('company',91);d.ownershipRatio=.70;d.currentValuation=350e6;d.ownerCostBasis=100e6;const s=e.syncPESubsidiary(d);s.ipoPreparation={stageIndex:3,completed:true,offerTermID:'balanced',totalCost:0};assert.equal(e.ipoSubsidiary(s.id),true);assert.equal(d.ownershipRatio,s.ownership);assert.equal(d.ownerCostBasis,s.carryingBookValue);stakeMatches(d,s);const post={ownership:d.ownershipRatio,basis:d.ownerCostBasis};e.updatePersonalExpandedWeekly();assert.equal(d.ownershipRatio,post.ownership);assert.equal(d.ownerCostBasis,post.basis);stakeMatches(d,s);s.ipoOfferTerms.lockupUntilWeek=e.g.week;e.sellSubsidiaryIPOStake(s.id,.10);assert.equal(d.ownershipRatio,s.ownership);assert.equal(d.ownerCostBasis,s.carryingBookValue);stakeMatches(d,s);}
+// P3-4 FC-G30-01 (partial): IPO -> listed secondary sale -> reload -> direct
+// PE projection sync must retain the reduced legal stake, not recreate sold equity.
+// The existing IPO test covers in-memory reverse updates; this checks persistence.
+{
+ const {e,d}=acquire('company',197),id=`pe-subsidiary-${d.id}`;
+ d.ownershipRatio=.70;d.currentValuation=350e6;d.ownerCostBasis=100e6;
+ const sub=e.syncPESubsidiary(d);
+ sub.ipoPreparation={stageIndex:3,completed:true,offerTermID:'balanced',totalCost:0};
+ assert.equal(e.ipoSubsidiary(id),true);
+ sub.ipoOfferTerms.lockupUntilWeek=e.g.week;
+ const preSaleOwnership=d.ownershipRatio,preSaleBasis=d.ownerCostBasis;
+ assert.equal(e.sellSubsidiaryIPOStake(id,.10),true);
+ assert.ok(d.ownershipRatio<preSaleOwnership,'secondary sale reduces the legal PE stake');
+ assert.ok(d.ownerCostBasis<preSaleBasis,'secondary sale reduces the PE cost basis');
+ const expected={ownership:d.ownershipRatio,basis:d.ownerCostBasis,
+  companyCash:e.g.companyCash,personalCash:e.g.personalCash,
+  ledger:e.g.finance.transactions.length};
+ assert.equal(e.save(),true);
+ const loaded=e.constructor.load(),deal=loaded.g.peDeals.find(x=>x.id===d.id);
+ const mirror=loaded.g.subsidiaries.find(x=>x.id===id);
+ assert.ok(deal&&mirror,'listed PE stake and mirror survive reload');
+ assert.equal(loaded.g.subsidiaries.filter(x=>x.id===id).length,1);
+ assert.ok(Math.abs(deal.ownershipRatio-expected.ownership)<1e-6,'sold equity does not return');
+ assert.ok(Math.abs(deal.ownerCostBasis-expected.basis)<.01,'sold basis does not return');
+ assert.ok(Math.abs(mirror.ownership-expected.ownership)<1e-6);
+ assert.equal(loaded.g.companyCash,expected.companyCash);
+ assert.equal(loaded.g.personalCash,expected.personalCash);
+ assert.equal(loaded.g.finance.transactions.length,expected.ledger,'sale receipt is not duplicated');
+ const valueBefore=loaded.companyValue(),stakeBefore=mirror.valuation*mirror.ownership;
+ loaded.syncPESubsidiary(deal);
+ assert.equal(loaded.g.subsidiaries.filter(x=>x.id===id).length,1,'forward sync reuses listed mirror');
+ assert.ok(Math.abs(mirror.ownership-expected.ownership)<1e-6,'forward sync cannot restore sold shares');
+ assert.ok(Math.abs((loaded.companyValue()-valueBefore)-(deal.currentValuation-stakeBefore))<.01,
+  'forward sync replaces only the surviving stake value');
+ assert.equal(loaded.g.companyCash,expected.companyCash);
+ assert.equal(loaded.g.personalCash,expected.personalCash);
+ assert.equal(loaded.g.finance.transactions.length,expected.ledger);
+}
+
 // Personal and company EXIT route cash/accounting separately and company EXIT removes subsidiary value.
 {const{e,d}=acquire(),p=e.g.personalCash,c=e.g.companyCash;assert.equal(e.exitPEDeal(d.id),true);assert.ok(e.g.personalCash>p);assert.equal(e.g.companyCash,c);}
 {const{x,e,d}=acquire('company',55);d.improvementScore=100;e.syncPESubsidiary(d);const p=e.g.personalCash,c=e.g.companyCash,basis=d.ownerCostBasis,expected=x.modules.peValueCreation.exitValue(d),tx=e.g.finance.transactions.length;assert.equal(e.exitPEDeal(d.id),true);assert.equal(e.g.personalCash,p);assert.equal(e.g.companyCash,c+expected);assert.equal(e.g.subsidiaries.length,0);assert.equal(d.status,'exited');assert.equal(e.g.finance.transactions.length,tx+1);const ev=e.g.finance.transactions.at(-1);assert.equal(ev.assetEffect,-basis);assert.equal(ev.profitEffect,expected-basis);assert.equal(x.modules.finance.validate(e.g).ok,true);}
