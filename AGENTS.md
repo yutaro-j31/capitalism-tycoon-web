@@ -99,6 +99,28 @@ Gates:
 
 When Codex becomes available again, it resumes as the default reviewer for new heads. Already-merged PRs do not need a retroactive Codex review.
 
+**Owner-relayed independent review (Owner instruction in the Owner's Claude Code session on 2026-11-04):** while Codex is unavailable, a review by a model family that authored none of the PR's commits, run in an ordinary chat that the Owner relays, counts as an **independent** review. For example, the Owner relays a ChatGPT chat for a Claude-authored PR. It satisfies the independent-review part of the gates above. The procedure:
+
+1. **Packet.** The authoring agent writes a review packet. The packet contains:
+   - the PR number;
+   - the exact HEAD and base SHAs;
+   - the full final-HEAD diff;
+   - the PR body;
+   - the surrounding code that the diff depends on;
+   - the review questions.
+
+   It splits a diff that does not fit one message, and says so.
+2. **Relay.** The Owner gives the packet to the reviewing chat. The Owner then pastes the reviewer's answer back to the authoring agent unchanged.
+3. **Verify.** The authoring agent treats every finding as a claim. It reproduces or refutes each one, then fixes what is real. A finding it judges not real gets a reason on the record.
+4. **Record.** The authoring agent posts one PR comment headed "Independent review (Owner-relayed)". The comment is the record of truth. It names:
+   - the reviewer family and product;
+   - the reviewed HEAD;
+   - the reviewer's findings, quoted or faithfully summarized, and what was done about each;
+   - the CI and tests the authoring agent ran, since the chat reviewer cannot run them.
+5. **Freshness.** The review covers one HEAD. A new HEAD needs a new relayed review of at least the new diff, with the same record. A base-only move needs only the step-3 checks of the substitute rule (local merge, focused tests, conflict check).
+
+An Owner-relayed review never replaces an Owner decision that a rule requires, such as authority activation, Phase Entry or Exit, or a HOLD.
+
 If the requested task cannot be completed safely because a required environment, credential, destructive decision, or product choice is genuinely unavailable, stop at that boundary and report the blocker precisely.
 
 ## 4. Git and PR discipline
