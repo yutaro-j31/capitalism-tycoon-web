@@ -1,7 +1,7 @@
 'use strict';
 
 // Stage 2A/3 contract: test.yml may hand a parallelism value to shards J, C and E only, and must stay serial (1) when the
-// repository variable TEST_SHARD_PARALLELISM_J is unset. Required gates (needs, timeouts, matrix) are unchanged.
+// repository variables TEST_SHARD_PARALLELISM_J / _C / _E are unset. Required gates (needs, timeouts, matrix) are unchanged.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -12,7 +12,7 @@ const end = text.indexOf('\n  test:\n', start);
 assert.ok(start > 0 && end > start, 'test-shards job found');
 const job = text.slice(start, end);
 
-// The pilot value: only shard J reads the variable, everything else (and an unset variable) resolves to '1'.
+// The pilot value: shards J, C and E each read only their own variable, everything else (and an unset variable) resolves to '1'.
 const expr = "TEST_SHARD_PARALLELISM: ${{ matrix.shard == 'J' && (vars.TEST_SHARD_PARALLELISM_J || '1') || matrix.shard == 'C' && (vars.TEST_SHARD_PARALLELISM_C || '1') || matrix.shard == 'E' && (vars.TEST_SHARD_PARALLELISM_E || '1') || '1' }}";
 assert.equal(job.split(expr).length - 1, 1, 'exactly one J/C/E-only parallelism expression');
 assert.equal((job.match(/TEST_SHARD_PARALLELISM:/g) || []).length, 1, 'no other parallelism assignment');
