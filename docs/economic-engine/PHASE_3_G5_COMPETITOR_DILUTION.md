@@ -31,11 +31,13 @@ The ratchet's own listed-row mirror (#1211) moves into the helper, which writes 
 
 ## Who sees it
 
-Only a company with a nonzero competitor stake. Competitor purchases need a listed company, while W-INVESTOR, W-SPONSOR
-and W-TURNAROUND-ACCEPT refuse a listed company. In practice the visible case is the ratchet after an IPO during the
-fund term, or a stake left over after delisting. With no competitor stake, every outcome is unchanged. Compared with
-before this change, issued shares,
-cash, the ledger and the founder's ratio are unchanged in every case. No RNG is drawn.
+Only a company with a nonzero competitor stake. A private company gets one when it declines a hostile inbound buyout
+offer: `declineInboundBuyoutOffer` (`js/completion.js`) raises `competitorOwnedRatio` out of the external float with no
+listing check, and hostile offers reach unlisted companies valued at ¥1bn or more. So all four writers can show the
+difference: W-INVESTOR, W-SPONSOR and W-TURNAROUND-ACCEPT on a private company after a declined hostile bid, and the
+ratchet also after an IPO during the fund term, when competitor purchases (listed companies only) add to the stake.
+With no competitor stake, every outcome is unchanged. Compared with before this change, issued shares, cash, the ledger
+and the founder's ratio are unchanged in every case. No RNG is drawn.
 
 ## Evidence
 
