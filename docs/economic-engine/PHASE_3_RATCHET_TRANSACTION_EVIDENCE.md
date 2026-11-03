@@ -87,3 +87,32 @@ remain necessary before a future `S_PASS`.
 No P3-4 cutover, P3-10 command permission, Phase 3 Exit or Phase 4 Entry is
 authorized or marked complete. Owner-held inventory/specification PRs remain
 separate and unmerged. Large unrelated quality campaigns remain in Stage Q.
+
+
+## Verification-leg follow-up — 2026-10-29
+
+After the separately reviewed #1211 issued-mirror prerequisite, `settle` routes W-TURNAROUND-RATCHET through an
+`external-issue` verification leg. It plans before writing and confirms the final buckets/mirror inside the existing
+canonical weekly transaction. A genuine mismatch throws and rolls back the entire week. Quantity, dilution, fund
+metadata, cash, receipts and RNG rules remain with the existing writer; `applyOwnershipPlan` remains disabled.
+Direct calls outside a transaction and unsupported company generations retain their existing unchecked behavior.
+
+The canonical listed-mirror test adds first-generation listed/unlisted planned-leg observations, a one-share issued
+skew with an otherwise consistent mirror, complete live/RNG/storage rollback, fake-IDB durable-only hydration,
+unskewed retry, terminal no-op and next-week progression. Second-generation listed/unlisted paths stay unchecked.
+The new skew test was RED before routing (the week wrongly committed), then GREEN after routing. A separate Node
+journey uses the actual installed `executeIPO` during the active fund term and then a seeded failed-plan outcome; both
+the ratchet week and following ordinary week advance with the correct mirror. This is not an occurrence-rate proof.
+
+The real WebKit suite retains its original 14 cases and broken-rollback negative control and adds five listed cases:
+normal, ownership-skew rejection, save-false, post-admission save-throw and terminal week-event throw. The listed seed
+explicitly sets an already failed plan; listing an active plan in the fixture can legitimately trigger a progression
+reward and satisfy the plan instead of ratcheting. This fixture characterizes settlement after listing, not an IPO
+execution proof. Each listed fault preserves full live/mirror/cache/native-IDB state, fresh hydration and retry parity.
+
+Local result on the proposed follow-up tree: **19 cases plus the rejected rollback mutation PASS** in actual WebKit,
+iPhone 13 emulation, native IDB and fresh durable-only contexts. No physical device was used. The local host used
+private extracted system libraries and a host-dependency preflight override; actual browser assertions executed and
+GitHub CI installation/configuration stayed unchanged. Final-HEAD GitHub CI and independent/Owner review are separate
+pending merge gates. Existing Node ratchet shared-fault, ownership-apply, planner, transaction-regression,
+broader-determinism, registration, path-filter and shard-matrix checks passed locally. No S_PASS or cutover is granted.

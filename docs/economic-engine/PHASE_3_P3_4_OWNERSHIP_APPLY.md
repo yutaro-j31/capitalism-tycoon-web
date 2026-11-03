@@ -108,7 +108,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-SHARE-SWAP `completeTargetAcquisition` (`js/ma-deal-room.js`), listed company, deal-room share swap | `external-issue` | #1204 |
 | W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | #1202 |
 | W-MA-EQUITY/SH financing wrapper of `completeTargetAcquisition` (`js/ma-acquisition-financing.js`), listed company, M&A public equity raise, live plan / final shadow confirmation | `external-issue` | #1210 |
-| W-IPO-CHAIN base `executeIPO` (`js/engine.js`), reached through the installed IPO chain's outer transaction; verified only | `ipo` | this PR |
+| W-IPO-CHAIN base `executeIPO` (`js/engine.js`), reached through the installed IPO chain's outer transaction; verified only | `ipo` | #1213 |
+| W-TURNAROUND-RATCHET weekly `settle` (`js/player-crisis-turnaround-fund.js`), listed/unlisted company | `external-issue` | this PR (depends on #1211 mirror fix) |
 
 | W-MARGIN-LIQ forced margin sale (`liquidate` → `sellPersonalStockRaw`, `js/personal-stock-margin.js`), the player's own ticker only, one leg per forced sale | `personal-sell` | #1212 |
 
@@ -189,7 +190,7 @@ refuses that issuance, so the control breaks a copy of the committed state inste
 the skewed live issuance is refused and rolled back. The turnaround-fund acceptance Node
 and WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer
 now refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case
-that the skewed live issuance is refused and rolled back. The weekly ratchet (W-TURNAROUND-RATCHET) is not routed here. The overridden base engine
+that the skewed live issuance is refused and rolled back. The weekly ratchet (W-TURNAROUND-RATCHET) now verifies its existing issuance inside the canonical week; its mirror is synchronized before confirmation (#1211). The overridden base engine
 `buybackOwnShares` (W-BUYBACK-BASE) is not installed and is not routed.
 
 The share swap needed one writer fix to be checkable. `issueSharesToExternalHolders` (`js/engine.js`) raised
@@ -227,3 +228,17 @@ founder skew at the final shadow validation stage, after the issuance itself. Th
 live/mirror/cache/durable state, and accepts the unskewed retry. The own boundary marker permits verification only;
 `applyOwnershipPlan` still requires an actual active transaction and stays dormant. Raw `executeFinancing` receives
 no new transaction or standalone atomicity guarantee.
+
+### Turnaround ratchet verification (Work A, 2026-10-29)
+
+`settle` plans the external-issue leg before changing issued shares and confirms after the existing quantity, fund
+metadata, own listing mirror and ownership-ratio writes. A mismatch throws into the canonical weekly transaction.
+It does not skip the ratchet, book a cash receipt, change dilution, invent a registered fund holder, save independently,
+or activate `applyOwnershipPlan`. Direct settlement outside a transaction remains unchecked as before.
+
+`turnaround-ratchet-listed-mirror-test` proves first-generation listed and unlisted normal weeks, a one-share skew
+with a consistent mirror refused with full live/RNG/mirror/cache/durable rollback, fresh durable-only hydration,
+unskewed retry, terminal idempotence and the next ordinary week. Second-generation outcomes remain unchecked.
+The registered canonical week save-fault and actual WebKit suites remain applicable; success never relies on repairing
+an invalid input mirror in the verifier. #1211 is a prerequisite: a stale listed mirror would otherwise falsely block
+this deterministic weekly writer on every retry. Genuine corrupt writer output is still refused by design.
