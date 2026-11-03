@@ -134,7 +134,8 @@ function accept(instance){
   // P3-4 verification leg (W-TURNAROUND-ACCEPT): the issued bucket this injection leaves must be the planned one.
   const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(instance,{writerId:'W-TURNAROUND-ACCEPT',
    kind:'external-issue',operationId:fundID,change:{quantity:quote.shares}});
-  state.sharesOut=finite(state.sharesOut)+quote.shares;
+  // G5: issued to the fund (external); founder and competitor counts are diluted, as in every external issuance.
+  instance.issueSharesToExternalHolders(quote.shares);
   state.companyCash=finite(state.companyCash)+quote.amount;
   finance.event(state,'equityFinancing',quote.amount,{cashEffect:quote.amount,equityEffect:quote.amount,
    sourceType:'playerCrisisTurnaroundFund',sourceID:fundID,operationID:fundID,idempotencyKey:fundID,
@@ -192,11 +193,10 @@ function settle(instance){
  // confirming; a genuine bucket mismatch rejects the whole week, while unsupported generations remain unchecked.
  const ownership=modules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(instance,{writerId:'W-TURNAROUND-RATCHET',
   kind:'external-issue',operationId:`${fund.fundID}-ratchet-${integer(state.week)}`,change:{quantity:shares}});
- state.sharesOut=finite(state.sharesOut)+shares;
- // A company that listed during the fund term mirrors the issued quantity on its own market row at once; settle runs
- // after this week's updateMarket, which would otherwise leave the row stale until next week.
- const own=state.publicCompany?(state.market||[]).find(row=>row.id===state.ticker):null;
- if(own){own.issuedShares=state.sharesOut;own.marketCap=finite(own.price)*state.sharesOut;}
+ // G5: the ratchet shares go to the fund (external); founder and competitor counts are diluted, as in every external
+ // issuance. The helper also mirrors a listed company's own market row at once (#1211): settle runs after this week's
+ // updateMarket, which would otherwise leave the row stale until next week.
+ instance.issueSharesToExternalHolders(shares);
  fund.ratchetShares=integer(fund.ratchetShares)+shares;
  fund.shares=integer(fund.shares)+shares;
  fund.status='ratcheted';

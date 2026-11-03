@@ -221,3 +221,6 @@ async function check(s,run,label){
  }
  console.log('share swap ownership ratios PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
+// G5: the other external issuances (investor, sponsor, turnaround accept and ratchet) follow the same dilution rule. The
+// cases live in a module required here so the canonical test set (pinned by retained shard evidence) keeps its size.
+require('./issuance-competitor-dilution-case');

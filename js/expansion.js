@@ -455,7 +455,9 @@ function installExpansion(TycoonEngine){
     // P3-4 verification leg (W-INVESTOR): the issued bucket this investment leaves must be the planned one.
     const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(this,{writerId:'W-INVESTOR',kind:'external-issue',
      operationId:`investorOffer-${o.id}`,change:{quantity:newShares}});
-    this.g.sharesOut+=newShares;this.g.companyCash+=o.amount;
+    // G5: the new shares go to the investor (external). Founder and competitor keep their share counts and are diluted
+    // over issued − treasury, the same rule as every other external issuance (engine.issueSharesToExternalHolders).
+    this.issueSharesToExternalHolders(newShares);this.g.companyCash+=o.amount;
     __modules.finance.event(this.g,'equityFinancing',o.amount,{cashEffect:o.amount,equityEffect:o.amount,sourceType:'investorOffer',sourceID:o.id,operationID:`investorOffer-${o.id}`,idempotencyKey:`investorOffer-${o.id}`,description:`${o.name} 出資受け入れ`});
     __modules.finance.ensureFinance(this.g).balances.capitalSurplus=n(__modules.finance.ensureFinance(this.g).balances.capitalSurplus)+o.amount;
     o.status='accepted';o.acceptedWeek=this.g.week;o.newShares=newShares;
