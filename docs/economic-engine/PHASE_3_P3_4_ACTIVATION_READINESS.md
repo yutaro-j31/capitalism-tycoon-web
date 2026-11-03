@@ -43,7 +43,7 @@ closed, or explicitly ruled out of the family.
 | G2 | **Refounding resets the facts outside any leg.** `foundNewCompanyAfterBuyout` (W-NEW-COMPANY) and load/import/compaction/restore are `REPLACEMENT_UNSUPPORTED`. | CODE planner groups. §3.2 row 5 lists "new-company reset". | A replacement rule: the authority is invalidated and rebound on replacement, not routed as a leg. |
 | G3 | **Raw entries that bypass the routed writers still exist.** | See the list below this table. | Each bypass either delegates to a routed boundary, or is removed or refused under an active authority. |
 | G4 | **The margin exports have no boundary when called directly.** `liquidate` / `processWeek` called outside a transaction are unchecked. The installed week is checked. | #1212 and the apply document. | Give the exports a boundary, or make them refuse outside a transaction once the authority is active. |
-| G5 | **Competitor dilution is inconsistent.** These writers raise `sharesOut` without rescaling `competitorOwnedRatio`, so the competitor's implied share count grows: W-INVESTOR, W-SPONSOR, W-TURNAROUND-ACCEPT and W-TURNAROUND-RATCHET. `issueSharesToExternalHolders` (share swap, equity raise) dilutes it correctly. | CODE. Competitor purchases need a listed company, so this matters mainly for the ratchet after an IPO during the fund term. | Route these writers' issuance through the same dilution rule. That is a gameplay-visible correction and needs its own PR. |
+| G5 | **Competitor dilution is inconsistent.** These writers raise `sharesOut` without rescaling `competitorOwnedRatio`, so the competitor's implied share count grows: W-INVESTOR, W-SPONSOR, W-TURNAROUND-ACCEPT and W-TURNAROUND-RATCHET. `issueSharesToExternalHolders` (share swap, equity raise) dilutes it correctly. | CODE. Competitor purchases need a listed company, and W-INVESTOR, W-SPONSOR and W-TURNAROUND-ACCEPT refuse a listed company, so in practice only the ratchet after an IPO during the fund term shows it. | Route these writers' issuance through the same dilution rule. That is a gameplay-visible correction and needs its own PR. |
 | G6 | **The competitor stake is not a planner bucket.** W-WEEK-COMPETITOR and W-DEFENSE are `HOLDER_UNPROVEN`, so the authority does not own the competitor stake. | CODE planner groups. | Either an Owner decision that the competitor ratio stays outside the first family, or a holder binding for it. |
 | G7 | **The family S evidence is incomplete.** The S evidence manifest (#1089, open) and the family-closure test specification (#1091, open) listed 51 gaps. Many were closed by later PRs, but no current reconciliation exists. | #1089, #1091 and the merged evidence documents. | Re-run the manifest against current `main` and close or rule out every remaining gap. |
 
@@ -93,8 +93,8 @@ The Owner gave these instructions in the Owner's Claude Code session:
 - **Scope.** Keep the §5 scope: every player-common fact writer is closed before activation. The narrower first
   activation is not adopted.
 - **Activation.** Defer step 5. Verification mode stays the operating state.
-- **Approved code steps.** Steps 1, 2 and 4 are approved: the G7 reconciliation, the G3/G4 bypass closure and the G5
-  dilution correction.
+- **Approved steps.** Step 1 (docs), and code steps 2 and 4, are approved: the G7 reconciliation, the G3/G4 bypass
+  closure and the G5 dilution correction.
 - **After those steps.** Pause P3-4 work and move to the five operating pillars. G1, G2, G6 and activation are taken
   up again when needed.
 
