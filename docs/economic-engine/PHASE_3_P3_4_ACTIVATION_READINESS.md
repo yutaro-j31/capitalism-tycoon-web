@@ -86,6 +86,18 @@ Step 1 is docs only. The §5 approval covers design choices only, so each code s
 - step 4 changes gameplay;
 - step 5 is the activation decision this memo prepares.
 
+## Owner decision (2026-11-03)
+
+The Owner gave these instructions in the Owner's Claude Code session:
+
+- **Scope.** Keep the §5 scope: every player-common fact writer is closed before activation. The narrower first
+  activation is not adopted.
+- **Activation.** Defer step 5. Verification mode stays the operating state.
+- **Approved code steps.** Steps 1, 2 and 4 are approved: the G7 reconciliation, the G3/G4 bypass closure and the G5
+  dilution correction.
+- **After those steps.** Pause P3-4 work and move to the five operating pillars. G1, G2, G6 and activation are taken
+  up again when needed.
+
 ## Limits
 
 This memo changes no code and activates nothing. It does not certify P3-10, Phase 3 Exit or Phase 4 Entry. The gaps
