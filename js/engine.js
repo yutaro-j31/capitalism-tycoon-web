@@ -1293,6 +1293,24 @@ class TycoonEngine extends EventTarget {
     if(!mod?.setPrivateBrandShare(this.g,Number(share)))return this.fail('PB比率を変更できません。');
     this.notify(`コンビニのPB比率を${Math.round(Number(share)*100)}%に変更しました。`);this.save();this.emit();return true;
   }
+  // Hire or release a real estate agency store's sales agents (0..MAX_AGENTS). Each agent adds pipeline slots and weekly
+  // payroll. Releasing agents is refused while the store's open deals would not fit the smaller pipeline, so no deal is
+  // dropped. One transaction: the store field and the resized pipeline commit with one save, or not at all.
+  setBrokerageAgents(storeID,count) {
+    const mod=globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline,store=(this.g.stores||[]).find(s=>s.id===storeID);
+    if(!mod||!store||store.businessID!=='realEstateAgency'||store.status!=='open')return this.fail('営業担当を変更できる仲介店舗がありません。');
+    const next=Number(count);
+    if(!Number.isInteger(next)||next<0||next>mod.MAX_AGENTS)return this.fail(`営業担当は0〜${mod.MAX_AGENTS}人で指定してください。`);
+    const current=mod.agentsFor(store);if(next===current)return false;
+    const site=globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier,b=this.business('realEstateAgency');
+    const capacity=mod.capacityFor(b,site,next),active=store.brokeragePipeline?.activeDeals?.length||0;
+    if(active>capacity)return this.fail(`商談中の案件が${active}件あるため、商談枠${capacity}件まで減らせません。成約・失注で減るまでお待ちください。`);
+    return this.runTransaction(()=>{
+      store.brokerageAgents=next;mod.normalizeStore(this.g,store);
+      this.notify(`${store.name}の営業担当を${next}人にしました（商談枠 ${store.brokeragePipeline?.capacity??capacity}件・人件費 週約${yen(mod.agentWeeklyWage(store)*this.g.inflation)}）。`);
+      return true;
+    });
+  }
   changeBrokerageFocus(focusID) {
     const mod=globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline,b=this.business('realEstateAgency');
     if(!mod||!b||!mod.FOCUS_ORDER.includes(focusID))return this.fail('営業方針を変更できません。');
@@ -2476,7 +2494,7 @@ class TycoonEngine extends EventTarget {
       const contractRent=getStoreContractRent(store,p,this.g),costMultiplier=this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
       if(market.isTargetBusinessID(store.businessID)&&marketBatch.byStore[store.id]){rand(this.g,.88,1.14); // Preserve the legacy per-store demand RNG slot; deterministic market results intentionally ignore this value.
       let mr=marketBatch.byStore[store.id];mr=supply.applyConstraint(this.g,store,mr,finance);marketBatch.byStore[store.id]=mr;const extraStorePayroll=workforce.storeExtraPayroll(this.g,store.id);fixed=contractRent+(b.fixedCost+b.wage+extraStorePayroll)*costMultiplier;repair=getStoreRepairCost(store,this.g);storeSales=mr.revenue;variable=mr.variableCost;store.marketResult={...mr};}
-      else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(this.g,.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=getStoreRepairCost(store,this.g);store.marketResult=null;}
+      else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(this.g,.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage+globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.agentWeeklyWage(store))*costMultiplier;repair=getStoreRepairCost(store,this.g);store.marketResult=null;}
       else if(store.businessID==='conveni'&&globalThis.__capitalismTycoonModules?.convenienceMerchandising){const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:rand(this.g,.88,1.14),siteSuitabilityFactor:globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:[0,.45,.75,1,1.17][store.operatingHours||3]||1,macroSalesFactor:this.g.macroCrisis?this.g.macroCrisis.salesMultiplier:1});
       const merch=globalThis.__capitalismTycoonModules.convenienceMerchandising.processStore(this.g,store,b,demand,this.g.inflation);storeSales=merch.sales;variable=merch.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=getStoreRepairCost(store,this.g);store.marketResult=null;}
       else if(store.businessID==='gym'&&globalThis.__capitalismTycoonModules?.gymMembershipModel){const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:rand(this.g,.88,1.14),siteSuitabilityFactor:globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:[0,.45,.75,1,1.17][store.operatingHours||3]||1,macroSalesFactor:this.g.macroCrisis?this.g.macroCrisis.salesMultiplier:1});
@@ -2486,7 +2504,9 @@ class TycoonEngine extends EventTarget {
       store.marketResult=null;}
       const isSupplyStore=market.isTargetBusinessID(store.businessID);
       const rentPart=contractRent;
-      const wagePart=(b.wage+(isSupplyStore?workforce.storeExtraPayroll(this.g,store.id):0))*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
+      // Per-store extra payroll: ramen-family workforce, or real estate agency sales agents.
+      const extraWage=isSupplyStore?workforce.storeExtraPayroll(this.g,store.id):store.businessID==='realEstateAgency'?(globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline?.agentWeeklyWage(store)||0):0;
+      const wagePart=(b.wage+extraWage)*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
       // Each store row settles in whole yen, rounded up (contract R2a). Supply-store COGS is the inventory relief
       // from supply.consume and is not rounded here (slice R2b).
       const postedSales=ceilYen(Math.max(0,finite(storeSales)));
