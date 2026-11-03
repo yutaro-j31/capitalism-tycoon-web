@@ -1803,6 +1803,10 @@ class TycoonEngine extends EventTarget {
     return reasons;
   }
   executeIPO(market='東証グロース',sellShares=0) {
+    // G3 (W-IPO-BASE): the installed IPO chain calls this captured base inside its outer transaction. A direct call
+    // outside any boundary opens its own transaction, so the IPO leg below plans and a failure rolls back.
+    if(!globalThis.__capitalismTycoonModules.phase3OwnershipApply.insideOwnershipBoundary(this))
+      return this.runTransaction(()=>BASE_EXECUTE_IPO.call(this,market,sellShares));
     if(this.g.publicCompany)return false;const missing=this.ipoMissingReasons();if(missing.length)return this.fail(`IPO条件不足：${missing.join('、')}`);
     const value=this.companyValue(),multiple=market==='東証プライム'?1.25:market==='東証スタンダード'?1.1:1;this.g.stockPrice=Math.max(100,value*multiple/this.g.sharesOut);
     // Sized relative to the current share count rather than a fixed absolute number of
@@ -1837,11 +1841,10 @@ class TycoonEngine extends EventTarget {
     if(!this.g.publicCompany)return this.fail('未上場です。');this.g.dividendPerShare=Math.max(0,finite(amount));const own=this.stock(this.g.ticker);if(own)own.dividendPerShare=this.g.dividendPerShare;
     this.notify(`四半期配当を1株${yen(this.g.dividendPerShare)}に設定しました。`);this.save();this.emit();return true;
   }
-  buybackOwnShares(amount) {
-    if(!this.g.publicCompany)return this.fail('未上場です。');amount=Math.max(0,finite(amount));if(this.g.companyCash<amount)return this.fail('資金不足です。');
-    const available=playerShareAcquisitionCapacity(this.g,0,true);if(available===null)return this.fail('自社株の保有数量が不整合のため買い戻せません。');
-    const qty=Math.min(available,Math.floor(amount/this.g.stockPrice));if(qty<=0)return this.fail('買い戻せる株式がありません。');if(playerShareAcquisitionCapacity(this.g,qty,true)===null)return this.fail('自社株の買戻し数量を正確に処理できません。');
-    const cost=qty*this.g.stockPrice;this.g.companyCash-=cost;this.g.treasuryBuybackShares+=qty;this.g.stockPrice*=1+Math.min(.08,qty/this.g.sharesOut*.8);this.updateOwnershipRatios();this.notify(`自社株${qty.toLocaleString()}株を${yen(cost)}で取得しました。`,'success');this.save();this.emit();return true;
+  buybackOwnShares() {
+    // G3 (W-BUYBACK-BASE): js/shareholder-returns.js installs the routed buyback (W-BUYBACK) over this method. The
+    // legacy settlement that lived here had no ownership leg, so a captured call of the base refuses and writes nothing.
+    return this.fail('自社株買いは株主還元から実行してください。');
   }
 
   generateMATargets(force=false) {
@@ -1855,11 +1858,19 @@ class TycoonEngine extends EventTarget {
     this.notify('M&A候補企業を更新しました。');this.save();this.emit();return true;
   }
   acquireTarget(id,method='friendly') {
+    // G3 (W-ACQUIRE-COMPAT): a legacy share swap issues player shares, so it runs inside an ownership boundary: a direct
+    // call opens its own transaction, and the issuance below is checked by its own verification leg.
+    const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply;
+    if(method==='shareSwap'&&!ownership.insideOwnershipBoundary(this))
+      return this.runTransaction(()=>BASE_ACQUIRE_TARGET.call(this,id,method));
     const i=this.g.acquisitionTargets.findIndex(x=>x.id===id);if(i<0)return false;const t=this.g.acquisitionTargets[i];const premium=method==='hostile'?1.35:method==='shareSwap'?1.08:1.18;const price=t.valuation*premium;
     if(method!=='shareSwap'&&this.g.companyCash<price)return this.fail(`${yen(price)}が必要です。`);
     if(method==='shareSwap'&&!this.g.publicCompany)return this.fail('株式交換には自社上場が必要です。');
     const identifiable=Math.min(price,Math.max(0,t.valuation)),goodwill=Math.max(0,price-identifiable),goodwillID=uuid(this.g,'goodwill');
-    if(method==='shareSwap'){const newShares=Math.ceil(price/Math.max(1,this.g.stockPrice));this.issueSharesToExternalHolders(newShares);finance.event(this.g,'acquisition',price,{cashEffect:0,assetEffect:price,sourceType:'acquireTargetShareSwap',sourceID:id,description:`${t.name} 株式交換取得`});finance.event(this.g,'equityFinancing',price,{cashEffect:0,equityEffect:price,sourceType:'shareSwapCapital',sourceID:id,description:`${t.name} 株式交換資本増加`});finance.ensureFinance(this.g).balances.capitalSurplus=finite(finance.ensureFinance(this.g).balances.capitalSurplus)+price;}
+    if(method==='shareSwap'){const newShares=Math.ceil(price/Math.max(1,this.g.stockPrice));
+      const leg=ownership.beginOwnershipLeg(this,{writerId:'W-ACQUIRE-COMPAT',kind:'external-issue',operationId:`acquire-target-share-swap-${id}`,change:{quantity:newShares}});
+      this.issueSharesToExternalHolders(newShares);if(!ownership.confirmOwnershipLeg(this,leg))return this.fail('株式数の整合を確認できませんでした。');
+      finance.event(this.g,'acquisition',price,{cashEffect:0,assetEffect:price,sourceType:'acquireTargetShareSwap',sourceID:id,description:`${t.name} 株式交換取得`});finance.event(this.g,'equityFinancing',price,{cashEffect:0,equityEffect:price,sourceType:'shareSwapCapital',sourceID:id,description:`${t.name} 株式交換資本増加`});finance.ensureFinance(this.g).balances.capitalSurplus=finite(finance.ensureFinance(this.g).balances.capitalSurplus)+price;}
     else {this.g.companyCash-=price;finance.event(this.g,'acquisition',price,{cashEffect:-price,assetEffect:price,sourceType:'acquireTarget',sourceID:id,description:`${t.name} 買収`});}
     const subsidiary={...t,identifiableNetAssetsBookValue:identifiable,goodwillBookValue:goodwill,totalCarryingValue:price,acquisitionPrice:price,acquisitionMethod:method,goodwillRecordID:goodwillID,acquiredWeek:this.g.week,status:'active',retainedEarnings:0,weeklyProfit:t.operatingProfit/52};globalThis.__capitalismTycoonModules?.maIntegration?.initializeSubsidiary?.(this.g,subsidiary,{legacyCompleted:false,method});subsidiary.pmiStatus='planning';subsidiary.pmiStrategy=null;subsidiary.pmiProgress=0;subsidiary.pmiPhase='assessment';subsidiary.pmiRealizedSynergyRate=0;subsidiary.pmiWeeklySynergyProfit=0;subsidiary.pmiWeeklyDisruptionCost=0;subsidiary.pmiLastProcessedWeek=null;subsidiary.weeklyProfit=subsidiary.standaloneWeeklyProfit;this.g.maSubsidiaries.push(subsidiary);
     this.g.goodwillRecords.push({id:goodwillID,name:t.name,amount:goodwill,goodwillBookValue:goodwill,carryingValue:goodwill,acquiredWeek:this.g.week});
@@ -1973,6 +1984,10 @@ class TycoonEngine extends EventTarget {
   // ratio is the authority (competitors[].ownedPlayerShares is not kept in sync by every writer). Ratios then
   // follow the shared rule (external = 1 − founder − competitor).
   issueSharesToExternalHolders(newShares) {
+    // G3 (W-ISSUE-RAW): an internal helper. Its callers own the ownership leg and the rollback, so it refuses to write
+    // outside a transaction or a shadow boundary.
+    if(!globalThis.__capitalismTycoonModules.phase3OwnershipApply.insideOwnershipBoundary(this))
+      throw new Error('issueSharesToExternalHolders requires an ownership boundary');
     const before=Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares),competitorShares=Math.max(0,finite(this.g.competitorOwnedRatio))*before;
     this.g.sharesOut+=newShares;
     this.g.competitorOwnedRatio=competitorShares/Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares);
@@ -2554,6 +2569,9 @@ class TycoonEngine extends EventTarget {
     const parsed=JSON.parse(text);const migrated=migrateSave(parsed);if(!migrated.ok)throw new Error(migrated.errors.join(' / ')||'セーブデータ形式が不正です。');this.g=migrated.state;this._saveBlockedDueToLoadFailure=false;this._loadFailureReason='';this.normalize();this.save();this.emit();
   }
 }
+// G3: the raw entries above (executeIPO, acquireTarget) re-enter themselves inside their own transaction. They call these bodies, captured at load
+// before any module wraps a prototype, so the re-entry never runs a wrapper.
+const BASE_EXECUTE_IPO=TycoonEngine.prototype.executeIPO,BASE_ACQUIRE_TARGET=TycoonEngine.prototype.acquireTarget;
 
 // 週番号からゲーム内の日付を作る。エンジンは52週=1年で年齢を加算するので（advanceWeek の
 // week%52）、暦も52週364日で1年とし、毎年必ず第1週が1月1日になるようにする。

@@ -398,6 +398,8 @@
         }) : null;
         const shadowState = clone(liveState), shadow = Object.create(this);
         shadow.g = shadowState; shadow.save = () => true; shadow.emit = () => {}; shadow.notify = () => {};
+        // This wrapper is the boundary of the shadow closing: the raw issuance helper requires one (G3).
+        shadow.ownershipShadowBoundary = true;
         shadow.fail = message => { shadow.__maFailure = String(message || 'M&A closing failed'); return false; };
         const shadowDeal = arr(shadowState.maDealRooms).find(deal => deal?.id === args.dealID);
         const targetName = targetFor(shadowState, shadowDeal)?.name || shadowDeal?.targetID || '対象企業';
