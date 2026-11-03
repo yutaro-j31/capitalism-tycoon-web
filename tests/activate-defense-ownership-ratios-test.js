@@ -111,8 +111,8 @@ function refused(s,kind,label){
  // 5. Composites with the other ownership writers (each step keeps sum 1, live = reload, named ≤ aggregate).
  const check=(s,label,{namedBound=true}={})=>{const g=s.e.g;assert.ok(Math.abs(sum(g)-1)<EPS,`${label}: sum 1`);assert.deepEqual(ratios(reload(s)),ratios(g),`${label}: live = reload`);if(namedBound)assert.ok(named(g).reduce((a,x)=>a+x,0)<=g.competitorOwnedRatio*outstanding(g)+1e-6,`${label}: named ≤ aggregate`);assert.equal(s.modules.finance.validate(clone(g)).ok,true,`${label}: accounting`);};
  {// D3 share swap (shared dilution helper) before and after: sold shares are fixed counts of the current outstanding.
-  const a=engine();a.e.issueSharesToExternalHolders(100000);check(a,'D3 issuance');defend(a,'whiteKnight','D3 → defense: target 94,500 capped at the 90,000 named',{expectSold:90000});check(a,'D3 → defense');
-  const b=engine();defend(b,'whiteKnight','defense → D3',{expectSold:85500});b.e.issueSharesToExternalHolders(100000);check(b,'defense → D3');
+  const a=engine();a.e.runTransaction(()=>a.e.issueSharesToExternalHolders(100000));check(a,'D3 issuance');defend(a,'whiteKnight','D3 → defense: target 94,500 capped at the 90,000 named',{expectSold:90000});check(a,'D3 → defense');
+  const b=engine();defend(b,'whiteKnight','defense → D3',{expectSold:85500});b.e.runTransaction(()=>b.e.issueSharesToExternalHolders(100000));check(b,'defense → D3');
   assert.ok(Math.abs(b.e.g.competitorOwnedRatio*1050000-4500)<1e-6,'defense → D3: the competitor keeps its 4,500 shares through the dilution');}
  {// D4 purchase then defense: the bought shares are named and sellable.
   const s=engine({holdings:[0,0],ratio:0}),c=s.e.g.competitors[0];c.cash=1e9;const filled=s.e.buyCompetitorStake(c);s.e.updateOwnershipRatios();assert.ok(filled>0,'D4 filled');check(s,'D4');

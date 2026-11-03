@@ -130,8 +130,8 @@ function success(before, after, s) {
   skew.game.updateOwnershipRatios = ratios; assert.equal(directCommand(skew), true, 'healthy direct-export retry');
   success(beforeSkew, snapshot(skew.game), skew); await skew.backend.flush(); await direct.loaded(skew, skew.game.g);
   console.log('buyback direct export: one-share mismatch / full rollback / durable hydration / retry PASS');
-  // W-BUYBACK-BASE is an overridden legacy body, not the export above. Prove rejection only:
-  // its successful settlement/book/rounding policy is not adopted by this evidence.
+  // W-BUYBACK-BASE is the overridden base body, not the export above. Since the G3 bypass closure it refuses and
+  // writes nothing, so no caller or save fault around it can commit anything.
   const baseCases = ['ordinary', 'capped'].flatMap(variant =>
     ['caller-false', 'caller-throw', 'save-false', 'save-throw'].map(kind => ({ variant, kind, pending: false })));
   for (const kind of ['save-false', 'save-throw']) baseCases.push({ variant: 'ordinary', kind, pending: true });
@@ -158,20 +158,18 @@ function success(before, after, s) {
     const invoke = () => s.game.runTransaction(() => {
       assert.equal(s.game.inTransaction(), true); entered++;
       const result = captured.call(s.game, REQUEST);
-      assert.equal(result, true, 'legacy body finishes before refusal');
-      assert.equal(s.game.g.treasuryBuybackShares, before.treasuryBuybackShares + s.settlement.quantity);
-      assert.ok(s.game.g.companyCash < before.companyCash, 'legacy cash write really happened');
+      assert.equal(result, false, 'the captured base refuses (G3)');
+      assert.deepEqual(snapshot(s.game), before, 'the refused base writes nothing');
       if (kind === 'caller-throw') throw Error('buyback caller threw after legacy body');
       return kind === 'caller-false' ? false : result;
     });
     const fault = kind.startsWith('save-') ? injectFault(s, kind) : null;
     try {
-      if (kind === 'caller-throw' || kind === 'save-throw')
-        assert.throws(invoke, kind === 'caller-throw' ? /buyback caller threw/ : /save accepted then threw/);
+      if (kind === 'caller-throw') assert.throws(invoke, /buyback caller threw/);
       else assert.equal(invoke(), false);
     } finally { fault?.restore(); s.game.buybackOwnShares = installed; }
-    assert.equal(entered, 1); if (fault) assert.ok(fault.hits() > 0, 'outer save fault reached');
-    assert.deepEqual(snapshot(s.game), before, 'entire legacy candidate including book/history/RNG restored');
+    assert.equal(entered, 1); if (fault) assert.equal(fault.hits(), 0, 'a refused base never reaches save');
+    assert.deepEqual(snapshot(s.game), before, 'state including book/history/RNG unchanged');
     assert.equal(s.host.draws, draws);
     assert.equal(s.ctx.localStorage.getItem(s.key), bytes); assert.equal(s.backend.readSync(s.key), bytes);
     assert.equal(s.durable.get(s.key), durable, 'old durable copy unchanged before predecessor release');

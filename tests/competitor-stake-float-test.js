@@ -85,7 +85,8 @@ function buy(s,c,label,expectFilled){
  {const s=engine(97531,g=>{g.founderShares=850000;g.competitorOwnedRatio=.1;}),g=s.e.g,c=g.competitors[0];
   // D3 share-swap issuance of 100,000 shares to external holders: founder/competitor diluted, float grows by 100,000.
   const before=s.modules.economicReadModel.ownershipReconciliation(g).securityClasses[0].unallocatedOutstandingQuantity-g.competitorOwnedRatio*outstanding(g);
-  s.e.issueSharesToExternalHolders(100000);
+  // The raw helper requires an ownership boundary (G3); its production callers own one, so the fixture opens one.
+  s.e.runTransaction(()=>s.e.issueSharesToExternalHolders(100000));
   const after=s.modules.economicReadModel.ownershipReconciliation(g).securityClasses[0].unallocatedOutstandingQuantity-g.competitorOwnedRatio*outstanding(g);
   assert.ok(Math.abs(after-(before+100000))<1e-6,'issuance adds exactly the new shares to the float');assert.ok(Math.abs(sum(g)-1)<EPS);
   buy(s,c,'after a share-swap issuance',5000);

@@ -73,7 +73,7 @@
   },
   "js/engine.js": {
    "companyCash": {
-    "direct": 36,
+    "direct": 35,
     "dynamicKey": 12,
     "literalKey": 5
    },
@@ -608,7 +608,7 @@
   }
  },
  "totals": {
-  "companyCash.direct": 156,
+  "companyCash.direct": 155,
   "companyCash.dynamicKey": 59,
   "personalCash.dynamicKey": 55,
   "computedStateKey": 79,

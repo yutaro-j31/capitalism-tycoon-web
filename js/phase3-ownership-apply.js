@@ -73,6 +73,14 @@ function beginOwnershipLeg(engine,leg){
   return plan.status==='PLANNED'?freeze({plan}):null;
  }catch(_){return null;}
 }
+// Raw entries that write player-common facts (G3/G4 of PHASE_3_P3_4_ACTIVATION_READINESS.md) run their work through
+// this: inside a boundary it runs as is; outside one, an engine opens its own transaction, so the entry's leg plans
+// and a failure rolls back. A null, undefined or false result (nothing to settle) commits nothing, so an inert direct
+// call neither saves nor emits. An object without runTransaction (a state-only stub) cannot plan a leg and runs as is.
+function withOwnershipBoundary(engine,work){
+ if(insideBoundary(engine)||typeof engine?.runTransaction!=='function')return work();
+ return engine.runTransaction(work,'change',{},result=>result!==false&&result!==null&&result!==undefined);
+}
 // True when there was no plannable leg, or when the engine's quantities (with a consistent issued mirror) are exactly
 // the plan's prospective quantities.
 function confirmOwnershipLeg(engine,handle){
@@ -84,5 +92,6 @@ function confirmOwnershipLeg(engine,handle){
   return evidence.status==='OBSERVED'&&BUCKETS.every(k=>evidence.quantities[k]===handle.plan.after[k]);
  }catch(_){return false;}
 }
-modules.phase3OwnershipApply=freeze({VERSION:1,ACTIVATION:'disabled',KINDS,applyOwnershipPlan,beginOwnershipLeg,confirmOwnershipLeg});
+modules.phase3OwnershipApply=freeze({VERSION:1,ACTIVATION:'disabled',KINDS,applyOwnershipPlan,beginOwnershipLeg,confirmOwnershipLeg,
+ insideOwnershipBoundary:insideBoundary,withOwnershipBoundary});
 })();
