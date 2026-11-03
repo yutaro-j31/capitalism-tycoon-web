@@ -1806,7 +1806,7 @@ class TycoonEngine extends EventTarget {
     // G3 (W-IPO-BASE): the installed IPO chain calls this captured base inside its outer transaction. A direct call
     // outside any boundary opens its own transaction, so the IPO leg below plans and a failure rolls back.
     if(!globalThis.__capitalismTycoonModules.phase3OwnershipApply.insideOwnershipBoundary(this))
-      return this.runTransaction(()=>TycoonEngine.prototype.executeIPO.call(this,market,sellShares));
+      return this.runTransaction(()=>BASE_EXECUTE_IPO.call(this,market,sellShares));
     if(this.g.publicCompany)return false;const missing=this.ipoMissingReasons();if(missing.length)return this.fail(`IPO条件不足：${missing.join('、')}`);
     const value=this.companyValue(),multiple=market==='東証プライム'?1.25:market==='東証スタンダード'?1.1:1;this.g.stockPrice=Math.max(100,value*multiple/this.g.sharesOut);
     // Sized relative to the current share count rather than a fixed absolute number of
@@ -1862,7 +1862,7 @@ class TycoonEngine extends EventTarget {
     // call opens its own transaction, and the issuance below is checked by its own verification leg.
     const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply;
     if(method==='shareSwap'&&!ownership.insideOwnershipBoundary(this))
-      return this.runTransaction(()=>TycoonEngine.prototype.acquireTarget.call(this,id,method));
+      return this.runTransaction(()=>BASE_ACQUIRE_TARGET.call(this,id,method));
     const i=this.g.acquisitionTargets.findIndex(x=>x.id===id);if(i<0)return false;const t=this.g.acquisitionTargets[i];const premium=method==='hostile'?1.35:method==='shareSwap'?1.08:1.18;const price=t.valuation*premium;
     if(method!=='shareSwap'&&this.g.companyCash<price)return this.fail(`${yen(price)}が必要です。`);
     if(method==='shareSwap'&&!this.g.publicCompany)return this.fail('株式交換には自社上場が必要です。');
@@ -2569,6 +2569,9 @@ class TycoonEngine extends EventTarget {
     const parsed=JSON.parse(text);const migrated=migrateSave(parsed);if(!migrated.ok)throw new Error(migrated.errors.join(' / ')||'セーブデータ形式が不正です。');this.g=migrated.state;this._saveBlockedDueToLoadFailure=false;this._loadFailureReason='';this.normalize();this.save();this.emit();
   }
 }
+// G3: the raw entries above (executeIPO, acquireTarget) re-enter themselves inside their own transaction. They call these bodies, captured at load
+// before any module wraps a prototype, so the re-entry never runs a wrapper.
+const BASE_EXECUTE_IPO=TycoonEngine.prototype.executeIPO,BASE_ACQUIRE_TARGET=TycoonEngine.prototype.acquireTarget;
 
 // 週番号からゲーム内の日付を作る。エンジンは52週=1年で年齢を加算するので（advanceWeek の
 // week%52）、暦も52週364日で1年とし、毎年必ず第1週が1月1日になるようにする。
