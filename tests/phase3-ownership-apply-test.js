@@ -337,3 +337,6 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  }
  console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE / W-BUY / W-SELL / W-SPLIT / W-BUYBACK / W-SPONSOR / W-INVESTOR / W-TURNAROUND-ACCEPT / W-IPO-CHAIN verification legs PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+// G3/G4 bypass closure: raw entries refuse, or open their own boundary, outside one. The cases live in a module required
+// here so the canonical test set (pinned by retained shard evidence) keeps its size.
+require('./p3-4-raw-entry-boundary-case');

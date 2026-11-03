@@ -1,5 +1,6 @@
 'use strict';
-// G3/G4 bypass closure (docs/economic-engine/PHASE_3_P3_4_ACTIVATION_READINESS.md, step 2). Raw entries that write
+// G3/G4 bypass closure (docs/economic-engine/PHASE_3_P3_4_ACTIVATION_READINESS.md, step 2), run by
+// tests/phase3-ownership-apply-test.js. Raw entries that write
 // player-common facts can no longer do so outside a boundary:
 // - the captured base executeIPO and the ratchet settle(), called directly, open their own transaction, so their leg
 //   plans: a skewed bucket write is refused and the whole call rolled back;

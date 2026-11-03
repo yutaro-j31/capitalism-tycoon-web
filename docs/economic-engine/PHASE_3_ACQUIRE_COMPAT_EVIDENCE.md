@@ -40,4 +40,4 @@ Since the G3/G4 bypass closure ([PHASE_3_P3_4_OWNERSHIP_APPLY.md](PHASE_3_P3_4_O
 a supported planner writer (`external-issue`, listed company only), no longer `INTERNAL_ENTRY`. The captured body plans
 its own leg inside the caller transaction above, and the cases here are unchanged: the same issuance, accounting,
 rollback and replay oracles pass with the leg in place. A direct call outside any transaction now opens its own
-boundary; `tests/p3-4-raw-entry-boundary-test.js` shows a skewed direct share swap refused and rolled back.
+boundary; `tests/p3-4-raw-entry-boundary-case.js` (run by `tests/phase3-ownership-apply-test.js`) shows a skewed direct share swap refused and rolled back.

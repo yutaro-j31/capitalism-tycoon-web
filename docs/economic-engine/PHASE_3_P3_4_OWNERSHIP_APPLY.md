@@ -276,7 +276,7 @@ Two direct-call test contracts change on purpose:
 - The raw issuance helper is called inside `runTransaction` in two fixtures
   (`tests/activate-defense-ownership-ratios-test.js`, `tests/competitor-stake-float-test.js`).
 
-`tests/p3-4-raw-entry-boundary-test.js` and the new direct-call cases in `tests/player-own-share-conservation-test.js`
+`tests/p3-4-raw-entry-boundary-case.js` (run by `tests/phase3-ownership-apply-test.js`) and the new direct-call cases in `tests/player-own-share-conservation-test.js`
 show that a skewed direct call of each command entry (base IPO, legacy share swap, ratchet, margin) is refused and
 rolled back. Both fail with the production change
 reverted.
