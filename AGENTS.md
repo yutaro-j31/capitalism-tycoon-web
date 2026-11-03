@@ -99,25 +99,32 @@ Gates:
 
 When Codex becomes available again, it resumes as the default reviewer for new heads. Already-merged PRs do not need a retroactive Codex review.
 
-**Owner-relayed independent review (Owner instruction in the Owner's Claude Code session on 2026-11-04):** while Codex is unavailable, a review by a model family that authored none of the PR's commits, run in an ordinary chat that the Owner relays, counts as an **independent** review. For example, the Owner relays a ChatGPT chat for a Claude-authored PR. It satisfies the independent-review part of the gates above. The procedure:
+**Owner-relayed independent review (Owner instruction in the Owner's Claude Code session on 2026-11-04):** while Codex is unavailable, the Owner may relay a review to an ordinary chat of a model family that authored none of the PR's commits. For example, the Owner relays a ChatGPT chat for a Claude-authored PR. Such a review counts as **independent**: it replaces only the reviewer of substitute step 1. Substitute steps 2 and 3 still bind the authoring agent: the caller, boundary, rollback and effect trace; the local merge; focused tests; and, for a production change, the mutation check. Independence is judged as in substitute step 1. The record lists each commit's authoring family, and unknown authorship counts as same-model. The procedure:
 
 1. **Packet.** The authoring agent writes a review packet. The packet contains:
    - the PR number;
    - the exact HEAD and base SHAs;
-   - the full final-HEAD diff;
+   - the full final-HEAD diff, with its SHA-256;
    - the PR body;
    - the surrounding code that the diff depends on;
    - the review questions.
 
-   It splits a diff that does not fit one message, and says so.
-2. **Relay.** The Owner gives the packet to the reviewing chat. The Owner then pastes the reviewer's answer back to the authoring agent unchanged.
+   The packet asks the reviewer to restate the HEAD SHA and the diff hash in its answer. It splits a diff that does not fit one message, and says so. The reviewer may ask for more code through the Owner; the agent supplies it in a follow-up packet.
+2. **Relay.** The Owner gives the packet to the reviewing chat. The Owner then pastes the reviewer's answer, unchanged, into the Owner's own message to the authoring agent. The agent never writes, completes or edits reviewer text.
 3. **Verify.** The authoring agent treats every finding as a claim. It reproduces or refutes each one, then fixes what is real. A finding it judges not real gets a reason on the record.
-4. **Record.** The authoring agent posts one PR comment headed "Independent review (Owner-relayed)". The comment is the record of truth. It names:
+4. **Record.** The authoring agent posts one PR comment headed "Independent review (Owner-relayed)". The comment is the record of truth. It contains:
    - the reviewer family and product;
-   - the reviewed HEAD;
-   - the reviewer's findings, quoted or faithfully summarized, and what was done about each;
-   - the CI and tests the authoring agent ran, since the chat reviewer cannot run them.
-5. **Freshness.** The review covers one HEAD. A new HEAD needs a new relayed review of at least the new diff, with the same record. A base-only move needs only the step-3 checks of the substitute rule (local merge, focused tests, conflict check).
+   - the reviewed HEAD and diff hash, as restated by the reviewer. A mismatch with the packet voids the review;
+   - the reviewer's answer **verbatim**, for example in a collapsed block;
+   - what was done about each finding;
+   - the substitute step 2–3 checks and the CI the authoring agent ran.
+
+   The Owner may confirm the record on the PR.
+5. **Freshness.** The review covers one HEAD. Any new HEAD needs a new relayed review and a new record:
+   - Re-check independence against every commit at the new HEAD.
+   - The new packet carries the whole final diff, and marks what changed since the reviewed HEAD.
+   - If only the base moves, redo substitute step 3 (Evidence): local merge, focused tests and the conflict check. Note it on the record.
+   - If that merge changes any reviewed file, redo steps 1–5.
 
 An Owner-relayed review never replaces an Owner decision that a rule requires, such as authority activation, Phase Entry or Exit, or a HOLD.
 
