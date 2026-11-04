@@ -4,6 +4,8 @@
 // treasury 50,000 and a 20% competitor stake. Node counterpart: tests/ma-equity-raise-shadow-atomicity-test.js.
 //  1. save accepted, then throws: closeMADeal returns false; live, localStorage mirror, IDB cache and durable IDB keep
 //     the pre-closing bytes (the accepted closing payload is withdrawn; its IDB put never lands). No fork.
+//  1b. P3-4 G38: save-before-throw, save-false, mirror, enqueue-false, enqueue-throw, saved and change at the same boundary:
+//     each is caught by the wrapper, closeMADeal returns false, and live, mirror, cache and durable are unchanged.
 //  2. the success `notify` emit throws after the save: same consistent rollback (gap G1 in the Node test header:
 //     the notice is inside the rollback region, unlike the #955 after-commit notice pattern).
 //  3. a throwing addEventListener('notify') listener: DOM dispatch reports, not rethrows, listener errors, so the
@@ -12,6 +14,7 @@
 // durable-only context agree with live.
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
 const {webkit,devices}=require('playwright');
+const {inject}=require('./fixtures/pe-fund-acquisition-faults');
 const ROOT=path.resolve(__dirname,'..'),DIR=path.resolve(process.env.MA_DEAL_ROOM_ARTIFACT_DIR||'artifacts/ma-deal-room-webkit');
 const options={...devices['iPhone 13'],locale:'ja-JP',timezoneId:'Asia/Tokyo',serviceWorkers:'block'};
 const server=http.createServer((req,res)=>{try{const u=new URL(req.url,'http://localhost'),file=path.resolve(ROOT,u.pathname==='/'?'index.html':decodeURIComponent(u.pathname).slice(1));assert.ok(file.startsWith(ROOT+path.sep));res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json'})[path.extname(file)]||'application/octet-stream');res.end(fs.readFileSync(file));}catch{res.statusCode=404;res.end();}});
@@ -22,6 +25,7 @@ async function view(p){return p.evaluate(async snap=>{const m=__capitalismTycoon
  const url='http://127.0.0.1:'+server.address().port+'/',context=await browser.newContext(options),p=await context.newPage(),pageErrors=[];
  p.on('pageerror',e=>pageErrors.push(String(e?.message||e)));
  await p.goto(url,{waitUntil:'networkidle'});
+ await p.addScriptTag({content:'globalThis.__injectEquityFault='+inject.toString()+';'});
  const proof=await p.evaluate(async snap=>{
   const m=__capitalismTycoonModules,key=m.engine.SAVE_KEY,e=new m.engine.TycoonEngine(),view=eval(snap);
   e.g=m.engine.createInitialState({configured:true,seed:934017,companyName:'Equity raise shadow WebKit',playerName:'Owner'});
@@ -46,6 +50,10 @@ async function view(p){return p.evaluate(async snap=>{const m=__capitalismTycoon
   // 1. save accepted (mirror + IDB cache written, put queued), then throws.
   await rejected('save-throw',()=>{const save=e.save;let hits=0,accepted=false;e.save=function(...args){const r=save.apply(this,args);if(!this.inTransaction()){hits++;accepted=r===true&&localStorage.getItem(key).includes('maPublicEquityRaise');throw new Error('save accepted then threw');}return r;};return {hits:()=>hits,accepted:()=>accepted,restore(){e.save=save;}};});
   if(!cases[0].accepted)throw new Error('save-throw did not reach an accepted closing save');
+  // P3-4 G38: the rest of the shared fault set at the same shadow boundary. Each is caught by the wrapper, which
+  // restores live and storage, so the closing returns false with live, mirror, cache and durable unchanged.
+  await rejected('save-before-throw',()=>{const save=e.save;let hits=0;e.save=()=>{hits++;throw new Error('closing save before admission threw');};return {hits:()=>hits,restore(){e.save=save;}};});
+  for(const kind of ['save-false','mirror','enqueue-false','enqueue-throw','saved','change'])await rejected(kind,()=>__injectEquityFault(e,m,localStorage,key,kind));
   let alreadyClosed=false;
   // 2. the success notice emit throws after the accepted save: NOT a contract (G1). Only the no-fork invariant is
   //    checked: rolled back everywhere (today) or committed once (after a #955-style fix); live, mirror, cache, durable agree.
