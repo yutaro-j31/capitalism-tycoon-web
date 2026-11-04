@@ -661,6 +661,15 @@ function updateStoreSmoothedProfit(g, store) {
 // 同じ値を使うよう一元管理する（片方だけ変えると画面の予告と実際の入金がズレるため）。
 const STORE_CLOSURE_SALVAGE_RATE = .15;
 
+// G10: the founder's dividend entitlement is every share the founder beneficially holds: the original founder
+// shares plus own-company shares bought personally on the market (personalStocks[ticker]), as the P3-2 read model
+// counts them. Those bought shares are part of the outstanding count, so without them their dividend leaked to the
+// external-holder leg. founderOwnershipRatio (voting/governance) is unchanged.
+function founderDividendRatio(g){
+  const eligible=Math.max(1,finite(g.sharesOut)-finite(g.treasuryBuybackShares)),lot=g.personalStocks?.[g.ticker];
+  const bought=lot&&Number.isFinite(lot.qty)&&lot.qty>0?lot.qty:0;
+  return clamp((finite(g.founderShares)+bought)/eligible,0,1);
+}
 // 株式売買1回の注文で動かせる数量の上限（発行済株式数に対する比率）。buyStock()/sellStock()の
 // 株価インパクトは1取引あたり最大3%に固定されているが、旧実装は数量そのものに上限が無く、
 // 発行済株式数の何倍を1回の注文で指定してもインパクトは常に3%止まりで約定できてしまう抜け穴
@@ -2524,7 +2533,7 @@ class TycoonEngine extends EventTarget {
     const execPayroll=this.g.week%4===0?ceilYen(Object.values(this.g.executives).reduce((a,e)=>a+finite(e.salary)/13,0)):0;
     const deptCost=workforce.weeklyPayroll(this.g);
     const officeCost=this.g.hasHeadOffice?ceilYen(this.g.officeWeeklyCost):0,genericDebt=Math.max(0,this.g.companyDebt-finance.individuallyServicedPrincipal(this.g)),interest=__modules.economicOperation.ceilYen(genericDebt*this.companyBorrowRate()/52);expenses+=execPayroll+deptCost+officeCost+interest;const founderLoanShare=genericDebt>0?Math.min(1,finance.founderLoanReceivable(this.g)/genericDebt):0;if(founderLoanShare>0)this.g.personalCash+=Math.min(__modules.economicOperation.ceilYen(interest*founderLoanShare),interest);
-    if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=ceilYen(h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797);}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=ceilYen(this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares));const founderGross=dividend*this.g.founderOwnershipRatio,personalCashBefore=this.g.personalCash;this.g.personalCash+=finance.founderDividendNet(founderGross);dividendDistribution={gross:dividend,founderRatio:this.g.founderOwnershipRatio,personalCashBefore,personalCashAfter:this.g.personalCash,netRounding:'ceilYen'};}}
+    if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=ceilYen(h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797);}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=ceilYen(this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares));const founderRatio=founderDividendRatio(this.g),founderGross=dividend*founderRatio,personalCashBefore=this.g.personalCash;this.g.personalCash+=finance.founderDividendNet(founderGross);dividendDistribution={gross:dividend,founderRatio,personalCashBefore,personalCashAfter:this.g.personalCash,netRounding:'ceilYen'};}}
     const projectRun=workforce.advanceProjects(this.g);const projectCost=finite(projectRun?.projectCost);expenses+=projectCost;const turnoverRun=workforce.updateEndOfWeek(this.g);const severanceCost=finite(turnoverRun?.turnoverCost);expenses+=severanceCost;supply.autoOrder(this.g);const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;this.g.quarterlyPretaxProfit=finite(this.g.quarterlyPretaxProfit)+operatingProfit;let tax=0;if(this.g.week%13===0){if(this.g.quarterlyPretaxProfit>0)tax=ceilYen(this.g.quarterlyPretaxProfit*.306);expenses+=tax;this.g.quarterlyPretaxProfit=0;}
     const profit=sales+rentIncome+stockIncome-expenses+subs.profit;const weeklyCashDelta=profit-dividend-finite(overseas.retainedCash)+supplyCogsNonCash+finite(spoilage?.cost),nonStoreCashDelta=weeklyCashDelta-storeCashDelta;const payerCashWithoutDividend=this.g.companyCash+profit-finite(overseas.retainedCash)+supplyCogsNonCash+finite(spoilage?.cost);this.g.companyCash+=nonStoreCashDelta+storeCashDelta;if(dividendDistribution)Object.assign(dividendDistribution,{payerCashWithoutDividend,payerCashAfter:this.g.companyCash});this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
     if(dividendDistribution&&dividend>0)finance.observeDividendDistribution(this.g,dividendDistribution);
