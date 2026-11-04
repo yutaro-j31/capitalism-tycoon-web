@@ -106,7 +106,7 @@ player-common activation.
 
 | Gap | Subject | Evidence on `main` | Status | What remains |
 | --- | --- | --- | --- | --- |
-| G40 | Shared browser fault-applicability matrix: `stockSplit`, `declineInboundBuyoutOffer`, `investStartup`, `participateStartupFundingRound`, `sellStartupSecondary`, `makeSubsidiary`, `executeGroupRestructuringSale`, `sellMASubsidiary`, `createPEDeal`, `exitPEDeal`, `createAngelInvestment` (obligations S, L, R, D, W) | Per-writer WebKit tests only. | OPEN | No read-only applicability matrix. It covers player-common writers (split, decline). |
+| G40 | Shared browser fault-applicability matrix: `stockSplit`, `declineInboundBuyoutOffer`, `investStartup`, `participateStartupFundingRound`, `sellStartupSecondary`, `makeSubsidiary`, `executeGroupRestructuringSale`, `sellMASubsidiary`, `createPEDeal`, `exitPEDeal`, `createAngelInvestment` (obligations S, L, R, D, W) | Per-writer WebKit tests; read-only applicability matrix in [P3_4_G40_BROWSER_FAULT_APPLICABILITY.md](P3_4_G40_BROWSER_FAULT_APPLICABILITY.md). | PARTIAL | `stockSplit` and `executeGroupRestructuringSale` are complete. The other nine lack a pre-admission throw and nested save-false/save-throw (some also pending save-throw; `sellMASubsidiary` also enqueue-throw). For player-common activation only `declineInboundBuyoutOffer` matters. |
 
 ### Money oracles (M0)
 
@@ -138,7 +138,7 @@ WebKit fault-set PRs #1321–#1323 and #1325–#1330):
 Steps 2 and 4 are done, and the nine WebKit fault sets are in place. G10 and G35 moved to EVIDENCED in a second
 refresh on `main` `eea44960` (after #1336, #1337 and #1338). The player-common family now has one PARTIAL gap, G01:
 its null-leg refusal is part of activation, and its generation 2+ part is deferred with G02. The cross-cutting G40
-(applicability matrix) stays OPEN.
+is PARTIAL: its read-only matrix exists (#1342), and the missing browser tuples it lists are per-writer follow-ups.
 
 As first published (on `ef05e51a`) the counts were: EVIDENCED 2; PARTIAL closed by step 2, 3 (G01, G09, G13); PARTIAL
 step 2 and a WebKit fault set, 3 (G07, G08, G41); PARTIAL WebKit fault set incomplete, 6 (G03–G06, G38, G43); PARTIAL
