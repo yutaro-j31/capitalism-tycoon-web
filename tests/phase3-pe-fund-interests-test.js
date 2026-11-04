@@ -342,3 +342,6 @@ for(const damage of [d=>{d.fundPortion='25';},d=>{d.investedAmount=99;},d=>{dele
  assert.equal(project(s).fundInterests[0].current,false,'an exited deal with bad allocation proves nothing outstanding');
 }
 console.log('PASS P3-7 fund interests: account separation, source-exact capital, coinvest, historical distributions, malformed evidence, purity, v9 and installed writer');
+require('./phase3-pe-installed-writers-case').run()
+  .then(()=>console.log('PASS P3-7 installed fund and parent acquisition writers: exact proceeds fraction, ended holding, alias-only conversion, purity and reload'))
+  .catch(error=>{console.error(error);process.exitCode=1;});
