@@ -1,10 +1,11 @@
 {
-  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. tests/run-all-shard.js reads this file only when TEST_SHARD_PARALLELISM is 2 or more (never in contract mode); the workflow leaves that variable at 1 unless the repository variable TEST_SHARD_PARALLELISM_J / _C / _E / _L / _A (shards J, C, E, L, A) is set. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
+  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. tests/run-all-shard.js reads this file only when TEST_SHARD_PARALLELISM is 2 or more (never in contract mode); the workflow leaves that variable at 1 unless the repository variable TEST_SHARD_PARALLELISM_J / _C / _E / _L / _A / _K (shards J, C, E, L, A, K) is set. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
   "parallelEnabledShards": [
     "A",
     "C",
     "E",
     "J",
+    "K",
     "L"
   ],
   "timings": {
@@ -419,6 +420,37 @@
       "tests/log-array-caps-test.js": 0.4,
       "tests/pe-coinvest-ledger-test.js": 0.4,
       "tests/pe-ui-phase2-test.js": 0.0
+    },
+    "K": {
+      "tests/subsidiary-secondary-sale-save-atomicity-test.js": 90.3,
+      "tests/group-restructuring-merge-save-atomicity-test.js": 80.6,
+      "tests/yen-ceiling-seeded-full-run-test.js": 160.6,
+      "tests/phase3-restructuring-lifecycle-test.js": 0.6,
+      "tests/phase3-ownership-projection-test.js": 0.5,
+      "tests/phase3-ownership-reconciliation-test.js": 0.6,
+      "tests/phase3-listed-holdings-adapter-test.js": 0.5,
+      "tests/phase3-ownership-snapshot-test.js": 4.3,
+      "tests/phase3-listing-observations-test.js": 0.4,
+      "tests/phase3-subsidiary-relationships-test.js": 13.2,
+      "tests/phase3-pe-ownership-adapter-test.js": 0.5,
+      "tests/phase3-subsidiary-composition-test.js": 0.3,
+      "tests/phase3-indirect-economic-paths-test.js": 0.9,
+      "tests/phase3-pe-fund-interests-test.js": 23.1,
+      "tests/phase3-pe-lp-commitments-test.js": 0.5,
+      "tests/phase3-founder-wealth-test.js": 3.2,
+      "tests/player-own-share-conservation-test.js": 9.7,
+      "tests/phase2-accounting-baseline-test.js": 7.9,
+      "tests/phase2-standalone-close-test.js": 2.7,
+      "tests/phase2-debt-rollforward-test.js": 3.3,
+      "tests/phase2-dividend-reconciliation-test.js": 69.0,
+      "tests/phase2-buyback-reconciliation-test.js": 9.3,
+      "tests/phase2-fixed-asset-reconciliation-test.js": 13.9,
+      "tests/phase2-acceptance-gate-test.js": 51.1,
+      "tests/group-capital-allocation-cash-exact-test.js": 45.0,
+      "tests/player-crisis-turnaround-ratchet-week-rollback-test.js": 53.7,
+      "tests/full-index-weekly-validate-208w-test.js": 517.9,
+      "tests/personal-stock-margin-save-atomicity-test.js": 132.7,
+      "tests/supply-material-cost-inflation-test.js": 273.5
     }
   },
   "serial": {
