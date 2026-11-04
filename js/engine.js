@@ -661,14 +661,18 @@ function updateStoreSmoothedProfit(g, store) {
 // 同じ値を使うよう一元管理する（片方だけ変えると画面の予告と実際の入金がズレるため）。
 const STORE_CLOSURE_SALVAGE_RATE = .15;
 
-// G10: the founder's dividend entitlement is every share the founder beneficially holds: the original founder
-// shares plus own-company shares bought personally on the market (personalStocks[ticker]), as the P3-2 read model
-// counts them. Those bought shares are part of the outstanding count, so without them their dividend leaked to the
-// external-holder leg. founderOwnershipRatio (voting/governance) is unchanged.
+// G10: the founder's dividend entitlement is the P3-2 founder beneficial quantity (original founder shares plus
+// own-company shares bought personally), read from the same reconciliation the own-share purchase guard uses, so
+// the dividend and the read model never interpret a holding differently. Bought shares are part of the outstanding
+// count; without them their dividend leaked to the external leg. founderOwnershipRatio (governance) is unchanged.
+// When the reconciliation rejects the ownership evidence (over-allocation, malformed lot), no new entitlement is
+// inferred: the founder leg stays at founderOwnershipRatio, the pre-G10 rule. The Owner decides whether that case
+// should instead fail closed (PR #1337 review F1).
 function founderDividendRatio(g){
-  const eligible=Math.max(1,finite(g.sharesOut)-finite(g.treasuryBuybackShares)),lot=g.personalStocks?.[g.ticker];
-  const bought=lot&&Number.isFinite(lot.qty)&&lot.qty>0?lot.qty:0;
-  return clamp((finite(g.founderShares)+bought)/eligible,0,1);
+  let view;try{view=__modules.economicReadModel?.ownershipReconciliation?.(g);}catch{view=null;}
+  const founder=view?.ok?view.beneficialHoldings?.[0]?.quantity:null,outstanding=view?.ok?view.securityClasses?.[0]?.outstandingQuantity:null;
+  if(!Number.isFinite(founder)||!Number.isFinite(outstanding)||outstanding<=0||founder<0||founder>outstanding)return finite(g.founderOwnershipRatio);
+  return founder/outstanding;
 }
 // 株式売買1回の注文で動かせる数量の上限（発行済株式数に対する比率）。buyStock()/sellStock()の
 // 株価インパクトは1取引あたり最大3%に固定されているが、旧実装は数量そのものに上限が無く、
