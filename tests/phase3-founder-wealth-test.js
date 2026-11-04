@@ -792,3 +792,4 @@ function noReference(value,target,seen=new Set()){
  deq(project(plain(g)),r);
 }
 console.log('PASS P3-11 founder wealth: owner formulas, honest partial totals, snapshot binding, JPY gate, fail-closed input, purity and installed wiring');
+require('./phase3-founder-wealth-view-case').run();console.log('PASS P3-11 founder wealth read-only view: relabel only, unvalued stays null, tap-only capture');
