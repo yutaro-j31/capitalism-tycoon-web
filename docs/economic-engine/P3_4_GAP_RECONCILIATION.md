@@ -4,7 +4,8 @@
 
 This is step 1 of [PHASE_3_P3_4_ACTIVATION_READINESS.md](PHASE_3_P3_4_ACTIVATION_READINESS.md) §3, approved by the
 Owner on 2026-11-03 (recorded in the memo's "Owner decision (2026-11-03)" section, #1315). It maps the 51 gaps of two open documents onto the evidence on current `main`
-(`ef05e51a`, after #1314):
+(`ef05e51a`, after #1314). The player-common rows and the Result were refreshed on 2026-11-04 against `77539f83`;
+the other rows are unchanged from that first pass:
 
 - the S evidence manifest, #1089 at
   [`5beb6b19`](https://github.com/yutaro-j31/capitalism-tycoon-web/blob/5beb6b195eccbebae61a5e25cd83fb890bfae8b9/docs/economic-engine/P3_4_S_EVIDENCE_MANIFEST.md);
@@ -50,27 +51,27 @@ correction. Both are approved.
 
 | Gap | Writer | Evidence on `main` | Status | What remains |
 | --- | --- | --- | --- | --- |
-| G01 | Player-common writer and bypass closure | Every `supported` planner writer is routed (see Method). | PARTIAL | Raw entries: step 2. Generation 2+: DEFERRED (memo G1). A leg is also left unchecked whenever inspection is not `OBSERVED` or the planner throws (`beginOwnershipLeg` returns null); activation must turn that into a refusal. |
+| G01 | Player-common writer and bypass closure | Every `supported` planner writer is routed (see Method); raw entries closed by step 2 (#1317, which also routes the legacy `acquireTarget` share swap as `W-ACQUIRE-COMPAT`). | PARTIAL | Generation 2+: DEFERRED (memo G1). A leg is also left unchecked whenever inspection is not `OBSERVED` or the planner throws (`beginOwnershipLeg` returns null); activation must turn that into a refusal. |
 | G02 | Refounding (`foundNewCompanyAfterBuyout`, `migrateSave`) | `found-new-company-save-atomicity` Node + WebKit; `PHASE_3_REFOUNDING_IDENTITY_EVIDENCE.md` (partial). | DEFERRED | Replacement rule and generation binding (memo G1, G2). |
-| G03 | `buyStock` | `stock-purchase-save-atomicity` Node + WebKit; routed. | PARTIAL | The WebKit test covers mirror and change faults only (unchanged since #1043). |
-| G04 | `sellStock` | `stock-sale-save-atomicity` Node + WebKit; routed. | PARTIAL | The WebKit test covers mirror and change faults only (unchanged since #1043). |
-| G05 | `sellFounderShares` | `founder-share-sale-save-atomicity` Node + WebKit; routed; R10b. | PARTIAL | The WebKit test covers mirror and change faults only (unchanged since #1043). |
-| G06 | `acceptInvestorOffer` | `investor-offer-save-atomicity` Node + WebKit; `PHASE_3_INVESTOR_REPLAY_EVIDENCE.md`; routed. | PARTIAL | The WebKit test covers mirror and change faults only. Competitor dilution: step 4 (memo G5). |
-| G07 | `executeIPO` chain | `parent-ipo-save-atomicity` Node + WebKit; `PHASE_3_CAPTURED_IPO_EVIDENCE.md`; IPO leg (#1213). | PARTIAL | A standalone base `executeIPO` call: step 2. The WebKit test has no nested, notify or enqueue-throw cases. |
-| G08 | Margin liquidation | `personal-stock-margin-save-atomicity` Node + WebKit; `PHASE_3_MARGIN_TRANSACTION_EVIDENCE.md`; legs (#1212). | PARTIAL | Direct `liquidate` / `processWeek` calls have no boundary: step 2 (memo G4). The WebKit test has no pending or nested cases (#1091 FC-G08-05). |
-| G09 | Buyback | `shareholder-buyback-save-atomicity` Node + WebKit; base rejection and export evidence. | PARTIAL | The base `buybackOwnShares`: step 2. Its evidence document lists standalone base calls as unproved. |
+| G03 | `buyStock` | `stock-purchase-save-atomicity` Node + WebKit (shared fault set, pending and nested cases since #1321); routed. | EVIDENCED | — |
+| G04 | `sellStock` | `stock-sale-save-atomicity` Node + WebKit (shared fault set for personal and company accounts since #1322); routed. | EVIDENCED | — |
+| G05 | `sellFounderShares` | `founder-share-sale-save-atomicity` Node + WebKit (shared fault set since #1323); routed; R10b. | EVIDENCED | — |
+| G06 | `acceptInvestorOffer` | `investor-offer-save-atomicity` Node + WebKit (shared fault set since #1325); `PHASE_3_INVESTOR_REPLAY_EVIDENCE.md`; routed. Competitor dilution: step 4 done (#1318). | EVIDENCED | — |
+| G07 | `executeIPO` chain | `parent-ipo-save-atomicity` Node + WebKit (shared fault set, nested, notify, enqueue-throw and a rollback-disabled control since #1327); `PHASE_3_CAPTURED_IPO_EVIDENCE.md`; IPO leg (#1213). A standalone base `executeIPO` opens its own transaction (step 2, #1317). | EVIDENCED | — |
+| G08 | Margin liquidation | `personal-stock-margin-save-atomicity` Node + WebKit (shared fault set, pending, nested and direct-call cases since #1328); `PHASE_3_MARGIN_TRANSACTION_EVIDENCE.md`; legs (#1212). Direct `liquidate` / `processWeek` open their own transaction (step 2, #1317). | EVIDENCED | — |
+| G09 | Buyback | `shareholder-buyback-save-atomicity` Node + WebKit; base rejection and export evidence. The overridden base `buybackOwnShares` refuses (step 2, #1317). | EVIDENCED | — |
 | G10 | Dividend declaration and payment | `shareholder-dividend-declaration-` and `-payment-save-atomicity` Node + WebKit. | PARTIAL | The payment evidence does not certify additional personal own-company lots or all holder classes (its Limits). |
-| G11 | `requestSponsorInjection` | `sponsor-injection-save-atomicity` Node + WebKit; routed. | EVIDENCED | Competitor dilution: step 4. |
-| G12 | Turnaround `accept` | `turnaround-fund-accept-save-atomicity` Node + WebKit; routed. | EVIDENCED | Competitor dilution: step 4. |
-| G13 | Turnaround ratchet `settle` | `player-crisis-turnaround-ratchet-week-rollback` (Node), `player-crisis-turnaround-ratchet-webkit`; mirror (#1211); leg (#1214). | PARTIAL | `settle` outside a transaction: step 2. Competitor dilution: step 4. |
+| G11 | `requestSponsorInjection` | `sponsor-injection-save-atomicity` Node + WebKit; routed. Competitor dilution: step 4 done (#1318). | EVIDENCED | — |
+| G12 | Turnaround `accept` | `turnaround-fund-accept-save-atomicity` Node + WebKit; routed. Competitor dilution: step 4 done (#1318). | EVIDENCED | — |
+| G13 | Turnaround ratchet `settle` | `player-crisis-turnaround-ratchet-week-rollback` (Node), `player-crisis-turnaround-ratchet-webkit`; mirror (#1211); leg (#1214). `settle` outside a transaction opens its own (step 2, #1317); competitor dilution: step 4 done (#1318). | EVIDENCED | — |
 | G14 | `buyCompetitorStake` | `week-competitor-stake-save-atomicity` (Node fault set); `competitor-stake-float-webkit` (healthy run only). | DEFERRED | No WebKit fault set. Holder binding for the competitor stake (memo G6). |
 | G34 | `createInitialState` and the second-game reset | Covered with G02. | DEFERRED | Same as G02. |
 | G35 | `refreshInvestorOffers`, `declineInboundBuyoutOffer` | `investor-offer-aux-save-atomicity` (Node only, #1207); `decline-buyout-ownership-save-atomicity` Node + WebKit. | PARTIAL | No WebKit for the auxiliary offer commands. |
 | G36 | Load, compaction, restore | `PHASE_3_OWNERSHIP_REPLACEMENT_EVIDENCE.md` (partial). | DEFERRED | Import failure atomicity is not certified. Replacement rule (memo G2). |
-| G38 | M&A equity raise `executeFinancing` | `ma-equity-raise-shadow-atomicity` Node + WebKit; leg (#1210). | PARTIAL | The WebKit test covers save-throw and notify faults only; the Node test has the full set. |
-| G41 | Share swap `completeTargetAcquisition` | `ma-share-swap-save-atomicity` Node + WebKit; `PHASE_3_RAW_ISSUANCE_EVIDENCE.md`. | PARTIAL | Legacy `acquireTarget('shareSwap')` and standalone `issueSharesToExternalHolders`: step 2. The WebKit test covers mirror and change faults only. |
+| G38 | M&A equity raise `executeFinancing` | `ma-equity-raise-shadow-atomicity` Node + WebKit (the rest of the shared fault set at the shadow boundary since #1329); leg (#1210). | EVIDENCED | — |
+| G41 | Share swap `completeTargetAcquisition` | `ma-share-swap-save-atomicity` Node + WebKit (shared fault set since #1326); `PHASE_3_RAW_ISSUANCE_EVIDENCE.md`. Legacy `acquireTarget('shareSwap')` is routed and standalone `issueSharesToExternalHolders` refuses outside a boundary (step 2, #1317). | EVIDENCED | — |
 | G42 | `activateDefense` | `activate-defense-save-atomicity` (Node fault set); `activate-defense-ownership-ratios-webkit` (healthy run only). | DEFERRED | No WebKit fault set. `HOLDER_UNPROVEN`: holder binding for the competitor stake (memo G6). |
-| G43 | Activism `accept` | `shareholder-activism-accept-save-atomicity` Node + WebKit. | PARTIAL | The WebKit test covers save-false and save-throw faults only. |
+| G43 | Activism `accept` | `shareholder-activism-accept-save-atomicity` Node + WebKit (shared fault set, pending, nested and a rollback control since #1330). | EVIDENCED | — |
 
 ### Writers outside the player-common family
 
@@ -125,20 +126,23 @@ These gaps ask for whole-yen conservation oracles. Each is owned by a rounding s
 
 ## Result
 
-For the player-common family, 21 gaps:
+For the player-common family, 21 gaps (refreshed 2026-11-04 on `main` `77539f83`, after #1317, #1318 and the
+WebKit fault-set PRs #1321–#1323 and #1325–#1330):
 
 | Status | Count | Gaps |
 | --- | --- | --- |
-| EVIDENCED | 2 | G11, G12 |
-| PARTIAL, closed by step 2 | 3 | G01, G09, G13 |
-| PARTIAL, step 2 and a WebKit fault set | 3 | G07, G08, G41 |
-| PARTIAL, WebKit fault set incomplete | 6 | G03, G04, G05, G06, G38, G43 |
-| PARTIAL, other | 2 | G10 (holder classes), G35 (WebKit for the auxiliary offer commands) |
+| EVIDENCED | 13 | G03, G04, G05, G06, G07, G08, G09, G11, G12, G13, G38, G41, G43 |
+| PARTIAL | 3 | G01 (generation 2+ and the null-leg refusal), G10 (holder classes), G35 (WebKit for the auxiliary offer commands) |
 | DEFERRED | 5 | G02, G14, G34, G36, G42 |
 
-Steps 2 and 4 do **not** close the player-common family on their own. Nine gaps also need a fuller WebKit fault set
-(G03–G08, G38, G41, G43), and G10, G35 and the cross-cutting G40 stay open too. Each needs test-only evidence: the shared
-fault set in the existing WebKit tests, the holder-class cases of G10 and the applicability matrix of G40.
+Steps 2 and 4 are done, and the nine WebKit fault sets are in place. The player-common family still has three PARTIAL
+gaps, and the cross-cutting G40 stays open. G10, G35 and G40 need test-only evidence: the holder-class cases of G10,
+WebKit for the auxiliary offer commands and the applicability matrix of G40. G01's null-leg refusal is part of
+activation; its generation 2+ part is deferred with G02.
+
+As first published (on `ef05e51a`) the counts were: EVIDENCED 2; PARTIAL closed by step 2, 3 (G01, G09, G13); PARTIAL
+step 2 and a WebKit fault set, 3 (G07, G08, G41); PARTIAL WebKit fault set incomplete, 6 (G03–G06, G38, G43); PARTIAL
+other, 2; DEFERRED, 5.
 
 Outside the family, 20 gaps:
 
