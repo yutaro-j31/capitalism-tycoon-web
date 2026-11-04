@@ -590,5 +590,26 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
  result.totalNetWorth=result.complete?result.knownNetWorth:null;
  return done();
 }
-modules.phase3FounderWealth=Object.freeze({PRIVATE_EQUITY_FACTOR,captureFounderWealthEvidence,projectFounderWealth});
+// Display rows for the read-only breakdown (P3-11 §13). Pure: labels only, no new arithmetic beyond
+// the projection's own known subtotal; an unvalued component keeps amountJPY null and is never zero.
+const COMPONENT_LABELS=[['asset:personal-cash','個人現金'],['asset:own-company','自社株（創業者持分）'],['asset:listed:','上場株'],
+ ['asset:vc-personal:','ベンチャー出資'],['asset:angel:','エンジェル投資'],['asset:pe-interests','PE持分'],['asset:family-trust','資産管理信託'],
+ ['asset:personal-real-estate-corporation','個人不動産法人'],['asset:founder-loan','会社への貸付金'],['liability:personal-debt','個人借入'],
+ ['liability:margin','信用取引の借入'],['liability:unreconciled-coverage','照合できていない負債']];
+const BASIS_LABELS={cash:'現金残高',marketPrice:'時価',stakeValue:'持分評価',reportedCurrentValue:'現在評価額',principal:'元本',equityValue:'株主価値'};
+function describeFounderWealth(result){
+ const rows=[];
+ for(const c of result&&list(result.components)?result.components:[]){
+  const hit=COMPONENT_LABELS.find(([prefix])=>prefix.endsWith(':')?c.componentId.startsWith(prefix):c.componentId===prefix||c.componentId.startsWith(`${prefix}:`));
+  const detail=hit&&hit[0].endsWith(':')?c.componentId.slice(hit[0].length):'';
+  const label=hit?hit[1]:c.side==='liability'?'その他の負債':'その他の資産';
+  rows.push({componentId:c.componentId,side:c.side==='liability'?'liability':'asset',label,detail,
+   amountJPY:typeof c.amountJPY==='number'?c.amountJPY:null,basis:c.valuationBasis===null?null:BASIS_LABELS[c.valuationBasis]||String(c.valuationBasis),
+   status:typeof c.amountJPY==='number'?'known':'unvalued'});
+ }
+ return freeze({authority:'read-only',complete:result?.complete===true,knownNetWorth:typeof result?.knownNetWorth==='number'?result.knownNetWorth:null,
+  totalNetWorth:result?.complete===true&&typeof result.totalNetWorth==='number'?result.totalNetWorth:null,
+  unvaluedCount:rows.filter(r=>r.status==='unvalued').length,inputRejected:rows.length===0,rows});
+}
+modules.phase3FounderWealth=Object.freeze({PRIVATE_EQUITY_FACTOR,captureFounderWealthEvidence,projectFounderWealth,describeFounderWealth});
 })();
