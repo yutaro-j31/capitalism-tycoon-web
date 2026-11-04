@@ -2,8 +2,10 @@
 // G10: own-company shares the founder bought personally (personalStocks[ticker]) receive the dividend with the
 // original founder shares. The entitlement is the P3-2 founder beneficial quantity from
 // economicReadModel.ownershipReconciliation, so the dividend and the read model never disagree (review F2). When the
-// reconciliation rejects the evidence, the founder leg stays at the pre-G10 founderOwnershipRatio (review F1, Owner
-// decision pending). Required by phase2-dividend-reconciliation-test.js. Pins are literal.
+// reconciliation rejects the evidence, the founder leg stays at the pre-G10 founderOwnershipRatio and the quarter is
+// still paid (review F1, Owner decision 2026-11-04, Option C). Required by phase2-dividend-reconciliation-test.js.
+// Pins are literal. The reload check below is a JSON round-trip into TycoonEngine only; real v9 persistence,
+// IndexedDB and fresh browser hydration are covered by the existing dividend-payment atomicity suites, not here.
 const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
 
@@ -74,7 +76,7 @@ function lifecycle() {
     const want = expected(), r = payWeek({ s, e, g });
     assert.equal(r.founderRatio, want, `${label}: entitlement = (founder + bought) / outstanding`);
     assert.equal(r.valid, true, `${label}: books valid`);
-    // v9 reload keeps the same entitlement source.
+    // JSON round-trip (not real persistence) keeps the same entitlement source.
     const reloaded = new s.engineModule.TycoonEngine(JSON.parse(JSON.stringify(g)));
     const view = s.modules.economicReadModel.ownershipReconciliation(reloaded.g);
     assert.equal(view.ok, true); assert.equal(view.beneficialHoldings[0].quantity, g.founderShares + (g.personalStocks.CPTY?.qty || 0));
