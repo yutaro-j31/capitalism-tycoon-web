@@ -1,5 +1,9 @@
 'use strict';
 
+// Under a parallel shard run the runner exports TEST_SHARD_PARALLELISM / TEST_SHARD_PARALLEL_REPORT to every test it starts.
+// This test drives the shard runner itself, so a nested copy must not inherit them (it would run in parallel mode, or wait on itself).
+delete process.env.TEST_SHARD_PARALLELISM; delete process.env.TEST_SHARD_PARALLEL_REPORT;
+
 // A test that dies from a signal (V8 heap OOM -> SIGABRT, the OOM killer -> SIGKILL) or floods past maxBuffer makes
 // spawnSync return status === null. The shard runner must report that as a FAILURE, like a non-zero exit.
 // The production tests/run-all.js, tests/run-all-shard.js and tests/run-all-shards.json are copied unchanged into a
