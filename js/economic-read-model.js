@@ -1074,16 +1074,17 @@ function projectSubsidiaryRelationships(rawState,identityIndex){
         if(!Array.isArray(row.restructuredFrom)||row.restructuredFrom.length<2||row.restructuredFrom.some(id=>!validId(id))||new Set(row.restructuredFrom).size!==row.restructuredFrom.length)reason('ALIAS_CONFLICT');
       }else if(family==='maSubsidiaries'){
         const matches=roots.get('maDealRooms').map.get(row.acquisitionDealID)||[],deal=matches[0]?.row;
-        const unique=(claims.get(`acquisitionDealID:${JSON.stringify(row.acquisitionDealID)}`)||[]).length===1;
-        const stableUnique=(stableKeys.get(`maSubsidiaries:${JSON.stringify(row.maStableKey)}`)||[]).length===1
-          &&(stableKeys.get(`maDealRooms:${JSON.stringify(row.maStableKey)}`)||[]).length===1
-          &&!(stableKeys.get(`acquisitionTargets:${JSON.stringify(row.maStableKey)}`)||[]).length;
+        const claimCount=(claims.get(`acquisitionDealID:${JSON.stringify(row.acquisitionDealID)}`)||[]).length,unique=claimCount===1;
+        const stableCount=family=>(stableKeys.get(`${family}:${JSON.stringify(row.maStableKey)}`)||[]).length;
+        const stableUnique=stableCount('maSubsidiaries')===1&&stableCount('maDealRooms')===1&&!stableCount('acquisitionTargets');
+        // Missing provenance (e.g. a commercialization spin-out row) is unproven identity, not a competing claimant.
+        const conflict=matches.length>1||claimCount>1||stableCount('maSubsidiaries')>1||stableCount('maDealRooms')>1||stableCount('acquisitionTargets')>0;
         const whole=matches.length===1&&unique&&stableUnique&&deal.status==='acquired'&&deal.targetID===row.id
           &&validId(deal.targetStableKey)&&deal.targetStableKey===row.maStableKey&&validWeek(deal.closedWeek)&&deal.closedWeek===row.acquiredWeek
           &&plainOwnershipObject(deal.acceptedTerms)&&['friendly','shareSwap','hostile'].includes(deal.acceptedTerms.method)
           &&deal.acceptedTerms.method===row.acquisitionMethod&&(row.ownership==null||row.ownership===1)&&!roots.get('acquisitionTargets').map.has(row.id);
         if(whole){sourceRefs.push(ref(matches[0].path,deal.id,'ma','historical'));fraction=1;}
-        else {sound=false;reason(matches.length>1||!unique||!stableUnique?'ALIAS_CONFLICT':'IDENTITY_UNPROVEN');}
+        else {sound=false;reason(conflict?'ALIAS_CONFLICT':'IDENTITY_UNPROVEN');}
       }else{
         const aliasKeys=['startupID','peDealID','internalVentureID','sourceCompetitorID','sourcePEDealID'].filter(key=>Object.hasOwn(row,key));
         if(aliasKeys.length>1){sound=false;reason('ALIAS_CONFLICT');}
