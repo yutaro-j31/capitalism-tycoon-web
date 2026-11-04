@@ -15,7 +15,8 @@ const marginCase=async({state,variant,kind,pending,wrap,mutation,soft,settlement
      await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB unavailable');if(!e.save())throw new Error('baseline save failed');await backend.flush();
      if(mutation==='rollback')e.restoreTransactionSnapshot=()=>{};
      // A pending accepted predecessor is queued in this task, before any microtask can start its durable write.
-     if(pending&&!e.save())throw new Error('pending predecessor rejected');
+     // The marker makes the predecessor differ from the baseline, so fresh durable-only hydration proves it persisted.
+     if(pending){e.g.companyName+=' (pending predecessor)';if(!e.save())throw new Error('pending predecessor rejected');}
      const before=JSON.stringify(e.g),prior=JSON.parse(before),bytes=backend.readSync(key),save=e.save;
      let injection={hits:()=>0,restore(){}};
      if(kind==='save-before-throw'){let hits=0;e.save=()=>{hits++;throw new Error('margin save before admission threw');};injection={hits:()=>hits,restore(){e.save=save;}};}
