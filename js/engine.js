@@ -666,8 +666,10 @@ const STORE_CLOSURE_SALVAGE_RATE = .15;
 // the dividend and the read model never interpret a holding differently. Bought shares are part of the outstanding
 // count; without them their dividend leaked to the external leg. founderOwnershipRatio (governance) is unchanged.
 // When the reconciliation rejects the ownership evidence (over-allocation, malformed lot), no new entitlement is
-// inferred: the founder leg stays at founderOwnershipRatio, the pre-G10 rule. The Owner decides whether that case
-// should instead fail closed (PR #1337 review F1).
+// inferred: the founder leg stays at founderOwnershipRatio, the pre-G10 rule, and the quarter is still paid
+// (Owner decision 2026-11-04, Option C; PR #1337 review F1). The reconciliation builds one-element arrays: [0] is the
+// player common class and the founder beneficial holding (economic-read-model.js); revisit this lookup if more
+// classes or holders are added.
 function founderDividendRatio(g){
   let view;try{view=__modules.economicReadModel?.ownershipReconciliation?.(g);}catch{view=null;}
   const founder=view?.ok?view.beneficialHoldings?.[0]?.quantity:null,outstanding=view?.ok?view.securityClasses?.[0]?.outstandingQuantity:null;
