@@ -21,7 +21,7 @@ async function durable(browser,context,url){
  const state=await context.storageState({indexedDB:true});for(const origin of state.origins)origin.localStorage=[];
  const fresh=await browser.newContext({...options,storageState:state}),fp=await page(fresh,url);
  const result=await fp.evaluate(async()=>{const m=__capitalismTycoonModules;await m.saveStorageIDB.hydrate();const e=m.engine.TycoonEngine.load(),g=e.g;
-  const before={campaign:g.activeActivistCampaign?.status??null,treasury:g.treasuryBuybackShares,cash:g.companyCash,dps:g.dividendPerShare};
+  const before={companyName:g.companyName,campaign:g.activeActivistCampaign?.status??null,treasury:g.treasuryBuybackShares,cash:g.companyCash,dps:g.dividendPerShare};
   const second=e.acceptShareholderProposal();return {before,second,treasuryAfter:g.treasuryBuybackShares,cashAfter:g.companyCash,saveVersion:g.saveVersion};});
  await fresh.close();return result;
 }
@@ -42,7 +42,8 @@ async function durable(browser,context,url){
     let proposedTotal=null;if(split){proposedTotal=e.g.activeActivistCampaign.dividendPerShare*(e.g.sharesOut-e.g.treasuryBuybackShares);if(e.stockSplit('CPTY',split)!==true)throw new Error('production split failed');await backend.flush();}
     // A pending accepted predecessor is queued in this task, before any microtask can start its durable write.
     if(mutation==='rollback')e.restoreTransactionSnapshot=()=>{};
-    if(pending&&!e.save())throw new Error('pending predecessor rejected');
+    // The marker makes the predecessor differ from the fixture save, so the durable-only reload proves it persisted.
+    if(pending){e.g.companyName+=' (pending predecessor)';if(!e.save())throw new Error('pending predecessor rejected');}
     const before=JSON.stringify(e.g),bytes=backend.readSync(key),save=e.save;let result,error=null,injection={hits:()=>0,restore(){}};
     if(fault==='save-before-throw'){let hits=0;e.save=()=>{hits++;throw new Error('accept save before admission threw');};injection={hits:()=>hits,restore(){e.save=save;}};}
     else if(fault)injection=__injectActivismFault(e,m,localStorage,key,fault);
@@ -50,7 +51,7 @@ async function durable(browser,context,url){
     await backend.flush();
     if(fault){
      if(injection.hits()<1)throw new Error('fault not reached: '+fault);
-     if(soft.includes(fault)?result!==false||error:!error)throw new Error('wrong failure result '+JSON.stringify({fault,result,error}));
+     if(soft.includes(fault)?result!==false||error:!error||!/threw/.test(error))throw new Error('wrong failure result '+JSON.stringify({fault,result,error}));
      if(JSON.stringify(e.g)!==before||backend.readSync(key)!==bytes||localStorage.getItem(key)!==bytes)throw new Error('failed accept did not roll back '+JSON.stringify({fault,result,error}));
     }
     else if(result!==true||e.g.activeActivistCampaign!==null)throw new Error('accept failed');
@@ -61,7 +62,7 @@ async function durable(browser,context,url){
    const live=await run;
    const d=await durable(browser,context,url);
    assert.equal(d.saveVersion,9);
-   if(fault){assert.equal(d.before.campaign,'active',`${type} ${fault}: durable keeps the open proposal`);assert.equal(d.before.treasury,live.treasury);assert.equal(d.second,true,'retry after a failed save succeeds once');}
+   if(fault){assert.equal(d.before.campaign,'active',`${type} ${fault}: durable keeps the open proposal`);if(pending)assert.ok(d.before.companyName.endsWith('(pending predecessor)'),'the pending predecessor is durable');assert.equal(d.before.treasury,live.treasury);assert.equal(d.second,true,'retry after a failed save succeeds once');}
    else{assert.equal(d.before.campaign,null,`${type}: durable accepted proposal is completed`);assert.equal(d.second,false,`${type}: no second accept after durable reload`);
     assert.equal(d.treasuryAfter,live.treasury);assert.equal(d.cashAfter,live.cash);assert.equal(d.before.dps,live.dps);}
    if(split){
