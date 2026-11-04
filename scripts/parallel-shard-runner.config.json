@@ -1,9 +1,10 @@
 {
-  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. tests/run-all-shard.js reads this file only when TEST_SHARD_PARALLELISM is 2 or more (never in contract mode); the workflow leaves that variable at 1 unless the repository variable TEST_SHARD_PARALLELISM_J / _C / _E (shards J, C, E) is set. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
+  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. tests/run-all-shard.js reads this file only when TEST_SHARD_PARALLELISM is 2 or more (never in contract mode); the workflow leaves that variable at 1 unless the repository variable TEST_SHARD_PARALLELISM_J / _C / _E / _L (shards J, C, E, L) is set. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
   "parallelEnabledShards": [
     "C",
     "E",
-    "J"
+    "J",
+    "L"
   ],
   "timings": {
     "J": {
@@ -79,6 +80,35 @@
       "tests/pe-realestate-agency-bridge-208week-regression-test.js": 18.0,
       "tests/pe-realestate-agency-bridge-negative-test.js": 4.4,
       "tests/pe-realestate-agency-ui-connection-test.js": 4.3
+    },
+    "L": {
+      "tests/property-debt-principal-sync-test.js": 3.8,
+      "scripts/p4-aud-003-founder-capital-atomicity.cjs": 77.9,
+      "tests/debt-command-save-atomicity-test.js": 440.4,
+      "tests/stock-split-price-floor-test.js": 128.4,
+      "tests/subsidiary-quarter-close-test.js": 185.8,
+      "tests/sold-company-pe-authority-test.js": 19.8,
+      "tests/found-new-company-save-atomicity-test.js": 102.5,
+      "tests/earnings-confirm-read-only-test.js": 24.6,
+      "tests/ma-share-swap-ownership-ratios-test.js": 26.3,
+      "tests/competitor-stake-float-test.js": 107.1,
+      "tests/activate-defense-ownership-ratios-test.js": 19.2,
+      "tests/ma-equity-raise-ownership-ratios-test.js": 5.5,
+      "tests/ma-equity-raise-shadow-atomicity-test.js": 27.7,
+      "tests/shareholder-activism-accept-save-atomicity-test.js": 150.6,
+      "tests/vc-round-close-week-save-atomicity-test.js": 86.5,
+      "tests/subsidiary-control-save-atomicity-test.js": 84.4,
+      "tests/new-business-commercialization-save-atomicity-test.js": 111.1,
+      "tests/pe-fund-formation-save-atomicity-test.js": 73.4,
+      "tests/phase3-vc-source-interests-test.js": 0.5,
+      "tests/phase3-control-eligibility-test.js": 1.6,
+      "tests/p4-aud-004-personal-secured-repayment-test.js": 0.6,
+      "tests/p4-aud-007-mortgage-disposal-debt-test.js": 3.2,
+      "tests/p4-aud-007-option-a-mortgage-test.js": 2.1,
+      "tests/p4-aud-010-mortgage-shortfall-test.js": 4.1,
+      "tests/p4-aud-010-mortgage-foreclosure-test.js": 1.3,
+      "tests/p4-aud-009-shared-collateral-test.js": 1.3,
+      "tests/supply-select-supplier-week-close-test.js": 2.5
     }
   },
   "serial": {
