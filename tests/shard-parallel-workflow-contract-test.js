@@ -164,4 +164,12 @@ for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: rea
   'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
   assert.ok(cDiagnostic.includes(token), `C diagnostic must retain ${token}`);
 assert.doesNotMatch(cDiagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+// Tests that drive the shard runner themselves run inside shard A. When A runs in parallel the runner exports
+// TEST_SHARD_PARALLELISM to every test; these tests must clear it for their nested runners (shard A parallel pilot, 2026-11-04:
+// the nested runners inherited it, hung, and A hit the 1680 s run timeout).
+for (const file of ['parallel-shard-runner-test.js', 'run-all-abnormal-exit-test.js', 'shard-parallel-optin-test.js']) {
+  const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
+  assert.match(source, /delete process\.env\.TEST_SHARD_PARALLELISM;/, `${file} clears the inherited parallelism`);
+}
+
 console.log('shard-parallel-workflow-contract-test: ok');

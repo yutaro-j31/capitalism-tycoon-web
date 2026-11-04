@@ -1,5 +1,9 @@
 'use strict';
 
+// Under a parallel shard run the runner exports TEST_SHARD_PARALLELISM / TEST_SHARD_PARALLEL_REPORT to every test it starts.
+// This test drives the shard runner itself, so a nested copy must not inherit them (it would run in parallel mode, or wait on itself).
+delete process.env.TEST_SHARD_PARALLELISM; delete process.env.TEST_SHARD_PARALLEL_REPORT;
+
 // Stage 1: tests/run-all-shard.js can run an enabled shard in parallel when TEST_SHARD_PARALLELISM >= 2, and is
 // otherwise byte-for-byte the serial runner. The production runner files are copied unchanged into a temp directory
 // whose owned tests are stubs, so this drives the real code paths without running the real suite.
