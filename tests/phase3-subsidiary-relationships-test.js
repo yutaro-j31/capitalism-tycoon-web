@@ -102,3 +102,6 @@ assert.deepEqual(plain(installed.modules.economicReadModel.projectSubsidiaryRela
 const legacy=createScenario({loadOptions:{headless:true}});selectAndApprove(legacy);assert.equal(legacy.game.closeMADeal(legacy.deal.id),true);
 assert.equal(legacy.modules.economicReadModel.projectSubsidiaryRelationships(legacy.game.g).relationships[0].economicFraction.value,null,'a completed legacy fixture without stable deal linkage remains unknown');
 console.log('PASS P3-6 direct source relationships: lifecycle, provenance, quarantine, accounts, scoped index, purity and v9 reload');
+require('./phase3-subsidiary-installed-writers-case').run()
+  .then(()=>console.log('PASS P3-6 installed spin-off/spin-out writers, order permutation, overseas IDs, purity and reload'))
+  .catch(error=>{console.error(error);process.exitCode=1;});
