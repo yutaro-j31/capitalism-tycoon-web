@@ -171,6 +171,23 @@ const noticeLabels = text => [...text.matchAll(/::notice title=Shard \w+ timing:
   const eBad = run(build('E', { [eLabels.find(l => l.startsWith('tests/'))]: 'process.exit(3)' }), 'E', { TEST_SHARD_PARALLELISM: '2' });
   assert.notEqual(eBad.status, 0, 'a failing E test fails the shard in parallel mode');
 
+  // ---- shard L (Stage 3): allow-listed; 27 commands run once each in parallel; failure still fails the shard ----
+  const lLabels = [...shardConfig.L].sort();
+  assert.equal(lLabels.length, 27, 'the reviewed L execution contract contains 27 commands');
+  assert.ok(require(path.join(ROOT, 'scripts', 'parallel-shard-runner.config.json')).parallelEnabledShards.includes('L'), 'L is allow-listed');
+  const dirL = build('L');
+  const lSerial = run(dirL, 'L'), lPar = run(dirL, 'L', { TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(lSerial.status, 0, lSerial.stderr); assert.equal(lPar.status, 0, lPar.stderr);
+  assert.match(lPar.stdout, new RegExp(`parallel-shard-summary: shard=L concurrency=2 order=longest-first enumerated=${lLabels.length} passed=${lLabels.length} failed=0 aborted=0 notStarted=0 `));
+  assert.deepEqual(noticeLabels(lPar.stdout), lLabels, 'every L command ran once');
+  assert.equal(summary(lPar.stdout)[3], summary(lSerial.stdout)[3]); assert.equal(summary(lPar.stdout)[4], summary(lSerial.stdout)[4]);
+  const lContract = run(dirL, 'L', { TEST_SHARD_CONTRACT: '1', TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(lContract.status, 0, lContract.stderr); assert.equal(summary(lContract.stdout)[2], 'true'); assert.equal(summary(lContract.stdout)[3], '0');
+  assert.equal(summary(lPar.stdout)[4], summary(lContract.stdout)[4], 'L sees the same registry as contract mode');
+  assert.doesNotMatch(lContract.stdout, /parallel-shard-summary/, 'contract mode never executes L in parallel');
+  const lBad = run(build('L', { [lLabels.find(l => l.startsWith('tests/'))]: 'process.exit(3)' }), 'L', { TEST_SHARD_PARALLELISM: '2' });
+  assert.notEqual(lBad.status, 0, 'a failing L test fails the shard in parallel mode');
+
   fs.rmSync(TMP, { recursive: true, force: true });
   console.log('shard-parallel-optin-test: ok');
 })().catch(error => { console.error(error); fs.rmSync(TMP, { recursive: true, force: true }); process.exit(1); });
