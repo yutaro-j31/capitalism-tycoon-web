@@ -13,7 +13,9 @@ const ROOT=path.resolve(__dirname,'..'),DIR=path.resolve(process.env.MA_DEAL_ROO
 const options={...devices['iPhone 13'],locale:'ja-JP',timezoneId:'Asia/Tokyo',serviceWorkers:'block'};
 const server=http.createServer((req,res)=>{try{const u=new URL(req.url,'http://localhost'),file=path.resolve(ROOT,u.pathname==='/'?'index.html':decodeURIComponent(u.pathname).slice(1));assert.ok(file.startsWith(ROOT+path.sep));res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json'})[path.extname(file)]||'application/octet-stream');res.setHeader('Cache-Control','no-store');res.end(fs.readFileSync(file));}catch(e){res.statusCode=404;res.end(String(e));}});
 // Every fault kind of the shared Node harness that the browser can raise; each must roll back fully.
-const FAULTS=['save-false','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','pending-save-false','pending-change'];
+const FAULTS=['save-false','save-before-throw','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','pending-save-false','pending-change',
+ // P3-4 G40 (P3_4_G40_BROWSER_FAULT_APPLICABILITY.md): the pre-admission throw, a pending save-throw and nested variants.
+ 'pending-save-throw','nested-save-false','nested-save-throw'];
 // The decline notice is emitted after the outermost commit, so its listener fault is a post-commit case.
 const POST_COMMIT_FAULTS=['notify'];
 const SOFT=['save-false','mirror','enqueue-false','enqueue-throw'];
@@ -34,16 +36,22 @@ async function run(browser,url,f,fault,reference){
  const context=await browser.newContext(options),p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});await helpers(p);
  const proof=await p.evaluate(async({f,fault,snap,SOFT,reference})=>{
   const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(f.g),backend=m.saveStorageIDB,key=m.engine.SAVE_KEY,view=eval(snap);
-  const pending=fault.startsWith('pending-'),kind=fault.replace(/^pending-/,''),normal=kind==='normal',postCommit=kind==='notify',committed=normal||postCommit;
+  const control=fault.startsWith('control-'),pending=fault.startsWith('pending-'),nested=fault.startsWith('nested-'),kind=fault.replace(/^(pending|nested|control)-/,''),normal=kind==='normal',postCommit=kind==='notify',committed=normal||postCommit;
   await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB prerequisite failed');if(!e.save())throw new Error('baseline save failed');await backend.flush();
   const durable=()=>new Promise((resolve,reject)=>{const open=indexedDB.open('capitalism-tycoon',1);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('saves','readonly'),get=tx.objectStore('saves').get(key);tx.oncomplete=()=>{db.close();resolve(get.result);};tx.onerror=()=>reject(tx.error);};});
   const puts=[],basePut=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(v,k){if(this.name==='saves'&&k===key)puts.push(String(v));return basePut.call(this,v,k);};
-  if(pending&&!e.save())throw new Error('prior pending save failed');
+  // A distinguishable pending predecessor, queued before any microtask can start its durable write.
+  if(pending){e.g.companyName+=' [pending predecessor]';if(!e.save())throw new Error('prior pending save failed');}
+  // Negative control: with the transaction rollback disabled the same oracle must reject the boundary.
+  if(control)e.restoreTransactionSnapshot=()=>{};
   const before=JSON.stringify(e.g),base=JSON.parse(before),bytes=backend.readSync(key),events=[];
-  const injection=normal?{hits:()=>0,restore(){}}:__peInject(e,m,localStorage,key,kind);
+  let injection;
+  if(normal)injection={hits:()=>0,restore(){}};
+  else if(kind==='save-before-throw'){const save=e.save;let hits=0;e.save=function(){hits++;throw new Error('decline save before admission threw');};injection={hits:()=>hits,restore(){e.save=save;}};}
+  else injection=__peInject(e,m,localStorage,key,kind);
   const counted=e.emit;e.emit=function(type='change',...a){events.push(type==='notify'?'notify:'+a[0]?.severity:type);return counted.call(this,type,...a);};
   let returned=null,error=null;
-  try{returned=e.declineInboundBuyoutOffer('offer-fixture');}catch(ex){error=ex.message;}finally{e.emit=counted;injection.restore();}
+  try{returned=nested?e.runTransaction(()=>e.declineInboundBuyoutOffer('offer-fixture')):e.declineInboundBuyoutOffer('offer-fixture');}catch(ex){error=ex.message;}finally{e.emit=counted;injection.restore();}
   const close=(a,b)=>Math.abs(a-b)<1e-12,notice=x=>x==='notify:warning'||x==='notify:info';
   const effect=state=>{
    if(state.inboundBuyoutOffers[0].status!=='declined')throw new Error('offer not declined');
@@ -73,6 +81,7 @@ async function run(browser,url,f,fault,reference){
   }
   await backend.flush();const final=await durable();IDBObjectStore.prototype.put=basePut;
   if(final!==(committed?backend.readSync(key):bytes))throw new Error('durable mismatch');
+  if(pending&&!JSON.parse(final).companyName.endsWith(' [pending predecessor]'))throw new Error('pending predecessor not durable');
   if(puts.length!==(committed?1:0)+(pending?1:0))throw new Error('boundary puts '+puts.length);
   let retry=null;
   if(!committed){
@@ -111,6 +120,9 @@ async function run(browser,url,f,fault,reference){
    console.log(`iPhone WebKit decline buyout ${variant} ${fault} listener fault after the commit / decline saved / reload / fresh real IDB PASS`);
   }
   console.log(`iPhone WebKit decline buyout ${variant} normal x2 / single commit / ratios sum to 1 / deterministic PASS`);
+  await assert.rejects(run(browser,url,f,'control-save-false',reference),/rollback failed/,`${variant}: a disabled rollback is rejected`);
+  results.push({variant,mutation:'rollback disabled rejected',pass:true});
+  console.log(`iPhone WebKit decline buyout ${variant} disabled-rollback control rejected PASS`);
  }
  fs.writeFileSync(path.join(DIR,'decline-buyout-atomicity-result.json'),JSON.stringify({physicalDevice:false,device:'iPhone13',ok:true,results},null,2));
  console.log('iPhone WebKit decline buyout atomicity PASS');
