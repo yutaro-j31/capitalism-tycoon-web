@@ -30,17 +30,8 @@ async function checkLoaded(page, expected) {
   });
   assert.deepEqual(actual, expected, 'actual browser hydration includes both PE effects, cash, shares, journals, RNG and mission state');
 }
-(async () => {
-  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const url = `http://127.0.0.1:${server.address().port}/`, results = [];
-  let browser;
-  try {
-    browser = await webkit.launch();
-    for (const fault of ['save-false', 'mirror', 'enqueue-false', 'save-throw', 'saved', 'change', 'pe-exit', 'network', 'pending-change', 'pending-network', 'normal']) {
-      const context = await browser.newContext(options), page = await context.newPage();
-      await page.goto(url, { waitUntil: 'networkidle' }); await helpers(page);
-      const proof = await page.evaluate(async fault => {
+// Runs in the actual page against its installed modules: one installed IPO chain under one fault.
+const ipoCase = async fault => {
         const m = globalThis.__capitalismTycoonModules, key = m.engine.SAVE_KEY;
         if (!m.engine.TycoonEngine.prototype.__peNetworkSourcingInstalled) throw new Error('final IPO wrapper missing');
         const e = globalThis.__prepareIPO(m), project = globalThis.__ipoEconomic;
@@ -59,27 +50,33 @@ async function checkLoaded(page, expected) {
           if (this.name === 'saves' && k === key) puts.push(String(value));
           return basePut.call(this, value, k);
         };
-        const pending = fault.startsWith('pending-'), kind = pending ? fault.slice(8) : fault;
+        // 'rollback-disabled' is the negative control: a save-false IPO with the transaction rollback disabled.
+        const pending = fault.startsWith('pending-'), nested = fault.startsWith('nested-'), kind = fault === 'rollback-disabled' ? 'save-false' : pending ? fault.slice(8) : nested ? fault.slice(7) : fault;
         // Do not yield: this accepted predecessor remains in the real IDB pending queue at IPO entry.
         if (pending && !e.save()) throw new Error('prior pending save rejected');
+        if (fault === 'rollback-disabled') e.restoreTransactionSnapshot = () => {};
         const before = JSON.stringify(e.g), bytes = localStorage.getItem(key), baseline = project(e.g);
         const save = e.save, emit = e.emit, setItem = Storage.prototype.setItem;
         const backend = m.saveStorageIDB, push = Array.prototype.push;
         let hits = 0, returned = null, error = null;
         if (kind === 'save-false') e.save = () => { hits++; return false; };
+        if (kind === 'save-before-throw') e.save = () => { hits++; throw new Error('IPO save before admission threw'); };
         if (kind === 'mirror') Storage.prototype.setItem = function (k, value) {
           if (this === localStorage && k === key) { hits++; throw new DOMException('IPO mirror rejected', 'SecurityError'); }
           return setItem.call(this, k, value);
         };
-        if (kind === 'enqueue-false') m.saveStorageIDB = { ...backend, writeSync(k, value) {
-          backend.writeSync(k, value); hits++; return false;
+        if (kind === 'enqueue-false' || kind === 'enqueue-throw') m.saveStorageIDB = { ...backend, writeSync(k, value) {
+          backend.writeSync(k, value); hits++;
+          if (kind === 'enqueue-throw') throw new Error('IPO enqueue threw after admission');
+          return false;
         } };
         if (kind === 'save-throw') e.save = function (...args) {
           const r = save.apply(this, args);
           if (!this.inTransaction()) { hits++; throw new Error('IPO save accepted then threw'); } return r;
         };
-        if (kind === 'saved' || kind === 'change') e.emit = function (type, ...args) {
-          if (type === kind && !this.inTransaction()) { hits++; throw new Error(`IPO ${kind} threw`); }
+        if (kind === 'saved' || kind === 'change' || kind === 'notify') e.emit = function (type, ...args) {
+          // notify is emitted inside the IPO transaction; saved and change only after the outermost commit.
+          if (type === kind && (kind === 'notify' || !this.inTransaction())) { hits++; throw new Error(`IPO ${kind} threw`); }
           return emit.call(this, type, ...args);
         };
         if (kind === 'network' || kind === 'pe-exit') Array.prototype.push = function (...args) {
@@ -87,7 +84,7 @@ async function checkLoaded(page, expected) {
           const r = push.apply(this, args);
           if (target) { hits++; throw new Error(`IPO ${kind} appended then threw`); } return r;
         };
-        try { returned = e.executeIPO('東証グロース'); } catch (ex) { error = ex.stack; }
+        try { returned = nested ? e.runTransaction(() => e.executeIPO('東証グロース')) : e.executeIPO('東証グロース'); } catch (ex) { error = ex.stack; }
         finally {
           e.save = save; e.emit = emit; Storage.prototype.setItem = setItem;
           m.saveStorageIDB = backend; Array.prototype.push = push;
@@ -99,7 +96,7 @@ async function checkLoaded(page, expected) {
           if (JSON.stringify(project(JSON.parse(backend.readSync(key)))) !== JSON.stringify(project(e.g)))
             throw new Error('normal saved IPO omits economic state / underwriter node');
         } else {
-          if (!hits || (['save-false', 'mirror', 'enqueue-false'].includes(kind) ? returned !== false || error : !error))
+          if (!hits || (['save-false', 'mirror', 'enqueue-false', 'enqueue-throw'].includes(kind) ? returned !== false || error : !error))
             throw new Error(`fault did not reject: ${JSON.stringify({ fault, hits, returned, error })}`);
           if (JSON.stringify(e.g) !== before || localStorage.getItem(key) !== bytes || backend.readSync(key) !== bytes)
             throw new Error(`failed IPO was not fully restored: ${fault}`);
@@ -113,10 +110,24 @@ async function checkLoaded(page, expected) {
         const normalized = new m.engine.TycoonEngine(JSON.parse(JSON.stringify(e.g)));
         const expected = project(normalized.g);
         if (JSON.stringify(project(m.engine.TycoonEngine.load().g)) !== JSON.stringify(expected)) throw new Error('production load mismatch');
-        return { fault, hits, returned, error, pending, queuedPutCount: puts.length,
+        return { fault, hits, returned, error, pending, nested, queuedPutCount: puts.length,
           priorDurableSequence: JSON.parse(originalDurable).saveSequence,
           finalSequence: JSON.parse(finalDurable).saveSequence, expected };
-      }, fault);
+};
+(async () => {
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${server.address().port}/`, results = [];
+  let browser;
+  try {
+    browser = await webkit.launch();
+    // P3-4 G07: the shared fault kinds (save-before-throw, enqueue-throw and notify added), the PE exit and network hooks,
+    // pending-predecessor variants, and nested-transaction variants of the rejected and the admitted save.
+    for (const fault of ['save-false', 'save-before-throw', 'mirror', 'enqueue-false', 'enqueue-throw', 'save-throw', 'saved', 'change', 'notify',
+      'pe-exit', 'network', 'pending-change', 'pending-network', 'nested-save-false', 'nested-save-throw', 'normal']) {
+      const context = await browser.newContext(options), page = await context.newPage();
+      await page.goto(url, { waitUntil: 'networkidle' }); await helpers(page);
+      const proof = await page.evaluate(ipoCase, fault);
       await page.reload({ waitUntil: 'networkidle' }); await checkLoaded(page, proof.expected);
       // Real IndexedDB snapshot only; remove the mirror to prove authoritative fresh-context hydration.
       const storageState = await context.storageState({ indexedDB: true });
@@ -126,6 +137,14 @@ async function checkLoaded(page, expected) {
       results.push({ ...proof, reload: 'PASS', freshDurableOnlyBrowserContext: 'PASS' });
       console.log(`iPhone WebKit parent IPO ${fault} / reload / fresh real IDB PASS`);
       await fresh.close(); await context.close();
+    }
+    // Negative control: with the transaction rollback disabled, the same oracle must reject the IPO boundary.
+    {
+      const context = await browser.newContext(options), page = await context.newPage();
+      await page.goto(url, { waitUntil: 'networkidle' }); await helpers(page);
+      await assert.rejects(page.evaluate(ipoCase, 'rollback-disabled'), /not fully restored/, 'a disabled rollback is rejected');
+      results.push({ mutation: 'rollback disabled rejected', pass: true });
+      await context.close();
     }
     fs.writeFileSync(path.join(ARTIFACT_DIR, 'parent-ipo-atomicity-result.json'), JSON.stringify({ device: 'iPhone 13', physicalDevice: false, ok: true, results }, null, 2));
     console.log('iPhone WebKit parent IPO atomicity and fresh IndexedDB hydration PASS');
