@@ -111,6 +111,8 @@ const investorOfferCase = async ({ fault, pending, nested, soft, mutation }) => 
       results.push({ mutation: 'rollback disabled rejected', pass: true });
       await context.close();
     }
+    // P3-4 G35: the auxiliary offer commands (refresh, decline) under the same fault set in the same browser.
+    await require('./investor-offer-aux-webkit-case').run({ browser, url, options, inject, FAULT_KINDS, SOFT_FAILURES, results });
     fs.writeFileSync(path.join(ARTIFACT_DIR, 'investor-offer-atomicity-result.json'), JSON.stringify({ device: 'iPhone 13', ok: true, results }, null, 2));
     console.log('iPhone WebKit investor-offer save/rollback and fresh IndexedDB hydration PASS');
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
