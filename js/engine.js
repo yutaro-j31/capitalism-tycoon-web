@@ -2006,6 +2006,11 @@ class TycoonEngine extends EventTarget {
     const outstanding=finite(this.g.sharesOut)-finite(this.g.treasuryBuybackShares),founder=finite(this.g.founderShares);
     if(hasLot&&!(lot&&typeof lot==='object'&&!Array.isArray(lot)&&Number.isSafeInteger(lot.qty)&&lot.qty>=0&&Number.isFinite(lot.avg)&&lot.avg>=0
       &&outstanding>0&&founder>=0&&founder+lot.qty<=outstanding))return this.fail('自社株の個人保有記録を確認できないため、会社を売却できません。');
+    // Review R2-01: the callers price the founder shares from founderOwnershipRatio, and the lot takes the rest of the
+    // share-count total. With a lot to buy out, the stored ratio must be the one updateOwnershipRatios derives from the
+    // share counts, or the lot could be under- or over-paid; a stale ratio refuses the sale before any write.
+    if(hasLot&&lot.qty>0&&!(Number.isFinite(this.g.founderOwnershipRatio)&&Math.abs(this.g.founderOwnershipRatio-clamp(founder/Math.max(1,outstanding),0,1))<=1e-12))
+      return this.fail('創業者持株比率が株数と一致しないため、会社を売却できません。');
     const proceeds=ceilYen(Math.max(0,finite(founderProceeds)));
     if(typeof this.recordCurrentCompany==='function')this.recordCurrentCompany('buyout',price,proceeds,note);
     // YEN_CEILING_ROUNDING_CONTRACT §4 (two parts): round the founder's total for founder shares plus the lot once, keep

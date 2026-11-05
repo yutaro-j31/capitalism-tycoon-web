@@ -82,6 +82,30 @@ function run() {
     }
   }
 
+  // Review R2-01: with a lot to buy out, a founder ratio that disagrees with the share counts refuses the sale for both
+  // commands, before any write (a stored 90% against 60,000 of 100,000 shares would leave the lot unpaid).
+  for (const ratio of [.9, .5, NaN, undefined]) for (const command of [e => e.acceptInboundBuyoutOffer('offer'), e => e.acceptBuyoutOffer(1.2)]) {
+    const { e, g } = fixture();
+    g.founderOwnershipRatio = ratio;
+    const before = JSON.stringify(g);
+    assert.equal(command(e), false, `sale refused for founder ratio ${ratio}`);
+    assert.equal(JSON.stringify(e.g), before, `nothing written for founder ratio ${ratio}`);
+  }
+  // The installed share writers keep the ratio in step, so a sale after them pays the share-count total exactly.
+  {
+    const { e, g } = fixture({ lot: null });
+    assert.equal(e.buyStock('CPTY', 3000, 'personal'), true, 'installed own-share purchase');
+    assert.equal(e.stockSplit('CPTY', 2), true, 'installed split');
+    assert.equal(e.buybackOwnShares(200000), true, 'installed buyback');
+    assert.equal(e.sellFounderShares(1000), true, 'installed founder share sale');
+    const outstanding = g.sharesOut - g.treasuryBuybackShares, held = g.personalStocks.CPTY.qty;
+    assert.equal(g.founderOwnershipRatio, g.founderShares / outstanding, 'ratio follows the share counts');
+    const cash = g.personalCash;
+    assert.equal(e.acceptInboundBuyoutOffer('offer'), true);
+    assert.equal(g.personalCash - cash, Math.ceil(500_000_000 * (g.founderShares + held) / outstanding));
+    assert.equal(g.personalStocks.CPTY, undefined);
+  }
+
   // An empty (zero-share) lot is valid: it is removed and pays nothing.
   {
     const { e, g } = fixture({ lot: { qty: 0, avg: 0 } });

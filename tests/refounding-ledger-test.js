@@ -112,9 +112,10 @@ function closes(ctx,weeks=13){const start=ctx.game.g.week;for(let i=0;i<weeks;i+
    assert.equal(runtime.modules.finance.validate(JSON.parse(JSON.stringify(engine.g))).ok,true);
   }
   // A save written before G1 D1 can still hold the old 20,000-share lot under the reused ticker. Until the generation
-  // binding (G1 step 2) lands, that legacy collision stays quarantined.
+  // binding (G1 step 2) lands, that legacy collision stays quarantined. The engine passed here was loaded from such a
+  // save through the real load path, and loading must keep the lot exactly as saved.
   function legacy(runtime,engine){
-   engine.g.personalStocks.CPTY={qty:20000,avg:1000};
+   assert.deepEqual(JSON.parse(JSON.stringify(engine.g.personalStocks.CPTY)),{qty:20000,avg:1000},'the legacy lot is loaded unchanged');
    const {view,eligibility}=observe(runtime,engine);
    assert.equal(view.positions[0].quantity.value,10000,'new founder bucket stays separate from retained old-company shares');
    const retained=view.positions.filter(row=>row.instrumentAlias==='CPTY');assert.equal(retained.length,1);
@@ -131,7 +132,18 @@ function closes(ctx,weeks=13){const start=ctx.game.g.week;for(let i=0;i<weeks;i+
   await ctx.backend.flush();second(ctx,ctx.engineModule.TycoonEngine.load());
   const freshControl={attempts:[]},fresh=loadGame({headless:true,indexedDB:indexedDBFor(ctx.durable,freshControl)});await fresh.modules.saveStorageIDB.hydrate();
   const freshRuntime={...fresh,backend:fresh.modules.saveStorageIDB,key:ctx.key,durable:ctx.durable,control:freshControl},freshEngine=fresh.engineModule.TycoonEngine.load();
-  second(freshRuntime,freshEngine);legacy(freshRuntime,freshEngine);
+  second(freshRuntime,freshEngine);
+  // R2-02: a pre-D1 saveVersion 9 save that still holds the old lot, written through the real save path and read back
+  // through reload and a fresh fake-IDB hydration. Loading neither rewrites the save nor binds the lot to the new company.
+  game.g.personalStocks.CPTY={qty:20000,avg:1000};assert.equal(game.save(),true,'legacy-shaped save written');await ctx.backend.flush();
+  const legacyBytes=ctx.backend.readSync(ctx.key),legacySave=JSON.parse(legacyBytes);
+  assert.equal(legacySave.saveVersion,9);assert.equal(legacySave.currentCompanySerial,2);assert.equal(legacySave.ticker,'CPTY');
+  assert.deepEqual(legacySave.personalStocks.CPTY,{qty:20000,avg:1000});assert.equal(ctx.durable.get(ctx.key),legacyBytes,'durable bytes hold the legacy lot');
+  const reloaded=ctx.engineModule.TycoonEngine.load();legacy(ctx,reloaded);
+  const legacyControl={attempts:[]},legacyFresh=loadGame({headless:true,indexedDB:indexedDBFor(ctx.durable,legacyControl)});await legacyFresh.modules.saveStorageIDB.hydrate();
+  const legacyRuntime={...legacyFresh,backend:legacyFresh.modules.saveStorageIDB,key:ctx.key,durable:ctx.durable,control:legacyControl};
+  legacy(legacyRuntime,legacyFresh.engineModule.TycoonEngine.load());
+  assert.equal(ctx.durable.get(ctx.key),legacyBytes,'loading does not rewrite the legacy save');
   console.log('P3-4 actual sale/refounding: same root / ticker reuse / old and speculative evidence rejected / rollback / reload / fresh fake-IDB PASS');
  }
  console.log('Refounding ledger PASS');
