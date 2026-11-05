@@ -13,7 +13,7 @@ assert.ok(start > 0 && end > start, 'test-shards job found');
 const job = text.slice(start, end);
 
 // The pilot value: shards J, C and E each read only their own variable, everything else (and an unset variable) resolves to '1'.
-const expr = "TEST_SHARD_PARALLELISM: ${{ matrix.shard == 'J' && (vars.TEST_SHARD_PARALLELISM_J || '1') || matrix.shard == 'C' && (vars.TEST_SHARD_PARALLELISM_C || '1') || matrix.shard == 'E' && (vars.TEST_SHARD_PARALLELISM_E || '1') || matrix.shard == 'L' && (vars.TEST_SHARD_PARALLELISM_L || '1') || matrix.shard == 'A' && (vars.TEST_SHARD_PARALLELISM_A || '1') || matrix.shard == 'K' && (vars.TEST_SHARD_PARALLELISM_K || '1') || '1' }}";
+const expr = "TEST_SHARD_PARALLELISM: ${{ matrix.shard == 'J' && (vars.TEST_SHARD_PARALLELISM_J || '1') || matrix.shard == 'C' && (vars.TEST_SHARD_PARALLELISM_C || '1') || matrix.shard == 'E' && (vars.TEST_SHARD_PARALLELISM_E || '1') || matrix.shard == 'L' && (vars.TEST_SHARD_PARALLELISM_L || '1') || matrix.shard == 'A' && (vars.TEST_SHARD_PARALLELISM_A || '1') || matrix.shard == 'K' && (vars.TEST_SHARD_PARALLELISM_K || '1') || matrix.shard == 'I' && (vars.TEST_SHARD_PARALLELISM_I || '1') || '1' }}";
 assert.equal(job.split(expr).length - 1, 1, 'exactly one J/C/E-only parallelism expression');
 assert.equal((job.match(/TEST_SHARD_PARALLELISM:/g) || []).length, 1, 'no other parallelism assignment');
 assert.equal((job.match(/vars\.TEST_SHARD_PARALLELISM_J/g) || []).length, 2, 'the J variable is referenced only by the env value and the upload condition');
@@ -22,10 +22,11 @@ assert.equal((job.match(/vars\.TEST_SHARD_PARALLELISM_E/g) || []).length, 2, 'th
 assert.equal((job.match(/vars\.TEST_SHARD_PARALLELISM_L/g) || []).length, 2, 'the L variable is referenced only by the env value and the upload condition');
 assert.equal((job.match(/vars\.TEST_SHARD_PARALLELISM_A/g) || []).length, 2, 'the A variable is referenced only by the env value and the upload condition');
 assert.equal((job.match(/vars\.TEST_SHARD_PARALLELISM_K/g) || []).length, 2, 'the K variable is referenced only by the env value and the upload condition');
+assert.equal((job.match(/vars\.TEST_SHARD_PARALLELISM_I/g) || []).length, 2, 'the I variable is referenced only by the env value and the upload condition');
 
 // Evaluate the expression the way Actions does for each shard with the variable unset / set.
 function parallelism(shard, vars) {
-  return shard === 'J' && (vars.J || '1') || shard === 'C' && (vars.C || '1') || shard === 'E' && (vars.E || '1') || shard === 'L' && (vars.L || '1') || shard === 'A' && (vars.A || '1') || shard === 'K' && (vars.K || '1') || '1';
+  return shard === 'J' && (vars.J || '1') || shard === 'C' && (vars.C || '1') || shard === 'E' && (vars.E || '1') || shard === 'L' && (vars.L || '1') || shard === 'A' && (vars.A || '1') || shard === 'K' && (vars.K || '1') || shard === 'I' && (vars.I || '1') || '1';
 }
 for (const shard of 'ABCDEFGHIJKL') {
   assert.equal(parallelism(shard, {}), '1', `${shard} is serial when the variables are unset`);
@@ -35,6 +36,7 @@ for (const shard of 'ABCDEFGHIJKL') {
   assert.equal(parallelism(shard, { L: '2' }), shard === 'L' ? '2' : '1', `${shard} with L=2`);
   assert.equal(parallelism(shard, { A: '2' }), shard === 'A' ? '2' : '1', `${shard} with A=2`);
   assert.equal(parallelism(shard, { K: '2' }), shard === 'K' ? '2' : '1', `${shard} with K=2`);
+  assert.equal(parallelism(shard, { I: '2' }), shard === 'I' ? '2' : '1', `${shard} with I=2`);
   assert.equal(parallelism(shard, { J: '2', C: '' }), shard === 'J' ? '2' : '1', `${shard} with J=2, C empty`);
 }
 
@@ -48,8 +50,8 @@ assert.match(job, /run: node tests\/run-all-shard\.js/);
 assert.doesNotMatch(job, /continue-on-error/);
 
 // Every added step is J/C/E-only, and the report upload only happens when the pilot variable is set.
-assert.match(job, /name: Record runner resources \(parallel pilot shards\)\n\s+if: matrix\.shard == 'J' \|\| matrix\.shard == 'C' \|\| matrix\.shard == 'E' \|\| matrix\.shard == 'L' \|\| matrix\.shard == 'A' \|\| matrix\.shard == 'K'/);
-assert.ok(job.includes("if: always() && ((matrix.shard == 'J' && vars.TEST_SHARD_PARALLELISM_J != '') || (matrix.shard == 'C' && vars.TEST_SHARD_PARALLELISM_C != '') || (matrix.shard == 'E' && vars.TEST_SHARD_PARALLELISM_E != '') || (matrix.shard == 'L' && vars.TEST_SHARD_PARALLELISM_L != '') || (matrix.shard == 'A' && vars.TEST_SHARD_PARALLELISM_A != '') || (matrix.shard == 'K' && vars.TEST_SHARD_PARALLELISM_K != ''))"), 'report upload only when a pilot variable is set');
+assert.match(job, /name: Record runner resources \(parallel pilot shards\)\n\s+if: matrix\.shard == 'J' \|\| matrix\.shard == 'C' \|\| matrix\.shard == 'E' \|\| matrix\.shard == 'L' \|\| matrix\.shard == 'A' \|\| matrix\.shard == 'K' \|\| matrix\.shard == 'I'/);
+assert.ok(job.includes("if: always() && ((matrix.shard == 'J' && vars.TEST_SHARD_PARALLELISM_J != '') || (matrix.shard == 'C' && vars.TEST_SHARD_PARALLELISM_C != '') || (matrix.shard == 'E' && vars.TEST_SHARD_PARALLELISM_E != '') || (matrix.shard == 'L' && vars.TEST_SHARD_PARALLELISM_L != '') || (matrix.shard == 'A' && vars.TEST_SHARD_PARALLELISM_A != '') || (matrix.shard == 'K' && vars.TEST_SHARD_PARALLELISM_K != '') || (matrix.shard == 'I' && vars.TEST_SHARD_PARALLELISM_I != ''))"), 'report upload only when a pilot variable is set');
 for (const needle of ['nproc', 'free -m', '/proc/cpuinfo', 'cpu.max', 'memory.max']) assert.ok(job.includes(needle), `resource log has ${needle}`);
 
 // The aggregate job still requires every shard.
