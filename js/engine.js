@@ -1997,19 +1997,28 @@ class TycoonEngine extends EventTarget {
 
   completeCompanySale({exitPrice=0,founderProceeds=0,note='',showEnding=true}={}) {
     if(this.g.isCompanySold)return this.fail('会社はすでに売却済みです。');
-    const price=Math.max(0,finite(exitPrice)),proceeds=ceilYen(Math.max(0,finite(founderProceeds)));
-    if(typeof this.recordCurrentCompany==='function')this.recordCurrentCompany('buyout',price,proceeds,note);
-    this.g.personalCash+=proceeds;
+    const price=Math.max(0,finite(exitPrice));
     // G1 D1 (Owner 2026-11-05, P3_4_G1_GENERATION_BINDING_DECISION.md): the acquirer also buys the founder's personally
     // bought own-company lot at the sale price per share (exitPrice / outstanding, treasury excluded), so no old-company
-    // lot survives to sit under the next company's ticker. A lot that does not fit the outstanding quantity is left as is.
-    const key=this.g.ticker,lot=this.g.personalStocks?.[key],outstanding=finite(this.g.sharesOut)-finite(this.g.treasuryBuybackShares),founder=finite(this.g.founderShares);
+    // lot survives to sit under the next company's ticker. The lot is checked before anything is written: a malformed
+    // lot, or one that does not fit the outstanding quantity with the founder shares, refuses the whole sale.
+    const key=this.g.ticker,stocks=this.g.personalStocks,hasLot=Boolean(stocks)&&Object.hasOwn(stocks,key),lot=hasLot?stocks[key]:null;
+    const outstanding=finite(this.g.sharesOut)-finite(this.g.treasuryBuybackShares),founder=finite(this.g.founderShares);
+    if(hasLot&&!(lot&&typeof lot==='object'&&!Array.isArray(lot)&&Number.isSafeInteger(lot.qty)&&lot.qty>=0&&Number.isFinite(lot.avg)&&lot.avg>=0
+      &&outstanding>0&&founder>=0&&founder+lot.qty<=outstanding))return this.fail('自社株の個人保有記録を確認できないため、会社を売却できません。');
+    const proceeds=ceilYen(Math.max(0,finite(founderProceeds)));
+    if(typeof this.recordCurrentCompany==='function')this.recordCurrentCompany('buyout',price,proceeds,note);
+    this.g.personalCash+=proceeds;
+    // YEN_CEILING_ROUNDING_CONTRACT §4 (two parts): round the founder's total for founder shares plus the lot once, keep
+    // the founder-share part as rounded above, and pay the lot the remainder. The two never exceed ceilYen(exitPrice).
     let ownLotProceeds=0;
-    if(lot&&Number.isSafeInteger(lot.qty)&&lot.qty>0&&Number.isFinite(lot.avg)&&lot.avg>=0&&outstanding>0&&founder>=0&&founder+lot.qty<=outstanding){
-      ownLotProceeds=ceilYen(price*lot.qty/outstanding);
-      this.g.personalCash+=ownLotProceeds;
-      this.g.realizedPersonalStockPL=finite(this.g.realizedPersonalStockPL)+ownLotProceeds-lot.avg*lot.qty;
-      delete this.g.personalStocks[key];
+    if(hasLot){
+      if(lot.qty>0){
+        ownLotProceeds=Math.max(0,ceilYen(price*(founder+lot.qty)/outstanding)-proceeds);
+        this.g.personalCash+=ownLotProceeds;
+        this.g.realizedPersonalStockPL=finite(this.g.realizedPersonalStockPL)+ownLotProceeds-lot.avg*lot.qty;
+      }
+      delete stocks[key];
     }
     this.g.isCompanySold=true;
     this.g.hasSeenCompanyBuyoutEnding=Boolean(showEnding);
