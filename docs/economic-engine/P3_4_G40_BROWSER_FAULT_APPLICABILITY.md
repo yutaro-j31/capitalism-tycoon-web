@@ -10,7 +10,9 @@ For the eleven writers it names, it records which shared fault tuples the existi
 tuples are missing. Per that specification, it does not reclassify tuples that are already tested, and it does not batch the
 missing tuples into one executable change.
 
-It was read on `main` `eea44960` (2026-11-04) from each test's literal case list, not from comments or helper names.
+It was first read on `main` `eea44960` (2026-11-04) from each test's literal case list, not from comments or helper names.
+It was re-read the same way on `main` `7ab463cc` (2026-11-05), after the per-writer follow-ups #1344–#1348. The
+matrix below is that second reading.
 
 ## Method
 
@@ -37,36 +39,43 @@ It was read on `main` `eea44960` (2026-11-04) from each test's literal case list
 | Writer | Real-WebKit test | Shared kinds run | Pending | Nested | Missing tuples (GAP) |
 | --- | --- | --- | --- | --- | --- |
 | `stockSplit` | `stock-split-save-atomicity-webkit-test.js` | all 9 | sf, st, saved, change | sf, change, notify | — |
-| `declineInboundBuyoutOffer` | `decline-buyout-ownership-save-atomicity-webkit-test.js` (hostile, friendly) | sf, mirror, eqf, eqt, st, saved, change, notify (post-commit) | sf, change | — | sbt; pending st; nested sf/st |
-| `investStartup` | `vc-initial-investment-save-atomicity-webkit-test.js` (accounts) | sf, mirror, eqf, eqt, st, saved, change, notify | sf, st, saved, change | change | sbt; nested sf/st |
-| `participateStartupFundingRound` | `vc-follow-on-save-atomicity-webkit-test.js` | sf, mirror, eqf, eqt, st, saved, change, notify | sf, st, saved, change | change | sbt; nested sf/st |
-| `sellStartupSecondary` | `vc-secondary-sale-save-atomicity-webkit-test.js` | sf, mirror, eqf, eqt, st, saved, change, notify | sf, st, saved, change | change | sbt; nested sf/st |
-| `makeSubsidiary` | `make-subsidiary-save-atomicity-webkit-test.js` | sf, mirror, eqf, eqt, st, saved, change, notify | sf, change | — | sbt; pending st; nested sf/st |
+| `declineInboundBuyoutOffer` | `decline-buyout-ownership-save-atomicity-webkit-test.js` (hostile, friendly) | all 9 (`notify` post-commit) | sf, st, change | sf, st | — (#1344; also a disabled-rollback control) |
+| `investStartup` | `vc-initial-investment-save-atomicity-webkit-test.js` (accounts) | all 9 | sf, st, saved, change | sf, st, change | — (#1345) |
+| `participateStartupFundingRound` | `vc-follow-on-save-atomicity-webkit-test.js` | all 9 | sf, st, saved, change | sf, st, change | — (#1345) |
+| `sellStartupSecondary` | `vc-secondary-sale-save-atomicity-webkit-test.js` | all 9 | sf, st, saved, change | sf, st, change | — (#1345) |
+| `makeSubsidiary` | `make-subsidiary-save-atomicity-webkit-test.js` | all 9 | sf, st, change | sf, st | — (#1348) |
 | `executeGroupRestructuringSale` | `group-restructuring-sale-save-atomicity-webkit-test.js` (variants) | all 8 applicable (`notify` N/A: the sale posts no notice) | sf, st | sf, st | — (also has a disabled-rollback control) |
-| `sellMASubsidiary` | `ma-subsidiary-sale-save-atomicity-webkit-test.js` | sf, mirror, eqf, st, saved, change, notify | sf, change | — | sbt; eqt; pending st; nested sf/st |
-| `createPEDeal` | `pe-create-deal-save-atomicity-webkit-test.js` (company, personal) | sf, mirror, eqf, eqt, st, saved, change, notify | sf, change | — | sbt; pending st; nested sf/st |
-| `exitPEDeal` | `pe-exit-deal-save-atomicity-webkit-test.js` (company, personal, premium) | sf, mirror, eqf, eqt, st, saved, change, notify | sf, change | — | sbt; pending st; nested sf/st |
-| `createAngelInvestment` (and its exit) | `angel-investment-save-atomicity-webkit-test.js` (create, exit) | sf, mirror, eqf, eqt, st, saved, change, notify | sf, change | — | sbt; pending st; nested sf/st |
+| `sellMASubsidiary` | `ma-subsidiary-sale-save-atomicity-webkit-test.js` | all 9 | sf, st, change | sf, st | — (#1348) |
+| `createPEDeal` | `pe-create-deal-save-atomicity-webkit-test.js` (company, personal) | all 9 | sf, st, change | sf, st | — (#1346) |
+| `exitPEDeal` | `pe-exit-deal-save-atomicity-webkit-test.js` (company, personal, premium) | all 9 | sf, st, change | sf, st | — (#1346) |
+| `createAngelInvestment` (and its exit) | `angel-investment-save-atomicity-webkit-test.js` (create, exit) | all 9 | sf, st, change | sf, st | — (#1347) |
 
 Only `stockSplit` and `declineInboundBuyoutOffer` are player-common writers. The other nine only have to stay isolated before
 activation, as #1091 §1 records.
 
 ## Result
 
-- **Complete for the shared set:** `stockSplit` and `executeGroupRestructuringSale`.
-- **Missing a pre-admission throw (sbt) and nested save-false/save-throw:** the other nine writers. Some of them are also
-  missing a pending save-throw, and `sellMASubsidiary` is also missing enqueue-throw.
-- **Player-common writers:** for activation, the open tuples are those of `declineInboundBuyoutOffer`: sbt, pending st and
-  nested sf/st.
+All eleven writers now run the shared set that applies to them in real iPhone WebKit. That covers the pre-admission throw,
+a pending save-throw, and nested save-false and save-throw. Each writer's tuples were added by its own test-only PR:
 
-Each missing set is a test-only follow-up for its own writer, done as one PR per writer family, the way G03–G08, G35, G38,
-G41 and G43 were done. Each follow-up must extend that writer's existing WebKit test and record its exact new tuples.
+| PR | Writers | Tuples added |
+| --- | --- | --- |
+| #1344 | `declineInboundBuyoutOffer` | sbt, pending st, nested sf/st |
+| #1345 | the three VC writers | sbt, nested sf/st |
+| #1346 | `createPEDeal`, `exitPEDeal` | sbt, pending st, nested sf/st |
+| #1347 | `createAngelInvestment` | sbt, pending st, nested sf/st |
+| #1348 | `makeSubsidiary`, `sellMASubsidiary` | sbt, pending st, nested sf/st; `sellMASubsidiary` also gained eqt |
+
+The first reading (on `eea44960`) found a gap in nine writers. `stockSplit` and `executeGroupRestructuringSale` were
+already complete.
+
+Each PR passed its workflow job on its exact head, and each case reports a per-case PASS line in that job's log.
 
 ## Limits
 
 This matrix:
 
-- reads cases and does not execute them;
+- reads cases and does not execute them (execution evidence is the CI job of each follow-up PR);
 - does not grant S_PASS;
 - maps R and D only to the Node suites;
 - does not claim physical-iPhone evidence.
