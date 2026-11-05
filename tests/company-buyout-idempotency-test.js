@@ -52,4 +52,8 @@ function createGame() {
   assert.equal(JSON.stringify(engine.g), before, 'already-sold guard mutates no save state');
 }
 
+// P3-4 G1 D1: the sale buys out the founder's own-company lot (company-sale-own-lot-buyout-case.js).
+require('./company-sale-own-lot-buyout-case').run();
+console.log('PASS company sale buys out the own-company lot');
+
 console.log('company buyout idempotency tests passed');
