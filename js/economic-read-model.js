@@ -359,7 +359,8 @@ function ownershipReconciliation(state){
     // Raw issuer-generation facts, passed through unjudged: consumers that attribute control decide
     // whether this company generation is proven (a sold or refounded company keeps its old buckets).
     generationEvidence:Object.freeze({
-      currentCompanySerial:Number.isSafeInteger(state.currentCompanySerial)?state.currentCompanySerial:null,
+      // G1 D0: only a proven generation's serial is passed on; an unproven one reads as unknown.
+      currentCompanySerial:currentCompanyGenerationProven(state)?state.currentCompanySerial:null,
       isCompanySold:typeof state.isCompanySold==='boolean'?state.isCompanySold:null
     }),
     entities:projection.entities,
@@ -587,6 +588,18 @@ function freezeOwned(value){
   return value;
 }
 function ownershipReason(code,path){return {code,path,message:code,evidenceRefs:[path]};}
+// G1 D0 (Owner 2026-11-05, P3_4_G1_GENERATION_BINDING_DECISION.md): each company generation is reconciled afresh.
+// The first company is proven by serial 1, as before. A later company is proven when its serial is a safe integer above
+// every recorded past company (refounding records the sold company before it increments the serial), and at least one
+// past company is recorded. Anything else (no records, a record at or above the current serial, a malformed serial)
+// stays unproven. The sold flag is checked by each caller, as before.
+function currentCompanyGenerationProven(state){
+  const serial=state?.currentCompanySerial;
+  if(serial===1)return true;
+  if(!Number.isSafeInteger(serial)||serial<2)return false;
+  const past=state.pastCompanyRecords;
+  return Array.isArray(past)&&past.length>0&&past.every(row=>row!==null&&typeof row==='object'&&Number.isSafeInteger(row.companySerial)&&row.companySerial>=1&&row.companySerial<serial);
+}
 function plainOwnershipObject(value){
   if(!value||typeof value!=='object'||Array.isArray(value))return false;
   const proto=Object.getPrototypeOf(value);
@@ -654,7 +667,7 @@ function inspectListedSources(raw,includePlayer=false,includeSubsidiaries=false,
   for(const key of Reflect.ownKeys(descriptors)){
     if(typeof key!=='string'||!Object.hasOwn(descriptors[key],'value'))issues.push(ownershipReason('INPUT_INVALID','$'));
   }
-  for(const key of ['ticker','currentCompanySerial','isCompanySold','market','startups','personalStocks','companyStocks',...(includePlayer?commonOwnershipFields:[]),...(includeSubsidiaries?subsidiaryOwnershipRoots:[]),...(includeVC?['subsidiaries']:[]),...(includePEFund?['peFirm','subsidiaries']:[])]){
+  for(const key of ['ticker','currentCompanySerial','isCompanySold','pastCompanyRecords','market','startups','personalStocks','companyStocks',...(includePlayer?commonOwnershipFields:[]),...(includeSubsidiaries?subsidiaryOwnershipRoots:[]),...(includeVC?['subsidiaries']:[]),...(includePEFund?['peFirm','subsidiaries']:[])]){
     if((includeVC||includePEFund)&&Object.hasOwn(descriptors,key)&&!descriptors[key].enumerable)issues.push(ownershipReason('INPUT_INVALID',key));
     if(Object.hasOwn(descriptors,key)&&Object.hasOwn(descriptors[key],'value'))source[key]=copy(descriptors[key].value,key);
   }
@@ -731,7 +744,7 @@ function projectExternalListedHoldings(rawState,identityIndex){
     for(const alias of Object.keys(holdings).sort(compareText)){
       const path=`${mapKey}[${JSON.stringify(alias)}]`,sourceRef=ref(path,alias,'listed');
       const own=validId(state.ticker)&&alias===state.ticker;
-      const ownGenerationKnown=state.currentCompanySerial===1&&soldStatusValid&&state.isCompanySold!==true;
+      const ownGenerationKnown=currentCompanyGenerationProven(state)&&soldStatusValid&&state.isCompanySold!==true;
       if(own&&accountKind==='personal'&&ownGenerationKnown&&aliasInventoryValid
         &&!(startups.get(alias)||[]).length&&(market.get(alias)||[]).length<=1){
         result.sourceCoverage.push({path,status:'delegated',resolvedByAdapter:'ownershipReconciliation'});continue;
@@ -860,7 +873,7 @@ function projectOwnershipSnapshot(rawState,identityIndex){
   const playerState={...state};
   if(ownRetained){playerState.personalStocks={...state.personalStocks};delete playerState.personalStocks[state.ticker];}
   const player=ownershipReconciliation(playerState);
-  const generationProven=state.currentCompanySerial===1&&state.isCompanySold!==true;
+  const generationProven=currentCompanyGenerationProven(state)&&state.isCompanySold!==true;
   const bound=player.ok&&generationProven&&!ownRetained;
   const positionId='position:player-company:founder';
   const founderSources=player.sourceHoldings.filter(row=>row.sourcePath!==null);
@@ -963,7 +976,7 @@ function projectPEOwnership(rawState,identityIndex){
     if(!ownerKnown)reason('OWNER_UNKNOWN',`${path}.ownerAccount`);
     if(!validFraction(row.ownershipRatio))reason('FRACTION_INVALID',`${path}.ownershipRatio`);
     const company=row.ownerAccount==='company';
-    const companyGenerationProven=state.currentCompanySerial===1&&state.isCompanySold===false;
+    const companyGenerationProven=currentCompanyGenerationProven(state)&&state.isCompanySold===false;
     if(company&&!companyGenerationProven)reason('GENERATION_UNPROVEN','currentCompanySerial');
     let mirror=null;
     if(company){
@@ -1051,7 +1064,7 @@ function projectSubsidiaryRelationships(rawState,identityIndex){
   for(const family of ['subsidiaries','maSubsidiaries','overseasSubsidiaries'])for(const item of roots.get(family).rows){
     if(blockedSourceIds.has(item.row.id))blocked.add(item);
   }
-  const generationKnown=state.currentCompanySerial===1&&state.isCompanySold===false;
+  const generationKnown=currentCompanyGenerationProven(state)&&state.isCompanySold===false;
   const entityMap=new Map();
   const entity=(entityId,status,sourceRefs)=>({entityId,generation:null,identityStatus:status,sourceRefs});
   for(const family of ['subsidiaries','maSubsidiaries','overseasSubsidiaries']){
@@ -1309,6 +1322,7 @@ modules.economicReadModel=Object.freeze({
   projectExternalListedHoldings,
   ownershipProjection,
   ownershipReconciliation,
+  currentCompanyGenerationProven,
   compareLegacyParity
 });
 })();

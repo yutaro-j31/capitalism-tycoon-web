@@ -98,31 +98,38 @@ function closes(ctx,weeks=13){const start=ctx.game.g.week;for(let i=0;i<weeks;i+
   expectRefounded(sold,snapshot(game),ctx);assert.equal(game.g.currentCompanySerial,2);assert.equal(game.g.ticker,'CPTY','fixture really reuses the old ticker');
   function second(runtime,engine){
    const {view,eligibility}=observe(runtime,engine);
-   assert.equal(view.classes.length,0,'no adopted class for the new generation');
+   // G1 D0 (Owner 2026-11-05): the refounded company is the proven current generation (serial 2 above the recorded
+   // serial-1 sale) and is reconciled afresh from its own buckets. Authority stays disabled (observe() checks that).
+   assert.equal(view.classes.length,1,'the new generation adopts its own common class');assert.equal(view.classes[0].issuedQuantity,10000);
    assert.equal(view.positions[0].quantity.value,10000,'new founder bucket');
-   assert.equal(view.positions[0].assetRole,'unresolved');
-   // G1 D1: nothing of the sold company sits under the reused ticker; the generation guard still holds.
+   assert.equal(view.positions[0].assetRole,'founder-equity');
+   // G1 D1: nothing of the sold company sits under the reused ticker.
    assert.equal(view.positions.filter(row=>row.instrumentAlias==='CPTY').length,0,'no old-company lot under the reused ticker');
    assert.equal(engine.g.market.some(row=>row.id==='CPTY'),false,'the sold company listing row is not carried over');
-   assert.equal(eligibility.status,'UNKNOWN');assert.equal(eligibility.issues[0].code,'GENERATION_UNPROVEN');
-   assert.ok(eligibility.capabilities.every(row=>row.status==='UNKNOWN'));
+   const reconciliation=runtime.modules.economicReadModel.ownershipReconciliation(engine.g);
+   assert.equal(reconciliation.ok,true);assert.equal(reconciliation.generationEvidence.currentCompanySerial,2);
+   assert.equal(reconciliation.beneficialHoldings[0].quantity,10000,'only the new founder shares, nothing of the sold company');
+   assert.equal(eligibility.status,'EVALUATED');assert.equal(eligibility.issues.length,0);
    assert.equal(engine.g.companyCash,R.INVESTMENT);assert.equal(engine.g.personalCash,sold.personalCash-R.INVESTMENT);
    assert.deepEqual(JSON.parse(JSON.stringify(engine.g.personalStocks)),sold.personalStocks,'all personal lots retained once');
    assert.equal(Object.keys(engine.g.companyStocks).length,0,'sold company lots are not carried free');
    assert.equal(runtime.modules.finance.validate(JSON.parse(JSON.stringify(engine.g))).ok,true);
   }
-  // A save written before G1 D1 can still hold the old 20,000-share lot under the reused ticker. Until the generation
-  // binding (G1 step 2) lands, that legacy collision stays quarantined. The engine passed here was loaded from such a
-  // save through the real load path, and loading must keep the lot exactly as saved.
+  // A save written before G1 D1 can still hold the old 20,000-share lot under the reused ticker. The engine passed here
+  // was loaded from such a save through the real load path, and loading must keep the lot exactly as saved.
+  // G1 D2 (Owner 2026-11-05): with the refounded generation proven, that residual own-ticker lot counts as a holding of
+  // the current company. D2b: here it cannot fit (founder 10,000 + lot 20,000 > 10,000 issued), so reconciliation
+  // fails closed: no class is adopted, no votes, and nothing is normalized, deleted or rewritten.
   function legacy(runtime,engine){
    assert.deepEqual(JSON.parse(JSON.stringify(engine.g.personalStocks.CPTY)),{qty:20000,avg:1000},'the legacy lot is loaded unchanged');
    const {view,eligibility}=observe(runtime,engine);
-   assert.equal(view.positions[0].quantity.value,10000,'new founder bucket stays separate from retained old-company shares');
-   const retained=view.positions.filter(row=>row.instrumentAlias==='CPTY');assert.equal(retained.length,1);
-   assert.equal(retained[0].accountKind,'personal');assert.equal(retained[0].quantity.value,20000);
-   assert.equal(retained[0].securityClassId,null);assert.equal(retained[0].votingUnits.value,null,'old ticker lot grants no new-company votes');
-   // The old 20,000-share lot exceeds the new 10,000 issued shares if naively joined: reconciliation rejects
-   // this collision before the later generation guard. Never normalize the lot just to manufacture votes.
+   assert.equal(view.classes.length,0,'no class adopted for an over-allocated generation');
+   assert.equal(view.positions[0].quantity.value,30000,'D2: the lot is read as the current company\'s, with the founder shares');
+   assert.equal(view.positions[0].assetRole,'unresolved');assert.equal(view.positions[0].securityClassId,null);
+   assert.equal(view.positions[0].votingUnits.value,null,'an over-allocated generation grants no votes');
+   assert.ok(view.positions[0].reasons.some(row=>row.code==='PLAYER_RECONCILIATION_FAILED'));
+   assert.ok(view.positions.every(row=>row.votingUnits.value===null),'no position carries votes');
+   // Never normalize the lot just to manufacture votes.
    const reconciliation=runtime.modules.economicReadModel.ownershipReconciliation(engine.g);
    assert.equal(reconciliation.ok,false);assert.ok(reconciliation.checks.some(row=>row.id==='ECO-011'&&!row.ok));
    assert.equal(eligibility.status,'UNKNOWN');assert.equal(eligibility.issues[0].code,'RECONCILIATION_FAILED');

@@ -105,11 +105,12 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
  if(checkIds.length!==REQUIRED_CHECKS.length||REQUIRED_CHECKS.some(id=>checkIds.filter(x=>x===id).length!==1))
   throw new Unknown('RECONCILIATION_FAILED','snapshot.checks','The canonical reconciliation checks are missing, repeated or unknown.');
  if(rows(field(root,'issues','snapshot'),'snapshot.issues').length)throw new Unknown('RECONCILIATION_FAILED','snapshot.issues','Reconciliation reported issues.');
- // The issuer must be the current, unsold first company generation: a sold or refounded company keeps the
- // founder's old buckets, so its quantities prove nothing about control of an active issuer.
+ // The issuer must be the current, unsold, proven company generation: a sold company, or one whose generation is not
+ // proven, keeps the founder's old buckets, so its quantities prove nothing about control of an active issuer.
  const generation=record(field(root,'generationEvidence','snapshot'),'snapshot.generationEvidence');
  const serial=field(generation,'currentCompanySerial','snapshot.generationEvidence'),sold=field(generation,'isCompanySold','snapshot.generationEvidence');
- if(serial!==1||sold!==false)throw new Unknown('GENERATION_UNPROVEN','snapshot.generationEvidence','The issuer is sold or its company generation is not proven.');
+ // G1 D0: the read model passes on a serial only for a proven current generation (first or later); null is unproven.
+ if(!Number.isSafeInteger(serial)||serial<1||sold!==false)throw new Unknown('GENERATION_UNPROVEN','snapshot.generationEvidence','The issuer is sold or its company generation is not proven.');
  const issuers=rows(field(root,'entities','snapshot'),'snapshot.entities').map((row,i)=>({row,path:`snapshot.entities[${i}]`})).filter(({row,path})=>field(row,'entityId',path)===PLAYER);
  if(issuers.length!==1)throw new Unknown('INPUT_INVALID','snapshot.entities','The issuer entity must appear exactly once.');
  if(field(issuers[0].row,'status',issuers[0].path)!=='active')throw new Unknown('GENERATION_UNPROVEN',`${issuers[0].path}.status`,'The issuer entity is not active.');
