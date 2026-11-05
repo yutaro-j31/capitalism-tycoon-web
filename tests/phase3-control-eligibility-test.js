@@ -250,7 +250,10 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
   for(const [label,mutate,code] of [
     ['sold flag',s=>{s.generationEvidence.isCompanySold=true;},'GENERATION_UNPROVEN'],
     ['sold entity',s=>{s.entities[0].status='sold';},'GENERATION_UNPROVEN'],
-    ['refounded serial',s=>{s.generationEvidence.currentCompanySerial=2;},'GENERATION_UNPROVEN'],
+    // G1 D0: the read model passes on a serial only for a proven generation, so malformed serials stay unproven.
+    ['zero serial',s=>{s.generationEvidence.currentCompanySerial=0;},'GENERATION_UNPROVEN'],
+    ['string serial',s=>{s.generationEvidence.currentCompanySerial='2';},'GENERATION_UNPROVEN'],
+    ['fractional serial',s=>{s.generationEvidence.currentCompanySerial=1.5;},'GENERATION_UNPROVEN'],
     ['unknown serial',s=>{s.generationEvidence.currentCompanySerial=null;},'GENERATION_UNPROVEN'],
     ['unknown sold flag',s=>{s.generationEvidence.isCompanySold=null;},'GENERATION_UNPROVEN'],
     ['missing generation evidence',s=>{delete s.generationEvidence;},'INPUT_INVALID'],
@@ -261,9 +264,18 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
   const state=loaded.engineModule.createInitialState({configured:true,seed:0x39000002});
   Object.assign(state,{currentCompanySerial:1,isCompanySold:false,sharesOut:1000,treasuryBuybackShares:0,founderShares:600});
   assert.equal(project(readModel.ownershipReconciliation(state),scope).status,'EVALUATED');
-  for(const change of [{isCompanySold:true},{currentCompanySerial:2}]){
+  for(const change of [{isCompanySold:true},{currentCompanySerial:2},{currentCompanySerial:2,pastCompanyRecords:[]},
+    {currentCompanySerial:2,pastCompanyRecords:[{companySerial:2}]},{currentCompanySerial:3,pastCompanyRecords:[{companySerial:1},{companySerial:'2'}]},
+    {currentCompanySerial:2,pastCompanyRecords:[{companySerial:1}],isCompanySold:true}]){
     const r=readModel.ownershipReconciliation({...state,...change});
     unknown(project(r,scope),'GENERATION_UNPROVEN');
+  }
+  // G1 D0 (Owner 2026-11-05): a refounded company whose serial is above every recorded past company is the proven
+  // current generation and is evaluated afresh from its own buckets.
+  for(const change of [{currentCompanySerial:2,pastCompanyRecords:[{companySerial:1}]},{currentCompanySerial:3,pastCompanyRecords:[{companySerial:2},{companySerial:1}]}]){
+    const r=readModel.ownershipReconciliation({...state,...change});
+    assert.equal(r.generationEvidence.currentCompanySerial,change.currentCompanySerial);
+    assert.equal(project(r,scope).status,'EVALUATED',`serial ${change.currentCompanySerial} evaluated`);
   }
 }
 // ECO-011 is recomputed from the source bindings, not accepted from its label (7c900968 review).
@@ -417,4 +429,7 @@ console.log('P3-9 control eligibility projection tests passed');
   assert.deepEqual([hydrated.g.companyCash,hydrated.g.personalCash],cash);assert.equal(hydrated.g.saveVersion,9);
  }finally{math.random=random;}
  console.log('P3-10 explanation: real import / speculative rollback / reload / fresh fake-IDB / no authority PASS');
+ // G1 D0/D2/D2a: later company generations (g1-generation-binding-case.js).
+ require('./g1-generation-binding-case').run();
+ console.log('PASS G1 generation binding: second/third generation, residual lot, unproven evidence, stale listing row');
 })().catch(error=>{console.error(error);process.exitCode=1;});
