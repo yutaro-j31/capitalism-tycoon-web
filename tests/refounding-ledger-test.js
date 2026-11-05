@@ -49,9 +49,11 @@ function closes(ctx,weeks=13){const start=ctx.game.g.week;for(let i=0;i<weeks;i+
   const deal=g.peDeals.find(d=>d.ownerAccount==='company'&&d.status==='active');ctx.game.advanceWeek(false);
   const wrapper=g.subsidiaries.find(s=>s.valuationManagedBy==='pe');assert.ok(wrapper,'company PE deal is a subsidiary of the sold company');
   assert.ok(Math.abs(wrapper.valuation*wrapper.ownership-deal.currentValuation)<1,'its sale value is the deal valuation');
-  const value=ctx.game.companyValue(),personal=g.personalCash,ratio=g.founderOwnershipRatio;
+  const value=ctx.game.companyValue(),personal=g.personalCash,ratio=g.founderOwnershipRatio,lot=g.personalStocks.CPTY.qty,outstanding=g.sharesOut-g.treasuryBuybackShares;
   assert.equal(ctx.game.acceptBuyoutOffer(1.2),true,'production buyout');assert.equal(g.isCompanySold,true);
-  assert.ok(Math.abs(g.personalCash-(personal+value*1.2*ratio))<1,'founder proceeds credited once');
+  // G1 D1: the founder's bought own-company lot is bought out at the sale price per share, once.
+  assert.ok(Math.abs(g.personalCash-(personal+value*1.2*ratio+value*1.2*lot/outstanding))<2,'founder proceeds and the own-company lot credited once');
+  assert.equal(g.personalStocks.CPTY,undefined,'no old-company lot survives the sale');
   const beforeFound=snapshot(ctx.game);assert.equal(refound(ctx),true);const after=snapshot(ctx.game);
   assert.equal(after.personalCash,beforeFound.personalCash-R.INVESTMENT,'contribution debited once');
   assert.equal(after.subsidiaries.length+after.maSubsidiaries.length,0,'no subsidiary carried');
@@ -78,6 +80,7 @@ function closes(ctx,weeks=13){const start=ctx.game.g.week;for(let i=0;i<weeks;i+
   const first=observe(ctx,game,oldIndex);assert.equal(first.view.positions[0].quantity.value,620000);
   assert.equal(first.view.classes[0].issuedQuantity,1000000);assert.equal(first.eligibility.status,'EVALUATED');
   assert.equal(game.acceptBuyoutOffer(1.2),true,'actual company buyout');await ctx.backend.flush();
+  assert.equal(game.g.personalStocks.CPTY,undefined,'G1 D1: the sale bought out the old-company lot');
   assert.ok(observe(ctx,game,oldIndex).view.issues.some(row=>row.code==='STALE_EVIDENCE'),'sale invalidates unsold evidence');
   const soldIndex=read.buildOwnershipIdentityIndex(game.g),sold=snapshot(game),bytes=ctx.backend.readSync(ctx.key),mirror=ctx.ctx.localStorage.getItem(ctx.key);
   assert.equal(observe(ctx,game,soldIndex).eligibility.issues[0].code,'GENERATION_UNPROVEN');
@@ -96,8 +99,24 @@ function closes(ctx,weeks=13){const start=ctx.game.g.week;for(let i=0;i<weeks;i+
   function second(runtime,engine){
    const {view,eligibility}=observe(runtime,engine);
    assert.equal(view.classes.length,0,'no adopted class for the new generation');
-   assert.equal(view.positions[0].quantity.value,10000,'new founder bucket stays separate from retained old-company shares');
+   assert.equal(view.positions[0].quantity.value,10000,'new founder bucket');
    assert.equal(view.positions[0].assetRole,'unresolved');
+   // G1 D1: nothing of the sold company sits under the reused ticker; the generation guard still holds.
+   assert.equal(view.positions.filter(row=>row.instrumentAlias==='CPTY').length,0,'no old-company lot under the reused ticker');
+   assert.equal(engine.g.market.some(row=>row.id==='CPTY'),false,'the sold company listing row is not carried over');
+   assert.equal(eligibility.status,'UNKNOWN');assert.equal(eligibility.issues[0].code,'GENERATION_UNPROVEN');
+   assert.ok(eligibility.capabilities.every(row=>row.status==='UNKNOWN'));
+   assert.equal(engine.g.companyCash,R.INVESTMENT);assert.equal(engine.g.personalCash,sold.personalCash-R.INVESTMENT);
+   assert.deepEqual(JSON.parse(JSON.stringify(engine.g.personalStocks)),sold.personalStocks,'all personal lots retained once');
+   assert.equal(Object.keys(engine.g.companyStocks).length,0,'sold company lots are not carried free');
+   assert.equal(runtime.modules.finance.validate(JSON.parse(JSON.stringify(engine.g))).ok,true);
+  }
+  // A save written before G1 D1 can still hold the old 20,000-share lot under the reused ticker. Until the generation
+  // binding (G1 step 2) lands, that legacy collision stays quarantined.
+  function legacy(runtime,engine){
+   engine.g.personalStocks.CPTY={qty:20000,avg:1000};
+   const {view,eligibility}=observe(runtime,engine);
+   assert.equal(view.positions[0].quantity.value,10000,'new founder bucket stays separate from retained old-company shares');
    const retained=view.positions.filter(row=>row.instrumentAlias==='CPTY');assert.equal(retained.length,1);
    assert.equal(retained[0].accountKind,'personal');assert.equal(retained[0].quantity.value,20000);
    assert.equal(retained[0].securityClassId,null);assert.equal(retained[0].votingUnits.value,null,'old ticker lot grants no new-company votes');
@@ -107,15 +126,12 @@ function closes(ctx,weeks=13){const start=ctx.game.g.week;for(let i=0;i<weeks;i+
    assert.equal(reconciliation.ok,false);assert.ok(reconciliation.checks.some(row=>row.id==='ECO-011'&&!row.ok));
    assert.equal(eligibility.status,'UNKNOWN');assert.equal(eligibility.issues[0].code,'RECONCILIATION_FAILED');
    assert.ok(eligibility.capabilities.every(row=>row.status==='UNKNOWN'));
-   assert.equal(engine.g.companyCash,R.INVESTMENT);assert.equal(engine.g.personalCash,sold.personalCash-R.INVESTMENT);
-   assert.deepEqual(JSON.parse(JSON.stringify(engine.g.personalStocks)),sold.personalStocks,'all personal lots retained once');
-   assert.equal(Object.keys(engine.g.companyStocks).length,0,'sold company lots are not carried free');
-   assert.equal(runtime.modules.finance.validate(JSON.parse(JSON.stringify(engine.g))).ok,true);
   }
   second(ctx,game);assert.ok(observe(ctx,game,soldIndex).view.issues.some(row=>row.code==='STALE_EVIDENCE'));
   await ctx.backend.flush();second(ctx,ctx.engineModule.TycoonEngine.load());
   const freshControl={attempts:[]},fresh=loadGame({headless:true,indexedDB:indexedDBFor(ctx.durable,freshControl)});await fresh.modules.saveStorageIDB.hydrate();
-  second({...fresh,backend:fresh.modules.saveStorageIDB,key:ctx.key,durable:ctx.durable,control:freshControl},fresh.engineModule.TycoonEngine.load());
+  const freshRuntime={...fresh,backend:fresh.modules.saveStorageIDB,key:ctx.key,durable:ctx.durable,control:freshControl},freshEngine=fresh.engineModule.TycoonEngine.load();
+  second(freshRuntime,freshEngine);legacy(freshRuntime,freshEngine);
   console.log('P3-4 actual sale/refounding: same root / ticker reuse / old and speculative evidence rejected / rollback / reload / fresh fake-IDB PASS');
  }
  console.log('Refounding ledger PASS');

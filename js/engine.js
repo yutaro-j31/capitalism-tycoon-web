@@ -2000,15 +2000,29 @@ class TycoonEngine extends EventTarget {
     const price=Math.max(0,finite(exitPrice)),proceeds=ceilYen(Math.max(0,finite(founderProceeds)));
     if(typeof this.recordCurrentCompany==='function')this.recordCurrentCompany('buyout',price,proceeds,note);
     this.g.personalCash+=proceeds;
+    // G1 D1 (Owner 2026-11-05, P3_4_G1_GENERATION_BINDING_DECISION.md): the acquirer also buys the founder's personally
+    // bought own-company lot at the sale price per share (exitPrice / outstanding, treasury excluded), so no old-company
+    // lot survives to sit under the next company's ticker. A lot that does not fit the outstanding quantity is left as is.
+    const key=this.g.ticker,lot=this.g.personalStocks?.[key],outstanding=finite(this.g.sharesOut)-finite(this.g.treasuryBuybackShares),founder=finite(this.g.founderShares);
+    let ownLotProceeds=0;
+    if(lot&&Number.isSafeInteger(lot.qty)&&lot.qty>0&&Number.isFinite(lot.avg)&&lot.avg>=0&&outstanding>0&&founder>=0&&founder+lot.qty<=outstanding){
+      ownLotProceeds=ceilYen(price*lot.qty/outstanding);
+      this.g.personalCash+=ownLotProceeds;
+      this.g.realizedPersonalStockPL=finite(this.g.realizedPersonalStockPL)+ownLotProceeds-lot.avg*lot.qty;
+      delete this.g.personalStocks[key];
+    }
     this.g.isCompanySold=true;
     this.g.hasSeenCompanyBuyoutEnding=Boolean(showEnding);
     if(this.g.hallOfRecords)this.g.hallOfRecords.maxCompanyBuyoutPrice=Math.max(finite(this.g.hallOfRecords.maxCompanyBuyoutPrice),price);
-    return {exitPrice:price,founderProceeds:proceeds};
+    return {exitPrice:price,founderProceeds:proceeds,ownLotProceeds};
   }
   acceptBuyoutOffer(multiplier=1.2) {
+    // G1 D1: the sale now moves the own-company lot too, so the whole sale is one transaction.
+    return this.runTransaction(()=>{
     if(this.g.publicCompany===false&&this.companyValue()<200_000_000)return this.fail('買収提案を受ける規模に達していません。');const value=this.companyValue()*multiplier,founderProceeds=value*this.g.founderOwnershipRatio;
     const sale=this.completeCompanySale({exitPrice:value,founderProceeds,note:'設定画面から売却',showEnding:false});if(!sale)return false;
-    this.notify(`${this.g.companyName}を${yen(sale.exitPrice)}で売却しました。創業者受取${yen(sale.founderProceeds)}。`,'success');this.save();this.emit();return true;
+    this.notify(`${this.g.companyName}を${yen(sale.exitPrice)}で売却しました。創業者受取${yen(sale.founderProceeds+sale.ownLotProceeds)}。`,'success');this.save();this.emit();return true;
+    });
   }
 
   // D3: issue new player-company shares to outside holders (share swap). The founder and the competitor keep

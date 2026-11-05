@@ -50,6 +50,7 @@ const nodeTests = [
   ['exploration-infrastructure', 'tests/exploration-infrastructure-test.js'],
   ['founder-retirement', 'tests/founder-retirement-test.js'],
   ['company-buyout-idempotency', 'tests/company-buyout-idempotency-test.js'],
+  ['company-sale-own-lot-buyout', 'tests/company-sale-own-lot-buyout-test.js'],
   ['venture-investment-outcome', 'tests/venture-investment-outcome-test.js'],
   ['competitor-group-allocation', 'tests/competitor-group-allocation-test.js'],
   ['competitor-product-counter', 'tests/competitor-product-counter-test.js'],

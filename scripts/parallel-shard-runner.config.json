@@ -25,6 +25,7 @@
       "test:long": 56.5,
       "test:supply-long": 145.3,
       "tests/company-buyout-idempotency-test.js": 0.6,
+      "tests/company-sale-own-lot-buyout-test.js": 1.5,
       "tests/product-recall-reachability-runner.js": 262.3,
       "tests/listed-subsidiary-market-week-test.js": 106.8,
       "tests/decline-buyout-ownership-save-atomicity-test.js": 115.7,
