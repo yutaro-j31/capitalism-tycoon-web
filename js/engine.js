@@ -2008,16 +2008,12 @@ class TycoonEngine extends EventTarget {
       &&outstanding>0&&founder>=0&&founder+lot.qty<=outstanding))return this.fail('自社株の個人保有記録を確認できないため、会社を売却できません。');
     const proceeds=ceilYen(Math.max(0,finite(founderProceeds)));
     if(typeof this.recordCurrentCompany==='function')this.recordCurrentCompany('buyout',price,proceeds,note);
-    this.g.personalCash+=proceeds;
     // YEN_CEILING_ROUNDING_CONTRACT §4 (two parts): round the founder's total for founder shares plus the lot once, keep
     // the founder-share part as rounded above, and pay the lot the remainder. The two never exceed ceilYen(exitPrice).
-    let ownLotProceeds=0;
+    const ownLotProceeds=hasLot&&lot.qty>0?Math.max(0,ceilYen(price*(founder+lot.qty)/outstanding)-proceeds):0;
+    this.g.personalCash+=proceeds+ownLotProceeds;
     if(hasLot){
-      if(lot.qty>0){
-        ownLotProceeds=Math.max(0,ceilYen(price*(founder+lot.qty)/outstanding)-proceeds);
-        this.g.personalCash+=ownLotProceeds;
-        this.g.realizedPersonalStockPL=finite(this.g.realizedPersonalStockPL)+ownLotProceeds-lot.avg*lot.qty;
-      }
+      if(lot.qty>0)this.g.realizedPersonalStockPL=finite(this.g.realizedPersonalStockPL)+ownLotProceeds-lot.avg*lot.qty;
       delete stocks[key];
     }
     this.g.isCompanySold=true;
