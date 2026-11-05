@@ -12,7 +12,9 @@ const options={...devices['iPhone 13'],locale:'ja-JP',timezoneId:'Asia/Tokyo',se
 const server=http.createServer((req,res)=>{try{const u=new URL(req.url,'http://localhost'),file=path.resolve(ROOT,u.pathname==='/'?'index.html':decodeURIComponent(u.pathname).slice(1));assert.ok(file.startsWith(ROOT+path.sep));res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json'})[path.extname(file)]||'application/octet-stream');res.setHeader('Cache-Control','no-store');res.end(fs.readFileSync(file));}catch(e){res.statusCode=404;res.end(String(e));}});
 const AMOUNT=20_000_000;
 // Every fault kind of the shared Node harness that the browser can raise; each must roll back fully.
-const FAULTS=['save-false','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','notify','pending-save-false','pending-change','normal'];
+const FAULTS=['save-false','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','notify','pending-save-false','pending-change','normal',
+ // P3-4 G40 (P3_4_G40_BROWSER_FAULT_APPLICABILITY.md): tuples missing from the shared set.
+ 'save-before-throw','pending-save-throw','nested-save-false','nested-save-throw'];
 const SOFT=['save-false','mirror','enqueue-false','enqueue-throw'];
 async function fixture(){const s=await scenario('own');s.game.g.personalCash=50_000_000;return JSON.parse(JSON.stringify(s.game.g));}
 // Economic view compared across live, reload and fresh durable-only hydration.
@@ -29,16 +31,17 @@ async function run(browser,url,g,account,fault,reference){
  const context=await browser.newContext(options),p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});await helpers(p);
  const proof=await p.evaluate(async({g,account,fault,snap,AMOUNT,SOFT,reference})=>{
   const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(g),backend=m.saveStorageIDB,key=m.engine.SAVE_KEY,view=eval(snap);
-  const pending=fault.startsWith('pending-'),kind=fault.replace(/^pending-/,''),normal=kind==='normal';
+  const pending=fault.startsWith('pending-'),nested=fault.startsWith('nested-'),kind=fault.replace(/^(pending|nested)-/,''),normal=kind==='normal';
   await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB prerequisite failed');if(!e.save())throw new Error('baseline save failed');await backend.flush();
   const durable=()=>new Promise((resolve,reject)=>{const open=indexedDB.open('capitalism-tycoon',1);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('saves','readonly'),get=tx.objectStore('saves').get(key);tx.oncomplete=()=>{db.close();resolve(get.result);};tx.onerror=()=>reject(tx.error);};});
   const puts=[],basePut=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(v,k){if(this.name==='saves'&&k===key)puts.push(String(v));return basePut.call(this,v,k);};
-  if(pending&&!e.save())throw new Error('prior pending save failed');
+  // A distinguishable pending predecessor, queued before any microtask can start its durable write.
+  if(pending){e.g.companyName+=' [pending predecessor]';if(!e.save())throw new Error('prior pending save failed');}
   const before=JSON.stringify(e.g),base=JSON.parse(before),bytes=backend.readSync(key),events=[],emit=e.emit;
-  const injection=normal?{hits:()=>0,restore(){}}:__peInject(e,m,localStorage,key,kind);
+  const injection=normal?{hits:()=>0,restore(){}}:kind==='save-before-throw'?(()=>{const save=e.save;let hits=0;e.save=function(){hits++;throw new Error('PE create save before admission threw');};return {hits:()=>hits,restore(){e.save=save;}};})():__peInject(e,m,localStorage,key,kind);
   const counted=e.emit;e.emit=function(type='change',...a){events.push(type);return counted.call(this,type,...a);};
   let returned=null,error=null;
-  try{returned=e.createPEDeal('テック',AMOUNT,account);}catch(ex){error=ex.message;}finally{e.emit=counted;injection.restore();}
+  try{returned=nested?e.runTransaction(()=>e.createPEDeal('テック',AMOUNT,account)):e.createPEDeal('テック',AMOUNT,account);}catch(ex){error=ex.message;}finally{e.emit=counted;injection.restore();}
   const cashKey=account==='company'?'companyCash':'personalCash',other=account==='company'?'personalCash':'companyCash';
   const effect=state=>{const deal=state.peDeals.at(-1);
    if(state.peDeals.length!==base.peDeals.length+1||state[cashKey]!==base[cashKey]-AMOUNT||state[other]!==base[other])throw new Error('cash/deal effect');
@@ -61,6 +64,7 @@ async function run(browser,url,g,account,fault,reference){
   await backend.flush();const final=await durable();IDBObjectStore.prototype.put=basePut;
   const committed=normal;
   if(final!==(committed?backend.readSync(key):bytes))throw new Error('durable mismatch');
+  if(pending&&!JSON.parse(final).companyName.endsWith(' [pending predecessor]'))throw new Error('pending predecessor not durable');
   if(puts.length!==(committed?1:0)+(pending?1:0))throw new Error('boundary puts '+puts.length);
   let retry=null;
   if(!committed){
