@@ -39,7 +39,10 @@ async function checkLoaded(page, expected) {
   let browser;
   try {
     browser = await webkit.launch();
-    for (const fault of ['save-false', 'mirror', 'enqueue-false', 'save-throw', 'saved', 'change', 'notify', 'pending-save-false', 'pending-change', 'normal']) {
+    // P3-4 G40 (P3_4_G40_BROWSER_FAULT_APPLICABILITY.md): save-before-throw, enqueue-throw, pending save-throw and the
+    // nested variants complete the shared set for this writer.
+    for (const fault of ['save-false', 'save-before-throw', 'mirror', 'enqueue-false', 'enqueue-throw', 'save-throw', 'saved', 'change', 'notify',
+      'pending-save-false', 'pending-change', 'pending-save-throw', 'nested-save-false', 'nested-save-throw', 'normal']) {
       const context = await browser.newContext(options), page = await context.newPage();
       await page.goto(url, { waitUntil: 'networkidle' }); await helpers(page);
       const proof = await page.evaluate(async fault => {
@@ -61,19 +64,23 @@ async function checkLoaded(page, expected) {
           if (this.name === 'saves' && k === key) puts.push(String(value));
           return basePut.call(this, value, k);
         };
-        const pending = fault.startsWith('pending-'), kind = pending ? fault.slice(8) : fault;
+        const pending = fault.startsWith('pending-'), nested = fault.startsWith('nested-'), kind = pending ? fault.slice(8) : nested ? fault.slice(7) : fault;
         // No yield: predecessor stays queued while the sale is invoked.
-        if (pending && !e.save()) throw new Error('prior pending save rejected');
+        if (pending) { e.g.companyName += ' [pending predecessor]'; if (!e.save()) throw new Error('prior pending save rejected'); }
         const before = JSON.stringify(e.g), bytes = localStorage.getItem(key), baseline = project(e.g);
         const save = e.save, emit = e.emit, setItem = Storage.prototype.setItem, backend = m.saveStorageIDB;
         let hits = 0, returned = null, error = null;
         if (kind === 'save-false') e.save = () => { hits++; return false; };
+        if (kind === 'save-before-throw') e.save = () => { hits++; throw new Error('MA sale save before admission threw'); };
         if (kind === 'mirror') Storage.prototype.setItem = function (k, value) {
           if (this === localStorage && k === key) { hits++; throw new DOMException('MA sale mirror rejected', 'SecurityError'); }
           return setItem.call(this, k, value);
         };
         if (kind === 'enqueue-false') m.saveStorageIDB = { ...backend, writeSync(k, value) {
           backend.writeSync(k, value); hits++; return false;
+        } };
+        if (kind === 'enqueue-throw') m.saveStorageIDB = { ...backend, writeSync(k, value) {
+          backend.writeSync(k, value); hits++; throw new Error('MA sale enqueue threw');
         } };
         if (kind === 'save-throw') e.save = function (...args) {
           const r = save.apply(this, args);
@@ -85,7 +92,7 @@ async function checkLoaded(page, expected) {
         };
         const id = e.g.maSubsidiaries[0].id, events = [];
         if (kind === 'normal') for (const type of ['notify', 'saved', 'change']) e.addEventListener(type, () => events.push(type));
-        try { returned = e.sellMASubsidiary(id); } catch (ex) { error = { message: ex.message, stack: ex.stack }; }
+        try { returned = nested ? e.runTransaction(() => e.sellMASubsidiary(id)) : e.sellMASubsidiary(id); } catch (ex) { error = { message: ex.message, stack: ex.stack }; }
         finally { e.save = save; e.emit = emit; Storage.prototype.setItem = setItem; m.saveStorageIDB = backend; }
         const isNormal = kind === 'normal';
         if (isNormal) {
@@ -98,7 +105,7 @@ async function checkLoaded(page, expected) {
           if (e.sellMASubsidiary(e.g.maSubsidiaries[0].id) !== true || e.g.maSubsidiaries.length !== 0) throw new Error('consecutive sale failed');
           if (JSON.stringify(project(JSON.parse(backend.readSync(key)))) !== JSON.stringify(project(e.g))) throw new Error('normal stored sale mismatch');
         } else {
-          if (!hits || (['save-false', 'mirror', 'enqueue-false'].includes(kind) ? returned !== false || error : !error))
+          if (!hits || (['save-false', 'mirror', 'enqueue-false', 'enqueue-throw'].includes(kind) ? returned !== false || error : !error))
             throw new Error(`fault did not reject: ${JSON.stringify({ fault, hits, returned, error })}`);
           if (JSON.stringify(e.g) !== before || localStorage.getItem(key) !== bytes || backend.readSync(key) !== bytes)
             throw new Error(`failed sale was not fully restored: ${fault}`);
@@ -106,6 +113,7 @@ async function checkLoaded(page, expected) {
         await backend.flush();
         const finalDurable = await durable(); IDBObjectStore.prototype.put = basePut;
         if (finalDurable !== (isNormal ? backend.readSync(key) : bytes)) throw new Error('durable sale mismatch after flush');
+        if (pending && !JSON.parse(finalDurable).companyName.endsWith(' [pending predecessor]')) throw new Error('pending predecessor not durable');
         if (!isNormal && (puts.length !== (pending ? 1 : 0) || puts.some(raw => JSON.parse(raw).maSubsidiaries.length !== 1)))
           throw new Error('rejected sale survived in a queued real IDB put');
         if (isNormal && puts.length !== 2) throw new Error('normal/duplicate/consecutive sales must save exactly twice');
