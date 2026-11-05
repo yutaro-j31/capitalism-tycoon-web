@@ -1997,18 +1997,42 @@ class TycoonEngine extends EventTarget {
 
   completeCompanySale({exitPrice=0,founderProceeds=0,note='',showEnding=true}={}) {
     if(this.g.isCompanySold)return this.fail('会社はすでに売却済みです。');
-    const price=Math.max(0,finite(exitPrice)),proceeds=ceilYen(Math.max(0,finite(founderProceeds)));
+    const price=Math.max(0,finite(exitPrice));
+    // G1 D1 (Owner 2026-11-05, P3_4_G1_GENERATION_BINDING_DECISION.md): the acquirer also buys the founder's personally
+    // bought own-company lot at the sale price per share (exitPrice / outstanding, treasury excluded), so no old-company
+    // lot survives to sit under the next company's ticker. The lot is checked before anything is written: a malformed
+    // lot, or one that does not fit the outstanding quantity with the founder shares, refuses the whole sale.
+    const key=this.g.ticker,stocks=this.g.personalStocks,hasLot=Boolean(stocks)&&Object.hasOwn(stocks,key),lot=hasLot?stocks[key]:null;
+    const outstanding=finite(this.g.sharesOut)-finite(this.g.treasuryBuybackShares),founder=finite(this.g.founderShares);
+    if(hasLot&&!(lot&&typeof lot==='object'&&!Array.isArray(lot)&&Number.isSafeInteger(lot.qty)&&lot.qty>=0&&Number.isFinite(lot.avg)&&lot.avg>=0
+      &&outstanding>0&&founder>=0&&founder+lot.qty<=outstanding))return this.fail('自社株の個人保有記録を確認できないため、会社を売却できません。');
+    // Review R2-01: the callers price the founder shares from founderOwnershipRatio, and the lot takes the rest of the
+    // share-count total. With a lot to buy out, the stored ratio must be the one updateOwnershipRatios derives from the
+    // share counts, or the lot could be under- or over-paid; a stale ratio refuses the sale before any write.
+    if(hasLot&&lot.qty>0&&!(Number.isFinite(this.g.founderOwnershipRatio)&&Math.abs(this.g.founderOwnershipRatio-clamp(founder/Math.max(1,outstanding),0,1))<=1e-12))
+      return this.fail('創業者持株比率が株数と一致しないため、会社を売却できません。');
+    const proceeds=ceilYen(Math.max(0,finite(founderProceeds)));
     if(typeof this.recordCurrentCompany==='function')this.recordCurrentCompany('buyout',price,proceeds,note);
-    this.g.personalCash+=proceeds;
+    // YEN_CEILING_ROUNDING_CONTRACT §4 (two parts): round the founder's total for founder shares plus the lot once, keep
+    // the founder-share part as rounded above, and pay the lot the remainder. The two never exceed ceilYen(exitPrice).
+    const ownLotProceeds=hasLot&&lot.qty>0?Math.max(0,ceilYen(price*(founder+lot.qty)/outstanding)-proceeds):0;
+    this.g.personalCash+=proceeds+ownLotProceeds;
+    if(hasLot){
+      if(lot.qty>0)this.g.realizedPersonalStockPL=finite(this.g.realizedPersonalStockPL)+ownLotProceeds-lot.avg*lot.qty;
+      delete stocks[key];
+    }
     this.g.isCompanySold=true;
     this.g.hasSeenCompanyBuyoutEnding=Boolean(showEnding);
     if(this.g.hallOfRecords)this.g.hallOfRecords.maxCompanyBuyoutPrice=Math.max(finite(this.g.hallOfRecords.maxCompanyBuyoutPrice),price);
-    return {exitPrice:price,founderProceeds:proceeds};
+    return {exitPrice:price,founderProceeds:proceeds,ownLotProceeds};
   }
   acceptBuyoutOffer(multiplier=1.2) {
+    // G1 D1: the sale now moves the own-company lot too, so the whole sale is one transaction.
+    return this.runTransaction(()=>{
     if(this.g.publicCompany===false&&this.companyValue()<200_000_000)return this.fail('買収提案を受ける規模に達していません。');const value=this.companyValue()*multiplier,founderProceeds=value*this.g.founderOwnershipRatio;
     const sale=this.completeCompanySale({exitPrice:value,founderProceeds,note:'設定画面から売却',showEnding:false});if(!sale)return false;
-    this.notify(`${this.g.companyName}を${yen(sale.exitPrice)}で売却しました。創業者受取${yen(sale.founderProceeds)}。`,'success');this.save();this.emit();return true;
+    this.notify(`${this.g.companyName}を${yen(sale.exitPrice)}で売却しました。創業者受取${yen(sale.founderProceeds+sale.ownLotProceeds)}。`,'success');this.save();this.emit();return true;
+    });
   }
 
   // D3: issue new player-company shares to outside holders (share swap). The founder and the competitor keep
