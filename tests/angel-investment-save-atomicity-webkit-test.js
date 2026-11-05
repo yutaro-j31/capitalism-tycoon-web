@@ -12,7 +12,9 @@ const ROOT=path.resolve(__dirname,'..'),DIR=path.resolve(process.env.MA_DEAL_ROO
 const options={...devices['iPhone 13'],locale:'ja-JP',timezoneId:'Asia/Tokyo',serviceWorkers:'block'};
 const server=http.createServer((req,res)=>{try{const u=new URL(req.url,'http://localhost'),file=path.resolve(ROOT,u.pathname==='/'?'index.html':decodeURIComponent(u.pathname).slice(1));assert.ok(file.startsWith(ROOT+path.sep));res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json'})[path.extname(file)]||'application/octet-stream');res.setHeader('Cache-Control','no-store');res.end(fs.readFileSync(file));}catch(e){res.statusCode=404;res.end(String(e));}});
 // Every fault kind of the shared Node harness that the browser can raise; each must roll back fully.
-const FAULTS=['save-false','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','notify','pending-save-false','pending-change'];
+const FAULTS=['save-false','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','notify','pending-save-false','pending-change',
+ // P3-4 G40 (P3_4_G40_BROWSER_FAULT_APPLICABILITY.md): tuples missing from the shared set.
+ 'save-before-throw','pending-save-throw','nested-save-false','nested-save-throw'];
 const SOFT=['save-false','mirror','enqueue-false','enqueue-throw'];
 const AMOUNT=1_000_000;
 async function fixture(variant){
@@ -31,17 +33,18 @@ async function run(browser,url,f,fault,reference){
  const context=await browser.newContext(options),p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});await helpers(p);
  const proof=await p.evaluate(async({f,fault,snap,SOFT,reference,AMOUNT})=>{
   const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(f.g),backend=m.saveStorageIDB,key=m.engine.SAVE_KEY,view=eval(snap);
-  const pending=fault.startsWith('pending-'),kind=fault.replace(/^pending-/,''),normal=kind==='normal';
+  const pending=fault.startsWith('pending-'),nested=fault.startsWith('nested-'),kind=fault.replace(/^(pending|nested)-/,''),normal=kind==='normal';
   await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB prerequisite failed');if(!e.save())throw new Error('baseline save failed');await backend.flush();
   const durable=()=>new Promise((resolve,reject)=>{const open=indexedDB.open('capitalism-tycoon',1);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('saves','readonly'),get=tx.objectStore('saves').get(key);tx.oncomplete=()=>{db.close();resolve(get.result);};tx.onerror=()=>reject(tx.error);};});
   const puts=[],basePut=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(v,k){if(this.name==='saves'&&k===key)puts.push(String(v));return basePut.call(this,v,k);};
-  if(pending&&!e.save())throw new Error('prior pending save failed');
+  // A distinguishable pending predecessor, queued before any microtask can start its durable write.
+  if(pending){e.g.companyName+=' [pending predecessor]';if(!e.save())throw new Error('prior pending save failed');}
   const before=JSON.stringify(e.g),base=JSON.parse(before),bytes=backend.readSync(key),events=[];
   const command=()=>f.variant==='create'?e.createAngelInvestment(AMOUNT):e.exitAngelInvestment(f.angelID);
-  const injection=normal?{hits:()=>0,restore(){}}:__peInject(e,m,localStorage,key,kind);
+  const injection=normal?{hits:()=>0,restore(){}}:kind==='save-before-throw'?(()=>{const save=e.save;let hits=0;e.save=function(){hits++;throw new Error('angel save before admission threw');};return {hits:()=>hits,restore(){e.save=save;}};})():__peInject(e,m,localStorage,key,kind);
   const counted=e.emit;e.emit=function(type='change',...a){events.push(type);return counted.call(this,type,...a);};
   let returned=null,error=null;
-  try{returned=command();}catch(ex){error=ex.message;}finally{e.emit=counted;injection.restore();}
+  try{returned=nested?e.runTransaction(()=>command()):command();}catch(ex){error=ex.message;}finally{e.emit=counted;injection.restore();}
   const effect=state=>{
    if(state.companyCash!==base.companyCash)throw new Error('company cash must not move (personal investment)');
    if(!m.finance.validate(JSON.parse(JSON.stringify(state))).ok)throw new Error('company accounting invalid');
@@ -64,6 +67,7 @@ async function run(browser,url,f,fault,reference){
   }
   await backend.flush();const final=await durable();IDBObjectStore.prototype.put=basePut;
   if(final!==(normal?backend.readSync(key):bytes))throw new Error('durable mismatch');
+  if(pending&&!JSON.parse(final).companyName.endsWith(' [pending predecessor]'))throw new Error('pending predecessor not durable');
   if(puts.length!==(normal?1:0)+(pending?1:0))throw new Error('boundary puts '+puts.length);
   let retry=null;
   if(!normal){
