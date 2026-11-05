@@ -11,7 +11,8 @@ async function loaded(p,expected){await helpers(p);const actual=await p.evaluate
 (async()=>{fs.mkdirSync(DIR,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const results=[];try{
  browser=await webkit.launch();const url='http://127.0.0.1:'+server.address().port+'/';
  for(const account of ['company','personal']){
-  for(const fault of ['save-false','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','notify','pending-save-false','pending-save-throw','pending-saved','pending-change','nested-change','normal','dd-normal','cap-normal']){
+  // P3-4 G40: save-before-throw and nested save-false/save-throw complete the shared set (P3_4_G40_BROWSER_FAULT_APPLICABILITY.md).
+  for(const fault of ['save-false','save-before-throw','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','notify','pending-save-false','pending-save-throw','pending-saved','pending-change','nested-change','nested-save-false','nested-save-throw','normal','dd-normal','cap-normal']){
    const s=loadGame({headless:true,random:random()}),prepared=fixture(s.modules,account,fault.startsWith('dd-')?'dd':fault.startsWith('cap-')?'cap':'plain');
    const f={g:JSON.parse(JSON.stringify(prepared.e.g)),id:prepared.id,amount:prepared.amount,account};
    const context=await browser.newContext(options),p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});await helpers(p);
@@ -23,7 +24,7 @@ async function loaded(p,expected){await helpers(p);const actual=await p.evaluate
     const oldDurable=await durable(),puts=[],basePut=IDBObjectStore.prototype.put;
     IDBObjectStore.prototype.put=function(v,k){if(this.name==='saves'&&k===key)puts.push(String(v));return basePut.call(this,v,k);};
     if(pending&&!e.save())throw new Error('prior pending save failed');
-    const before=JSON.stringify(e.g),baseline=JSON.parse(before),bytes=backend.readSync(key),injection=__vcInject(e,m,localStorage,key,kind),emit=e.emit,events=[];
+    const before=JSON.stringify(e.g),baseline=JSON.parse(before),bytes=backend.readSync(key),injection=kind==='save-before-throw'?(()=>{const save=e.save;let hits=0;e.save=function(){hits++;throw new Error('VC save before admission threw');};return {hits:()=>hits,restore(){e.save=save;}};})():__vcInject(e,m,localStorage,key,kind),emit=e.emit,events=[];
     let returned=null,error=null;
     if(kind==='normal')e.emit=function(type='change',...args){events.push(type);return emit.call(this,type,...args);};
     try{returned=nested?e.runTransaction(()=>e.investStartup(fixture.id,fixture.amount,fixture.account)):e.investStartup(fixture.id,fixture.amount,fixture.account);}catch(ex){error={name:ex.name,message:ex.message,stack:ex.stack};}finally{injection.restore();}
