@@ -4,7 +4,8 @@
 // - D0: a listed second generation reconciles, its control is evaluated, and an installed writer's P3-4 leg plans.
 // - D2: a residual own-ticker lot that fits the new company counts as the founder's holding of it.
 // - D2a: a refounded save that still carries the old listing row while the new company is unlisted stays unchecked.
-// - Unproven generation evidence (no past record, a record at or above the serial) keeps the leg unchecked.
+// - Unproven generation evidence (no past record, a record at or above the serial, a sparse record list) keeps the leg
+//   unchecked, and the read model and the planner agree on every shape (review G1-R1-01).
 // Authority stays disabled throughout: a planned leg only verifies, it never applies.
 const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
@@ -80,6 +81,43 @@ function run() {
     assert.equal(evidence.reasons[0].code, 'ALIAS_BINDING_UNPROVEN', 'the old row is not bound to the unlisted new company');
     assert.equal(leg(ctx), null);
     assert.equal(ctx.g.market.find(row => row.id === 'CPTY').issuedShares, 1000000, 'the old listing row is left as saved');
+    // Review G1-R1-02: the readers do not adopt the unbound old row either. They reconcile the unlisted company from its
+    // own buckets (100,000 issued, not the row's 1,000,000), the same rule as an unlisted first generation, while the
+    // writer leg above stays unchecked because it cannot bind the row.
+    for (const serial of [2, 1]) {
+      const c = generation({ serial, past: serial === 1 ? [] : [{ companySerial: 1 }], listed: false, oldRow: true, lot: null });
+      const view = read.projectOwnershipSnapshot(c.g);
+      assert.equal(view.classes.length, 1); assert.equal(view.classes[0].issuedQuantity, 100000, `serial ${serial}: issued from the buckets, not the old row`);
+      assert.equal(read.ownershipReconciliation(c.g).securityClasses[0].outstandingQuantity, 100000);
+    }
+  }
+
+  // Review G1-R1-01: a sparse pastCompanyRecords has empty slots that every() would skip; they are unproven evidence.
+  // The read model and the planner give the same answer for every shape.
+  {
+    const ctx = generation(), read = ctx.s.modules.economicReadModel, planner = ctx.s.modules.phase3OwnershipPlanner;
+    const holes = [new Array(1), [, { companySerial: 1 }], [{ companySerial: 1 }, ,], [{ companySerial: 1 }, , { companySerial: 1 }]];
+    const shapes = [[[{ companySerial: 1 }], true], [[{ companySerial: 1 }, { companySerial: 1 }], true], ...holes.map(past => [past, false]),
+      [[], false], [[{ companySerial: 2 }], false], [[{ companySerial: 0 }], false], [[{ companySerial: 1.5 }], false], [[null], false]];
+    for (const [past, proven] of shapes) {
+      const state = { ...ctx.g, currentCompanySerial: 2, pastCompanyRecords: past };
+      assert.equal(read.currentCompanyGenerationProven(state), proven, `read model: ${past.length} slots`);
+      const evidence = planner.inspectOwnershipAuthority(state, { family: 'player-common', issuerEntityId: read.PLAYER_COMPANY_ENTITY_ID,
+        securityClassId: read.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID, currentCompanySerial: 2 });
+      assert.equal(evidence.status === 'OBSERVED', proven, `planner agrees: ${past.length} slots`);
+      if (!proven) assert.equal(evidence.reasons[0].code, 'GENERATION_UNPROVEN');
+      assert.equal(read.ownershipReconciliation(state).generationEvidence.currentCompanySerial, proven ? 2 : null);
+    }
+    for (const past of holes) assert.equal(leg(generation({ past })), null, 'a sparse record list leaves the leg unchecked');
+  }
+
+  // pastCompanyRecords is part of the identity-index evidence, so changing it makes an earlier index stale.
+  {
+    const ctx = generation(), read = ctx.s.modules.economicReadModel;
+    const index = read.buildOwnershipIdentityIndex(ctx.g);
+    assert.ok(!read.projectOwnershipSnapshot(ctx.g, index).issues.some(row => row.code === 'STALE_EVIDENCE'));
+    ctx.g.pastCompanyRecords = [{ companySerial: 1 }, { companySerial: 1 }];
+    assert.ok(read.projectOwnershipSnapshot(ctx.g, index).issues.some(row => row.code === 'STALE_EVIDENCE'), 'changed records make the index stale');
   }
 }
 module.exports = { run };

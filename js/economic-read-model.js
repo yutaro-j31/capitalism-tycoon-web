@@ -598,7 +598,14 @@ function currentCompanyGenerationProven(state){
   if(serial===1)return true;
   if(!Number.isSafeInteger(serial)||serial<2)return false;
   const past=state.pastCompanyRecords;
-  return Array.isArray(past)&&past.length>0&&past.every(row=>row!==null&&typeof row==='object'&&Number.isSafeInteger(row.companySerial)&&row.companySerial>=1&&row.companySerial<serial);
+  if(!Array.isArray(past)||past.length===0)return false;
+  // Every index is checked, so a sparse array's empty slot (which every() would skip) is unproven evidence.
+  for(let i=0;i<past.length;i++){
+    if(!Object.hasOwn(past,i))return false;
+    const row=past[i];
+    if(row===null||typeof row!=='object'||!Number.isSafeInteger(row.companySerial)||row.companySerial<1||row.companySerial>=serial)return false;
+  }
+  return true;
 }
 function plainOwnershipObject(value){
   if(!value||typeof value!=='object'||Array.isArray(value))return false;

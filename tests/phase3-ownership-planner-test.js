@@ -172,6 +172,9 @@ for(const sold of [true,undefined,null,0]){const s=state();s.isCompanySold=sold;
  reject(inspect(later(2,[{companySerial:1}]),scope()),'GENERATION_UNPROVEN');
  reject(inspect(later(1,[]),scopeFor(2)),'GENERATION_UNPROVEN');
  for(const past of [undefined,[],[{companySerial:2}],[{companySerial:3}],[{companySerial:'1'}],[null],[{}]])reject(inspect(later(2,past),scopeFor(2)),'GENERATION_UNPROVEN');
+ // Review G1-R1-01: empty slots of a sparse record list are unproven evidence, not skipped.
+ for(const past of [new Array(1),[,{companySerial:1}],[{companySerial:1},,],[{companySerial:1},,{companySerial:1}]])reject(inspect(later(2,past),scopeFor(2)),'GENERATION_UNPROVEN');
+ assert.equal(inspect(later(2,[{companySerial:1},{companySerial:1}]),scopeFor(2)).status,'OBSERVED','a dense list with repeated records stays proven');
  for(const serial of [0,-1,1.5,'2',null])reject(inspect(state(),scopeFor(serial)),'GENERATION_UNPROVEN');
  const sold=later(2,[{companySerial:1}]);sold.isCompanySold=true;reject(inspect(sold,scopeFor(2)),'GENERATION_UNPROVEN');
 }
