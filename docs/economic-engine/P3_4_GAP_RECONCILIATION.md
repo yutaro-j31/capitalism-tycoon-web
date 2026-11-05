@@ -51,7 +51,7 @@ correction. Both are approved.
 
 | Gap | Writer | Evidence on `main` | Status | What remains |
 | --- | --- | --- | --- | --- |
-| G01 | Player-common writer and bypass closure | Every `supported` planner writer is routed (see Method); raw entries closed by step 2 (#1317, which also routes the legacy `acquireTarget` share swap as `W-ACQUIRE-COMPAT`). | PARTIAL | Generation 2+: DEFERRED (memo G1). A leg is also left unchecked whenever inspection is not `OBSERVED` or the planner throws (`beginOwnershipLeg` returns null); activation must turn that into a refusal. |
+| G01 | Player-common writer and bypass closure | Every `supported` planner writer is routed (see Method); raw entries closed by step 2 (#1317, which also routes the legacy `acquireTarget` share swap as `W-ACQUIRE-COMPAT`). | PARTIAL | Generation 2+: DEFERRED (memo G1); the Owner decided the binding rule on 2026-11-05 ([P3_4_G1_GENERATION_BINDING_DECISION.md](P3_4_G1_GENERATION_BINDING_DECISION.md)), and implementation is pending. A leg is also left unchecked whenever inspection is not `OBSERVED` or the planner throws (`beginOwnershipLeg` returns null); activation must turn that into a refusal. |
 | G02 | Refounding (`foundNewCompanyAfterBuyout`, `migrateSave`) | `found-new-company-save-atomicity` Node + WebKit; `PHASE_3_REFOUNDING_IDENTITY_EVIDENCE.md` (partial). | DEFERRED | Replacement rule and generation binding (memo G1, G2). |
 | G03 | `buyStock` | `stock-purchase-save-atomicity` Node + WebKit (shared fault set, pending and nested cases since #1321); routed. | EVIDENCED | — |
 | G04 | `sellStock` | `stock-sale-save-atomicity` Node + WebKit (shared fault set for personal and company accounts since #1322); routed. | EVIDENCED | — |
