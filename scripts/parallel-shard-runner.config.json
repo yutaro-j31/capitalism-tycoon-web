@@ -1,9 +1,10 @@
 {
-  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. tests/run-all-shard.js reads this file only when TEST_SHARD_PARALLELISM is 2 or more (never in contract mode); the workflow leaves that variable at 1 unless the repository variable TEST_SHARD_PARALLELISM_J / _C / _E / _L / _A / _K (shards J, C, E, L, A, K) is set. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
+  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. tests/run-all-shard.js reads this file only when TEST_SHARD_PARALLELISM is 2 or more (never in contract mode); the workflow leaves that variable at 1 unless the repository variable TEST_SHARD_PARALLELISM_J / _C / _E / _L / _A / _K / _I (shards J, C, E, L, A, K) is set. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
   "parallelEnabledShards": [
     "A",
     "C",
     "E",
+    "I",
     "J",
     "K",
     "L"
@@ -451,6 +452,16 @@
       "tests/full-index-weekly-validate-208w-test.js": 517.9,
       "tests/personal-stock-margin-save-atomicity-test.js": 132.7,
       "tests/supply-material-cost-inflation-test.js": 273.5
+    },
+    "I": {
+      "test:digital-portfolio-profitability": 245.4,
+      "tests/vc-writeoff-week-save-atomicity-test.js": 90.5,
+      "tests/subsidiary-relist-save-atomicity-test.js": 148.9,
+      "tests/pe-transfer-save-atomicity-test.js": 84.0,
+      "tests/competitor-product-counter-reachability-test.js": 348.2,
+      "tests/simulation-long-run-reload-fork-test.js": 192.9,
+      "tests/exploration-style-test.js": 306.9,
+      "tests/industry-event-response-plans-reachability-test.js": 275.3
     }
   },
   "serial": {
