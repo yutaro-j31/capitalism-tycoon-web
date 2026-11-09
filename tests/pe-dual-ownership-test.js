@@ -59,6 +59,37 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
  assert.equal(e.syncPESubsidiary(d),null,'personal PE stake cannot create a company subsidiary mirror');
  assert.equal(JSON.stringify(e.g),before,'rejected personal mirror sync leaves all state unchanged');
 }
+// A unique legacy mirror can predate the source-owned identity markers while retaining
+// the deterministic PE subsidiary ID. Forward sync must repair those markers before a
+// reverse ownership update, without creating an asset or moving cash/ledger state.
+{
+ const {e,d}=acquire('company',184),id=`pe-subsidiary-${d.id}`;
+ const legacy=e.g.subsidiaries.find(row=>row.id===id);
+ const canonicalValue=e.companyValue();
+ delete legacy.source;delete legacy.peDealID;delete legacy.valuationManagedBy;
+ assert.equal(e.save(),true);
+ const loaded=e.constructor.load(),deal=loaded.g.peDeals.find(row=>row.id===d.id);
+ const mirror=loaded.g.subsidiaries.find(row=>row.id===id);
+ assert.ok(deal&&mirror,'unique legacy PE mirror remains loadable');
+ assert.equal(mirror.source,undefined);assert.equal(mirror.peDealID,undefined);
+ assert.equal(mirror.valuationManagedBy,undefined);
+ const before={value:loaded.companyValue(),stake:mirror.valuation*mirror.ownership,companyCash:loaded.g.companyCash,
+  personalCash:loaded.g.personalCash,ledger:loaded.g.finance.transactions.length};
+ assert.equal(loaded.syncPESubsidiary(deal),mirror);
+ assert.equal(mirror.source,'pe');assert.equal(mirror.peDealID,deal.id);
+ assert.equal(mirror.valuationManagedBy,'pe');
+ assert.equal(loaded.g.subsidiaries.filter(row=>row.id===id).length,1);
+ assert.ok(Math.abs((loaded.companyValue()-before.value)-(deal.currentValuation-before.stake))<.01,
+  'identity repair replaces only the malformed mirrored stake');
+ assert.equal(loaded.companyValue(),canonicalValue,'identity repair restores the legal stake value');
+ assert.equal(loaded.g.companyCash,before.companyCash);assert.equal(loaded.g.personalCash,before.personalCash);
+ assert.equal(loaded.g.finance.transactions.length,before.ledger,'identity repair posts no receipt');
+ mirror.ownership-=.10;mirror.carryingBookValue=Math.round(mirror.carryingBookValue*.8);
+ assert.equal(loaded.syncPEDealFromSubsidiary(mirror),deal);
+ assert.equal(deal.ownershipRatio,mirror.ownership,'repaired mirror restores reverse ownership sync');
+ assert.equal(deal.ownerCostBasis,mirror.carryingBookValue,'repaired mirror restores reverse basis sync');
+ assert.equal(mirror.valuation*mirror.ownership,deal.currentValuation);
+}
 // Transfer is fair-value, atomic and commits exactly once.
 {const{x,e,d}=acquire();const price=x.modules.economicOperation.ceilYen(d.currentValuation),pc=e.g.personalCash,cc=e.g.companyCash,pl=e.g.peRealizedPL,tx=e.g.finance.transactions.length;let saves=0,events=[];e.save=()=>{saves++;return true;};e.emit=type=>{events.push(type||'change');};assert.equal(e.transferPEDealToCompany(d.id),true);assert.equal(saves,1);assert.deepEqual(events,['notify','change']);assert.equal(e.g.personalCash,pc+price);assert.equal(e.g.companyCash,cc-price);assert.equal(e.g.peRealizedPL,pl+price-100e6);assert.equal(d.ownerAccount,'company');assert.equal(d.ownerCostBasis,price);assert.equal(e.g.subsidiaries[0].carryingBookValue,price);assert.equal(e.g.finance.transactions.length,tx+1);const snapshot=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),snapshot);}
 {const{e,d}=acquire();e.g.companyCash=d.currentValuation-1;const before=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),before);}
