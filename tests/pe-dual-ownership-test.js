@@ -90,6 +90,31 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
  assert.equal(deal.ownerCostBasis,mirror.carryingBookValue,'repaired mirror restores reverse basis sync');
  assert.equal(mirror.valuation*mirror.ownership,deal.currentValuation);
 }
+// A distinct-ID row may carry copied PE markers in malformed imported/legacy state.
+// It is not the deterministic legal projection and must never gain reverse authority.
+{
+ const {e,d}=acquire('company',185),id=`pe-subsidiary-${d.id}`;
+ const canonical=e.g.subsidiaries.find(row=>row.id===id);
+ const alias=JSON.parse(JSON.stringify(canonical));
+ alias.id=`legacy-pe-alias-${d.id}`;alias.ownership=.10;alias.valuation=1;alias.carryingBookValue=1;
+ e.g.subsidiaries.push(alias);assert.equal(e.save(),true);
+ const loaded=e.constructor.load(),deal=loaded.g.peDeals.find(row=>row.id===d.id);
+ const loadedCanonical=loaded.g.subsidiaries.find(row=>row.id===id);
+ const loadedAlias=loaded.g.subsidiaries.find(row=>row.id===alias.id);
+ assert.ok(deal&&loadedCanonical&&loadedAlias,'distinct-ID legacy alias is a reachable load shape');
+ assert.equal(loaded.g.subsidiaries.filter(row=>row.peDealID===d.id).length,2);
+ const before={ownership:deal.ownershipRatio,valuation:deal.currentValuation,basis:deal.ownerCostBasis,
+  subsidiaryID:deal.subsidiaryID,companyCash:loaded.g.companyCash,personalCash:loaded.g.personalCash,
+  ledger:loaded.g.finance.transactions.length};
+ assert.equal(loaded.syncPEDealFromSubsidiary(loadedAlias),null,'noncanonical alias has no reverse authority');
+ assert.deepEqual({ownership:deal.ownershipRatio,valuation:deal.currentValuation,basis:deal.ownerCostBasis,
+  subsidiaryID:deal.subsidiaryID,companyCash:loaded.g.companyCash,personalCash:loaded.g.personalCash,
+  ledger:loaded.g.finance.transactions.length},before,'rejected alias changes no legal or cash state');
+ loadedCanonical.ownership-=.05;loadedCanonical.carryingBookValue=Math.round(loadedCanonical.carryingBookValue*.9);
+ assert.equal(loaded.syncPEDealFromSubsidiary(loadedCanonical),deal,'canonical mirror retains reverse authority');
+ assert.equal(deal.subsidiaryID,id);assert.equal(deal.ownershipRatio,loadedCanonical.ownership);
+ assert.equal(deal.ownerCostBasis,loadedCanonical.carryingBookValue);
+}
 // Transfer is fair-value, atomic and commits exactly once.
 {const{x,e,d}=acquire();const price=x.modules.economicOperation.ceilYen(d.currentValuation),pc=e.g.personalCash,cc=e.g.companyCash,pl=e.g.peRealizedPL,tx=e.g.finance.transactions.length;let saves=0,events=[];e.save=()=>{saves++;return true;};e.emit=type=>{events.push(type||'change');};assert.equal(e.transferPEDealToCompany(d.id),true);assert.equal(saves,1);assert.deepEqual(events,['notify','change']);assert.equal(e.g.personalCash,pc+price);assert.equal(e.g.companyCash,cc-price);assert.equal(e.g.peRealizedPL,pl+price-100e6);assert.equal(d.ownerAccount,'company');assert.equal(d.ownerCostBasis,price);assert.equal(e.g.subsidiaries[0].carryingBookValue,price);assert.equal(e.g.finance.transactions.length,tx+1);const snapshot=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),snapshot);}
 {const{e,d}=acquire();e.g.companyCash=d.currentValuation-1;const before=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),before);}
