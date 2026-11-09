@@ -35,12 +35,22 @@ function compareSeries(collection) {
     const execution = letters.map(x => metric(by[x], 'elapsedSeconds'));
     // A partial A-L sample cannot establish the last creation or full-shard median.
     const complete = values => values.every(n => n !== null);
+    const completions = letters.map(x => metric(by[x], 'completed'));
+    const lastCompletion = complete(completions) ? Math.max(...completions) : null;
+    // Every canonical finish is needed to identify all last finishers, including ties.
+    const lastObservedShardPhases = lastCompletion === null ? null : letters
+      .flatMap((shard, i) => completions[i] === lastCompletion ? [{
+        shard, runCreationToJobCreationSeconds: creation[i], jobCreationToStartSeconds: queue[i],
+        executionSeconds: execution[i]
+      }] : []);
     return { runId: s.runId, runAttempt: s.runAttempt, headSha: s.headSha, asOf: s.asOf,
       firstJobCreationSeconds: valid(s.runCreationToFirstObservedJobCreationSeconds ?? null),
       lastShardCreationSeconds: complete(creation) ? stat(creation).max : null,
       runnerQueueMedianSeconds: complete(queue) ? stat(queue).median : null,
       shardExecutionMedianSeconds: complete(execution) ? stat(execution).median : null,
       aggregateCompletionSeconds: valid(s.runCreationToAggregateCompletionSeconds ?? null),
+      lastObservedShardPhases,
+      postLastShardToAggregateSeconds: lastCompletion === null ? null : valid(s.postShardAggregateIntervalSeconds ?? null),
       focusHIK: Object.fromEntries(focus.map(x => [x, {
         runnerQueueSeconds: metric(by[x], 'jobCreationToStartSeconds'),
         executionSeconds: metric(by[x], 'elapsedSeconds') }])) };
