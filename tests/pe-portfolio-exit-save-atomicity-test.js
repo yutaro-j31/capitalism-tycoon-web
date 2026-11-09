@@ -34,12 +34,12 @@ function run(s,f,method,route){
   if(route==='adapter'){s.modules.playerEngineBridge.bindEngine(s.e);return s.modules.peUIAdapter.performPortfolio('exit',{fundID:f.fundID,dealID:f.portfolioID,method});}
   return s.e.exitPEPortfolioCompany(f.fundID,f.portfolioID,{method});
 }
-async function faulted(f,route,method,kind,pending){
+async function faulted(f,route,method,kind,pending,nested=false){
   const s=await setup(f);
   if(pending){s.control.holdPut=true;assert.equal(s.e.save(),true);await new Promise(r=>setTimeout(r,0));assert.equal(typeof s.control.release,'function','in-flight predecessor');}
   const before=clone(s.e.g),bytes=s.backend.readSync(s.key),durable=s.durable.get(s.key),puts=s.control.attempts.length;
   const fault=inject(s.e,s.modules,s.ctx.localStorage,s.key,kind);let returned,error;
-  try{returned=run(s,f,method,route);}catch(ex){error=ex;}finally{fault.restore();}
+  try{returned=nested?s.e.runTransaction(()=>run(s,f,method,route)):run(s,f,method,route);}catch(ex){error=ex;}finally{fault.restore();}
   assert.ok(fault.hits()>0,'fault reaches the Exit save');
   if(['save-false','mirror','enqueue-false','enqueue-throw'].includes(kind)){assert.equal(returned,false,'failed save must not report a completed Exit');assert.equal(error,undefined);}
   else assert.match(error?.message||'',/threw/);
@@ -51,7 +51,7 @@ async function faulted(f,route,method,kind,pending){
   const rec=await freshStatus(s,f);assert.equal(rec.status,'active','a later healthy save cannot resurrect the failed Exit');
   assert.equal(rec.personalCash,before.personalCash);assert.equal(rec.distributed,find(before,f).fund.distributed);
   assert.equal(s.modules.finance.validate(clone(s.e.g)).ok,true);
-  console.log(`PE portfolio exit ${route} ${method} ${kind}${pending?' / pending':''} PASS`);
+  console.log(`PE portfolio exit ${route} ${method} ${nested?'nested ':''}${kind}${pending?' / pending':''} PASS`);
 }
 async function normal(f,route,method){
   const a=await setup(f),b=await setup(f),before=clone(a.e.g);
@@ -77,5 +77,8 @@ async function normal(f,route,method){
     for(const kind of ['enqueue-false','enqueue-throw','saved','change'])await faulted(f,'engine',method,kind,false);
     for(const kind of ['save-false','save-throw','change'])await faulted(f,'engine',method,kind,true);
   }
+  // P3-4 G39: the installed fund Exit must roll back when invoked inside an enclosing transaction.
+  // Both settlement variants are exercised; the existing negative oracles remain unchanged.
+  for(const method of ['sale','ipo'])for(const kind of ['save-false','save-throw'])await faulted(f,'engine',method,kind,false,true);
   console.log('PE portfolio exit save atomicity tests passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});
