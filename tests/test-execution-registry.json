@@ -244,7 +244,7 @@
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/activate-defense-ownership-ratios-webkit-test.js": {
-    "reason": "W-DEFENSE takeover defense on real WebKit: only named competitor shares are sold (pro rata, whole shares) to outside market investors, sellers paid price × shares, the company pays the defense cost only, ratios sum to 1; a rejected save rolls ratios, holdings and proceeds back in live, mirror and durable IndexedDB; an unnamed stake is refused at no cost; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
+    "reason": "W-DEFENSE takeover defense on real WebKit: only named competitor shares are sold (pro rata, whole shares) to outside market investors, sellers paid price × shares, the company pays the defense cost only, ratios sum to 1; the shared save/mirror/enqueue/post-save event fault set plus pending and nested variants rolls ratios, holdings and proceeds back in live, mirror and durable IndexedDB; retries match the uninterrupted command; an unnamed stake is refused at no cost; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/ma-equity-raise-shadow-atomicity-webkit-test.js": {
