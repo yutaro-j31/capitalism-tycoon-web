@@ -40,8 +40,53 @@ async function run(browser,url,state,mode){
  await fresh.close();await context.close();
  return proof;
 }
+async function runCompanySaleFault(browser,url,command,fault){
+ const context=await browser.newContext(options),p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});
+ const proof=await p.evaluate(async({command,fault})=>{
+  const m=__capitalismTycoonModules,backend=m.saveStorageIDB,key=m.engine.SAVE_KEY;
+  const state=m.engine.createInitialState({configured:true,seed:135101,companyName:'G1 WebKit Sale',playerName:'Owner'});
+  Object.assign(state,{week:20,companyCash:100000000,companyDebt:0,personalCash:100000000,publicCompany:true,sharesOut:100000,
+   founderShares:60000,treasuryBuybackShares:0,competitorOwnedRatio:0,stockPrice:100,ticker:'CPTY',isCompanySold:false});
+  state.market=state.market.filter(row=>row.id!=='CPTY');
+  state.market.push({id:'CPTY',name:state.companyName,sector:'コングロマリット',price:100,previous:100,issuedShares:100000,
+   marketCap:10000000,dividendYield:0,volatility:0,trend:0,dividendPerShare:0,priceHistory:[{week:20,price:100}]});
+  state.personalStocks={CPTY:{qty:10000,avg:100}};state.finance=m.finance.defaultFinanceState(state);
+  const e=new m.engine.TycoonEngine(state);
+  e.updateOwnershipRatios();
+  e.g.inboundBuyoutOffers=[{id:'offer',bidderName:'Rival',offerAmount:500000000,premiumRate:1.3,createdWeek:20,expiresWeek:28,
+   hostile:false,status:'pending'}];
+  await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB prerequisite failed');
+  if(!e.save())throw new Error('baseline save failed');await backend.flush();
+  const before=JSON.stringify(e.g),durableBefore=await backend.readDurable(key),save=e.save;
+  let result,thrown='';
+  e.save=fault==='save-false'?()=>false:()=>{throw new Error('company sale save threw');};
+  try{result=command==='inbound'?e.acceptInboundBuyoutOffer('offer'):e.acceptBuyoutOffer(1.2);}catch(error){thrown=String(error?.message||error);}
+  finally{e.save=save;}
+  if(fault==='save-false'&&result!==false)throw new Error('rejected save accepted');
+  if(fault==='save-throw'&&!/company sale save threw/.test(thrown))throw new Error('throwing save did not escape');
+  if(JSON.stringify(e.g)!==before)throw new Error('failed company sale changed live state');
+  if(localStorage.getItem(key)!==before||backend.readSync(key)!==before)throw new Error('failed company sale changed mirror/cache');
+  await backend.flush();if(await backend.readDurable(key)!==durableBefore)throw new Error('failed company sale changed durable bytes');
+  const cash=e.g.personalCash,expectedIncrease=command==='inbound'?350000000:Math.ceil(e.companyValue()*1.2*.7);
+  result=command==='inbound'?e.acceptInboundBuyoutOffer('offer'):e.acceptBuyoutOffer(1.2);
+  if(result!==true||!e.g.isCompanySold||e.g.personalStocks.CPTY!==undefined)throw new Error('retry did not settle the lot once');
+  if(e.g.personalCash-cash!==expectedIncrease)throw new Error('retry proceeds mismatch');
+  await backend.flush();
+  return {expected:JSON.stringify(e.g),command,fault,expectedIncrease};
+ },{command,fault});
+ await p.reload({waitUntil:'networkidle'});
+ assert.equal(await p.evaluate(async()=>{const m=__capitalismTycoonModules;await m.saveStorageIDB.hydrate();return JSON.stringify(m.engine.TycoonEngine.load().g);}),proof.expected,`${command}/${fault} reload`);
+ const storage=await context.storageState({indexedDB:true});for(const origin of storage.origins)origin.localStorage=[];
+ const fresh=await browser.newContext({...options,storageState:storage}),fp=await fresh.newPage();await fp.goto(url,{waitUntil:'networkidle'});
+ assert.equal(await fp.evaluate(async()=>{const m=__capitalismTycoonModules;await m.saveStorageIDB.hydrate();return JSON.stringify(m.engine.TycoonEngine.load().g);}),proof.expected,`${command}/${fault} fresh durable-only`);
+ await fresh.close();await context.close();return proof;
+}
 (async()=>{fs.mkdirSync(DIR,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const results=[];const out=path.join(DIR,'refounding-ledger-result.json');try{
  browser=await webkit.launch();console.log('Actual WebKit '+browser.version()+' / iPhone13 emulation / real IndexedDB');const url='http://127.0.0.1:'+server.address().port+'/';
+ for(const command of ['inbound','settings'])for(const fault of ['save-false','save-throw']){
+  const sale=await runCompanySaleFault(browser,url,command,fault);results.push({...sale,reload:'PASS',freshDurableOnly:'PASS'});
+  console.log(`iPhone WebKit company sale ${command} ${fault} / own lot rollback + retry / reload / fresh real IDB PASS`);
+ }
  const ctx=await soldCompany({companyPE:true,personalPE:true}),state=JSON.stringify(ctx.game.g);
  for(const mode of ['store','digital']){
   const first=await run(browser,url,state,mode),second=await run(browser,url,state,mode);
