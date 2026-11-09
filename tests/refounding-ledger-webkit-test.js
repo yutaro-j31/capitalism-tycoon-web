@@ -84,7 +84,7 @@ async function runCompanySaleFault(browser,url,command,fault){
 (async()=>{fs.mkdirSync(DIR,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const results=[];const out=path.join(DIR,'refounding-ledger-result.json');try{
  browser=await webkit.launch();console.log('Actual WebKit '+browser.version()+' / iPhone13 emulation / real IndexedDB');const url='http://127.0.0.1:'+server.address().port+'/';
  for(const command of ['inbound','settings'])for(const fault of ['save-false','save-throw']){
-  const sale=await runCompanySaleFault(browser,url,command,fault);results.push({...sale,reload:'PASS',freshDurableOnly:'PASS'});
+  const {expected,...sale}=await runCompanySaleFault(browser,url,command,fault);results.push({...sale,reload:'PASS',freshDurableOnly:'PASS'});
   console.log(`iPhone WebKit company sale ${command} ${fault} / own lot rollback + retry / reload / fresh real IDB PASS`);
  }
  const ctx=await soldCompany({companyPE:true,personalPE:true}),state=JSON.stringify(ctx.game.g);
