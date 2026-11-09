@@ -661,6 +661,21 @@ function updateStoreSmoothedProfit(g, store) {
 // 同じ値を使うよう一元管理する（片方だけ変えると画面の予告と実際の入金がズレるため）。
 const STORE_CLOSURE_SALVAGE_RATE = .15;
 
+// G10: the founder's dividend entitlement is the P3-2 founder beneficial quantity (original founder shares plus
+// own-company shares bought personally), read from the same reconciliation the own-share purchase guard uses, so
+// the dividend and the read model never interpret a holding differently. Bought shares are part of the outstanding
+// count; without them their dividend leaked to the external leg. founderOwnershipRatio (governance) is unchanged.
+// When the reconciliation rejects the ownership evidence (over-allocation, malformed lot), no new entitlement is
+// inferred: the founder leg stays at founderOwnershipRatio, the pre-G10 rule, and the quarter is still paid
+// (Owner decision 2026-11-04, Option C; PR #1337 review F1). The reconciliation builds one-element arrays: [0] is the
+// player common class and the founder beneficial holding (economic-read-model.js); revisit this lookup if more
+// classes or holders are added.
+function founderDividendRatio(g){
+  let view;try{view=__modules.economicReadModel?.ownershipReconciliation?.(g);}catch{view=null;}
+  const founder=view?.ok?view.beneficialHoldings?.[0]?.quantity:null,outstanding=view?.ok?view.securityClasses?.[0]?.outstandingQuantity:null;
+  if(!Number.isFinite(founder)||!Number.isFinite(outstanding)||outstanding<=0||founder<0||founder>outstanding)return finite(g.founderOwnershipRatio);
+  return founder/outstanding;
+}
 // 株式売買1回の注文で動かせる数量の上限（発行済株式数に対する比率）。buyStock()/sellStock()の
 // 株価インパクトは1取引あたり最大3%に固定されているが、旧実装は数量そのものに上限が無く、
 // 発行済株式数の何倍を1回の注文で指定してもインパクトは常に3%止まりで約定できてしまう抜け穴
@@ -1293,6 +1308,24 @@ class TycoonEngine extends EventTarget {
     if(!mod?.setPrivateBrandShare(this.g,Number(share)))return this.fail('PB比率を変更できません。');
     this.notify(`コンビニのPB比率を${Math.round(Number(share)*100)}%に変更しました。`);this.save();this.emit();return true;
   }
+  // Hire or release a real estate agency store's sales agents (0..MAX_AGENTS). Each agent adds pipeline slots and weekly
+  // payroll. Releasing agents is refused while the store's open deals would not fit the smaller pipeline, so no deal is
+  // dropped. One transaction: the store field and the resized pipeline commit with one save, or not at all.
+  setBrokerageAgents(storeID,count) {
+    const mod=globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline,store=(this.g.stores||[]).find(s=>s.id===storeID);
+    if(!mod||!store||store.businessID!=='realEstateAgency'||store.status!=='open')return this.fail('営業担当を変更できる仲介店舗がありません。');
+    const next=Number(count);
+    if(!Number.isInteger(next)||next<0||next>mod.MAX_AGENTS)return this.fail(`営業担当は0〜${mod.MAX_AGENTS}人で指定してください。`);
+    const current=mod.agentsFor(store);if(next===current)return false;
+    const site=globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier,b=this.business('realEstateAgency');
+    const capacity=mod.capacityFor(b,site,next),active=store.brokeragePipeline?.activeDeals?.length||0;
+    if(active>capacity)return this.fail(`商談中の案件が${active}件あるため、商談枠${capacity}件まで減らせません。成約・失注で減るまでお待ちください。`);
+    return this.runTransaction(()=>{
+      store.brokerageAgents=next;mod.normalizeStore(this.g,store);
+      this.notify(`${store.name}の営業担当を${next}人にしました（商談枠 ${store.brokeragePipeline?.capacity??capacity}件・人件費 週約${yen(mod.agentWeeklyWage(store)*this.g.inflation)}）。`);
+      return true;
+    });
+  }
   changeBrokerageFocus(focusID) {
     const mod=globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline,b=this.business('realEstateAgency');
     if(!mod||!b||!mod.FOCUS_ORDER.includes(focusID))return this.fail('営業方針を変更できません。');
@@ -1803,6 +1836,10 @@ class TycoonEngine extends EventTarget {
     return reasons;
   }
   executeIPO(market='東証グロース',sellShares=0) {
+    // G3 (W-IPO-BASE): the installed IPO chain calls this captured base inside its outer transaction. A direct call
+    // outside any boundary opens its own transaction, so the IPO leg below plans and a failure rolls back.
+    if(!globalThis.__capitalismTycoonModules.phase3OwnershipApply.insideOwnershipBoundary(this))
+      return this.runTransaction(()=>BASE_EXECUTE_IPO.call(this,market,sellShares));
     if(this.g.publicCompany)return false;const missing=this.ipoMissingReasons();if(missing.length)return this.fail(`IPO条件不足：${missing.join('、')}`);
     const value=this.companyValue(),multiple=market==='東証プライム'?1.25:market==='東証スタンダード'?1.1:1;this.g.stockPrice=Math.max(100,value*multiple/this.g.sharesOut);
     // Sized relative to the current share count rather than a fixed absolute number of
@@ -1814,6 +1851,11 @@ class TycoonEngine extends EventTarget {
     const sellFloor=Math.max(1,Math.round(this.g.founderShares*.05)),sellCeil=Math.max(sellFloor,Math.round(this.g.founderShares*.4));
     sellShares=clamp(Math.floor(sellShares)||sellFloor,sellFloor,sellCeil);
     const newShares=Math.max(1,Math.round(this.g.sharesOut*.2)),companyRaise=ceilYen(this.g.stockPrice*newShares*.955),founderSale=ceilYen(this.g.stockPrice*sellShares*.955);
+    // P3-4 verification leg (W-IPO-CHAIN, reached only through the installed IPO chain's outer transaction): the issued
+    // and founder buckets and the listing this IPO leaves must be the planned ones.
+    const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(this,{writerId:'W-IPO-CHAIN',kind:'ipo',
+     operationId:`parent-ipo-${this.g.week}`,change:{issuedQuantity:newShares,founderSecondaryQuantity:sellShares,
+      listingTicker:this.g.companyName.replace(/[^A-Za-z]/g,'').slice(0,4).toUpperCase()||'CPTY'}});
     this.g.sharesOut+=newShares;this.g.founderShares-=sellShares;this.g.companyCash+=companyRaise;this.g.personalCash+=founderSale;this.g.publicCompany=true;this.g.selectedListingMarket=market;
     // The IPO primary offering raises real cash (companyRaise, above) with no matching
     // liability, so it must be recorded as equity financing or finance.validate()'s
@@ -1825,17 +1867,17 @@ class TycoonEngine extends EventTarget {
     const ipoLedger=finance.ensureFinance(this.g);ipoLedger.balances.capitalSurplus=finite(ipoLedger.balances.capitalSurplus)+companyRaise;
     this.g.ticker=(this.g.companyName.replace(/[^A-Za-z]/g,'').slice(0,4).toUpperCase()||'CPTY');this.updateOwnershipRatios();
     this.g.market.push({id:this.g.ticker,name:this.g.companyName,sector:'コングロマリット',price:this.g.stockPrice,previous:this.g.stockPrice,dividendYield:0,volatility:.08,trend:.003,marketCap:this.g.stockPrice*this.g.sharesOut,per:20,pbr:2,issuedShares:this.g.sharesOut,dividendPerShare:0,shareholders:{創業者:this.g.founderOwnershipRatio},description:'プレイヤーが経営する企業',listingMarket:market,priceHistory:[{week:this.g.week, price:this.g.stockPrice}]});
+    if(!ownership.confirmOwnershipLeg(this,leg))return this.fail('株式数の整合を確認できませんでした。');
     this.notify(`${market}へ上場しました。会社調達${yen(companyRaise)}、創業者売出収入${yen(founderSale)}。`,'success');this.evaluateProgression();this.save();this.emit();return true;
   }
   setDividend(amount) {
     if(!this.g.publicCompany)return this.fail('未上場です。');this.g.dividendPerShare=Math.max(0,finite(amount));const own=this.stock(this.g.ticker);if(own)own.dividendPerShare=this.g.dividendPerShare;
     this.notify(`四半期配当を1株${yen(this.g.dividendPerShare)}に設定しました。`);this.save();this.emit();return true;
   }
-  buybackOwnShares(amount) {
-    if(!this.g.publicCompany)return this.fail('未上場です。');amount=Math.max(0,finite(amount));if(this.g.companyCash<amount)return this.fail('資金不足です。');
-    const available=playerShareAcquisitionCapacity(this.g,0,true);if(available===null)return this.fail('自社株の保有数量が不整合のため買い戻せません。');
-    const qty=Math.min(available,Math.floor(amount/this.g.stockPrice));if(qty<=0)return this.fail('買い戻せる株式がありません。');if(playerShareAcquisitionCapacity(this.g,qty,true)===null)return this.fail('自社株の買戻し数量を正確に処理できません。');
-    const cost=qty*this.g.stockPrice;this.g.companyCash-=cost;this.g.treasuryBuybackShares+=qty;this.g.stockPrice*=1+Math.min(.08,qty/this.g.sharesOut*.8);this.updateOwnershipRatios();this.notify(`自社株${qty.toLocaleString()}株を${yen(cost)}で取得しました。`,'success');this.save();this.emit();return true;
+  buybackOwnShares() {
+    // G3 (W-BUYBACK-BASE): js/shareholder-returns.js installs the routed buyback (W-BUYBACK) over this method. The
+    // legacy settlement that lived here had no ownership leg, so a captured call of the base refuses and writes nothing.
+    return this.fail('自社株買いは株主還元から実行してください。');
   }
 
   generateMATargets(force=false) {
@@ -1849,11 +1891,19 @@ class TycoonEngine extends EventTarget {
     this.notify('M&A候補企業を更新しました。');this.save();this.emit();return true;
   }
   acquireTarget(id,method='friendly') {
+    // G3 (W-ACQUIRE-COMPAT): a legacy share swap issues player shares, so it runs inside an ownership boundary: a direct
+    // call opens its own transaction, and the issuance below is checked by its own verification leg.
+    const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply;
+    if(method==='shareSwap'&&!ownership.insideOwnershipBoundary(this))
+      return this.runTransaction(()=>BASE_ACQUIRE_TARGET.call(this,id,method));
     const i=this.g.acquisitionTargets.findIndex(x=>x.id===id);if(i<0)return false;const t=this.g.acquisitionTargets[i];const premium=method==='hostile'?1.35:method==='shareSwap'?1.08:1.18;const price=t.valuation*premium;
     if(method!=='shareSwap'&&this.g.companyCash<price)return this.fail(`${yen(price)}が必要です。`);
     if(method==='shareSwap'&&!this.g.publicCompany)return this.fail('株式交換には自社上場が必要です。');
     const identifiable=Math.min(price,Math.max(0,t.valuation)),goodwill=Math.max(0,price-identifiable),goodwillID=uuid(this.g,'goodwill');
-    if(method==='shareSwap'){const newShares=Math.ceil(price/Math.max(1,this.g.stockPrice));this.issueSharesToExternalHolders(newShares);finance.event(this.g,'acquisition',price,{cashEffect:0,assetEffect:price,sourceType:'acquireTargetShareSwap',sourceID:id,description:`${t.name} 株式交換取得`});finance.event(this.g,'equityFinancing',price,{cashEffect:0,equityEffect:price,sourceType:'shareSwapCapital',sourceID:id,description:`${t.name} 株式交換資本増加`});finance.ensureFinance(this.g).balances.capitalSurplus=finite(finance.ensureFinance(this.g).balances.capitalSurplus)+price;}
+    if(method==='shareSwap'){const newShares=Math.ceil(price/Math.max(1,this.g.stockPrice));
+      const leg=ownership.beginOwnershipLeg(this,{writerId:'W-ACQUIRE-COMPAT',kind:'external-issue',operationId:`acquire-target-share-swap-${id}`,change:{quantity:newShares}});
+      this.issueSharesToExternalHolders(newShares);if(!ownership.confirmOwnershipLeg(this,leg))return this.fail('株式数の整合を確認できませんでした。');
+      finance.event(this.g,'acquisition',price,{cashEffect:0,assetEffect:price,sourceType:'acquireTargetShareSwap',sourceID:id,description:`${t.name} 株式交換取得`});finance.event(this.g,'equityFinancing',price,{cashEffect:0,equityEffect:price,sourceType:'shareSwapCapital',sourceID:id,description:`${t.name} 株式交換資本増加`});finance.ensureFinance(this.g).balances.capitalSurplus=finite(finance.ensureFinance(this.g).balances.capitalSurplus)+price;}
     else {this.g.companyCash-=price;finance.event(this.g,'acquisition',price,{cashEffect:-price,assetEffect:price,sourceType:'acquireTarget',sourceID:id,description:`${t.name} 買収`});}
     const subsidiary={...t,identifiableNetAssetsBookValue:identifiable,goodwillBookValue:goodwill,totalCarryingValue:price,acquisitionPrice:price,acquisitionMethod:method,goodwillRecordID:goodwillID,acquiredWeek:this.g.week,status:'active',retainedEarnings:0,weeklyProfit:t.operatingProfit/52};globalThis.__capitalismTycoonModules?.maIntegration?.initializeSubsidiary?.(this.g,subsidiary,{legacyCompleted:false,method});subsidiary.pmiStatus='planning';subsidiary.pmiStrategy=null;subsidiary.pmiProgress=0;subsidiary.pmiPhase='assessment';subsidiary.pmiRealizedSynergyRate=0;subsidiary.pmiWeeklySynergyProfit=0;subsidiary.pmiWeeklyDisruptionCost=0;subsidiary.pmiLastProcessedWeek=null;subsidiary.weeklyProfit=subsidiary.standaloneWeeklyProfit;this.g.maSubsidiaries.push(subsidiary);
     this.g.goodwillRecords.push({id:goodwillID,name:t.name,amount:goodwill,goodwillBookValue:goodwill,carryingValue:goodwill,acquiredWeek:this.g.week});
@@ -1947,18 +1997,42 @@ class TycoonEngine extends EventTarget {
 
   completeCompanySale({exitPrice=0,founderProceeds=0,note='',showEnding=true}={}) {
     if(this.g.isCompanySold)return this.fail('会社はすでに売却済みです。');
-    const price=Math.max(0,finite(exitPrice)),proceeds=ceilYen(Math.max(0,finite(founderProceeds)));
+    const price=Math.max(0,finite(exitPrice));
+    // G1 D1 (Owner 2026-11-05, P3_4_G1_GENERATION_BINDING_DECISION.md): the acquirer also buys the founder's personally
+    // bought own-company lot at the sale price per share (exitPrice / outstanding, treasury excluded), so no old-company
+    // lot survives to sit under the next company's ticker. The lot is checked before anything is written: a malformed
+    // lot, or one that does not fit the outstanding quantity with the founder shares, refuses the whole sale.
+    const key=this.g.ticker,stocks=this.g.personalStocks,hasLot=Boolean(stocks)&&Object.hasOwn(stocks,key),lot=hasLot?stocks[key]:null;
+    const outstanding=finite(this.g.sharesOut)-finite(this.g.treasuryBuybackShares),founder=finite(this.g.founderShares);
+    if(hasLot&&!(lot&&typeof lot==='object'&&!Array.isArray(lot)&&Number.isSafeInteger(lot.qty)&&lot.qty>=0&&Number.isFinite(lot.avg)&&lot.avg>=0
+      &&outstanding>0&&founder>=0&&founder+lot.qty<=outstanding))return this.fail('自社株の個人保有記録を確認できないため、会社を売却できません。');
+    // Review R2-01: the callers price the founder shares from founderOwnershipRatio, and the lot takes the rest of the
+    // share-count total. With a lot to buy out, the stored ratio must be the one updateOwnershipRatios derives from the
+    // share counts, or the lot could be under- or over-paid; a stale ratio refuses the sale before any write.
+    if(hasLot&&lot.qty>0&&!(Number.isFinite(this.g.founderOwnershipRatio)&&Math.abs(this.g.founderOwnershipRatio-clamp(founder/Math.max(1,outstanding),0,1))<=1e-12))
+      return this.fail('創業者持株比率が株数と一致しないため、会社を売却できません。');
+    const proceeds=ceilYen(Math.max(0,finite(founderProceeds)));
     if(typeof this.recordCurrentCompany==='function')this.recordCurrentCompany('buyout',price,proceeds,note);
-    this.g.personalCash+=proceeds;
+    // YEN_CEILING_ROUNDING_CONTRACT §4 (two parts): round the founder's total for founder shares plus the lot once, keep
+    // the founder-share part as rounded above, and pay the lot the remainder. The two never exceed ceilYen(exitPrice).
+    const ownLotProceeds=hasLot&&lot.qty>0?Math.max(0,ceilYen(price*(founder+lot.qty)/outstanding)-proceeds):0;
+    this.g.personalCash+=proceeds+ownLotProceeds;
+    if(hasLot){
+      if(lot.qty>0)this.g.realizedPersonalStockPL=finite(this.g.realizedPersonalStockPL)+ownLotProceeds-lot.avg*lot.qty;
+      delete stocks[key];
+    }
     this.g.isCompanySold=true;
     this.g.hasSeenCompanyBuyoutEnding=Boolean(showEnding);
     if(this.g.hallOfRecords)this.g.hallOfRecords.maxCompanyBuyoutPrice=Math.max(finite(this.g.hallOfRecords.maxCompanyBuyoutPrice),price);
-    return {exitPrice:price,founderProceeds:proceeds};
+    return {exitPrice:price,founderProceeds:proceeds,ownLotProceeds};
   }
   acceptBuyoutOffer(multiplier=1.2) {
+    // G1 D1: the sale now moves the own-company lot too, so the whole sale is one transaction.
+    return this.runTransaction(()=>{
     if(this.g.publicCompany===false&&this.companyValue()<200_000_000)return this.fail('買収提案を受ける規模に達していません。');const value=this.companyValue()*multiplier,founderProceeds=value*this.g.founderOwnershipRatio;
     const sale=this.completeCompanySale({exitPrice:value,founderProceeds,note:'設定画面から売却',showEnding:false});if(!sale)return false;
-    this.notify(`${this.g.companyName}を${yen(sale.exitPrice)}で売却しました。創業者受取${yen(sale.founderProceeds)}。`,'success');this.save();this.emit();return true;
+    this.notify(`${this.g.companyName}を${yen(sale.exitPrice)}で売却しました。創業者受取${yen(sale.founderProceeds+sale.ownLotProceeds)}。`,'success');this.save();this.emit();return true;
+    });
   }
 
   // D3: issue new player-company shares to outside holders (share swap). The founder and the competitor keep
@@ -1967,6 +2041,10 @@ class TycoonEngine extends EventTarget {
   // ratio is the authority (competitors[].ownedPlayerShares is not kept in sync by every writer). Ratios then
   // follow the shared rule (external = 1 − founder − competitor).
   issueSharesToExternalHolders(newShares) {
+    // G3 (W-ISSUE-RAW): an internal helper. Its callers own the ownership leg and the rollback, so it refuses to write
+    // outside a transaction or a shadow boundary.
+    if(!globalThis.__capitalismTycoonModules.phase3OwnershipApply.insideOwnershipBoundary(this))
+      throw new Error('issueSharesToExternalHolders requires an ownership boundary');
     const before=Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares),competitorShares=Math.max(0,finite(this.g.competitorOwnedRatio))*before;
     this.g.sharesOut+=newShares;
     this.g.competitorOwnedRatio=competitorShares/Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares);
@@ -2455,7 +2533,7 @@ class TycoonEngine extends EventTarget {
       const contractRent=getStoreContractRent(store,p,this.g),costMultiplier=this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
       if(market.isTargetBusinessID(store.businessID)&&marketBatch.byStore[store.id]){rand(this.g,.88,1.14); // Preserve the legacy per-store demand RNG slot; deterministic market results intentionally ignore this value.
       let mr=marketBatch.byStore[store.id];mr=supply.applyConstraint(this.g,store,mr,finance);marketBatch.byStore[store.id]=mr;const extraStorePayroll=workforce.storeExtraPayroll(this.g,store.id);fixed=contractRent+(b.fixedCost+b.wage+extraStorePayroll)*costMultiplier;repair=getStoreRepairCost(store,this.g);storeSales=mr.revenue;variable=mr.variableCost;store.marketResult={...mr};}
-      else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(this.g,.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=getStoreRepairCost(store,this.g);store.marketResult=null;}
+      else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(this.g,.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage+globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.agentWeeklyWage(store))*costMultiplier;repair=getStoreRepairCost(store,this.g);store.marketResult=null;}
       else if(store.businessID==='conveni'&&globalThis.__capitalismTycoonModules?.convenienceMerchandising){const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:rand(this.g,.88,1.14),siteSuitabilityFactor:globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:[0,.45,.75,1,1.17][store.operatingHours||3]||1,macroSalesFactor:this.g.macroCrisis?this.g.macroCrisis.salesMultiplier:1});
       const merch=globalThis.__capitalismTycoonModules.convenienceMerchandising.processStore(this.g,store,b,demand,this.g.inflation);storeSales=merch.sales;variable=merch.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=getStoreRepairCost(store,this.g);store.marketResult=null;}
       else if(store.businessID==='gym'&&globalThis.__capitalismTycoonModules?.gymMembershipModel){const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:rand(this.g,.88,1.14),siteSuitabilityFactor:globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:[0,.45,.75,1,1.17][store.operatingHours||3]||1,macroSalesFactor:this.g.macroCrisis?this.g.macroCrisis.salesMultiplier:1});
@@ -2465,7 +2543,9 @@ class TycoonEngine extends EventTarget {
       store.marketResult=null;}
       const isSupplyStore=market.isTargetBusinessID(store.businessID);
       const rentPart=contractRent;
-      const wagePart=(b.wage+(isSupplyStore?workforce.storeExtraPayroll(this.g,store.id):0))*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
+      // Per-store extra payroll: ramen-family workforce, or real estate agency sales agents.
+      const extraWage=isSupplyStore?workforce.storeExtraPayroll(this.g,store.id):store.businessID==='realEstateAgency'?(globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline?.agentWeeklyWage(store)||0):0;
+      const wagePart=(b.wage+extraWage)*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
       // Each store row settles in whole yen, rounded up (contract R2a). Supply-store COGS is the inventory relief
       // from supply.consume and is not rounded here (slice R2b).
       const postedSales=ceilYen(Math.max(0,finite(storeSales)));
@@ -2483,7 +2563,7 @@ class TycoonEngine extends EventTarget {
     const execPayroll=this.g.week%4===0?ceilYen(Object.values(this.g.executives).reduce((a,e)=>a+finite(e.salary)/13,0)):0;
     const deptCost=workforce.weeklyPayroll(this.g);
     const officeCost=this.g.hasHeadOffice?ceilYen(this.g.officeWeeklyCost):0,genericDebt=Math.max(0,this.g.companyDebt-finance.individuallyServicedPrincipal(this.g)),interest=__modules.economicOperation.ceilYen(genericDebt*this.companyBorrowRate()/52);expenses+=execPayroll+deptCost+officeCost+interest;const founderLoanShare=genericDebt>0?Math.min(1,finance.founderLoanReceivable(this.g)/genericDebt):0;if(founderLoanShare>0)this.g.personalCash+=Math.min(__modules.economicOperation.ceilYen(interest*founderLoanShare),interest);
-    if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=ceilYen(h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797);}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=ceilYen(this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares));const founderGross=dividend*this.g.founderOwnershipRatio,personalCashBefore=this.g.personalCash;this.g.personalCash+=finance.founderDividendNet(founderGross);dividendDistribution={gross:dividend,founderRatio:this.g.founderOwnershipRatio,personalCashBefore,personalCashAfter:this.g.personalCash,netRounding:'ceilYen'};}}
+    if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=ceilYen(h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797);}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=ceilYen(this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares));const founderRatio=founderDividendRatio(this.g),founderGross=dividend*founderRatio,personalCashBefore=this.g.personalCash;this.g.personalCash+=finance.founderDividendNet(founderGross);dividendDistribution={gross:dividend,founderRatio,personalCashBefore,personalCashAfter:this.g.personalCash,netRounding:'ceilYen'};}}
     const projectRun=workforce.advanceProjects(this.g);const projectCost=finite(projectRun?.projectCost);expenses+=projectCost;const turnoverRun=workforce.updateEndOfWeek(this.g);const severanceCost=finite(turnoverRun?.turnoverCost);expenses+=severanceCost;supply.autoOrder(this.g);const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;this.g.quarterlyPretaxProfit=finite(this.g.quarterlyPretaxProfit)+operatingProfit;let tax=0;if(this.g.week%13===0){if(this.g.quarterlyPretaxProfit>0)tax=ceilYen(this.g.quarterlyPretaxProfit*.306);expenses+=tax;this.g.quarterlyPretaxProfit=0;}
     const profit=sales+rentIncome+stockIncome-expenses+subs.profit;const weeklyCashDelta=profit-dividend-finite(overseas.retainedCash)+supplyCogsNonCash+finite(spoilage?.cost),nonStoreCashDelta=weeklyCashDelta-storeCashDelta;const payerCashWithoutDividend=this.g.companyCash+profit-finite(overseas.retainedCash)+supplyCogsNonCash+finite(spoilage?.cost);this.g.companyCash+=nonStoreCashDelta+storeCashDelta;if(dividendDistribution)Object.assign(dividendDistribution,{payerCashWithoutDividend,payerCashAfter:this.g.companyCash});this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
     if(dividendDistribution&&dividend>0)finance.observeDividendDistribution(this.g,dividendDistribution);
@@ -2548,6 +2628,9 @@ class TycoonEngine extends EventTarget {
     const parsed=JSON.parse(text);const migrated=migrateSave(parsed);if(!migrated.ok)throw new Error(migrated.errors.join(' / ')||'セーブデータ形式が不正です。');this.g=migrated.state;this._saveBlockedDueToLoadFailure=false;this._loadFailureReason='';this.normalize();this.save();this.emit();
   }
 }
+// G3: the raw entries above (executeIPO, acquireTarget) re-enter themselves inside their own transaction. They call these bodies, captured at load
+// before any module wraps a prototype, so the re-entry never runs a wrapper.
+const BASE_EXECUTE_IPO=TycoonEngine.prototype.executeIPO,BASE_ACQUIRE_TARGET=TycoonEngine.prototype.acquireTarget;
 
 // 週番号からゲーム内の日付を作る。エンジンは52週=1年で年齢を加算するので（advanceWeek の
 // week%52）、暦も52週364日で1年とし、毎年必ず第1週が1月1日になるようにする。

@@ -5,10 +5,12 @@ const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.phase3OwnershipPlanner)throw Error('phase3-ownership-planner.js must precede phase3-ownership-apply.js');
 if(modules.phase3OwnershipApply)throw Error('ownership apply already registered');
 const planner=modules.phase3OwnershipPlanner,BUCKETS=planner.BUCKETS,read=modules.economicReadModel;
-// IPO is excluded: its listing record and lot rebinding stay with the existing writer (listingRequirement).
+// IPO is excluded from application: its listing record and lot rebinding stay with the existing writer
+// (listingRequirement). It is verified only (LEG_KINDS), since verification writes nothing (Owner decision 2026-10-29).
 const KINDS=Object.freeze(['personal-buy','personal-sell','founder-sale','external-issue','buyback','split']);
+const LEG_KINDS=Object.freeze([...KINDS,'ipo']);
 const CHANGED={'personal-buy':['personalOwnShares'],'personal-sell':['personalOwnShares'],'founder-sale':['founderShares'],
- 'external-issue':['sharesOut'],buyback:['treasuryBuybackShares'],split:BUCKETS};
+ 'external-issue':['sharesOut'],buyback:['treasuryBuybackShares'],split:BUCKETS,ipo:['sharesOut','founderShares']};
 const PERSONAL=new Set(['personal-buy','personal-sell','founder-sale']);
 function freeze(x){if(x&&typeof x==='object'){for(const v of Object.values(x))freeze(v);Object.freeze(x);}return x;}
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -50,28 +52,46 @@ function applyOwnershipPlan(engine,plan){
 // rejects its command. A leg the planner cannot plan (a later company generation, an unlisted company, ...) keeps the
 // existing behaviour, so routing changes no supported or unsupported outcome. Activation later swaps the writes for
 // applyOwnershipPlan.
+// A leg plans only inside a rollback boundary: the engine's active transaction, or a shadow engine whose owner restores
+// the live state when the shadow's command fails (ownershipShadowBoundary, set by that owner only).
+function insideBoundary(engine){
+ if(!engine)return false;
+ if(Object.prototype.hasOwnProperty.call(engine,'ownershipShadowBoundary'))return engine.ownershipShadowBoundary===true;
+ return typeof engine.inTransaction==='function'&&engine.inTransaction()===true;
+}
 function beginOwnershipLeg(engine,leg){
  try{
-  if(!engine||typeof engine.inTransaction!=='function'||engine.inTransaction()!==true||!leg||!KINDS.includes(leg.kind))return null;
+  if(!insideBoundary(engine)||!leg||!LEG_KINDS.includes(leg.kind))return null;
   const state=engine.g,scope={family:'player-common',issuerEntityId:read.PLAYER_COMPANY_ENTITY_ID,
    securityClassId:read.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,currentCompanySerial:1};
   const evidence=planner.inspectOwnershipAuthority(state,scope);
   if(evidence.status!=='OBSERVED')return null;
   const plan=planner.planOwnershipChange(state,{scope,writerId:leg.writerId,kind:leg.kind,operationId:leg.operationId,
-   account:PERSONAL.has(leg.kind)?'personal':'company',sourceLots:CHANGED[leg.kind].map(k=>evidence.sourcePaths[k]),
+   account:PERSONAL.has(leg.kind)?'personal':leg.kind==='ipo'?'company-and-personal':'company',sourceLots:CHANGED[leg.kind].map(k=>evidence.sourcePaths[k]),
    expected:{sourceState:state,sourceFingerprint:evidence.sourceFingerprint,quantities:Object.fromEntries(BUCKETS.map(k=>[k,evidence.quantities[k]]))},
    change:leg.change});
   return plan.status==='PLANNED'?freeze({plan}):null;
  }catch(_){return null;}
+}
+// Raw entries that write player-common facts (G3/G4 of PHASE_3_P3_4_ACTIVATION_READINESS.md) run their work through
+// this: inside a boundary it runs as is; outside one, an engine opens its own transaction, so the entry's leg plans
+// and a failure rolls back. A null, undefined or false result (nothing to settle) commits nothing, so an inert direct
+// call neither saves nor emits. An object without runTransaction (a state-only stub) cannot plan a leg and runs as is.
+function withOwnershipBoundary(engine,work){
+ if(insideBoundary(engine)||typeof engine?.runTransaction!=='function')return work();
+ return engine.runTransaction(work,'change',{},result=>result!==false&&result!==null&&result!==undefined);
 }
 // True when there was no plannable leg, or when the engine's quantities (with a consistent issued mirror) are exactly
 // the plan's prospective quantities.
 function confirmOwnershipLeg(engine,handle){
  if(handle===null||handle===undefined)return true;
  try{
-  const evidence=planner.inspectOwnershipAuthority(engine.g,handle.plan.scope);
+  const evidence=planner.inspectOwnershipAuthority(engine.g,handle.plan.scope),listing=handle.plan.listingRequirement;
+  // An IPO leg also requires the listing it planned: the company is listed under the planned ticker.
+  if(listing&&(evidence.publicCompany!==true||evidence.ticker!==listing.ticker))return false;
   return evidence.status==='OBSERVED'&&BUCKETS.every(k=>evidence.quantities[k]===handle.plan.after[k]);
  }catch(_){return false;}
 }
-modules.phase3OwnershipApply=freeze({VERSION:1,ACTIVATION:'disabled',KINDS,applyOwnershipPlan,beginOwnershipLeg,confirmOwnershipLeg});
+modules.phase3OwnershipApply=freeze({VERSION:1,ACTIVATION:'disabled',KINDS,applyOwnershipPlan,beginOwnershipLeg,confirmOwnershipLeg,
+ insideOwnershipBoundary:insideBoundary,withOwnershipBoundary});
 })();

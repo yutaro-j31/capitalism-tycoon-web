@@ -4,7 +4,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
+const dgram = require('node:dgram');
 const cp = require('node:child_process');
+const workers = require('node:worker_threads');
 const { promisify } = require('node:util');
 
 function install(directory) {
@@ -13,9 +15,10 @@ function install(directory) {
   globalThis[marker] = true;
   const open = fs.openSync, write = fs.writeSync, close = fs.closeSync;
   fs.mkdirSync(directory, { recursive: true });
-  const output = path.join(directory, `${process.pid}.jsonl`);
+  const threadId = workers.threadId;
+  const output = path.join(directory, threadId === 0 ? `${process.pid}.jsonl` : `${process.pid}.thread-${threadId}.jsonl`);
   function record(operation, target, destination) {
-    const event = { pid: process.pid, cwd: process.cwd(), operation, target: typeof target === 'number' ? target : String(target ?? '') };
+    const event = { pid: process.pid, threadId, cwd: process.cwd(), operation, target: typeof target === 'number' ? target : String(target ?? '') };
     if (destination !== undefined) event.destination = String(destination);
     // Use captured native descriptor calls: observing our own log would recurse.
     const fd = open(output, 'a');
@@ -63,11 +66,21 @@ function install(directory) {
       wrap(handle, name, () => record(`FileHandle.${name}`, args[0]));
     return handle;
   };
-  wrap(net.Server.prototype, 'listen', args => record('net.listen', typeof args[0] === 'object' ? args[0]?.port ?? args[0]?.path : args[0]));
+  // Options may contain getters/proxies. Observing their properties would add
+  // reads before Node processes them, changing the behavior being measured.
+  const endpoint = value => typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))
+    ? value : '[options omitted]';
+  wrap(net.Server.prototype, 'listen', args => record('net.listen', endpoint(args[0])));
+  wrap(dgram.Socket.prototype, 'bind', args => record('dgram.bind', endpoint(args[0])));
   wrap(process, 'chdir', args => record('process.chdir', args[0]));
   // Subprocesses can bypass Node fs hooks. Record the executable, not payloads or environment.
   for (const name of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork'])
     wrap(cp, name, args => record(`child_process.${name}`, name.startsWith('exec') && !name.startsWith('execFile') ? '[shell command omitted]' : args[0]));
+  // A worker may strip its preload. Keep creation opaque even when its own log exists.
+  workers.Worker = new Proxy(workers.Worker, { construct(target, args, newTarget) {
+    record('worker_threads.Worker', '[worker script/options omitted]');
+    return Reflect.construct(target, args, newTarget);
+  } });
   record('initialized', 'node-api-audit-v1');
 }
 

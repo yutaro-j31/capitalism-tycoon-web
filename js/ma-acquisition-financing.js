@@ -388,8 +388,18 @@
           try { storageBefore = storageKey && typeof localStorage !== 'undefined' ? localStorage.getItem(storageKey) : null; } catch (_) {}
           rollbackSave = () => restoreStorage(storageKey, storageBefore);
         }
+        // The financing wrapper owns rollback of the entire shadow closing. Plan against the untouched live state,
+        // then verify the final shadow state before publishing it; no nested runTransaction or authority activation.
+        const ownership = modules.phase3OwnershipApply;
+        const requestedEquityAmount = round(nf(plan.requestedEquityAmount, nf(plan.equityRaiseAmount)));
+        const leg = requestedEquityAmount > 0 ? ownership.beginOwnershipLeg({ g: liveState, ownershipShadowBoundary: true }, {
+          writerId: 'W-MA-EQUITY/SH', kind: 'external-issue', operationId: `ma-equity-${liveDeal.id}`,
+          change: { quantity: Math.ceil(requestedEquityAmount / Math.max(1, nf(liveState.stockPrice))) }
+        }) : null;
         const shadowState = clone(liveState), shadow = Object.create(this);
         shadow.g = shadowState; shadow.save = () => true; shadow.emit = () => {}; shadow.notify = () => {};
+        // This wrapper is the boundary of the shadow closing: the raw issuance helper requires one (G3).
+        shadow.ownershipShadowBoundary = true;
         shadow.fail = message => { shadow.__maFailure = String(message || 'M&A closing failed'); return false; };
         const shadowDeal = arr(shadowState.maDealRooms).find(deal => deal?.id === args.dealID);
         const targetName = targetFor(shadowState, shadowDeal)?.name || shadowDeal?.targetID || '対象企業';
@@ -398,6 +408,7 @@
           if (!baseComplete.call(shadow, args)) throw new Error(shadow.__maFailure || 'acquisition-completion-failed');
           const validation = finance.validate(shadow.g);
           if (!validation?.ok) throw new Error(`finance-validation:${arr(validation?.errors).join('|')}`);
+          if (!ownership.confirmOwnershipLeg(shadow, leg)) throw new Error('ownership-leg-mismatch');
           const committed = clone(shadow.g); replaceState(liveState, committed);
           try {
             if (this.save?.() === false) throw new Error('save-failed');

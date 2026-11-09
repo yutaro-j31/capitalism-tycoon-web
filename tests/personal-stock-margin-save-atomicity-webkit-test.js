@@ -9,26 +9,23 @@ const ROOT=path.resolve(__dirname,'..'),DIR=path.resolve(process.env.MA_DEAL_ROO
 const options={...devices['iPhone 13'],locale:'ja-JP',timezoneId:'Asia/Tokyo',serviceWorkers:'block'};
 const server=http.createServer((req,res)=>{try{const u=new URL(req.url,'http://localhost'),file=path.resolve(ROOT,u.pathname==='/'?'index.html':decodeURIComponent(u.pathname).slice(1));assert.ok(file.startsWith(ROOT+path.sep));res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json'})[path.extname(file)]||'application/octet-stream');res.setHeader('Cache-Control','no-store');res.end(fs.readFileSync(file));}catch(e){res.statusCode=404;res.end(String(e));}});
 async function page(context,url){const p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});return p;}
-(async()=>{
- fs.mkdirSync(DIR,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const results=[];
- try{
-  browser=await webkit.launch();const url='http://127.0.0.1:'+server.address().port+'/';
-  for(const variant of ['liquidate','weekly','interest','canonical']){
-   const f=await fixture(variant==='canonical'?'weekly':variant),state=JSON.parse(JSON.stringify(f.game.g));
-   const kinds=variant==='canonical'?['none','save-throw','saved','week']:['none',...FAULT_KINDS.filter(k=>k!=='notify'||variant!=='interest')];
-   for(const kind of kinds){
-    const context=await browser.newContext(options),p=await page(context,url);
-    await p.addScriptTag({content:'globalThis.__injectMarginFault='+inject.toString()+';'});
-    const expected=await p.evaluate(async({state,variant,kind,soft,settlement})=>{
+// Runs in the actual page against its installed modules: one margin command under one fault.
+const marginCase=async({state,variant,kind,pending,wrap,mutation,soft,settlement})=>{
      const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(state),backend=m.saveStorageIDB,key=m.engine.SAVE_KEY;
      await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB unavailable');if(!e.save())throw new Error('baseline save failed');await backend.flush();
+     if(mutation==='rollback')e.restoreTransactionSnapshot=()=>{};
+     // A pending accepted predecessor is queued in this task, before any microtask can start its durable write.
+     // The marker makes the predecessor differ from the baseline, so fresh durable-only hydration proves it persisted.
+     if(pending){e.g.companyName+=' (pending predecessor)';if(!e.save())throw new Error('pending predecessor rejected');}
      const before=JSON.stringify(e.g),prior=JSON.parse(before),bytes=backend.readSync(key),save=e.save;
      let injection={hits:()=>0,restore(){}};
      if(kind==='save-before-throw'){let hits=0;e.save=()=>{hits++;throw new Error('margin save before admission threw');};injection={hits:()=>hits,restore(){e.save=save;}};}
      else if(kind==='week'){const emit=e.emit;let hits=0;e.emit=function(type,...args){if(type==='week'){if(this.g.personalMarginLoan.liquidatedCount!==1)throw Error('margin not reached');hits++;throw Error('canonical margin week threw');}return emit.call(this,type,...args);};injection={hits:()=>hits,restore(){e.emit=emit;}};}
      else if(kind!=='none')injection=__injectMarginFault(e,m,localStorage,key,kind);
      let result,error;
-     try{result=variant==='canonical'?e.advanceWeek(false):e.runTransaction(()=>variant==='liquidate'?m.personalStockMargin.liquidate(e):m.personalStockMargin.processWeek(e));}
+     const command=()=>variant==='liquidate'?m.personalStockMargin.liquidate(e):m.personalStockMargin.processWeek(e);
+     // 'tx': inside a caller transaction; 'nested': inside two; 'direct': no caller transaction (the export opens its own).
+     try{result=variant==='canonical'?e.advanceWeek(false):wrap==='direct'?command():wrap==='nested'?e.runTransaction(()=>e.runTransaction(command)):e.runTransaction(command);}
      catch(ex){error=ex;}finally{injection.restore();}
      await backend.flush();
      if(kind!=='none'){
@@ -53,13 +50,35 @@ async function page(context,url){const p=await context.newPage();await p.goto(ur
      }
      const normalized=new m.engine.TycoonEngine(JSON.parse(JSON.stringify(e.g))).g;
      delete normalized.lastSaveDate;delete normalized.saveSequence;return JSON.parse(JSON.stringify(normalized));
-    },{state,variant,kind,soft:SOFT_FAILURES,settlement:SETTLEMENT});
+};
+(async()=>{
+ fs.mkdirSync(DIR,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const results=[];
+ try{
+  browser=await webkit.launch();const url='http://127.0.0.1:'+server.address().port+'/';
+  for(const variant of ['liquidate','weekly','interest','canonical']){
+   const f=await fixture(variant==='canonical'?'weekly':variant),state=JSON.parse(JSON.stringify(f.game.g));
+   const kinds=variant==='canonical'?['none','save-throw','saved','week']:['none',...FAULT_KINDS.filter(k=>k!=='notify'||variant!=='interest')];
+   // P3-4 G08 (FC-G08-05): on the liquidation, also a pending accepted predecessor, an extra nested transaction, a direct
+   // call outside any transaction (its own boundary since #1317), and a disabled-rollback negative control.
+   const cases=kinds.map(kind=>({kind,pending:false,wrap:'tx'}));
+   if(variant==='liquidate'){
+    for(const kind of ['save-false','save-throw'])cases.push({kind,pending:true,wrap:'tx'},{kind,pending:false,wrap:'nested'});
+    for(const kind of ['none','save-false','save-throw'])cases.push({kind,pending:false,wrap:'direct'});
+    const context=await browser.newContext(options),p=await page(context,url);
+    await p.addScriptTag({content:'globalThis.__injectMarginFault='+inject.toString()+';'});
+    await assert.rejects(p.evaluate(marginCase,{state,variant,kind:'save-false',pending:false,wrap:'tx',mutation:'rollback',soft:SOFT_FAILURES,settlement:SETTLEMENT}),/failed margin changed state/,'a disabled rollback is rejected');
+    results.push({variant,mutation:'rollback disabled rejected',pass:true});await context.close();
+   }
+   for(const {kind,pending,wrap} of cases){
+    const context=await browser.newContext(options),p=await page(context,url);
+    await p.addScriptTag({content:'globalThis.__injectMarginFault='+inject.toString()+';'});
+    const expected=await p.evaluate(marginCase,{state,variant,kind,pending,wrap,mutation:null,soft:SOFT_FAILURES,settlement:SETTLEMENT});
     const storageState=await context.storageState({indexedDB:true});for(const origin of storageState.origins)origin.localStorage=[];
     const fresh=await browser.newContext({...options,storageState}),fp=await page(fresh,url);
     const actual=await fp.evaluate(async()=>{const m=__capitalismTycoonModules;await m.saveStorageIDB.hydrate();const e=m.engine.TycoonEngine.load();if(!e)throw new Error('durable-only load failed');const g=JSON.parse(JSON.stringify(e.g));delete g.lastSaveDate;delete g.saveSequence;return g;});
     assert.deepEqual(actual,expected,variant+'/'+kind+': fresh real IndexedDB hydration');assert.equal(actual.saveVersion,9);
-    results.push({variant,kind,pass:true});fs.writeFileSync(path.join(DIR,'personal-stock-margin-result.json'),JSON.stringify({physicalDevice:false,browser:browser.version(),ok:false,results},null,2));
-    console.log(`iPhone WebKit margin ${variant}/${kind} / real IDB PASS`);await fresh.close();await context.close();
+    results.push({variant,kind,pending,wrap,pass:true});fs.writeFileSync(path.join(DIR,'personal-stock-margin-result.json'),JSON.stringify({physicalDevice:false,browser:browser.version(),ok:false,results},null,2));
+    console.log(`iPhone WebKit margin ${variant}/${kind}${pending?'/pending':''}${wrap!=='tx'?'/'+wrap:''} / real IDB PASS`);await fresh.close();await context.close();
    }
   }
   fs.writeFileSync(path.join(DIR,'personal-stock-margin-result.json'),JSON.stringify({physicalDevice:false,browser:browser.version(),ok:true,results},null,2));

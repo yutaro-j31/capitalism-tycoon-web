@@ -101,9 +101,17 @@ function auditOne(report, expected, artifactRoot) {
     }
     if (reference) assert.deepEqual(round.outputs, reference, 'byte-exact within-Node parity');
     else reference = round.outputs;
-    return { name: round.name, concurrency: r.concurrency, wallMs: r.wallMs, peakMiB: r.peakSystemMemInUseMb };
+    // All command metrics/identities have passed the evidence checks above.
+    // Their sum is overlapping command time, not serial speedup or a critical path.
+    const longestCommands = [...r.results].sort((a, b) => b.wallMs - a.wallMs || a.index - b.index)
+      .slice(0, 3).map(({ index, label, wallMs, cpuMs, peakRssMb }) => ({ index, label, wallMs, cpuMs, peakRssMb }));
+    return { name: round.name, concurrency: r.concurrency, wallMs: r.wallMs, peakMiB: r.peakSystemMemInUseMb,
+      systemCpuUtilization: r.systemCpuUtilization, runnerCpuSeconds: r.runnerCpuSeconds,
+      cpuSecondsSampled: r.cpuSecondsSampled,
+      sumCommandWallMs: r.results.reduce((sum, item) => sum + item.wallMs, 0), longestCommands };
   });
-  return { node: report.node, rounds, reference };
+  return { node: report.node, host: { cpuModel: report.cpuModel, logicalCpus: report.logicalCpus,
+    physicalMemoryBytes: report.physicalMemoryBytes }, rounds, reference };
 }
 function auditPair(reports, expected, roots) {
   assert.equal(reports.length, 2); assert.equal(roots.length, 2);
@@ -116,7 +124,8 @@ function auditPair(reports, expected, roots) {
       nodes: audited.map((r, n) => ({ node: r.node, sha256: sha(captures[n]), bytes: captures[n].length })) });
   }
   return { status: differences.length ? 'cross-node-output-review-required' : 'evidence-verified',
-    nodes: audited.map(({ node, rounds }) => ({ node, rounds })), differences, productionAuthorized: false };
+    sourceSha: expected.sha, runnerSha256: expected.runnerSha256,
+    nodes: audited.map(({ node, host, rounds }) => ({ node, host, rounds })), differences, productionAuthorized: false };
 }
 function expectedFrom(root, pinnedSha = PIN) {
   assert.match(pinnedSha, /^[a-f0-9]{40}$/, 'explicit full source SHA required');

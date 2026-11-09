@@ -26,9 +26,11 @@ function collect(commands, trace) {
     const directory = command.env.PSR_WRITE_AUDIT_DIR;
     const files = fs.readdirSync(directory);
     assert.ok(files.includes(`${pid}.jsonl`), `${command.label}: root initialization missing`);
-    const processes = files.map(file => {
-      assert.match(file, /^[1-9]\d*\.jsonl$/, 'audit file must identify a PID');
-      const expectedPid = Number(file.slice(0, -6));
+    const contexts = files.map(file => {
+      const identity = /^([1-9]\d*)(?:\.thread-([1-9]\d*))?\.jsonl$/.exec(file);
+      assert.ok(identity, 'audit file must identify a PID and optional worker thread');
+      const expectedPid = Number(identity[1]), threadId = Number(identity[2] || 0);
+      assert.ok(Number.isSafeInteger(expectedPid) && Number.isSafeInteger(threadId), 'safe context identity');
       const text = fs.readFileSync(path.join(directory, file), 'utf8');
       assert.ok(text.endsWith('\n'), 'audit must end with a complete record');
       const events = text.slice(0, -1).split('\n').map(line => JSON.parse(line));
@@ -36,18 +38,27 @@ function collect(commands, trace) {
       assert.equal(events.filter(e => e.operation === 'initialized').length, 1, 'ambiguous PID reuse/initialization');
       for (const event of events) {
         assert.equal(event.pid, expectedPid, 'audit filename/PID consistency');
+        // Legacy main-thread logs omit threadId; worker logs must always identify it.
+        assert.equal(event.threadId === undefined && threadId === 0 ? 0 : event.threadId, threadId, 'audit filename/thread consistency');
         assert.ok(path.isAbsolute(event.cwd), 'audit cwd must be absolute');
         assert.equal(typeof event.operation, 'string');
         assert.ok(typeof event.target === 'string' || typeof event.target === 'number');
       }
       assert.equal(events[0].target, 'node-api-audit-v1');
-      return { pid: expectedPid, events };
+      return { pid: expectedPid, threadId, events };
     });
+    const processes = contexts.filter(c => c.threadId === 0), threads = contexts.filter(c => c.threadId !== 0);
     // Writes, ports and opaque child-process calls all need review, even when their test passed.
-    const findings = processes.flatMap(p => p.events.filter(e => e.operation !== 'initialized'));
-    return { label: command.label, pid, directory, processes, findings };
+    const findings = contexts.flatMap(p => p.events.filter(e => e.operation !== 'initialized'));
+    return { label: command.label, pid, directory, processes, threads, findings };
   });
-  return { ok: reports.every(r => r.findings.length === 0), commands: reports };
+  return { ok: reports.every(r => r.findings.length === 0), commands: reports,
+    coverage: { kind: 'node-api-audit-v1', rootInvocations: reports.length,
+      pidLogs: reports.reduce((n, r) => n + r.processes.length, 0),
+      workerThreadLogs: reports.reduce((n, r) => n + r.threads.length, 0),
+      opaqueWorkerCreations: reports.reduce((n, r) => n + r.findings.filter(e => e.operation === 'worker_threads.Worker').length, 0),
+      opaqueChildCalls: reports.reduce((n, r) => n + r.findings.filter(e => e.operation.startsWith('child_process.')).length, 0),
+      completeDescendantCoverage: false, nativeSyscallCoverageComplete: false, workerCoverageComplete: false } };
 }
 function selfTest() {
   const os = require('node:os'), cp = require('node:child_process');
@@ -83,4 +94,9 @@ function selfTest() {
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 }
 module.exports = { prepare, collect };
-if (require.main === module) selfTest();
+if (require.main === module) {
+  selfTest();
+  require('./parallel-shard-write-wrapper-test.cjs');
+  require('./parallel-shard-write-worker-test.cjs');
+  require('./parallel-shard-resource-candidates-test.cjs');
+}

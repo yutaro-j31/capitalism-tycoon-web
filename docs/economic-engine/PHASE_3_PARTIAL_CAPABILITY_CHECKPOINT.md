@@ -45,6 +45,27 @@ these are **SAME_MODEL_REVIEW**, not genuinely independent financial audits. Act
 normal local integration candidates. These are Node/fake-IDB partial proofs, not new native WebKit or physical-iPhone
 measurements. Earlier/current integration CI and final source-head CI are distinct records; see PR handoffs for updates.
 
+## Refresh — 2026-11-04 (main `77539f83`)
+
+This refresh updates counts only. The table above and the gates below still describe `8a8b0417`.
+Phase 3 F Exit is still **not** accepted, and Phase 4 Entry is still **not** authorized.
+
+- **P3-4 routing:** the planner now supports 14 writer IDs. `W-ACQUIRE-COMPAT` was added by #1317 for the
+  legacy `acquireTarget` share swap. All 14 have an installed `beginOwnershipLeg` call. The three writers that
+  were open at `8a8b0417` merged as #1210 (`W-MA-EQUITY/SH`), #1213 (`W-IPO-CHAIN`) and #1214
+  (`W-TURNAROUND-RATCHET`). `ACTIVATION` is still `disabled`.
+- **Family closure:** see the refreshed
+  [P3-4 gap reconciliation](P3_4_GAP_RECONCILIATION.md#result). Of the 21 player-common gaps, 15 are
+  EVIDENCED, 1 is PARTIAL (G01) and 5 are DEFERRED, after #1336 (G35) and #1337/#1338 (G10, the dividend on
+  personally bought own-company shares, Owner-relayed independent review). The cross-cutting G40 is EVIDENCED
+  on `main` `7ab463cc` (2026-11-05). Its read-only browser applicability matrix (#1342) listed the missing
+  tuples, and the test-only follow-ups #1344–#1348 filled them for the nine writers it flagged.
+- **Reader slices P3-5 to P3-11:** no change since `8a8b0417`. Each still needs an item-by-item check against its
+  approved contract (§14 Tests and §17 Acceptance). P3-8 also waits for the open VC alias quarantine PR (#1311).
+  P3-10 executable commands still wait for Owner decisions OD-01 to OD-03.
+- **Reviews:** every PR in this refresh was merged on a same-model substitute review, under the conditional
+  low-risk rule or a specific Owner authorization. None of them is a genuinely independent financial audit.
+
 ## Remaining gates and next dispatch
 
 - Fresh source recount: 13 planner-supported writers; installed verification calls cover 10. Remaining

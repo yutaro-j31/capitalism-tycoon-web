@@ -134,7 +134,8 @@ function accept(instance){
   // P3-4 verification leg (W-TURNAROUND-ACCEPT): the issued bucket this injection leaves must be the planned one.
   const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(instance,{writerId:'W-TURNAROUND-ACCEPT',
    kind:'external-issue',operationId:fundID,change:{quantity:quote.shares}});
-  state.sharesOut=finite(state.sharesOut)+quote.shares;
+  // G5: issued to the fund (external); founder and competitor counts are diluted, as in every external issuance.
+  instance.issueSharesToExternalHolders(quote.shares);
   state.companyCash=finite(state.companyCash)+quote.amount;
   finance.event(state,'equityFinancing',quote.amount,{cashEffect:quote.amount,equityEffect:quote.amount,
    sourceType:'playerCrisisTurnaroundFund',sourceID:fundID,operationID:fundID,idempotencyKey:fundID,
@@ -175,7 +176,12 @@ function ratchetSharesFor(state){
  const sharesOut=Math.max(1,finite(state.sharesOut,1));
  return Math.max(1,Math.round(sharesOut*RATCHET_EQUITY/(1-RATCHET_EQUITY)));
 }
+// G3: the installed week calls settle() inside its transaction. A direct call outside a boundary runs inside the
+// engine's own transaction, so the ratchet leg plans and a mismatch rolls back.
 function settle(instance){
+ return modules.phase3OwnershipApply.withOwnershipBoundary(instance,()=>settleInBoundary(instance));
+}
+function settleInBoundary(instance){
  const state=instance.g,fund=ensure(state);
  if(fund.status!=='active')return null;
  const plan=turnaroundPlan.ensure(state);
@@ -188,15 +194,19 @@ function settle(instance){
   return fund;
  }
  const shares=ratchetSharesFor(state);
- state.sharesOut=finite(state.sharesOut)+shares;
- // A company that listed during the fund term mirrors the issued quantity on its own market row at once; settle runs
- // after this week's updateMarket, which would otherwise leave the row stale until next week.
- const own=state.publicCompany?(state.market||[]).find(row=>row.id===state.ticker):null;
- if(own){own.issuedShares=state.sharesOut;own.marketCap=finite(own.price)*state.sharesOut;}
+ // P3-4 verification only: the canonical week owns rollback. The listed issued mirror below is updated before
+ // confirming; a genuine bucket mismatch rejects the whole week, while unsupported generations remain unchecked.
+ const ownership=modules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(instance,{writerId:'W-TURNAROUND-RATCHET',
+  kind:'external-issue',operationId:`${fund.fundID}-ratchet-${integer(state.week)}`,change:{quantity:shares}});
+ // G5: the ratchet shares go to the fund (external); founder and competitor counts are diluted, as in every external
+ // issuance. The helper also mirrors a listed company's own market row at once (#1211): settle runs after this week's
+ // updateMarket, which would otherwise leave the row stale until next week.
+ instance.issueSharesToExternalHolders(shares);
  fund.ratchetShares=integer(fund.ratchetShares)+shares;
  fund.shares=integer(fund.shares)+shares;
  fund.status='ratcheted';
  instance.updateOwnershipRatios();
+ if(!ownership.confirmOwnershipLeg(instance,leg))throw new Error('株式数の整合を確認できませんでした。');
  record(state,fund,'ratcheted',{amount:0,shares,equity:RATCHET_EQUITY,
   detail:`${fund.fundName}の再建目標を達成できず、追加で${shares.toLocaleString('ja-JP')}株（持分${(RATCHET_EQUITY*100).toFixed(0)}%）を譲渡しました。`});
  instance.notify?.(`${fund.fundName}の再建目標未達により、追加の持分${(RATCHET_EQUITY*100).toFixed(0)}%を譲渡しました。`,'error');

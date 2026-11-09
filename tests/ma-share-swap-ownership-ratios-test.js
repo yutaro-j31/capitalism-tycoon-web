@@ -163,7 +163,9 @@ async function check(s,run,label){
   game.g.acquisitionTargets[0].activeDealID=null;assert.equal(game.save(),true);await backend.flush();
   const proto=Object.getPrototypeOf(s.engineModule.TycoonEngine.prototype),captured=proto.acquireTarget;
   assert.equal(Object.hasOwn(proto,'acquireTarget'),true);assert.notEqual(captured,game.acquireTarget);
-  assert.equal(s.modules.phase3OwnershipPlanner.WRITER_POLICIES['W-ACQUIRE-COMPAT'].rejection,'INTERNAL_ENTRY');
+  // Routed since the G3 bypass closure: the captured body plans its own external-issue leg inside this caller TX.
+  assert.equal(s.modules.phase3OwnershipPlanner.WRITER_POLICIES['W-ACQUIRE-COMPAT'].rejection,null);
+  assert.deepEqual([...s.modules.phase3OwnershipPlanner.WRITER_POLICIES['W-ACQUIRE-COMPAT'].kinds],['external-issue']);
   game.acquireTarget=()=>{throw Error('installed compatibility wrapper must not run');};
   const before=snapshot(game),bytes=backend.readSync(s.key),puts=s.control.attempts.length,draws=s.host.draws,targetID=before.acquisitionTargets[0].id;
   assert.equal(before.acquisitionTargets[0].valuation,80000000,'pinned legacy valuation');
@@ -221,3 +223,6 @@ async function check(s,run,label){
  }
  console.log('share swap ownership ratios PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
+// G5: the other external issuances (investor, sponsor, turnaround accept and ratchet) follow the same dilution rule. The
+// cases live in a module required here so the canonical test set (pinned by retained shard evidence) keeps its size.
+require('./issuance-competitor-dilution-case');

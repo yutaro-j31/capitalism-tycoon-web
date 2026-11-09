@@ -18,10 +18,11 @@ function state(){return {currentCompanySerial:1,isCompanySold:false,publicCompan
 function scope(){return {family:'player-common',issuerEntityId:constants.PLAYER_COMPANY_ENTITY_ID,securityClassId:constants.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,currentCompanySerial:1};}
 const kinds={
  'W-BUY':'personal-buy','W-SELL':'personal-sell','W-MARGIN-LIQ':'personal-sell','W-SPLIT':'split','W-FOUNDER-SALE':'founder-sale','W-INVESTOR':'external-issue',
- 'W-IPO-CHAIN':'ipo','W-SHARE-SWAP':'external-issue','W-MA-EQUITY/SH':'external-issue','W-BUYBACK':'buyback','W-SPONSOR':'external-issue','W-TURNAROUND-ACCEPT':'external-issue','W-TURNAROUND-RATCHET':'external-issue'
+ 'W-IPO-CHAIN':'ipo','W-SHARE-SWAP':'external-issue','W-MA-EQUITY/SH':'external-issue','W-BUYBACK':'buyback','W-SPONSOR':'external-issue','W-TURNAROUND-ACCEPT':'external-issue','W-TURNAROUND-RATCHET':'external-issue',
+ 'W-ACQUIRE-COMPAT':'external-issue'
 };
 const rejections={
- INTERNAL_ENTRY:['W-MARGIN-RAW','W-IPO-BASE','W-ISSUE-RAW','W-ACQUIRE-COMPAT','W-BUYBACK-BASE'],
+ INTERNAL_ENTRY:['W-MARGIN-RAW','W-IPO-BASE','W-ISSUE-RAW','W-BUYBACK-BASE'],
  REPLACEMENT_UNSUPPORTED:['W-INIT','W-NEW-COMPANY','W-LOAD-NORMALIZE','W-LOAD-IMPORT','W-COMPACTION','W-RESTORE/SH-REPLACE'],
  NO_COMMON_QUANTITY_CHANGE:['W-INVESTOR-AUX','W-RATIOS','W-DECLINE','W-DIV-SET','W-DIV-PAY','W-WEEK-MARKET','W-WEEK-EXPANDED','W-EARNINGS','W-CAPALLOC-PRICE'],
  HOLDER_UNPROVEN:['W-DEFENSE','W-WEEK-COMPETITOR'],ORCHESTRATION_ONLY:['W-ACTIVISM','W-MA-ACQUIRE'],
@@ -54,6 +55,8 @@ for(const [id,kind] of Object.entries(kinds)){
  const wrong={...request,account:request.account==='company'?'personal':'company'};reject(plan(s,wrong),'ACCOUNT_UNSUPPORTED');
  reject(plan(s,{...request,kind:'create-trust-votes'}),'COMMAND_UNSUPPORTED');
 }
+// Share-swap writers issue only for a listed company (the G3-routed legacy share swap included).
+for(const id of ['W-SHARE-SWAP','W-MA-EQUITY/SH','W-ACQUIRE-COMPAT']){const s=state();s.publicCompany=false;s.market=[];reject(plan(s,intent(s,id)),'LIFECYCLE_UNSUPPORTED');}
 for(const [code,ids] of Object.entries(rejections))for(const id of ids){const s=state(),request=intent(s,id),before=plain(s);deepFreeze(request);reject(plan(s,request),code);assert.deepEqual(plain(s),before);}
 
 // Independently calculated expected quantities; not just mirrors of exported policy metadata.

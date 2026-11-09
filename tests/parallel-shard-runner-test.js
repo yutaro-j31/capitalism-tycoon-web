@@ -1,5 +1,9 @@
 'use strict';
 
+// Under a parallel shard run the runner exports TEST_SHARD_PARALLELISM / TEST_SHARD_PARALLEL_REPORT to every test it starts.
+// This test drives the shard runner itself, so a nested copy must not inherit them (it would run in parallel mode, or wait on itself).
+delete process.env.TEST_SHARD_PARALLELISM; delete process.env.TEST_SHARD_PARALLEL_REPORT;
+
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');

@@ -67,6 +67,17 @@ async function exercise({ state, kind, pending, nested, soft, broken = false }) 
     const save = e.save; let hits = 0;
     e.save = () => { hits++; throw Error('ratchet save before admission threw'); };
     injection = { hits: () => hits, restore() { e.save = save; } };
+  } else if (kind === 'ownership-skew') {
+    const checkedRatios = e.updateOwnershipRatios; let hits = 0;
+    e.updateOwnershipRatios = function (...args) {
+      if (this.g.playerTurnaroundFund.status === 'ratcheted') {
+        hits++; this.g.sharesOut++;
+        const own = this.g.publicCompany && this.g.market.find(row => row.id === this.g.ticker);
+        if (own) { own.issuedShares = this.g.sharesOut; own.marketCap = own.price * this.g.sharesOut; }
+      }
+      return checkedRatios.apply(this, args);
+    };
+    injection = { hits: () => hits, restore() { e.updateOwnershipRatios = checkedRatios; } };
   } else if (kind === 'week') {
     let hits = 0;
     e.emit = function (type, ...args) {
@@ -84,7 +95,7 @@ async function exercise({ state, kind, pending, nested, soft, broken = false }) 
   try { result = nested ? e.runTransaction(() => e.advanceWeek(false)) : e.advanceWeek(false); }
   catch (ex) { error = ex; }
   finally { e.emit = injectedEmit; injection.restore(); m.saveStorageIDB = backend; }
-  check(reached > 0, 'actual installed ratchet was not reached');
+  check(reached > 0, 'actual installed ratchet was not reached: ' + (error?.stack || JSON.stringify({ result, fund: e.g.playerTurnaroundFund.status, plan: e.g.playerTurnaroundPlan?.status })));
   await backend.flush();
 
   async function durableBytes() {
@@ -107,6 +118,10 @@ async function exercise({ state, kind, pending, nested, soft, broken = false }) 
     const after = e.g, shares = Math.max(1, Math.round(prior.sharesOut * .15 / .85));
     check(after.week === prior.week + 1, 'one canonical week');
     check(after.sharesOut === prior.sharesOut + shares, 'independent issuer quantity');
+    if (after.publicCompany) {
+      const own = after.market.find(row => row.id === after.ticker);
+      check(own && own.issuedShares === after.sharesOut && own.marketCap === own.price * after.sharesOut, 'listed issued mirror');
+    }
     check(after.playerTurnaroundFund.status === 'ratcheted', 'fund not ratcheted');
     check(after.playerTurnaroundFund.shares === prior.playerTurnaroundFund.shares + shares, 'independent fund quantity');
     check(after.playerTurnaroundFund.ratchetShares === prior.playerTurnaroundFund.ratchetShares + shares, 'one ratchet issuance');
@@ -122,7 +137,7 @@ async function exercise({ state, kind, pending, nested, soft, broken = false }) 
   const failedSequence = Math.max(predecessorSequence, ...allocated);
   if (kind !== 'none') {
     check(injection.hits() > 0, 'fault not reached');
-    check(soft.includes(kind) ? result === false && !error : error && /threw/.test(error.message), 'wrong failure result');
+    check(soft.includes(kind) ? result === false && !error : error && (kind === 'ownership-skew' ? /株式数の整合を確認できませんでした/.test(error.message) : /threw/.test(error.message)), 'wrong failure result');
     check(JSON.stringify(e.g) === before, 'exact rollback changed full live state');
     check(localStorage.getItem(key) === bytes && backend.readSync(key) === bytes, 'rollback changed mirror/cache');
     check(await durableBytes() === bytes, 'failed issuance durable or pending predecessor lost');
@@ -179,18 +194,32 @@ async function retry() {
     }
     const cases = ['none', ...FAULT_KINDS.filter(k => k !== 'change'), 'week'].map(kind => ({ kind, pending: false, nested: false }));
     for (const kind of ['save-false', 'save-throw']) cases.push({ kind, pending: true, nested: false }, { kind, pending: false, nested: true });
-    let uninterrupted;
+    const listedState = JSON.parse(JSON.stringify(state));
+    Object.assign(listedState, { publicCompany: true, ticker: 'CPTY', stockPrice: 1000 });
+    // Pin a genuinely failed plan, as the listed-mirror regression does. A hand-set listing can grant an existing
+    // progression reward in this week and legitimately complete an active plan instead of triggering the ratchet.
+    listedState.playerTurnaroundPlan.status = 'failed';
+    listedState.market = listedState.market.filter(row => row.id !== 'CPTY');
+    listedState.market.push({ id: 'CPTY', name: listedState.companyName, price: 1000, previous: 1000,
+      issuedShares: listedState.sharesOut, marketCap: 1000 * listedState.sharesOut, trend: 0, volatility: 0,
+      priceHistory: [{ week: listedState.week, price: 1000 }] });
+    // Listed normal progression and refusal must both work with the #1211 mirror; keep the original full fault matrix.
+    for (const kind of ['none', 'ownership-skew', 'save-false', 'save-throw', 'week'])
+      cases.push({ kind, pending: false, nested: false, listed: true });
+    cases.sort((a, b) => Number(Boolean(b.listed)) - Number(Boolean(a.listed)));
+    const uninterrupted = {};
+
     for (const item of cases) {
       const context = await browser.newContext(options), label = JSON.stringify(item);
       try {
         const p = await open(context);
         await p.addScriptTag({ content: 'globalThis.__injectRatchetFault=' + inject.toString() + ';' });
-        const expected = await p.evaluate(exercise, { state, ...item, soft: SOFT_FAILURES });
+        const expected = await p.evaluate(exercise, { state: item.listed ? listedState : state, ...item, soft: SOFT_FAILURES });
         await fresh(context, expected, label + '/first');
-        if (item.kind === 'none') uninterrupted = expected;
+        if (item.kind === 'none') uninterrupted[item.listed ? 'listed' : 'unlisted'] = expected;
         else {
           const committed = await p.evaluate(retry);
-          assert.deepEqual(committed, uninterrupted, label + ': failure/retry equals uninterrupted same-seed week');
+          assert.deepEqual(committed, uninterrupted[item.listed ? 'listed' : 'unlisted'], label + ': failure/retry equals uninterrupted same-seed week');
           await fresh(context, committed, label + '/retry');
         }
         results.push({ ...item, pass: true }); record(false);
@@ -206,6 +235,6 @@ async function retry() {
       results.push({ mutation: 'disabled rollback rejected', pass: true });
     } finally { await broken.close(); }
     record(true);
-    console.log('Ratchet real WebKit evidence PASS: 14 scenarios + rejected rollback mutation');
+    console.log('Ratchet real WebKit evidence PASS: 19 scenarios + rejected rollback mutation');
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

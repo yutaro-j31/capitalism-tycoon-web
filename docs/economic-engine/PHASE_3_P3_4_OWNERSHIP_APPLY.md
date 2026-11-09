@@ -82,8 +82,10 @@ The Owner decided on 2026-10-28 that player-common writers are routed in **verif
 routed writer keeps its own quantity writes, so no supported or unsupported outcome changes.
 
 - `beginOwnershipLeg(engine, {writerId, kind, operationId, change})` runs inside the writer's transaction, before
-  the writer writes. It plans the leg against the current state. It returns `null` when there is no active
-  transaction or the planner cannot plan the leg. The planner cannot plan, for example:
+  the writer writes. It plans the leg against the current state. It returns `null` when there is no rollback
+  boundary or the planner cannot plan the leg. A rollback boundary is the engine's active transaction, or a verification boundary
+  facade whose owner restores the live state when the shadow closing fails and marks the facade with an own
+  `ownershipShadowBoundary: true` property (only the M&A financing wrapper does). The planner cannot plan, for example:
   - a later company generation (`currentCompanySerial` above 1);
   - an unlisted company for a public-only leg;
   - a quantity outside the planner's domain.
@@ -105,7 +107,11 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-INVESTOR `acceptInvestorOffer` (`js/expansion.js`), pre-IPO | `external-issue` | #1199 |
 | W-SHARE-SWAP `completeTargetAcquisition` (`js/ma-deal-room.js`), listed company, deal-room share swap | `external-issue` | #1204 |
 | W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | #1202 |
-| W-MARGIN-LIQ forced margin sale (`liquidate` → `sellPersonalStockRaw`, `js/personal-stock-margin.js`), the player's own ticker only, one leg per forced sale | `personal-sell` | this PR |
+| W-MA-EQUITY/SH financing wrapper of `completeTargetAcquisition` (`js/ma-acquisition-financing.js`), listed company, M&A public equity raise, live plan / final shadow confirmation | `external-issue` | #1210 |
+| W-IPO-CHAIN base `executeIPO` (`js/engine.js`), reached through the installed IPO chain's outer transaction; verified only | `ipo` | #1213 |
+| W-TURNAROUND-RATCHET weekly `settle` (`js/player-crisis-turnaround-fund.js`), listed/unlisted company | `external-issue` | this PR (depends on #1211 mirror fix) |
+
+| W-MARGIN-LIQ forced margin sale (`liquidate` → `sellPersonalStockRaw`, `js/personal-stock-margin.js`), the player's own ticker only, one leg per forced sale | `personal-sell` | #1212 |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -156,6 +162,21 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
     pass;
   - an issued-share write skewed by one share is refused, the whole closing is rolled back and nothing is durable;
   - a second-generation company keeps the existing closing.
+- **Writer suite** (`tests/ma-equity-raise-ownership-ratios-test.js`), financed M&A closing with a public equity raise on a
+  listed company with its own market row:
+  - the raise issues exactly the computed new shares (20,000) and the own row mirrors them;
+  - an issued-share write skewed by one share is refused, the whole financed closing is rolled back and nothing is
+    durable, and the unskewed retry commits;
+  - a second-generation company keeps the existing closing.
+- **Unit:** a shadow engine plans only with its own `ownershipShadowBoundary: true`; an inherited or false marker, or no
+  boundary, does not.
+
+- **IPO (verification only):**
+  - unit: an unlisted company's IPO leg plans and carries the planned listing; a listed company cannot plan one;
+    confirmation needs the planned buckets *and* the listing (listed, under the planned ticker, consistent issued
+    mirror); a different founder secondary or an inconsistent mirror is rejected;
+  - installed chain (zero-store investment route): the IPO succeeds unchanged; a bucket write skewed by one share is
+    refused and the whole IPO is rolled back; a second-generation company keeps the existing IPO.
 
 - **Writer suite** (`tests/player-own-share-conservation-test.js`), forced margin liquidation of an own-share lot:
   - inside a transaction and through the installed week, the forced sale leaves exactly the planned lot (the lot is
@@ -169,23 +190,95 @@ refuses that issuance, so the control breaks a copy of the committed state inste
 the skewed live issuance is refused and rolled back. The turnaround-fund acceptance Node
 and WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer
 now refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case
-that the skewed live issuance is refused and rolled back. The weekly ratchet (W-TURNAROUND-RATCHET) is not routed here. The overridden base engine
+that the skewed live issuance is refused and rolled back. The weekly ratchet (W-TURNAROUND-RATCHET) now verifies its existing issuance inside the canonical week; its mirror is synchronized before confirmation (#1211). The overridden base engine
 `buybackOwnShares` (W-BUYBACK-BASE) is not installed and is not routed.
 
 The share swap needed one writer fix to be checkable. `issueSharesToExternalHolders` (`js/engine.js`) raised
 `sharesOut` without the listing's own market row, which `updateMarket` only re-synced at the next week. The planner
 refuses a listing whose row disagrees with `sharesOut`, so every listed swap would have been refused. The helper now
 mirrors `issuedShares` and `marketCap` on the own row at once, as `updateMarket` does. The dormant legacy
-`acquireTarget('shareSwap')` and the M&A equity raise use the same helper and get the same mirror; neither is routed
-here. The deal-room unit-test loader (`tests/ma-deal-room-test-helpers.js`) now loads the read model, planner and
+`acquireTarget('shareSwap')` and the M&A equity raise use the same helper and get the same mirror. The deal-room unit-test loader (`tests/ma-deal-room-test-helpers.js`) now loads the read model, planner and
 apply modules in production order, because the routed writer requires them.
 
+The M&A equity raise runs on the financing wrapper's shadow engine, outside any `runTransaction`, so a transaction-only
+gate would never plan it. The wrapper now plans against the live state via its explicitly marked boundary facade, before cloning. It confirms the leg
+against the final shadow after financing, inner completion and finance validation, before live replacement; a mismatch throws into the wrapper's existing catch, which restores the live
+state and the save checkpoint. This adds no nested transaction and does not change how §1 treats the shadow boundary.
+
+IPO legs are verified only (Owner decision 2026-10-29). `applyOwnershipPlan` still refuses `ipo` plans, because the
+listing record and any lot rebinding stay with the existing writer; verification writes nothing, so those reasons do
+not apply to it. The leg sits in the base `executeIPO`, which production reaches only through the installed chain
+(difficulty → PE network → PE fund wrappers) whose outer transaction is the boundary.
+
 The forced margin sale is a weekly writer: a mismatch refuses the whole week. Each own-ticker raw sale plans against
-the state the previous sale left. The exported `liquidate` / `processWeek` called directly, outside a transaction, keep
-the documented boundary gap and stay unchecked; closing it is a separate atomicity change.
+the state the previous sale left. Since the G3/G4 bypass closure below, the exported `liquidate` / `processWeek` called
+directly, outside a transaction, open their own boundary, so those legs are checked as well.
 
 ## Limits
 
 This routes only the writers listed above, in verification mode, and does not activate the authority. It does not grant S_PASS for any family, and it does not
 change whole-command validation. The existing writers still own their financial and lifecycle rules. It does not
 certify P3-10, Phase 3 Exit or Phase 4 Entry.
+
+### Remaining-writer design alignment (Work A, 2026-10-29)
+
+The approved #1205 option B places the verification at the custom wrapper boundary. A regression injects a one-share
+founder skew at the final shadow validation stage, after the issuance itself. The earlier confirmation inside
+`executeFinancing` accepted that skew (RED on `6f00c95d`); the wrapper now refuses it before `replaceState`, preserves
+live/mirror/cache/durable state, and accepts the unskewed retry. The own boundary marker permits verification only;
+`applyOwnershipPlan` still requires an actual active transaction and stays dormant. Raw `executeFinancing` receives
+no new transaction or standalone atomicity guarantee.
+
+### Turnaround ratchet verification (Work A, 2026-10-29)
+
+`settle` plans the external-issue leg before changing issued shares and confirms after the existing quantity, fund
+metadata, own listing mirror and ownership-ratio writes. A mismatch throws into the canonical weekly transaction.
+It does not skip the ratchet, book a cash receipt, change dilution, invent a registered fund holder, save independently,
+or activate `applyOwnershipPlan`. Since the G3/G4 bypass closure below, a direct settlement outside a transaction opens
+its own boundary and is checked.
+
+`turnaround-ratchet-listed-mirror-test` proves first-generation listed and unlisted normal weeks, a one-share skew
+with a consistent mirror refused with full live/RNG/mirror/cache/durable rollback, fresh durable-only hydration,
+unskewed retry, terminal idempotence and the next ordinary week. Second-generation outcomes remain unchecked.
+The registered canonical week save-fault and actual WebKit suites remain applicable; success never relies on repairing
+an invalid input mirror in the verifier. #1211 is a prerequisite: a stale listed mirror would otherwise falsely block
+this deterministic weekly writer on every retry. Genuine corrupt writer output is still refused by design.
+
+### G3/G4 bypass closure (step 2 of the activation readiness memo)
+
+[PHASE_3_P3_4_ACTIVATION_READINESS.md](PHASE_3_P3_4_ACTIVATION_READINESS.md) G3 and G4 listed raw entries that could
+write player-common facts without a planned leg. The Owner approved closing them on 2026-11-03. Each now follows one
+rule: no player-common write outside a boundary.
+
+| Entry | Writer | Behaviour now |
+| --- | --- | --- |
+| Base `executeIPO` (`js/engine.js`) | W-IPO-BASE | Called directly outside a boundary, it opens its own transaction, so the IPO leg plans. The installed chain is unchanged. |
+| Ratchet `settle` (`js/player-crisis-turnaround-fund.js`) | W-TURNAROUND-RATCHET | Same: a direct call opens its own transaction. The installed week is unchanged. |
+| `liquidate` / `processWeek` (`js/personal-stock-margin.js`) | W-MARGIN-LIQ / W-MARGIN-RAW | Same: a direct call opens its own transaction, so each own-ticker raw sale's leg plans. The installed week is unchanged. |
+| `issueSharesToExternalHolders` (`js/engine.js`) | W-ISSUE-RAW | An internal helper: it throws outside a transaction or shadow boundary and writes nothing. The deal room calls it inside its transaction. The equity-raise wrapper now marks its shadow engine as the boundary (`ownershipShadowBoundary`), which it already was. |
+| Base `buybackOwnShares` (`js/engine.js`) | W-BUYBACK-BASE | Refuses and writes nothing. `js/shareholder-returns.js` installs the routed buyback (W-BUYBACK) over it. The legacy settlement had no leg and is removed. |
+| Legacy `acquireTarget(…, 'shareSwap')` (`js/engine.js`) | W-ACQUIRE-COMPAT | Routed: a direct call opens its own transaction, and the issuance plans its own `external-issue` leg (operation `acquire-target-share-swap-<target>`). The planner moves W-ACQUIRE-COMPAT from `INTERNAL_ENTRY` to the supported writers, for a listed company only, like W-SHARE-SWAP. Its acquisition, accounting and PMI outcomes are unchanged. Cash acquisitions are unchanged. |
+
+The shared helper is `phase3OwnershipApply.withOwnershipBoundary(engine, work)`. Inside a boundary it runs the work as
+is. Outside one it runs the work in `engine.runTransaction`, and a `null`, `undefined` or `false` result commits nothing,
+so an inert direct call neither saves nor emits. An object without `runTransaction`, such as a state-only stub, cannot
+plan a leg and runs as is.
+
+No supported outcome changes. The installed command and weekly paths were already inside a boundary, and the legacy share
+swap keeps its outcome. Only the base buyback is removed: it had no UI caller, and its legacy settlement had no leg, no
+treasury book and no whole-yen rounding. The tests that drove it now assert the refusal and that nothing is written or
+persisted (`tests/shareholder-buyback-save-atomicity-test.js`, `tests/player-own-share-conservation-test.js`).
+
+Two direct-call test contracts change on purpose:
+
+- A margin pass called outside the week now commits once at the end of its own boundary, never per lot
+  (`tests/player-own-share-conservation-test.js`). A call with no margin balance opens no boundary.
+- The raw issuance helper is called inside `runTransaction` in two fixtures
+  (`tests/activate-defense-ownership-ratios-test.js`, `tests/competitor-stake-float-test.js`).
+
+`tests/p3-4-raw-entry-boundary-case.js` (run by `tests/phase3-ownership-apply-test.js`) and the new direct-call cases in `tests/player-own-share-conservation-test.js`
+show that a skewed direct call of each command entry (base IPO, legacy share swap, ratchet, margin) is refused and
+rolled back. Both fail with the production change
+reverted.
+
+This closes G3 and G4 only. Generation 2+ (G1), replacement (G2), the competitor stake (G6) and activation stay deferred.

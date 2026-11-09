@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const { webkit, devices } = require('playwright');
+const { inject } = require('./fixtures/pe-fund-acquisition-faults');
+const { FAULT_KINDS, SOFT_FAILURES } = require('./helpers/transaction-fault-case');
 const ROOT = path.resolve(__dirname, '..');
 const ARTIFACT_DIR = path.resolve(process.env.MA_DEAL_ROOM_ARTIFACT_DIR || 'artifacts/ma-deal-room-webkit');
 const mime = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png' };
@@ -28,18 +30,8 @@ async function checkLoaded(page, qty, personalCash, price, avg) {
   assert.deepEqual(data, { qty, avg, personalCash, price, shares: 1000000, founder: 600000,
     companyCash: 100000000, receipts: 0, valid: true });
 }
-(async () => {
-  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const url = `http://127.0.0.1:${server.address().port}/`;
-  let browser;
-  const results = [];
-  try {
-    browser = await webkit.launch();
-    for (const fault of ['mirror', 'change']) {
-      const context = await browser.newContext(options), page = await context.newPage();
-      await page.goto(url, { waitUntil: 'networkidle' });
-      const proof = await page.evaluate(async fault => {
+// Runs in the actual page against its installed modules: one installed purchase under one fault.
+const purchaseCase = async ({ kind: fault, pending, nested, soft, mutation }) => {
         const m = globalThis.__capitalismTycoonModules, key = m.engine.SAVE_KEY;
         // Valid listed-company fixture; the command under test is the installed stock purchase.
         const state = m.engine.createInitialState({ configured: true });
@@ -64,28 +56,48 @@ async function checkLoaded(page, qty, personalCash, price, avg) {
             tx.onerror = () => reject(tx.error);
           };
         });
-        const before = JSON.stringify(e.g), bytes = localStorage.getItem(key), priorDurable = await durable();
-        let injected = false, result = null, thrown = false;
-        const emit = e.emit, setItem = Storage.prototype.setItem;
-        if (fault === 'mirror') Storage.prototype.setItem = function (k, value) {
-          if (this === localStorage && k === key && !injected) { injected = true; throw new DOMException('injected save rejection', 'SecurityError'); }
-          return setItem.call(this, k, value);
-        };
-        else e.emit = function (type, ...args) {
-          if (type === undefined || type === 'change') { injected = true; throw new Error('injected post-save change failure'); }
-          return emit.call(this, type, ...args);
-        };
-        try { result = e.buyStock('CPTY', 1000, 'personal'); } catch (_) { thrown = true; }
-        finally { Storage.prototype.setItem = setItem; e.emit = emit; }
+        if (mutation === 'rollback') e.restoreTransactionSnapshot = () => {};
+        // A pending predecessor is queued in this task, before any microtask can start its durable write.
+        if (pending && !e.save()) throw new Error('pending predecessor rejected');
+        const before = JSON.stringify(e.g), bytes = localStorage.getItem(key);
+        let injection, result = null, thrown = false;
+        if (fault === 'save-before-throw') {
+          const save = e.save; let hits = 0;
+          e.save = () => { hits++; throw new Error('purchase save before admission threw'); };
+          injection = { hits: () => hits, restore() { e.save = save; } };
+        } else injection = globalThis.__injectPurchaseFault(e, m, localStorage, key, fault);
+        try { result = nested ? e.runTransaction(() => e.buyStock('CPTY', 1000, 'personal')) : e.buyStock('CPTY', 1000, 'personal'); }
+        catch (_) { thrown = true; }
+        finally { injection.restore(); }
         await m.saveStorageIDB.flush();
+        const injected = injection.hits() > 0;
+        // The durable copy ends as the last accepted save: the pending predecessor when there is one, else the baseline.
         const rollback = JSON.stringify(e.g) === before && localStorage.getItem(key) === bytes
-          && m.saveStorageIDB.readSync(key) === bytes && await durable() === priorDurable;
-        if (!injected || !rollback || (fault === 'mirror' ? result !== false || thrown : !thrown))
-          throw new Error(`failure boundary did not roll back: ${JSON.stringify({ injected, rollback, result, thrown })}`);
+          && m.saveStorageIDB.readSync(key) === bytes && await durable() === bytes;
+        if (!injected) throw new Error(`fault not reached: ${fault}`);
+        if (!rollback || (soft.includes(fault) ? result !== false || thrown : !thrown))
+          throw new Error(`failure boundary did not roll back: ${JSON.stringify({ fault, pending, nested, rollback, result, thrown })}`);
         if (!e.save() || !e.save()) throw new Error('subsequent save failed');
         await m.saveStorageIDB.flush();
-        return { fault, injected, rollback, returned: result, thrown, nextSequence: JSON.parse(await durable()).saveSequence };
-      }, fault);
+        return { fault, pending, nested, reached: true, rollback, returned: result, thrown, nextSequence: JSON.parse(await durable()).saveSequence };
+};
+(async () => {
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${server.address().port}/`;
+  let browser;
+  const results = [];
+  try {
+    browser = await webkit.launch();
+    // P3-4 G03: the shared fault set in real WebKit, plus pending-predecessor and nested-transaction variants of the
+    // rejected and the admitted save. Every kind is reached by the installed purchase.
+    const cases = FAULT_KINDS.map(kind => ({ kind, pending: false, nested: false }));
+    for (const kind of ['save-false', 'save-throw']) cases.push({ kind, pending: true, nested: false }, { kind, pending: false, nested: true });
+    for (const item of cases) {
+      const context = await browser.newContext(options), page = await context.newPage();
+      await page.goto(url, { waitUntil: 'networkidle' });
+      await page.addScriptTag({ content: 'globalThis.__injectPurchaseFault=' + inject.toString() + ';' });
+      const proof = await page.evaluate(purchaseCase, { ...item, soft: SOFT_FAILURES, mutation: null });
       results.push(proof);
       await page.reload({ waitUntil: 'networkidle' }); await checkLoaded(page, 20000, 2000000, 100, 100);
       // Playwright exports both real IndexedDB and mirror bytes, then boots a new browser context.
@@ -111,6 +123,16 @@ async function checkLoaded(page, qty, personalCash, price, avg) {
       assert.equal(normal.price, normal.expectedPrice);
       await freshPage.reload({ waitUntil: 'networkidle' }); await checkLoaded(freshPage, 22000, normal.cash, normal.price, normal.avg);
       await fresh.close(); await context.close();
+    }
+    // Negative control: with the transaction rollback disabled, the same oracle must reject the purchase boundary.
+    {
+      const context = await browser.newContext(options), page = await context.newPage();
+      await page.goto(url, { waitUntil: 'networkidle' });
+      await page.addScriptTag({ content: 'globalThis.__injectPurchaseFault=' + inject.toString() + ';' });
+      await assert.rejects(page.evaluate(purchaseCase, { kind: 'save-false', pending: false, nested: false, soft: SOFT_FAILURES, mutation: 'rollback' }),
+        /did not roll back/, 'a disabled rollback is rejected');
+      results.push({ mutation: 'rollback disabled rejected', pass: true });
+      await context.close();
     }
     fs.writeFileSync(path.join(ARTIFACT_DIR, 'stock-purchase-atomicity-result.json'), JSON.stringify({ device: 'iPhone 13', ok: true, results }, null, 2));
     console.log('iPhone WebKit stock-purchase save/rollback and fresh IndexedDB hydration PASS');

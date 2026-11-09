@@ -1,0 +1,304 @@
+{
+  "schema": "k-fixed-duration-bounds-v1",
+  "sourceSha": "daa5236d2483a9dbd1b208bb6b84e44d88a39762",
+  "archiveSha256": "34cb96d26ea87f471dfc0996d8c1cfab35f234bcd62066fd2c46df8f7b223c8c",
+  "evidenceStatus": "cross-node-output-review-required",
+  "crossNodeDifferences": [
+    {
+      "label": "tests/player-crisis-turnaround-ratchet-week-rollback-test.js",
+      "stream": "stderr",
+      "nodes": [
+        {
+          "node": "v22.23.4",
+          "sha256": "34cf6869d0ade31f9c25962d44a41be1bb6c693e7bf3d2acf6dcdfe737de9570",
+          "bytes": 2613
+        },
+        {
+          "node": "v24.22.1",
+          "sha256": "176c5c10b7eb5110e5d718dff0750686c1557ff4aaf5d9ea4a6303ade3cba61a",
+          "bytes": 2613
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "node": "v22.23.4",
+      "cpuModel": "AMD EPYC 7763 64-Core Processor",
+      "logicalCpus": 4,
+      "physicalMemoryBytes": 16759443456,
+      "fixedSerialDurationScenarios": [
+        {
+          "concurrency": 1,
+          "totalCommandMs": 1687549.1326010001,
+          "longestCommandMs": 577105.246246,
+          "workPerSlotMs": 1687549.1326010001,
+          "lowerBoundMs": 1687549.1326010001,
+          "longestCommands": [
+            {
+              "index": 26,
+              "label": "tests/full-index-weekly-validate-208w-test.js"
+            }
+          ],
+          "idealFixedDurationSpeedupCeiling": 1
+        },
+        {
+          "concurrency": 2,
+          "totalCommandMs": 1687549.1326010001,
+          "longestCommandMs": 577105.246246,
+          "workPerSlotMs": 843774.5663005001,
+          "lowerBoundMs": 843774.5663005001,
+          "longestCommands": [
+            {
+              "index": 26,
+              "label": "tests/full-index-weekly-validate-208w-test.js"
+            }
+          ],
+          "idealFixedDurationSpeedupCeiling": 2
+        },
+        {
+          "concurrency": 4,
+          "totalCommandMs": 1687549.1326010001,
+          "longestCommandMs": 577105.246246,
+          "workPerSlotMs": 421887.28315025003,
+          "lowerBoundMs": 577105.246246,
+          "longestCommands": [
+            {
+              "index": 26,
+              "label": "tests/full-index-weekly-validate-208w-test.js"
+            }
+          ],
+          "idealFixedDurationSpeedupCeiling": 2.9241618293687393
+        }
+      ],
+      "measuredPasses": [
+        {
+          "name": "full-k-serial",
+          "measuredWallMs": 1687646,
+          "concurrency": 1,
+          "boundUsingThisPassDurations": {
+            "concurrency": 1,
+            "totalCommandMs": 1687549.1326010001,
+            "longestCommandMs": 577105.246246,
+            "workPerSlotMs": 1687549.1326010001,
+            "lowerBoundMs": 1687549.1326010001,
+            "longestCommands": [
+              {
+                "index": 26,
+                "label": "tests/full-index-weekly-validate-208w-test.js"
+              }
+            ],
+            "idealFixedDurationSpeedupCeiling": 1
+          },
+          "measuredMinusBoundMs": 96.86739899986424,
+          "boundExceedsMeasured": false
+        },
+        {
+          "name": "full-k-audited-serial",
+          "measuredWallMs": 1743947,
+          "concurrency": 1,
+          "boundUsingThisPassDurations": {
+            "concurrency": 1,
+            "totalCommandMs": 1743852.771231,
+            "longestCommandMs": 638692.75863,
+            "workPerSlotMs": 1743852.771231,
+            "lowerBoundMs": 1743852.771231,
+            "longestCommands": [
+              {
+                "index": 26,
+                "label": "tests/full-index-weekly-validate-208w-test.js"
+              }
+            ],
+            "idealFixedDurationSpeedupCeiling": 1
+          },
+          "measuredMinusBoundMs": 94.22876899992116,
+          "boundExceedsMeasured": false
+        },
+        {
+          "name": "full-k-parallel-2",
+          "measuredWallMs": 887644,
+          "concurrency": 2,
+          "boundUsingThisPassDurations": {
+            "concurrency": 2,
+            "totalCommandMs": 1775058.680685,
+            "longestCommandMs": 601248.816225,
+            "workPerSlotMs": 887529.3403425,
+            "lowerBoundMs": 887529.3403425,
+            "longestCommands": [
+              {
+                "index": 26,
+                "label": "tests/full-index-weekly-validate-208w-test.js"
+              }
+            ],
+            "idealFixedDurationSpeedupCeiling": 2
+          },
+          "measuredMinusBoundMs": 114.65965749998577,
+          "boundExceedsMeasured": false
+        },
+        {
+          "name": "full-k-parallel-4",
+          "measuredWallMs": 937143,
+          "concurrency": 4,
+          "boundUsingThisPassDurations": {
+            "concurrency": 4,
+            "totalCommandMs": 3058243.407036,
+            "longestCommandMs": 937139.104907,
+            "workPerSlotMs": 764560.851759,
+            "lowerBoundMs": 937139.104907,
+            "longestCommands": [
+              {
+                "index": 26,
+                "label": "tests/full-index-weekly-validate-208w-test.js"
+              }
+            ],
+            "idealFixedDurationSpeedupCeiling": 3.2633825555059883
+          },
+          "measuredMinusBoundMs": 3.8950930000282824,
+          "boundExceedsMeasured": false
+        }
+      ]
+    },
+    {
+      "node": "v24.22.1",
+      "cpuModel": "AMD EPYC 9V45 96-Core Processor",
+      "logicalCpus": 4,
+      "physicalMemoryBytes": 16759443456,
+      "fixedSerialDurationScenarios": [
+        {
+          "concurrency": 1,
+          "totalCommandMs": 938264.323882,
+          "longestCommandMs": 323296.577843,
+          "workPerSlotMs": 938264.323882,
+          "lowerBoundMs": 938264.323882,
+          "longestCommands": [
+            {
+              "index": 26,
+              "label": "tests/full-index-weekly-validate-208w-test.js"
+            }
+          ],
+          "idealFixedDurationSpeedupCeiling": 1
+        },
+        {
+          "concurrency": 2,
+          "totalCommandMs": 938264.323882,
+          "longestCommandMs": 323296.577843,
+          "workPerSlotMs": 469132.161941,
+          "lowerBoundMs": 469132.161941,
+          "longestCommands": [
+            {
+              "index": 26,
+              "label": "tests/full-index-weekly-validate-208w-test.js"
+            }
+          ],
+          "idealFixedDurationSpeedupCeiling": 2
+        },
+        {
+          "concurrency": 4,
+          "totalCommandMs": 938264.323882,
+          "longestCommandMs": 323296.577843,
+          "workPerSlotMs": 234566.0809705,
+          "lowerBoundMs": 323296.577843,
+          "longestCommands": [
+            {
+              "index": 26,
+              "label": "tests/full-index-weekly-validate-208w-test.js"
+            }
+          ],
+          "idealFixedDurationSpeedupCeiling": 2.9021783346486334
+        }
+      ],
+      "measuredPasses": [
+        {
+          "name": "full-k-serial",
+          "measuredWallMs": 938337,
+          "concurrency": 1,
+          "boundUsingThisPassDurations": {
+            "concurrency": 1,
+            "totalCommandMs": 938264.323882,
+            "longestCommandMs": 323296.577843,
+            "workPerSlotMs": 938264.323882,
+            "lowerBoundMs": 938264.323882,
+            "longestCommands": [
+              {
+                "index": 26,
+                "label": "tests/full-index-weekly-validate-208w-test.js"
+              }
+            ],
+            "idealFixedDurationSpeedupCeiling": 1
+          },
+          "measuredMinusBoundMs": 72.67611799994484,
+          "boundExceedsMeasured": false
+        },
+        {
+          "name": "full-k-audited-serial",
+          "measuredWallMs": 935328,
+          "concurrency": 1,
+          "boundUsingThisPassDurations": {
+            "concurrency": 1,
+            "totalCommandMs": 935257.5888949998,
+            "longestCommandMs": 320546.548402,
+            "workPerSlotMs": 935257.5888949998,
+            "lowerBoundMs": 935257.5888949998,
+            "longestCommands": [
+              {
+                "index": 26,
+                "label": "tests/full-index-weekly-validate-208w-test.js"
+              }
+            ],
+            "idealFixedDurationSpeedupCeiling": 1
+          },
+          "measuredMinusBoundMs": 70.41110500018112,
+          "boundExceedsMeasured": false
+        },
+        {
+          "name": "full-k-parallel-2",
+          "measuredWallMs": 515688,
+          "concurrency": 2,
+          "boundUsingThisPassDurations": {
+            "concurrency": 2,
+            "totalCommandMs": 1031260.746058,
+            "longestCommandMs": 348660.899446,
+            "workPerSlotMs": 515630.373029,
+            "lowerBoundMs": 515630.373029,
+            "longestCommands": [
+              {
+                "index": 26,
+                "label": "tests/full-index-weekly-validate-208w-test.js"
+              }
+            ],
+            "idealFixedDurationSpeedupCeiling": 2
+          },
+          "measuredMinusBoundMs": 57.62697099999059,
+          "boundExceedsMeasured": false
+        },
+        {
+          "name": "full-k-parallel-4",
+          "measuredWallMs": 504590,
+          "concurrency": 4,
+          "boundUsingThisPassDurations": {
+            "concurrency": 4,
+            "totalCommandMs": 1639077.919135,
+            "longestCommandMs": 504587.303778,
+            "workPerSlotMs": 409769.47978375,
+            "lowerBoundMs": 504587.303778,
+            "longestCommands": [
+              {
+                "index": 26,
+                "label": "tests/full-index-weekly-validate-208w-test.js"
+              }
+            ],
+            "idealFixedDurationSpeedupCeiling": 3.248353469979765
+          },
+          "measuredMinusBoundMs": 2.69622199999867,
+          "boundExceedsMeasured": false
+        }
+      ]
+    }
+  ],
+  "runtimeExecuted": false,
+  "movingMainRequalified": false,
+  "durationsInvariantUnderConcurrencyVerified": false,
+  "memoryCapacityQualified": false,
+  "parallelExecutionQualified": false,
+  "productionAuthorized": false
+}

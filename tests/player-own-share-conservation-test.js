@@ -59,12 +59,12 @@ function rejectsWithoutWrites(f,work){
   rejectsWithoutWrites(f,()=>f.game.buybackOwnShares(1000000));
 }
 
-// The inactive base-class fallback must not bypass the same quantity protection.
-// Its legacy settlement is not the installed P2 writer and is not adopted here.
+// The inactive base-class fallback cannot bypass the installed writer: since the G3 bypass closure it refuses and
+// writes nothing.
 {
   const f=setup(0x33030009);assert.equal(f.game.buyStock('CPTY',1000,'personal'),true);
   const base=Object.getPrototypeOf(f.loaded.engineModule.TycoonEngine.prototype).buybackOwnShares;
-  assert.equal(base.call(f.game,100000000),true);assert.equal(f.game.g.treasuryBuybackShares,399000);reconciles(f);
+  rejectsWithoutWrites(f,()=>base.call(f.game,100000000));reconciles(f);
 }
 
 // Exact residual boundary, excess rejection and the unchanged existing per-order quote cap.
@@ -226,12 +226,14 @@ assert.deepEqual(differingPaths(replayA,replayB),[],'same state/commands produce
   const replayFinance=JSON.stringify(replay.g.finance);
   const effects={sellStock:0,save:0,emit:0,notify:0};
   replay.sellStock=()=>{effects.sellStock++;assert.fail('weekly liquidation must bypass the public sale command');};
-  replay.save=()=>{effects.save++;assert.fail('weekly liquidation must not save independently');};
-  replay.emit=()=>{effects.emit++;assert.fail('weekly liquidation must not emit independently');};
+  // Called here outside the week, the margin pass opens its own ownership boundary (G4): it commits once at the end of
+  // that boundary, never per sold lot, and the commit happens only after every sale is done.
+  replay.save=()=>{effects.save++;assert.equal(margin.balanceOf(replay.g),0,'the boundary commits after the whole liquidation');return true;};
+  replay.emit=()=>{effects.emit++;};
   replay.notify=()=>{effects.notify++;};
   const replayDraws=f.draws(),replayRng=JSON.stringify(replay.g.simulationRng);
   assert.equal(replay.updatePersonalExpandedWeekly(),0,'installed personal weekly entry point');
-  assert.deepEqual(effects,{sellStock:0,save:0,emit:0,notify:1},'one margin-call notification, no per-lot command side effects');
+  assert.deepEqual(effects,{sellStock:0,save:1,emit:1,notify:1},'one margin-call notification and one boundary commit, no per-lot command side effects');
   assert.equal(margin.balanceOf(replay.g),0);
   assert.equal(replay.g.personalStocks.CPTY,undefined);
   assert.deepEqual(plain(f.loaded.modules.economicReadModel.ownershipReconciliation(replay.g)),after);
@@ -241,7 +243,7 @@ assert.deepEqual(differingPaths(replayA,replayB),[],'same state/commands produce
   assert.equal(JSON.stringify(replay.g.finance),replayFinance);
   const replayBytes=JSON.stringify(replay.g);
   assert.equal(replay.updatePersonalExpandedWeekly(),0);
-  assert.deepEqual(effects,{sellStock:0,save:0,emit:0,notify:1});
+  assert.deepEqual(effects,{sellStock:0,save:1,emit:1,notify:1},'an inert second pass commits nothing');
   assert.equal(JSON.stringify(replay.g),replayBytes);
   assert.equal(f.draws(),replayDraws);
   assert.equal(JSON.stringify(replay.g.simulationRng),replayRng);
@@ -268,6 +270,12 @@ assert.deepEqual(differingPaths(replayA,replayB),[],'same state/commands produce
    assert.equal(JSON.stringify(g),prior,'and the whole boundary is rolled back');}
   {const {f,g,margin}=called(2);skew(g);
    assert.equal(f.game.runTransaction(()=>margin.processWeek(f.game)!==null),true,'second generation keeps the existing liquidation (unchecked)');}
+  // G4: the exports called directly, outside any transaction, open their own boundary, so the leg is checked there too.
+  {const {f,g,margin}=called();assert.equal(f.game.inTransaction(),false);
+   assert.notEqual(margin.processWeek(f.game),null,'a healthy direct processWeek liquidates');assert.equal(g.personalStocks.CPTY,undefined);assert.equal(margin.balanceOf(g),0);}
+  for(const entry of ['processWeek','liquidate']){const {f,g,margin}=called(),prior=JSON.stringify(g);skew(g);
+   assert.throws(()=>margin[entry](f.game),/株式数の整合を確認できませんでした/,`a skewed direct ${entry} is refused`);
+   assert.equal(JSON.stringify(f.game.g),prior,`and the whole direct ${entry} is rolled back`);}
   {const {f,g,margin}=called(),prior=JSON.stringify(g),save=f.game.save;skew(g);f.game.save=()=>true;
    assert.throws(()=>f.game.advanceWeek(false),/株式数の整合を確認できませんでした/,'the installed week refuses a skewed forced sale');
    f.game.save=save;assert.equal(JSON.stringify(g),prior,'and the whole week is rolled back');void margin;}

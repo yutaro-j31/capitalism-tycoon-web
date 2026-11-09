@@ -58,7 +58,15 @@ function marketIndicator(g){return clamp(finite(g?.realEstateCycle,1),.65,1.55);
 // low-rent/low-traffic strategy is not penalized. Bounded at +4 slots (siteMultiplier arrives
 // pre-bounded to [.9,1.1] by tenantSiteSuitability) so this lever cannot dominate efficiency.
 function siteCapacityBonus(siteMultiplier){return Math.max(0,Math.min(4,Math.round((clamp(siteMultiplier,.9,1.1)-1)*40)));}
-function capacityFor(business,siteMultiplier=1){return Math.max(6,8+Math.floor(clamp(business?.efficiency,0,100)/5))+siteCapacityBonus(siteMultiplier);}
+// Per-store sales agents: the player's own lever on a store's pipeline. Each agent prospects (weekly inquiries
+// x(1+INQUIRY_BOOST_PER_AGENT)), adds SLOTS_PER_AGENT concurrent deals so the extra mandates fit, and costs
+// AGENT_WEEKLY_WAGE a week (before the same inflation, operating-hours and crisis multipliers as the store wage).
+// The extra inquiries scale with the site's own traffic and the market cycle, so an agent pays at a busy site in a good
+// market and loses money at a quiet site or in a slump. A save without the field has no agents, so it is unchanged.
+const MAX_AGENTS=3,SLOTS_PER_AGENT=3,AGENT_WEEKLY_WAGE=70000,INQUIRY_BOOST_PER_AGENT=.12;
+function agentsFor(store){return Math.min(MAX_AGENTS,integer(store?.brokerageAgents));}
+function agentWeeklyWage(store){return agentsFor(store)*AGENT_WEEKLY_WAGE;}
+function capacityFor(business,siteMultiplier=1,agents=0){return Math.max(6,8+Math.floor(clamp(business?.efficiency,0,100)/5))+siteCapacityBonus(siteMultiplier)+Math.min(MAX_AGENTS,integer(agents))*SLOTS_PER_AGENT;}
 function eligibleStores(stores){return (Array.isArray(stores)?stores:[]).filter(store=>store?.businessID===BUSINESS_ID&&store.status==='open');}
 function sanitizeDeal(deal,storeID,week,seed){
   if(!deal||typeof deal!=='object')return null;
@@ -70,9 +78,16 @@ function sanitizeDeal(deal,storeID,week,seed){
 function ensureStore(store,business,week,seed,siteMultiplier=1){
   const raw=store.brokeragePipeline&&typeof store.brokeragePipeline==='object'?store.brokeragePipeline:{};
   const active=Array.isArray(raw.activeDeals)?raw.activeDeals.map(x=>sanitizeDeal(x,store.id,week,seed)).filter(Boolean):[];
-  const capacity=capacityFor(business,siteMultiplier),totals=raw.totals&&typeof raw.totals==='object'?raw.totals:{};
+  const capacity=capacityFor(business,siteMultiplier,agentsFor(store)),totals=raw.totals&&typeof raw.totals==='object'?raw.totals:{};
   store.brokeragePipeline={schemaVersion:SCHEMA_VERSION,capacity,activeDeals:active.slice(0,capacity),lastWeek:raw.lastWeek&&typeof raw.lastWeek==='object'?raw.lastWeek:null,totals:{inquiries:integer(totals.inquiries),mandates:integer(totals.mandates),closedDeals:integer(totals.closedDeals),singleClosedDeals:integer(totals.singleClosedDeals),doubleClosedDeals:integer(totals.doubleClosedDeals),closedBySegment:sanitizeSegmentCounts(totals.closedBySegment),lostDeals:integer(totals.lostDeals),closedTransactionVolume:integer(totals.closedTransactionVolume),commissionRevenue:integer(totals.commissionRevenue),capacityLostInquiries:integer(totals.capacityLostInquiries)},history:Array.isArray(raw.history)?raw.history.filter(x=>x&&typeof x==='object').slice(-HISTORY_LIMIT):[]};
   return store.brokeragePipeline;
+}
+// Resize one store's pipeline (after its agents change) without touching any other store.
+function normalizeStore(g,store){
+  if(!store||store.businessID!==BUSINESS_ID||!store.brokeragePipeline||typeof store.brokeragePipeline!=='object')return null;
+  const business=(Array.isArray(g?.businesses)?g.businesses:[]).find(x=>x?.id===BUSINESS_ID);
+  const siteMultiplier=globalThis.__capitalismTycoonModules?.tenantSiteSuitability?.forStore?.(g,store)?.multiplier??1;
+  return ensureStore(store,business,integer(g.week,1),seedOf(g),siteMultiplier);
 }
 function normalize(g){
   const businesses=Array.isArray(g?.businesses)?g.businesses:[],business=businesses.find(x=>x?.id===BUSINESS_ID);
@@ -95,7 +110,7 @@ function processStore(g,store,business,pref,siteMultiplier=1){
     else survivors.push(deal);
   }
   pipeline.activeDeals=survivors;
-  const inquiryBase=(2+brand/12)*(finite(pref?.traffic,1))*(.72+cycle*.28)*(1+dx/250)*clamp(siteMultiplier,.9,1.1),inquiries=Math.max(0,Math.floor(inquiryBase+hash(seedOf(g),`${store.id}:inquiries:${week}`)*2));
+  const inquiryBase=(2+brand/12)*(finite(pref?.traffic,1))*(.72+cycle*.28)*(1+dx/250)*clamp(siteMultiplier,.9,1.1)*(1+INQUIRY_BOOST_PER_AGENT*agentsFor(store)),inquiries=Math.max(0,Math.floor(inquiryBase+hash(seedOf(g),`${store.id}:inquiries:${week}`)*2));
   const available=Math.max(0,pipeline.capacity-pipeline.activeDeals.length),mandateChance=clamp(.34+brand*.002+quality*.0015+(cycle-1)*.12,.2,.68)*MANDATE_PACE;let mandates=0,processedInquiries=0;
   for(;processedInquiries<inquiries&&mandates<available;processedInquiries++)if(hash(seedOf(g),`${store.id}:mandate:${week}:${processedInquiries}`)<mandateChance){
     const id=`BRA-${store.id}-${week}-${processedInquiries}`,segment=segmentForDeal(seedOf(g),id,store.id,focusFor(business).id),marketValue=(18_000_000+hash(seedOf(g),`${id}:asking`)*52_000_000)*cycle*SEGMENT_CONFIG[segment].valueMultiplier;
@@ -111,5 +126,5 @@ function processStore(g,store,business,pref,siteMultiplier=1){
   for(const segment of SEGMENTS)pipeline.totals.closedBySegment[segment]+=closedBySegment[segment];
   return {sales:commissionRevenue,variable:Math.round(commissionRevenue*.1),kpi:row};
 }
-modules.realEstateAgencyPipeline=Object.freeze({BUSINESS_ID,SCHEMA_VERSION,CLOSE_PACE,MANDATE_PACE,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,eligibleStores,ensureStore,normalize,processStore});
+modules.realEstateAgencyPipeline=Object.freeze({normalizeStore,MAX_AGENTS,SLOTS_PER_AGENT,AGENT_WEEKLY_WAGE,INQUIRY_BOOST_PER_AGENT,agentsFor,agentWeeklyWage,BUSINESS_ID,SCHEMA_VERSION,CLOSE_PACE,MANDATE_PACE,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,eligibleStores,ensureStore,normalize,processStore});
 })();

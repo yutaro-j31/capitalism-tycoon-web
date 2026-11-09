@@ -36,3 +36,13 @@ durable bytes remain unchanged until release. After rejection, releasing the ori
 the accepted predecessor and admit no rejected put. The existing full rollback, predecessor reload/fresh hydration,
 installed recovery settlement oracle and one recovery-put checks apply. Original eight cases remain unchanged
 in meaning. This is a specific pending-write ordering proof, not successful legacy settlement or all schedules.
+
+## Superseded by the G3 bypass closure
+
+Since the G3/G4 bypass closure ([PHASE_3_P3_4_OWNERSHIP_APPLY.md](PHASE_3_P3_4_OWNERSHIP_APPLY.md)), the base body
+refuses and writes nothing, so it has no speculative settlement to reject. The same cases in
+`tests/shareholder-buyback-save-atomicity-test.js` now require:
+
+- the captured body returns false and writes nothing;
+- no save fault is reached and no put starts;
+- the existing rollback, predecessor, reload, hydration and installed recovery oracles still hold.

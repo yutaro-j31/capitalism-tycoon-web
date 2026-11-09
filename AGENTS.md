@@ -64,7 +64,72 @@ Do **not** autonomously:
 - access or mutate production services/data unless the user explicitly authorizes that operation and the environment is known to be safe
 - overwrite, reset, clean, or stash unknown work just to obtain a clean tree
 
-**Owner-approved conditional autonomous merges (#1055):** Agents may merge an otherwise eligible **low-risk** PR without a fresh Owner request when it does not change an authoritative economic writer or cash/ledger/debt/ownership/save semantics; its latest HEAD and base are verified; all applicable required final-HEAD CI, focused tests, and relevant compatibility/browser checks have passed; no material in-scope finding or unresolved PR-specific approval remains; and the repository's permissions and protection rules allow the merge. A separate Claude session/subagent may provide scoped review while Codex is unavailable, but this is **same-model review, not independent review**; report that limitation. Existing specific Owner conditions still apply. High-impact financial writers, save/IndexedDB persistence, asset/cash/ownership/debt authority, legacy migrations and cutovers require their existing independent-review/Owner gates or a new **specific** Owner authorization; otherwise hold that PR's merge and continue unrelated safe work. Never weaken or skip tests to qualify. After any merge, verify the new main and report the result.
+**Owner-approved conditional autonomous merges (#1055):** Agents may merge an otherwise eligible **low-risk** PR without a fresh Owner request when it does not change an authoritative economic writer or cash/ledger/debt/ownership/save semantics; its latest HEAD and base are verified; all applicable required final-HEAD CI, focused tests, and relevant compatibility/browser checks have passed; no material in-scope finding or unresolved PR-specific approval remains; and the repository's permissions and protection rules allow the merge. A separate Claude session/subagent may provide scoped review while Codex is unavailable; when Claude also authored the diff this is **same-model review, not independent review**; report that limitation. The substitute-review rule below defines when such a review counts as independent. Existing specific Owner conditions still apply. High-impact financial writers, save/IndexedDB persistence, asset/cash/ownership/debt authority, legacy migrations and cutovers require their existing independent-review/Owner gates or a new **specific** Owner authorization; otherwise hold that PR's merge and continue unrelated safe work. Never weaken or skip tests to qualify. After any merge, verify the new main and report the result.
+
+**When Codex review is unavailable (Owner instruction given in the Owner's Claude Code session on 2026-11-03; this paragraph, added by #1313, is the written form):** these are **unavailability, not a finding**:
+
+- a Codex usage-limit notice ("You have reached your Codex usage limits");
+- a review that ends `Failed` / "We couldn't complete this review";
+- a review still `Running` with no result 30 minutes or more after one re-request.
+
+The review summary may show `has_any_findings: true` even though no finding was posted; read the actual comments. Do not wait for Codex, and do not post further `@codex review` requests while the limit holds. Substitute this review instead:
+
+1. **Reviewer.** A review is **independent** only when no commit or fixup in the PR came from the reviewer's model family. Determine authorship from each commit's author and trailers (for example `Co-Authored-By`, `Claude-Session`) and from authorship statements in the PR. If the authorship of any commit is unknown, treat the review as same-model. For example, Claude reviewing a PR whose every commit is Codex-authored is independent. Otherwise use a **fresh-context** reviewer that wrote none of the diff, such as a separate session or subagent. That is a **same-model** review: label it so and never call it independent. The record names the model families that authored the PR and the reviewer families that were available.
+2. **Scope.** Review the exact final-HEAD diff against the current base: production code first, then tests, then docs. For each production change, trace:
+   - its caller;
+   - its boundary and rollback;
+   - unplannable and second-generation paths;
+   - cash, ledger, ownership and save effects.
+3. **Evidence.** Merge the head onto the current base locally and run the focused tests for every touched writer. For a production change, also show that the new regression test fails with the change reverted (a mutation check). Confirm final-HEAD CI is green and the merge is conflict-free.
+4. **Freshness.** The review covers one HEAD. If the HEAD changes after the review, through new commits or a base merge, redo steps 1–5 for the new HEAD before merging. Re-determine independence (step 1) against every commit at the new HEAD, and post a new record. If only the base moves, redo step 3 against the current base before merging: the local merge, the focused tests and the conflict check. Note it on the record. If that merge changes any reviewed file, redo steps 1–5.
+5. **Record.** Post one PR comment headed "Substitute review (Codex unavailable)". This comment is the record of truth. It names:
+   - the reviewer;
+   - the authoring model family of each commit, and the reviewer families that were available;
+   - whether the review is independent or same-model;
+   - the reviewed HEAD;
+   - the findings, or "no findings";
+   - the tests and mutation checks run.
+
+   Also mention the substitute review in the merge commit message when you control it.
+
+Gates:
+
+- **Low-risk PRs.** The #1055 conditional merge rule applies with the substitute review in place of Codex.
+- **High-impact financial, persistence or authority PRs.** These are never merged autonomously under the low-risk part of #1055. As #1055 states, they need their existing independent-review/Owner gates **or** a new specific Owner authorization. An independent substitute review satisfies the independent-review part of those gates; any other existing Owner condition still applies. A same-model substitute review never satisfies the independent-review part. Without the gates or a specific authorization, hold the merge, continue unrelated work, and report the hold once.
+
+When Codex becomes available again, it resumes as the default reviewer for new heads. Already-merged PRs do not need a retroactive Codex review.
+
+**Owner-relayed independent review (Owner instruction in the Owner's Claude Code session on 2026-11-04 JST):** while Codex is unavailable, the Owner may relay a review to an ordinary chat of a model family that authored none of the PR's commits. For example, the Owner relays a ChatGPT chat for a Claude-authored PR. Such a review counts as **independent**: it replaces the reviewer of substitute step 1, and its record (step 4 below) replaces the substitute step 5 record. For a high-impact financial, persistence or authority PR it satisfies the independent-review part of the Gates. Any other Owner condition still applies. Substitute steps 2 and 3 still bind the authoring agent: the caller, boundary, rollback and effect trace; the local merge; focused tests; and, for a production change, the mutation check. Independence is judged as in substitute step 1. The record lists each commit's authoring family, and unknown authorship counts as same-model. The procedure:
+
+1. **Packet.** The authoring agent writes a review packet. The packet contains:
+   - the PR number;
+   - the exact HEAD and base SHAs;
+   - the full final-HEAD diff as `git diff --no-color <base>...<HEAD>`, with the SHA-256 of that output;
+   - the PR body;
+   - the surrounding code that the diff depends on;
+   - the review questions.
+
+   The packet asks the reviewer to restate the HEAD SHA and the diff hash in its answer. The restatement only ties the answer to this packet; it does not prove what the reviewer read. It splits a diff that does not fit one message, and says so. The reviewer may ask for more code through the Owner; the agent supplies it in a follow-up packet.
+2. **Relay.** The Owner gives the packet to the reviewing chat. The Owner then pastes the reviewer's answer, unchanged, into the Owner's own message to the authoring agent. The agent never writes, completes or edits reviewer text. An answer that is shortened, paraphrased or missing the HEAD and hash restatement is void. Relaying a review is not Owner approval to merge.
+3. **Verify.** The authoring agent treats every finding as a claim. It reproduces or refutes each one, then fixes what is real. A finding it judges not real gets a reason on the record.
+4. **Record.** The authoring agent posts one PR comment headed "Independent review (Owner-relayed)". The comment is the record of truth. It contains:
+   - the reviewer family and product;
+   - the reviewed HEAD and diff hash, as restated by the reviewer. A mismatch with the packet voids the review. Before merging, the agent recomputes the hash with the same command and confirms it matches;
+   - the reviewer's answer **verbatim**, for example in a collapsed block;
+   - what was done about each finding;
+   - the commit authoring families, and the reviewer families that were available;
+   - the substitute step 2–3 checks and the CI the authoring agent ran.
+
+   The merge commit message mentions the relayed review when the agent controls it.
+
+   The Owner may confirm the record on the PR.
+5. **Freshness.** The review covers one HEAD. Any new HEAD needs a new relayed review and a new record. That includes a merge of the base into the branch:
+   - Re-check independence against every commit at the new HEAD.
+   - The new packet carries the whole final diff, and marks what changed since the reviewed HEAD.
+   - If only the base moves and the branch is unchanged, redo substitute step 3 (Evidence): local merge, focused tests and the conflict check. Note it on the record.
+   - If that local merge changes any reviewed file, redo relayed steps 1–5.
+
+An Owner-relayed review never replaces an Owner decision that a rule requires, such as authority activation, Phase Entry or Exit, or a HOLD.
 
 If the requested task cannot be completed safely because a required environment, credential, destructive decision, or product choice is genuinely unavailable, stop at that boundary and report the blocker precisely.
 

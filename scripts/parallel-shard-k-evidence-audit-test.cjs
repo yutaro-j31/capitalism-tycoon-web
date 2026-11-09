@@ -50,6 +50,29 @@ try {
   assert.throws(() => expectedFrom(source, sourceSha), /source tracked files must be clean/);
   const a = fixture(22), b = fixture(24);
   assert.equal(auditPair([a.report, b.report], expected, [a.root, b.root]).status, 'evidence-verified');
+  // Performance reporting must use the verified command data without changing it.
+  const profile = structuredClone(a.report);
+  for (const [index, wallMs] of [[2, 30], [4, 30], [1, 20]])
+    Object.assign(profile.runs[0].result.results[index], { wallMs, cpuMs: index, peakRssMb: index + 10 });
+  const originalProfile = structuredClone(profile);
+  const profiled = auditOne(profile, expected, a.root);
+  assert.equal(profiled.rounds[0].sumCommandWallMs, 106);
+  assert.deepEqual(profiled.rounds[0].longestCommands, [2, 4, 1].map(index => ({
+    index, label: commands[index].label, wallMs: index === 1 ? 20 : 30,
+    cpuMs: index, peakRssMb: index + 10
+  })), 'duration descending, canonical index breaks ties');
+  assert.deepEqual(profiled.host, { cpuModel: profile.cpuModel, logicalCpus: 4,
+    physicalMemoryBytes: 16 * 1024 ** 3 });
+  assert.equal(profiled.rounds[0].systemCpuUtilization, 0.5);
+  assert.equal(profiled.rounds[0].runnerCpuSeconds, 1);
+  assert.equal(profiled.rounds[0].cpuSecondsSampled, 0);
+  assert.deepEqual(profile, originalProfile, 'audit/profile leaves raw report unchanged');
+  const pair = auditPair([profile, b.report], expected, [a.root, b.root]);
+  assert.equal(pair.sourceSha, expected.sha);
+  assert.equal(pair.runnerSha256, expected.runnerSha256);
+  assert.deepEqual(pair.nodes[0].host, profiled.host);
+  assert.deepEqual(pair.nodes[0].rounds, profiled.rounds);
+  assert.equal(pair.productionAuthorized, false);
   const cases = [r => r.runs.pop(), r => r.identity.consistent = false, r => r.identity.numbered.pid++,
     r => delete r.identity.self.startTicks, r => r.targetSourceSha = 'wrong', r => r.runnerSha256 = 'wrong', r => r.rescueCleanup = [{ pid: 1 }],
     r => r.contractSummary = r.contractSummary.replace('628', '627'), r => r.runs[0].result.counts.passed--,
@@ -82,6 +105,37 @@ try {
     return reports.map(r => r.node.split('.')[0]).sort();
   }), ['v22', 'v24']);
   assert.ok(restoredRoots.every(root => !fs.existsSync(root)), 'success removes temporary files');
+  // Builder composes the unchanged strict auditor with complete restored input.
+  // This is retained-fixture replay, not a new workload/host qualification.
+  const { buildArchive, writeArchive } = require('./parallel-shard-k-archive-build.cjs');
+  withArchive(archived, archiveHash, archivePin, (reports, roots) => {
+    const pinnedExpected = { ...expected, sha: archivePin, runnerSha256: reports[0].runnerSha256 };
+    const inputs = roots.map((root, i) => ({ root, artifactId: 500 + i }));
+    const built = buildArchive(pinnedExpected, inputs), again = buildArchive(pinnedExpected, inputs);
+    assert.ok(built.bytes.equals(again.bytes), 'same inputs/runtime retain identical gzip bytes');
+    assert.equal(built.audit.status, 'cross-node-output-review-required');
+    assert.equal(built.audit.differences.length, 1, 'historical raw stderr gap is not normalized');
+    assert.equal(built.audit.productionAuthorized, false);
+    const output = path.join(directory, 'built.json.gz'); writeArchive(output, built);
+    assert.ok(fs.readFileSync(output).equals(built.bytes));
+    assert.throws(() => writeArchive(output, built), /EEXIST/);
+    assert.ok(fs.readFileSync(output).equals(built.bytes), 'refused overwrite preserves prior bytes');
+    assert.throws(() => buildArchive(pinnedExpected, [inputs[0]]), /both Node artifacts/);
+    assert.throws(() => buildArchive(pinnedExpected, [inputs[0], { ...inputs[1], artifactId: inputs[0].artifactId }]));
+    assert.throws(() => buildArchive({ ...pinnedExpected, sha: '0'.repeat(40) }, inputs));
+    const extra = path.join(roots[0], 'unexpected.json'); fs.writeFileSync(extra, '{}');
+    assert.throws(() => buildArchive(pinnedExpected, inputs)); fs.unlinkSync(extra);
+    const link = path.join(roots[0], 'linked.json'); fs.symlinkSync('controls-node-22.json', link);
+    assert.throws(() => buildArchive(pinnedExpected, inputs), /no symlinks/); fs.unlinkSync(link);
+    const files = JSON.parse(zlib.gunzipSync(built.bytes)).nodes[0].files;
+    const log = files.find(f => f.path.endsWith('.jsonl')), full = path.join(roots[0], log.path);
+    const bytes = fs.readFileSync(full); fs.unlinkSync(full);
+    assert.throws(() => buildArchive(pinnedExpected, inputs)); fs.writeFileSync(full, bytes);
+    fs.appendFileSync(full, '{}\n'); assert.throws(() => buildArchive(pinnedExpected, inputs)); fs.writeFileSync(full, bytes);
+    assert.throws(() => writeArchive(path.join(directory, 'corrupt.gz'), { ...built, bytes: Buffer.from('corrupt') }), /bytes changed/);
+    assert.ok(!fs.existsSync(path.join(directory, 'corrupt.gz')));
+  });
+
   assert.throws(() => withArchive(archived, archiveHash, archivePin, (_, roots) => {
     restoredRoots = roots; throw Error('visitor failed');
   }), /visitor failed/);
@@ -111,5 +165,30 @@ try {
     const copy = structuredClone(pack); mutate(copy); const zipped = zlib.gzipSync(JSON.stringify(copy));
     assert.throws(() => withArchive(zipped, hash(zipped), archivePin, () => {}));
   }
+  // New fixed checkpoint: replay complete Node22/24 raw evidence without any
+  // workload rerun, using the separately retained source manifest as expectation.
+  const freshPin = 'daa5236d2483a9dbd1b208bb6b84e44d88a39762';
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../docs/ci-evidence/k-refresh-source-daa5236d.json')));
+  assert.equal(manifest.sha, freshPin);
+  const fresh = fs.readFileSync(path.join(__dirname, '../docs/ci-evidence/k-current-source-hosted-2026-11-02.json.gz'));
+  const checked = withArchive(fresh, '34cb96d26ea87f471dfc0996d8c1cfab35f234bcd62066fd2c46df8f7b223c8c', freshPin, (reports, roots) => {
+    const result = auditPair(reports, manifest, roots);
+    const streams = reports.map(r => Buffer.from(r.runs[0].outputs.find(o => o.label === 'tests/player-crisis-turnaround-ratchet-week-rollback-test.js').stderrBase64, 'base64'));
+    assert.equal(streams[0].length, 2613); assert.equal(streams[1].length, 2613);
+    assert.deepEqual([...streams[0].keys()].filter(i => streams[0][i] !== streams[1][i]), [1707]);
+    assert.equal(streams[0][1707], 51); assert.equal(streams[1][1707], 52);
+    assert.ok(streams[0].toString().includes('task_queues:103:5'));
+    assert.ok(streams[1].toString().includes('task_queues:104:5'));
+    return result;
+  });
+  assert.equal(checked.status, 'cross-node-output-review-required');
+  assert.equal(checked.differences.length, 1); assert.equal(checked.productionAuthorized, false);
   console.log('K evidence audit: PASS (synthetic controls + archive restoration; not fresh hosted safety evidence)');
 } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+
+// Offline multi-run queue controls share this existing required K contract job.
+require('./parallel-shard-queue-series-test.cjs');
+
+require('./parallel-shard-k-source-drift-test.cjs');
+
+require('./parallel-shard-k-scheduling-bounds-test.cjs');

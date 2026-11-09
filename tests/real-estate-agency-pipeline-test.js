@@ -121,3 +121,6 @@ assert.deepEqual({personalCash:accounting.game.g.personalCash,personalDebt:accou
 assert.equal(accounting.loaded.modules.finance.validate(accounting.game.g).ok,true,accounting.loaded.modules.finance.validate(accounting.game.g).errors.join('\n'));
 
 console.log(JSON.stringify({week52,week208:{inquiries,closed,lost,singleClosed,doubleClosed,maxActive,closedTransactionVolume:volume,commissionRevenue:commission,closeRate:closed/inquiries}},null,2));
+// Per-store sales agents. The cases live in a module required here so the canonical test set (pinned by retained shard
+// evidence) keeps its size.
+require('./real-estate-agency-sales-agents-case');

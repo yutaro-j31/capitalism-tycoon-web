@@ -73,16 +73,25 @@ function copier(){
 const SOURCE_SPEC={fields:{
  ticker:'deep',currentCompanySerial:'deep',isCompanySold:'deep',publicCompany:'deep',stockPrice:'deep',week:'deep',
  personalCash:'deep',personalDebt:'deep',personalStocks:'deep',
+ familyTrustEstablished:'deep',familyTrustCash:'deep',familyTrustShares:'deep',
+ personalInvestments:{rows:['id','currentValue','owner','ownerAccount','status']},
+ luxuryAssets:{rows:['id','currentValue','owner','ownerAccount','status']},
+ sportsTeams:{rows:['id','value','owner','ownerAccount','status']},
+ personalRealEstateHoldings:{rows:['assetID','currentValue','ownerCorp','owner','ownerAccount','status']},
+ properties:{rows:['id','value','owner','ownerAccount','status']},
+ personalRealEstateCorp:{fields:{established:'deep',cash:'deep'}},
  market:{rows:['id','price','privateCompany','suspended']},
  finance:{fields:{loans:{rows:['loanID','sourceType','status','outstandingPrincipal']}}},
  personalMarginLoan:{fields:{balance:'deep'}},
  realEstate:{fields:{loans:{rows:['loanID','owner','status']}}},
  realEstateMarket:{fields:{loans:{rows:['id','owner','status','accountingTracked']}}},
- peDeals:{rows:['id','ownerAccount','status']},
+ peDeals:{rows:['id','ownerAccount','status','subsidiaryID','ownershipRatio','currentValuation']},
+ maSubsidiaries:{rows:['id','peDealID','status']},
+ overseasSubsidiaries:{rows:['id','peDealID','status']},
  peFirm:{fields:{funds:'deep'}},
  angelInvestments:{rows:['id','status']},
  startups:{rows:['id','ownedCompany','ownedPersonal','ddNegotiatedOwnedCompany','ddNegotiatedOwnedPersonal','ipoStockID','alive','subsidiary','activeFundingRound']},
- subsidiaries:{rows:['id','startupID','peDealID','sourcePEFundID','sourcePEDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredWeek','restructuredFrom','source','status','ownership']}
+ subsidiaries:{rows:['id','startupID','peDealID','sourcePEFundID','sourcePEDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredWeek','restructuredFrom','source','sourceType','status','ownership']}
 }};
 function captureView(raw){
  if(!record(raw))invalid('$');
@@ -192,19 +201,40 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
  const vc=vcInterests.projectVCSourceInterests(view),vcIssues=new Map(vc.issues.map(row=>[row.path,row.code]));
  for(const row of vc.observations){
   if(row.account==='company'){if(row.economicFraction>0)ownership.exclusions.push({sourcePath:row.sourcePath,basis:'company-owned',includedBy:null});continue;}
-  if(row.assetRole==='historical'){ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical',includedBy:null});continue;}
+  if(row.assetRole==='historical'){
+   const sourceRoot=row.sourcePath.slice(0,row.sourcePath.lastIndexOf('.'));
+   ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical',includedBy:null,
+    sourceEvidence:{conversionLinks:vc.conversionLinks.filter(link=>link.startupSourceId===row.startupSourceId&&link.sourcePath===sourceRoot+'.ipoStockID')
+     .map(link=>({...link,reasons:link.reasons.map(item=>({...item}))}))}});continue;
+  }
   if(row.assetRole==='no-interest')continue;
-  ownership.vc.push({sourcePath:row.sourcePath,startupSourceId:row.startupSourceId,status:row.status,economicFraction:row.economicFraction,code:vcIssues.get(row.sourcePath)||null});
+  ownership.vc.push({sourcePath:row.sourcePath,startupSourceId:row.startupSourceId,status:row.status,economicFraction:row.economicFraction,code:vcIssues.get(row.sourcePath)||null,
+   roundEvidence:vc.roundObservations.filter(evidence=>evidence.startupSourceId===row.startupSourceId&&evidence.account==='personal'
+    &&evidence.sourcePath===row.sourcePath.slice(0,row.sourcePath.lastIndexOf('.'))+'.activeFundingRound').map(evidence=>({...evidence,reasons:evidence.reasons.map(item=>({...item}))}))});
  }
  if(vc.issues.some(row=>row.path==='$'))ownership.issues.push(reason('INPUT_INVALID','vc','Startup source evidence could not be read.'));
+ // Reuse P3-7 legal-account/identity/alias checks; quantity and voting rights remain unknown.
+ // Only a uniquely attributed personal direct stake can carry its captured owner-stake value.
+ const directView=readModel.projectPEOwnership(view);
+ const directPE=directView.positions.filter(row=>row.accountKind==='personal'&&row.assetRole==='economic-interest');
+ ownership.peDirectIssues=directView.issues.filter(row=>{
+  const match=/^peDeals\[(\d+)\]/.exec(row.path),source=match&&view.peDeals[Number(match[1])];
+  return source&&source.ownerAccount!=='company'&&!['exited','sold'].includes(source.status);
+ }).map(row=>({code:row.code,path:row.path}));
+ const directPaths=new Set(directPE.map(row=>row.sourceRefs[0].path));
  (view.peDeals||[]).forEach((row,i)=>{
   const path=`peDeals[${i}]`;
   if(row.ownerAccount==='company'){if(row.status==='active')ownership.exclusions.push({sourcePath:path,basis:'company-owned',includedBy:null});return;}
   if(row.status==='exited'||row.status==='sold'){ownership.exclusions.push({sourcePath:path,basis:'historical',includedBy:null});return;}
-  ownership.peSources.push(ref(path,id(row.id)?row.id:null,'pe'));
+  if(!directPaths.has(path))ownership.peSources.push(ref(path,id(row.id)?row.id:null,'pe'));
  });
  // P3-7 GP fund capital evidence: a contribution ratio is not NAV, carry or title to fund assets.
  const pe=peFundInterests.projectPEFundInterests(view);
+ const fundValuation=peFundInterests.projectFundValuationEvidence(view);
+ const parentConversions=peFundInterests.projectFundParentConversions(view);
+ ownership.peFundSourceEvidence={fundInterests:pe.fundInterests,waterfallTerms:pe.waterfallTerms,
+  valuationFunds:fundValuation.funds,valuationIssues:fundValuation.issues,
+  parentConversions:parentConversions.conversions,parentConversionIssues:parentConversions.issues};
  for(const row of pe.fundInterests){
   if(row.current===false&&row.status==='observed'){ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical',includedBy:null});continue;}
   ownership.peSources.push(ref(row.sourcePath,row.fundId,'pe-fund'));
@@ -248,6 +278,78 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
    sourceMethod:'projectOwnershipSnapshot.listingObservations',sourceVersion:2,asOfWeek:week,coveredAssets:[],coveredLiabilities:[],sourceRefs:[ref(lot.sourcePath,lot.alias,'listed')],
    status:code?'unknown':'known',reasons:code?[reason(code,lot.sourcePath,'No unique active market price is observed for this personal listed lot.')]:[]});
  }
+ // Contract §8: legacy direct PE currentValuation is already the owner's stake, not EV.
+ // Never derive GP/fund NAV or multiply by ownershipRatio again.
+ for(const position of directPE){
+  const path=position.sourceRefs[0].path,source=view.peDeals[Number(/^peDeals\[(\d+)\]$/.exec(path)[1])];
+  const value=source.currentValuation,assetKey=position.positionId.slice('position:'.length);
+  const code=position.economicFraction.value===0&&typeof value==='number'&&value>0?'OWNERSHIP_CONFLICT'
+   :value===undefined?'VALUATION_INCOMPLETE':!money(value)||value<0?'NUMERIC_DOMAIN_UNSUPPORTED':null;
+  valuation.entries.push({valuationKey:`stake:${assetKey}`,assetKey,kind:'stakeValue',value:code?null:value,currency:JPY,provenance:'captured',
+   sourceMethod:'peDeals.currentValuation-owner-stake',sourceVersion:1,asOfWeek:week,coveredAssets:[path],coveredLiabilities:[],
+   sourceRefs:[ref(path,position.sourceDealID,'pe-direct')],status:code?'unknown':'known',
+   reasons:code?[reason(code,`${path}.currentValuation`,'Direct PE stake value is missing, invalid or contradicts a zero economic stake.')]:[]});
+ }
+ // Installed writers keep these as separate current personal inventories. A gross
+ // source mark is not net redemption; equal IDs across collections are not aliases.
+ for(const [collection,family,valueField,idField='id'] of [['personalInvestments','personal-investment','currentValue'],['luxuryAssets','personal-luxury','currentValue'],['sportsTeams','personal-sports','value'],['personalRealEstateHoldings','personal-property','currentValue','assetID'],['properties','personal-general-property','value']]){
+  const inventoryGroups=new Map();
+  (view[collection]||[]).forEach((row,i)=>{
+   let encoded=null;try{if(id(row[idField]))encoded=encodeURIComponent(row[idField]);}catch(_){}
+   const key=encoded!==null?`${family}:${encoded}`:`${family}:unidentified:${i}`;
+   if(!inventoryGroups.has(key))inventoryGroups.set(key,[]);
+   inventoryGroups.get(key).push({row,path:`${collection}[${i}]`});
+  });
+  for(const [assetKey,members] of inventoryGroups){
+   const {row,path}=members[0],refs=members.map(x=>ref(x.path,id(x.row[idField])?x.row[idField]:null,family));
+   // Mixed-account collections: company title is not direct personal wealth.
+   // Group before excluding so a conflicting duplicate cannot be silently selected.
+   const mixedOwner=collection==='sportsTeams'||collection==='properties';
+   if(mixedOwner&&members.length===1&&row.owner==='company'&&(row.ownerAccount===undefined||row.ownerAccount==='company')){
+    ownership.exclusions.push({sourcePath:path,basis:'company-owned',includedBy:'asset:own-company'});continue;
+   }
+   if(collection==='properties'&&members.length===1&&row.owner===null){
+    ownership.exclusions.push({sourcePath:path,basis:'not-owned',includedBy:null});continue;
+   }
+   const property=collection==='personalRealEstateHoldings';
+   if(property&&members.length===1&&['sold','foreclosed'].includes(row.status)){
+    ownership.exclusions.push({sourcePath:path,basis:'historical',includedBy:null});continue;
+   }
+   const mark=row[valueField];
+   const code=members.length>1?'ALIAS_CONFLICT':!id(row[idField])||assetKey.startsWith(`${family}:unidentified:`)?'IDENTITY_UNPROVEN'
+    :property&&row.ownerCorp!==undefined&&row.ownerCorp!==false?'OWNERSHIP_UNPROVEN'
+    :mixedOwner&&row.owner!=='personal'?'OWNERSHIP_UNPROVEN'
+    :[row.owner,row.ownerAccount].some(x=>x!==undefined&&x!=='personal')?'OWNERSHIP_CONFLICT'
+    :(property?row.status!=='owned':row.status!==undefined&&row.status!=='active')?'LIFECYCLE_UNKNOWN'
+    :mark===undefined?'VALUATION_INCOMPLETE':!money(mark)||mark<0?'NUMERIC_DOMAIN_UNSUPPORTED':null;
+   valuation.entries.push({valuationKey:`current:${assetKey}`,assetKey,kind:'reportedCurrentValue',value:code?null:mark,
+    currency:JPY,provenance:'captured',sourceMethod:`${collection}.${valueField}-gross`,sourceVersion:1,asOfWeek:week,
+    coveredAssets:members.map(x=>x.path),coveredLiabilities:[],sourceRefs:refs,status:code?'unknown':'known',
+    reasons:code?[reason(code,path,'Personal inventory current value is missing, ambiguous or not a supported current personal claim.',refs.map(x=>x.path))]:[]});
+  }
+ }
+ // Corporate treasury/holdings are source evidence, not the founder's direct cash.
+ const corp=view.personalRealEstateCorp,corpCash=corp&&corp.cash;
+ const heldPropertySources=(view.personalRealEstateHoldings||[]).flatMap((row,i)=>row.ownerCorp===true&&row.status==='owned'?
+  [{sourcePath:`personalRealEstateHoldings[${i}]`,sourceAssetId:id(row.assetID)?row.assetID:null,identityStatus:'unproven',
+    assetRole:'entity-asset-reference',personalWealthValue:null}]:[]);
+ ownership.personalRealEstateCorporation={sourcePath:'personalRealEstateCorp',coverage:'partial',
+  establishmentStatus:corp&&typeof corp.established==='boolean'?(corp.established?'established':'not-established'):'unknown',
+  reportedCash:money(corpCash)&&corpCash>=0?corpCash+0:null,cashStatus:money(corpCash)&&corpCash>=0?'source-observed':'unknown',
+  heldPropertySources,ownershipStatus:'unproven',nav:null,
+  reasons:money(corpCash)&&corpCash>=0?[]:[reason('AMOUNT_UNKNOWN','personalRealEstateCorp.cash','No valid non-negative corporate source cash is captured.')],
+  sourceRefs:[ref('personalRealEstateCorp',null,'personal-property-corp'),...heldPropertySources.map(row=>ref(row.sourcePath,row.sourceAssetId,'personal-property','entity-asset-reference'))]};
+ // Trust balances carry no issuer, beneficiary or valuation policy in the legacy source.
+ const trustCash=view.familyTrustCash,trustShares=view.familyTrustShares;
+ const cashObserved=money(trustCash)&&trustCash>=0,sharesObserved=Number.isSafeInteger(trustShares)&&trustShares>=0;
+ ownership.familyTrust={sourcePath:'familyTrust',coverage:'partial',
+  establishmentStatus:typeof view.familyTrustEstablished==='boolean'?(view.familyTrustEstablished?'established':'not-established'):'unknown',
+  reportedCash:cashObserved?trustCash+0:null,cashStatus:cashObserved?'source-observed':'unknown',
+  reportedShares:sharesObserved?trustShares+0:null,sharesStatus:sharesObserved?'source-observed':'unknown',
+  ownershipStatus:'unproven',beneficialFraction:null,securityId:null,nav:null,
+  reasons:[...cashObserved?[]:[reason('AMOUNT_UNKNOWN','familyTrustCash','No valid non-negative trust source cash is captured.')],
+   ...sharesObserved?[]:[reason('QUANTITY_UNKNOWN','familyTrustShares','No valid non-negative safe-integer trust share count is captured.')]],
+  sourceRefs:[ref('familyTrustEstablished',null,'family-trust'),ref('familyTrustCash',null,'family-trust'),ref('familyTrustShares',null,'family-trust')]};
  const loans=view.finance&&Array.isArray(view.finance.loans)?view.finance.loans:[],loanCounts=new Map();
  for(const loan of loans)if(id(loan.loanID))loanCounts.set(loan.loanID,(loanCounts.get(loan.loanID)||0)+1);
  loans.forEach((loan,i)=>{
@@ -419,16 +521,40 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
  // Founder loan receivables: principal once; the company payable stays inside company equity.
  // Only captured founder-loan receivables are principal assets; a supplied row's kind is caller-controlled.
  for(const row of valuation.filter(row=>row.kind==='principal'&&row.provenance==='captured'&&row.valuationKey.startsWith('principal:founder-loan:')))result.components.push(fromEntry(component(`asset:${row.assetKey}`,'asset',{includesKeys:[row.sourceRefs[0].path]}),row,1,'principal'));
+ // Source-scoped direct personal PE value is one asset; company mirrors and funds are excluded.
+ for(const row of valuation.filter(row=>row.kind==='stakeValue'&&row.provenance==='captured'&&row.valuationKey.startsWith('stake:pe-direct:')))
+  result.components.push(fromEntry(component(`asset:${row.assetKey}`,'asset',{includesKeys:[row.sourceRefs[0].path]}),row,1,'stakeValue'));
+ // Gross personal inventory marks are captured and counted once by durable source ID.
+ for(const row of valuation.filter(row=>row.kind==='reportedCurrentValue'&&row.provenance==='captured'&&['current:personal-investment:','current:personal-luxury:','current:personal-sports:','current:personal-property:','current:personal-general-property:'].some(prefix=>row.valuationKey.startsWith(prefix))))
+  result.components.push(fromEntry(component(`asset:${row.assetKey}`,'asset',{includesKeys:row.coveredAssets.slice()}),row,1,'reportedCurrentValue'));
  // Families without an approved valuation adapter stay explicitly unvalued, never zero.
  for(const row of ownership.vc)result.components.push(component(`asset:vc-personal:${row.sourcePath}`,'asset',{sourceRefs:[ref(row.sourcePath,row.startupSourceId,'vc')],includesKeys:[row.sourcePath],
+  sourceEvidence:{rounds:row.roundEvidence.map(evidence=>({...evidence,reasons:evidence.reasons.map(item=>({...item}))}))},
   reasons:[...(row.code?[reason(row.code,row.sourcePath,'Startup source evidence is unresolved.')]:[]),reason('VALUATION_INCOMPLETE',row.sourcePath,'Personal startup interests have no approved valuation basis (preferred terms, pending rounds).')]}));
  for(const row of ownership.angel)result.components.push(component(`asset:angel:${row.sourcePath}`,'asset',{sourceRefs:[ref(row.sourcePath,row.durableId,'angel')],includesKeys:[row.sourcePath],
   reasons:[reason('VALUATION_INCOMPLETE',row.sourcePath,'Legacy angel investments are a separate unresolved personal claim without an approved valuation basis.')]}));
+ const fundEvidence=ownership.peFundSourceEvidence;
  result.components.push(component('asset:pe-interests','asset',{sourceRefs:ownership.peSources.map(r=>({...r})),includesKeys:ownership.peSources.map(r=>r.path),
-  reasons:[...ownership.peCodes.map(code=>reason(code,'peFirm.funds','PE fund-interest source evidence is unresolved.')),
-   reason('VALUATION_INCOMPLETE','peDeals','Personal PE deal stakes and GP fund interests are unvalued: fund NAV, liabilities, waterfall/carry (OD-05) and P3-9 entitlement are not available.')]}));
- result.components.push(component('asset:unadapted-personal-families','asset',{
-  reasons:[reason('VALUATION_INCOMPLETE','personalAssets','Personal real estate, investments, luxury assets, sports teams, the personal real-estate corporation and family trust are not adapted in this slice.')]}));
+  sourceEvidence:{fundInterests:fundEvidence.fundInterests.map(row=>({...row})),waterfallTerms:fundEvidence.waterfallTerms.map(row=>({...row})),
+   valuationFunds:fundEvidence.valuationFunds.map(row=>({...row,reasons:copied(row.reasons),
+    heldAssetInputs:row.heldAssetInputs.map(asset=>({...asset,reasons:copied(asset.reasons)}))})),valuationIssues:copied(fundEvidence.valuationIssues),
+   parentConversions:fundEvidence.parentConversions.map(row=>({...row,sourceRefs:row.sourceRefs.map(source=>({...source})),reasons:copied(row.reasons)})),
+   parentConversionIssues:copied(fundEvidence.parentConversionIssues)},
+  reasons:[...ownership.peDirectIssues.map(row=>reason(row.code,row.path,'Direct PE ownership/alias evidence is unresolved.')),
+   ...ownership.peCodes.map(code=>reason(code,'peFirm.funds','PE fund-interest source evidence is unresolved.')),
+   reason('VALUATION_INCOMPLETE','peDeals','Unresolved direct PE stakes and GP fund interests remain unvalued; fund NAV, liabilities and waterfall/carry (OD-05) are not established.')]}));
+ const corporation=ownership.personalRealEstateCorporation;
+ result.components.push(component('asset:personal-real-estate-corporation','asset',{beneficialOwnerEntityId:null,
+  sourceRefs:corporation.sourceRefs.map(row=>({...row})),includesKeys:['personalRealEstateCorp'],
+  sourceEvidence:{...corporation,reasons:copied(corporation.reasons),heldPropertySources:corporation.heldPropertySources.map(row=>({...row})),sourceRefs:corporation.sourceRefs.map(row=>({...row}))},
+  reasons:[reason('OWNERSHIP_UNPROVEN','personalRealEstateCorp','Corporate source cash/property does not establish founder beneficial title.'),
+   reason('VALUATION_INCOMPLETE','personalRealEstateCorp','Corporate liabilities, ownership and net asset valuation are not established.')]}));
+ const trust=ownership.familyTrust;
+ result.components.push(component('asset:family-trust','asset',{beneficialOwnerEntityId:null,
+  sourceRefs:trust.sourceRefs.map(row=>({...row})),includesKeys:['familyTrustCash','familyTrustShares'],
+  sourceEvidence:{...trust,reasons:copied(trust.reasons),sourceRefs:trust.sourceRefs.map(row=>({...row}))},
+  reasons:[reason('OWNERSHIP_UNPROVEN','familyTrust','Trust source balances do not establish the founder beneficiary or beneficial fraction.'),
+   reason('VALUATION_INCOMPLETE','familyTrust','Trust share issuer, liabilities and net asset valuation remain unknown (OD-05).')]}));
  // Liabilities: union of distinct identities; mirrors are excluded, never re-added.
  for(const row of liabilities)result.components.push(fromEntry(component(row.liabilityKey,'liability',{includesKeys:row.includesKeys.slice()}),row,-1,'principal'));
  result.components.push(component('liability:unreconciled-coverage','liability',{reasons:copied(liabilityEvidence.coverage.reasons)}));
@@ -464,5 +590,26 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
  result.totalNetWorth=result.complete?result.knownNetWorth:null;
  return done();
 }
-modules.phase3FounderWealth=Object.freeze({PRIVATE_EQUITY_FACTOR,captureFounderWealthEvidence,projectFounderWealth});
+// Display rows for the read-only breakdown (P3-11 §13). Pure: labels only, no new arithmetic beyond
+// the projection's own known subtotal; an unvalued component keeps amountJPY null and is never zero.
+const COMPONENT_LABELS=[['asset:personal-cash','個人現金'],['asset:own-company','自社株（創業者持分）'],['asset:listed:','上場株'],
+ ['asset:vc-personal:','ベンチャー出資'],['asset:angel:','エンジェル投資'],['asset:pe-interests','PE持分'],['asset:family-trust','資産管理信託'],
+ ['asset:personal-real-estate-corporation','個人不動産法人'],['asset:founder-loan','会社への貸付金'],['liability:personal-debt','個人借入'],
+ ['liability:margin','信用取引の借入'],['liability:unreconciled-coverage','照合できていない負債']];
+const BASIS_LABELS={cash:'現金残高',marketPrice:'時価',stakeValue:'持分評価',reportedCurrentValue:'現在評価額',principal:'元本',equityValue:'株主価値'};
+function describeFounderWealth(result){
+ const rows=[];
+ for(const c of result&&list(result.components)?result.components:[]){
+  const hit=COMPONENT_LABELS.find(([prefix])=>prefix.endsWith(':')?c.componentId.startsWith(prefix):c.componentId===prefix||c.componentId.startsWith(`${prefix}:`));
+  const detail=hit&&hit[0].endsWith(':')?c.componentId.slice(hit[0].length):'';
+  const label=hit?hit[1]:c.side==='liability'?'その他の負債':'その他の資産';
+  rows.push({componentId:c.componentId,side:c.side==='liability'?'liability':'asset',label,detail,
+   amountJPY:typeof c.amountJPY==='number'?c.amountJPY:null,basis:c.valuationBasis===null?null:BASIS_LABELS[c.valuationBasis]||String(c.valuationBasis),
+   status:typeof c.amountJPY==='number'?'known':'unvalued'});
+ }
+ return freeze({authority:'read-only',complete:result?.complete===true,knownNetWorth:typeof result?.knownNetWorth==='number'?result.knownNetWorth:null,
+  totalNetWorth:result?.complete===true&&typeof result.totalNetWorth==='number'?result.totalNetWorth:null,
+  unvaluedCount:rows.filter(r=>r.status==='unvalued').length,inputRejected:rows.length===0,rows});
+}
+modules.phase3FounderWealth=Object.freeze({PRIVATE_EQUITY_FACTOR,captureFounderWealthEvidence,projectFounderWealth,describeFounderWealth});
 })();

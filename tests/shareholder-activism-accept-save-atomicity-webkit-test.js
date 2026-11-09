@@ -6,6 +6,8 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
 const {webkit,devices}=require('playwright');
 const {scenario}=require('./fixtures/stock-split-atomicity');
+const {inject}=require('./fixtures/pe-fund-acquisition-faults');
+const {FAULT_KINDS,SOFT_FAILURES}=require('./helpers/transaction-fault-case');
 const ROOT=path.resolve(__dirname,'..'),DIR=path.resolve(process.env.MA_DEAL_ROOM_ARTIFACT_DIR||'artifacts/ma-deal-room-webkit');
 const options={...devices['iPhone 13'],locale:'ja-JP',timezoneId:'Asia/Tokyo',serviceWorkers:'block'};
 const server=http.createServer((req,res)=>{try{const u=new URL(req.url,'http://localhost'),file=path.resolve(ROOT,u.pathname==='/'?'index.html':decodeURIComponent(u.pathname).slice(1));assert.ok(file.startsWith(ROOT+path.sep));res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json'})[path.extname(file)]||'application/octet-stream');res.setHeader('Cache-Control','no-store');res.end(fs.readFileSync(file));}catch(e){res.statusCode=404;res.end(String(e));}});
@@ -19,40 +21,56 @@ async function durable(browser,context,url){
  const state=await context.storageState({indexedDB:true});for(const origin of state.origins)origin.localStorage=[];
  const fresh=await browser.newContext({...options,storageState:state}),fp=await page(fresh,url);
  const result=await fp.evaluate(async()=>{const m=__capitalismTycoonModules;await m.saveStorageIDB.hydrate();const e=m.engine.TycoonEngine.load(),g=e.g;
-  const before={campaign:g.activeActivistCampaign?.status??null,treasury:g.treasuryBuybackShares,cash:g.companyCash,dps:g.dividendPerShare};
+  const before={companyName:g.companyName,campaign:g.activeActivistCampaign?.status??null,treasury:g.treasuryBuybackShares,cash:g.companyCash,dps:g.dividendPerShare};
   const second=e.acceptShareholderProposal();return {before,second,treasuryAfter:g.treasuryBuybackShares,cashAfter:g.companyCash,saveVersion:g.saveVersion};});
  await fresh.close();return result;
 }
 (async()=>{fs.mkdirSync(DIR,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const results=[];try{
  browser=await webkit.launch();console.log('Actual WebKit '+browser.version()+' / iPhone13 emulation / real IndexedDB');const url='http://127.0.0.1:'+server.address().port+'/';
  for(const [type,split] of [['buyback',0],['dividend',0],['dividend',2]]){
-  for(const fault of [null,'save-false','save-throw']){
+  // P3-4 G43: the buyback proposal runs the shared fault set plus pending-predecessor and nested-transaction variants;
+  // the dividend proposals keep their save-false and save-throw cases.
+  const faults=type==='buyback'&&!split?[{fault:null},...FAULT_KINDS.map(fault=>({fault})),...['save-false','save-throw'].flatMap(fault=>[{fault,pending:true},{fault,nested:true}]),{fault:'save-false',mutation:'rollback'}]
+   :[{fault:null},{fault:'save-false'},{fault:'save-throw'}];
+  for(const {fault,pending=false,nested=false,mutation=null} of faults){
    const g=await fixture(type),context=await browser.newContext(options),p=await page(context,url);
-   const live=await p.evaluate(async({g,fault,split})=>{
+   await p.addScriptTag({content:'globalThis.__injectActivismFault='+inject.toString()+';'});
+   // Negative control: with the transaction rollback disabled, the same oracle must reject the accept.
+   const run=p.evaluate(async({g,fault,split,pending,nested,soft,mutation})=>{
     const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(g),backend=m.saveStorageIDB,key=m.engine.SAVE_KEY;
     await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB prerequisite failed');if(!e.save())throw new Error('fixture save failed');await backend.flush();
     let proposedTotal=null;if(split){proposedTotal=e.g.activeActivistCampaign.dividendPerShare*(e.g.sharesOut-e.g.treasuryBuybackShares);if(e.stockSplit('CPTY',split)!==true)throw new Error('production split failed');await backend.flush();}
-    const before=JSON.stringify(e.g),bytes=backend.readSync(key),save=e.save;let result,error=null;
-    if(fault==='save-false')e.save=function(...a){return this.inTransaction()?save.apply(this,a):false;};
-    if(fault==='save-throw')e.save=function(...a){const r=save.apply(this,a);if(!this.inTransaction())throw new Error('save accepted then threw');return r;};
-    try{result=e.acceptShareholderProposal();}catch(ex){error=ex.message;}finally{e.save=save;}
+    // A pending accepted predecessor is queued in this task, before any microtask can start its durable write.
+    if(mutation==='rollback')e.restoreTransactionSnapshot=()=>{};
+    // The marker makes the predecessor differ from the fixture save, so the durable-only reload proves it persisted.
+    if(pending){e.g.companyName+=' (pending predecessor)';if(!e.save())throw new Error('pending predecessor rejected');}
+    const before=JSON.stringify(e.g),bytes=backend.readSync(key),save=e.save;let result,error=null,injection={hits:()=>0,restore(){}};
+    if(fault==='save-before-throw'){let hits=0;e.save=()=>{hits++;throw new Error('accept save before admission threw');};injection={hits:()=>hits,restore(){e.save=save;}};}
+    else if(fault)injection=__injectActivismFault(e,m,localStorage,key,fault);
+    try{result=nested?e.runTransaction(()=>e.acceptShareholderProposal()):e.acceptShareholderProposal();}catch(ex){error=ex.message;}finally{injection.restore();}
     await backend.flush();
-    if(fault){if(JSON.stringify(e.g)!==before||backend.readSync(key)!==bytes||localStorage.getItem(key)!==bytes)throw new Error('failed accept did not roll back '+JSON.stringify({fault,result,error}));}
+    if(fault){
+     if(injection.hits()<1)throw new Error('fault not reached: '+fault);
+     if(soft.includes(fault)?result!==false||error:!error||!/threw/.test(error))throw new Error('wrong failure result '+JSON.stringify({fault,result,error}));
+     if(JSON.stringify(e.g)!==before||backend.readSync(key)!==bytes||localStorage.getItem(key)!==bytes)throw new Error('failed accept did not roll back '+JSON.stringify({fault,result,error}));
+    }
     else if(result!==true||e.g.activeActivistCampaign!==null)throw new Error('accept failed');
     return {result:result??null,error,campaign:e.g.activeActivistCampaign?.status??null,treasury:e.g.treasuryBuybackShares,cash:e.g.companyCash,dps:e.g.dividendPerShare,proposedTotal,
      openTerm:e.g.activeActivistCampaign?.dividendPerShare??null,outstanding:e.g.sharesOut-e.g.treasuryBuybackShares};
-   },{g,fault,split});
+   },{g,fault,split,pending,nested,soft:SOFT_FAILURES,mutation});
+   if(mutation){await assert.rejects(run,/did not roll back/,'a disabled rollback is rejected');results.push({type,mutation:'rollback disabled rejected',pass:true});await context.close();continue;}
+   const live=await run;
    const d=await durable(browser,context,url);
    assert.equal(d.saveVersion,9);
-   if(fault){assert.equal(d.before.campaign,'active',`${type} ${fault}: durable keeps the open proposal`);assert.equal(d.before.treasury,live.treasury);assert.equal(d.second,true,'retry after a failed save succeeds once');}
+   if(fault){assert.equal(d.before.campaign,'active',`${type} ${fault}: durable keeps the open proposal`);if(pending)assert.ok(d.before.companyName.endsWith('(pending predecessor)'),'the pending predecessor is durable');assert.equal(d.before.treasury,live.treasury);assert.equal(d.second,true,'retry after a failed save succeeds once');}
    else{assert.equal(d.before.campaign,null,`${type}: durable accepted proposal is completed`);assert.equal(d.second,false,`${type}: no second accept after durable reload`);
     assert.equal(d.treasuryAfter,live.treasury);assert.equal(d.cashAfter,live.cash);assert.equal(d.before.dps,live.dps);}
    if(split){
     if(fault)assert.equal(live.openTerm,6/split,`${type} 1:${split} ${fault}: open proposal keeps the rescaled term`);
     else{assert.equal(live.dps,6/split,'accepted rescaled per-share dividend');assert.equal(live.dps*live.outstanding,live.proposedTotal,'accepted total equals the pre-split proposal total');}
    }
-   results.push({type,split,fault,live,durable:d});
-   console.log(`iPhone WebKit activism accept ${type}${split?` after 1:${split} split`:''} ${fault||'normal'} / durable-only fresh IDB PASS`);
+   results.push({type,split,fault,pending,nested,live,durable:d});
+   console.log(`iPhone WebKit activism accept ${type}${split?` after 1:${split} split`:''} ${fault||'normal'}${pending?' pending':''}${nested?' nested':''} / durable-only fresh IDB PASS`);
    fs.writeFileSync(path.join(DIR,'activism-accept-result.json'),JSON.stringify({physicalDevice:false,device:'iPhone13',ok:false,results},null,2));
    await context.close();
   }

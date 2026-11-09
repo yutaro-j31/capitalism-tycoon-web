@@ -173,7 +173,7 @@ jobs:
         with:
           node-version: '22'
       - name: Record runner resources (parallel pilot shards)
-        if: matrix.shard == 'J' || matrix.shard == 'C'
+        if: matrix.shard == 'J' || matrix.shard == 'C' || matrix.shard == 'E' || matrix.shard == 'L' || matrix.shard == 'A' || matrix.shard == 'K' || matrix.shard == 'I' || matrix.shard == 'D'
         run: |
           echo "nproc: $(nproc)"
           free -m
@@ -183,12 +183,12 @@ jobs:
       - name: Run canonical test shard ${{ matrix.shard }}
         env:
           TEST_SHARD: ${{ matrix.shard }}
-          # Serial unless the repository variable TEST_SHARD_PARALLELISM_J / _C is set; only shards J and C can use it (docs/parallel-shard-rollback.md).
-          TEST_SHARD_PARALLELISM: ${{ matrix.shard == 'J' && (vars.TEST_SHARD_PARALLELISM_J || '1') || matrix.shard == 'C' && (vars.TEST_SHARD_PARALLELISM_C || '1') || '1' }}
+          # Serial unless the repository variable TEST_SHARD_PARALLELISM_J / _C / _E / _L / _A / _K / _I / _D is set; only shards J, C, E, L, A, K, I and D can use it (docs/parallel-shard-rollback.md).
+          TEST_SHARD_PARALLELISM: ${{ matrix.shard == 'J' && (vars.TEST_SHARD_PARALLELISM_J || '1') || matrix.shard == 'C' && (vars.TEST_SHARD_PARALLELISM_C || '1') || matrix.shard == 'E' && (vars.TEST_SHARD_PARALLELISM_E || '1') || matrix.shard == 'L' && (vars.TEST_SHARD_PARALLELISM_L || '1') || matrix.shard == 'A' && (vars.TEST_SHARD_PARALLELISM_A || '1') || matrix.shard == 'K' && (vars.TEST_SHARD_PARALLELISM_K || '1') || matrix.shard == 'I' && (vars.TEST_SHARD_PARALLELISM_I || '1') || matrix.shard == 'D' && (vars.TEST_SHARD_PARALLELISM_D || '1') || '1' }}
           TEST_SHARD_PARALLEL_REPORT: artifacts/shard-parallel/${{ matrix.shard }}.json
         run: node tests/run-all-shard.js
       - name: Upload parallel shard report
-        if: always() && ((matrix.shard == 'J' && vars.TEST_SHARD_PARALLELISM_J != '') || (matrix.shard == 'C' && vars.TEST_SHARD_PARALLELISM_C != ''))
+        if: always() && ((matrix.shard == 'J' && vars.TEST_SHARD_PARALLELISM_J != '') || (matrix.shard == 'C' && vars.TEST_SHARD_PARALLELISM_C != '') || (matrix.shard == 'E' && vars.TEST_SHARD_PARALLELISM_E != '') || (matrix.shard == 'L' && vars.TEST_SHARD_PARALLELISM_L != '') || (matrix.shard == 'A' && vars.TEST_SHARD_PARALLELISM_A != '') || (matrix.shard == 'K' && vars.TEST_SHARD_PARALLELISM_K != '') || (matrix.shard == 'I' && vars.TEST_SHARD_PARALLELISM_I != '') || (matrix.shard == 'D' && vars.TEST_SHARD_PARALLELISM_D != ''))
         uses: actions/upload-artifact@v4
         with:
           name: shard-parallel-report-${{ matrix.shard }}-${{ github.run_id }}
@@ -503,7 +503,7 @@ jobs:
 
   parallel-process-diagnostic:
     name: Parallel process diagnostic (Node ${{ matrix.node }})
-    if: github.event_name == 'pull_request' && github.head_ref == 'ci/parallel-shard-process-diagnostic'
+    if: github.event_name == 'pull_request' && (github.head_ref == 'ci/parallel-shard-process-diagnostic' || github.head_ref == 'ci/i-serial-resource-evidence')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -528,16 +528,37 @@ jobs:
       - name: Existing runner process integrity regression
         run: node tests/parallel-shard-runner-test.js
       - name: Checkout exact E HEAD for full reproduction
+        if: github.head_ref == 'ci/parallel-shard-process-diagnostic'
         uses: actions/checkout@v4
         with:
           ref: 20dcfe71a3fc5e8ad662c8f8497fac1120162ae1
           path: diagnostic-e-source
           persist-credentials: false
       - name: Compare all 33 E commands serial and parallel two
+        if: github.head_ref == 'ci/parallel-shard-process-diagnostic'
         run: >-
           node scripts/parallel-shard-runner-process-diagnostic.js --full-e
           --root diagnostic-e-source --source-sha 20dcfe71a3fc5e8ad662c8f8497fac1120162ae1
           --report artifacts/process-diagnostic/full-e-node-${{ matrix.node }}.json
+      - name: Checkout fixed I source for serial resource evidence
+        if: github.head_ref == 'ci/i-serial-resource-evidence'
+        uses: actions/checkout@v4
+        with:
+          ref: 555ca4042f183ba01aebb4c1df06be094fdf09bb
+          path: diagnostic-i-source
+          persist-credentials: false
+      - name: Validate all 8 I invocation metadata
+        if: github.head_ref == 'ci/i-serial-resource-evidence'
+        run: >-
+          node scripts/parallel-shard-runner-process-diagnostic.js --full-shard I --plan-only
+          --root diagnostic-i-source --source-sha 555ca4042f183ba01aebb4c1df06be094fdf09bb
+          --report artifacts/process-diagnostic/i-plan-node-${{ matrix.node }}.json
+      - name: Profile all 8 I commands serial only with retained bytes
+        if: github.head_ref == 'ci/i-serial-resource-evidence'
+        run: >-
+          node scripts/parallel-shard-runner-process-diagnostic.js --full-shard I --retain-output
+          --root diagnostic-i-source --source-sha 555ca4042f183ba01aebb4c1df06be094fdf09bb
+          --report artifacts/process-diagnostic/full-i-node-${{ matrix.node }}.json
       - name: Retain process evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -596,7 +617,7 @@ jobs:
 
   parallel-k-write-observation:
     name: K write observation (Node ${{ matrix.node }})
-    if: github.event_name == 'pull_request' && github.head_ref == 'ci/k-source-freshness'
+    if: github.event_name == 'pull_request' && github.head_ref == 'ci/k-current-source-refresh'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -625,13 +646,13 @@ jobs:
       - name: Checkout pinned K source
         uses: actions/checkout@v4
         with:
-          ref: 9223004d0bd2e9b0ebb435edf599d01b72020fd0
+          ref: daa5236d2483a9dbd1b208bb6b84e44d88a39762
           path: diagnostic-k-source
           persist-credentials: false
       - name: Compare K clean reference and audited serial, two and four
         run: >-
           node scripts/parallel-shard-runner-process-diagnostic.js --full-shard K
-          --root diagnostic-k-source --source-sha 9223004d0bd2e9b0ebb435edf599d01b72020fd0
+          --root diagnostic-k-source --source-sha daa5236d2483a9dbd1b208bb6b84e44d88a39762
           --retain-output --write-audit-root artifacts/k-write-observation/audit-node-${{ matrix.node }}
           --report artifacts/k-write-observation/full-k-node-${{ matrix.node }}.json
       - name: Retain K diagnostic evidence

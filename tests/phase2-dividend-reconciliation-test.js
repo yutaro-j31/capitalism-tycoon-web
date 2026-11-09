@@ -215,3 +215,4 @@ for(const mutate of [
   assert.equal(f.game.g.week,12);
 }
 console.log('Phase 2 dividend reconciliation tests passed');
+require('./dividend-personal-own-lot-case').run();console.log('PASS G10 dividend on personally bought own-company shares');

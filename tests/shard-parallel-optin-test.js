@@ -1,5 +1,9 @@
 'use strict';
 
+// Under a parallel shard run the runner exports TEST_SHARD_PARALLELISM / TEST_SHARD_PARALLEL_REPORT to every test it starts.
+// This test drives the shard runner itself, so a nested copy must not inherit them (it would run in parallel mode, or wait on itself).
+delete process.env.TEST_SHARD_PARALLELISM; delete process.env.TEST_SHARD_PARALLEL_REPORT;
+
 // Stage 1: tests/run-all-shard.js can run an enabled shard in parallel when TEST_SHARD_PARALLELISM >= 2, and is
 // otherwise byte-for-byte the serial runner. The production runner files are copied unchanged into a temp directory
 // whose owned tests are stubs, so this drives the real code paths without running the real suite.
@@ -18,7 +22,7 @@ const sleepForever = 'setInterval(()=>{},1000)';
 const alive = pid => { try { const st = fs.readFileSync(`/proc/${pid}/stat`, 'utf8'); return st.slice(st.lastIndexOf(')') + 2)[0] !== 'Z'; } catch { return false; } };
 const waitDead = async (pids, ms = 8000) => { for (let t = 0; t < ms; t += 50) { if (!pids.some(alive)) return true; await new Promise(r => setTimeout(r, 50)); } return false; };
 
-function build(shard, overrides = {}, configPatch = null) {
+function build(shard, overrides = {}, configPatch = null, labels = shardConfig[shard]) {
   const dir = fs.mkdtempSync(path.join(TMP, `${shard}-`));
   fs.mkdirSync(path.join(dir, 'tests')); fs.mkdirSync(path.join(dir, 'scripts'));
   for (const f of ['run-all.js', 'run-all-shard.js', 'run-all-shards.json']) fs.copyFileSync(path.join(ROOT, 'tests', f), path.join(dir, 'tests', f));
@@ -27,7 +31,7 @@ function build(shard, overrides = {}, configPatch = null) {
   if (configPatch) configPatch(config);
   fs.writeFileSync(path.join(dir, 'scripts', 'parallel-shard-runner.config.json'), JSON.stringify(config));
   const scripts = {};
-  for (const label of shardConfig[shard]) {
+  for (const label of labels) {
     const body = overrides[label] || SLOW;
     if (label.startsWith('test:')) scripts[label] = `node -e "${body.replace(/"/g, '\\"')}"`;
     else { fs.mkdirSync(path.dirname(path.join(dir, label)), { recursive: true }); fs.writeFileSync(path.join(dir, label), body); }
@@ -152,6 +156,107 @@ const noticeLabels = text => [...text.matchAll(/::notice title=Shard \w+ timing:
   const cFail = 'tests/subsidiary-follow-on-save-atomicity-test.js';
   const cBad = run(build('C', { [cFail]: 'process.exit(3)' }), 'C', { TEST_SHARD_PARALLELISM: '2' });
   assert.notEqual(cBad.status, 0, 'a failing C test fails the shard in parallel mode');
+
+  // ---- shard E (Stage 3): allow-listed; 33 commands run once each in parallel; failure still fails the shard ----
+  const eLabels = [...shardConfig.E].sort();
+  assert.equal(eLabels.length, 33, 'the reviewed E execution contract contains 33 commands');
+  assert.ok(require(path.join(ROOT, 'scripts', 'parallel-shard-runner.config.json')).parallelEnabledShards.includes('E'), 'E is allow-listed');
+  const dirE = build('E');
+  const eSerial = run(dirE, 'E'), ePar = run(dirE, 'E', { TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(eSerial.status, 0, eSerial.stderr); assert.equal(ePar.status, 0, ePar.stderr);
+  assert.match(ePar.stdout, new RegExp(`parallel-shard-summary: shard=E concurrency=2 order=longest-first enumerated=${eLabels.length} passed=${eLabels.length} failed=0 aborted=0 notStarted=0 `));
+  assert.deepEqual(noticeLabels(ePar.stdout), eLabels, 'every E command ran once');
+  assert.equal(summary(ePar.stdout)[3], summary(eSerial.stdout)[3]); assert.equal(summary(ePar.stdout)[4], summary(eSerial.stdout)[4]);
+  const eContract = run(dirE, 'E', { TEST_SHARD_CONTRACT: '1', TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(eContract.status, 0, eContract.stderr);
+  assert.equal(summary(eContract.stdout)[2], 'true'); assert.equal(summary(eContract.stdout)[3], '0');
+  assert.equal(summary(ePar.stdout)[4], summary(eContract.stdout)[4], 'E sees the same registry as contract mode');
+  assert.doesNotMatch(eContract.stdout, /parallel-shard-summary/, 'contract mode never executes E in parallel');
+  const eBad = run(build('E', { [eLabels.find(l => l.startsWith('tests/'))]: 'process.exit(3)' }), 'E', { TEST_SHARD_PARALLELISM: '2' });
+  assert.notEqual(eBad.status, 0, 'a failing E test fails the shard in parallel mode');
+
+  // ---- shard L (Stage 3): allow-listed; 27 commands run once each in parallel; failure still fails the shard ----
+  const lLabels = [...shardConfig.L].sort();
+  assert.equal(lLabels.length, 27, 'the reviewed L execution contract contains 27 commands');
+  assert.ok(require(path.join(ROOT, 'scripts', 'parallel-shard-runner.config.json')).parallelEnabledShards.includes('L'), 'L is allow-listed');
+  const dirL = build('L');
+  const lSerial = run(dirL, 'L'), lPar = run(dirL, 'L', { TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(lSerial.status, 0, lSerial.stderr); assert.equal(lPar.status, 0, lPar.stderr);
+  assert.match(lPar.stdout, new RegExp(`parallel-shard-summary: shard=L concurrency=2 order=longest-first enumerated=${lLabels.length} passed=${lLabels.length} failed=0 aborted=0 notStarted=0 `));
+  assert.deepEqual(noticeLabels(lPar.stdout), lLabels, 'every L command ran once');
+  assert.equal(summary(lPar.stdout)[3], summary(lSerial.stdout)[3]); assert.equal(summary(lPar.stdout)[4], summary(lSerial.stdout)[4]);
+  const lContract = run(dirL, 'L', { TEST_SHARD_CONTRACT: '1', TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(lContract.status, 0, lContract.stderr); assert.equal(summary(lContract.stdout)[2], 'true'); assert.equal(summary(lContract.stdout)[3], '0');
+  assert.equal(summary(lPar.stdout)[4], summary(lContract.stdout)[4], 'L sees the same registry as contract mode');
+  assert.doesNotMatch(lContract.stdout, /parallel-shard-summary/, 'contract mode never executes L in parallel');
+  const lBad = run(build('L', { [lLabels.find(l => l.startsWith('tests/'))]: 'process.exit(3)' }), 'L', { TEST_SHARD_PARALLELISM: '2' });
+  assert.notEqual(lBad.status, 0, 'a failing L test fails the shard in parallel mode');
+
+  // ---- shard A (Stage 3): the catch-all shard (not listed in run-all-shards.json), enumerated by the runner itself ----
+  const aLabels = require(path.join(ROOT, 'scripts', 'parallel-shard-runner.js')).enumerateShard('A').map(item => item.label).sort();
+  assert.ok(aLabels.length >= 300, 'the reviewed A execution contract is the large catch-all shard');
+  assert.ok(require(path.join(ROOT, 'scripts', 'parallel-shard-runner.config.json')).parallelEnabledShards.includes('A'), 'A is allow-listed');
+  const dirA = build('A', {}, null, aLabels);
+  // A is the largest shard and sits on the CI critical path: no extra serial pass here, parity is checked against contract mode.
+  const aPar = run(dirA, 'A', { TEST_SHARD_PARALLELISM: '2' }), aContract = run(dirA, 'A', { TEST_SHARD_CONTRACT: '1', TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(aPar.status, 0, aPar.stderr); assert.equal(aContract.status, 0, aContract.stderr);
+  assert.match(aPar.stdout, new RegExp(`parallel-shard-summary: shard=A concurrency=2 order=longest-first enumerated=${aLabels.length} passed=${aLabels.length} failed=0 aborted=0 notStarted=0 `));
+  assert.deepEqual(noticeLabels(aPar.stdout), aLabels, 'every A command ran once');
+  assert.equal(summary(aPar.stdout)[3], String(aLabels.length)); assert.equal(summary(aPar.stdout)[4], summary(aContract.stdout)[4], 'A sees the same registry as contract mode');
+  assert.doesNotMatch(aContract.stdout, /parallel-shard-summary/, 'contract mode never executes A in parallel');
+  const aBad = run(build('A', { [aLabels.find(l => l.startsWith('tests/') && !require(path.join(ROOT, 'scripts', 'parallel-shard-runner.config.json')).serial.A.includes(l))]: 'process.exit(3)' }, null, aLabels), 'A', { TEST_SHARD_PARALLELISM: '2' });
+  assert.notEqual(aBad.status, 0, 'a failing A test fails the shard in parallel mode');
+
+  // ---- shard K (Stage 3): allow-listed; 29 commands run once each in parallel; failure still fails the shard ----
+  const kLabels = [...shardConfig.K].sort();
+  assert.equal(kLabels.length, 29, 'the reviewed K execution contract contains 29 commands');
+  assert.ok(require(path.join(ROOT, 'scripts', 'parallel-shard-runner.config.json')).parallelEnabledShards.includes('K'), 'K is allow-listed');
+  const dirK = build('K');
+  const kSerial = run(dirK, 'K'), kPar = run(dirK, 'K', { TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(kSerial.status, 0, kSerial.stderr); assert.equal(kPar.status, 0, kPar.stderr);
+  assert.match(kPar.stdout, new RegExp(`parallel-shard-summary: shard=K concurrency=2 order=longest-first enumerated=${kLabels.length} passed=${kLabels.length} failed=0 aborted=0 notStarted=0 `));
+  assert.deepEqual(noticeLabels(kPar.stdout), kLabels, 'every K command ran once');
+  assert.equal(summary(kPar.stdout)[3], summary(kSerial.stdout)[3]); assert.equal(summary(kPar.stdout)[4], summary(kSerial.stdout)[4]);
+  const kContract = run(dirK, 'K', { TEST_SHARD_CONTRACT: '1', TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(kContract.status, 0, kContract.stderr); assert.equal(summary(kContract.stdout)[2], 'true'); assert.equal(summary(kContract.stdout)[3], '0');
+  assert.equal(summary(kPar.stdout)[4], summary(kContract.stdout)[4], 'K sees the same registry as contract mode');
+  assert.doesNotMatch(kContract.stdout, /parallel-shard-summary/, 'contract mode never executes K in parallel');
+  const kBad = run(build('K', { [kLabels.find(l => l.startsWith('tests/'))]: 'process.exit(3)' }), 'K', { TEST_SHARD_PARALLELISM: '2' });
+  assert.notEqual(kBad.status, 0, 'a failing K test fails the shard in parallel mode');
+
+  // ---- shard I (Stage 3): allow-listed; 8 commands run once each in parallel; failure still fails the shard ----
+  const iLabels = [...shardConfig.I].sort();
+  assert.equal(iLabels.length, 8, 'the reviewed I execution contract contains 8 commands');
+  assert.ok(require(path.join(ROOT, 'scripts', 'parallel-shard-runner.config.json')).parallelEnabledShards.includes('I'), 'I is allow-listed');
+  const dirI = build('I');
+  const iSerial = run(dirI, 'I'), iPar = run(dirI, 'I', { TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(iSerial.status, 0, iSerial.stderr); assert.equal(iPar.status, 0, iPar.stderr);
+  assert.match(iPar.stdout, new RegExp(`parallel-shard-summary: shard=I concurrency=2 order=longest-first enumerated=${iLabels.length} passed=${iLabels.length} failed=0 aborted=0 notStarted=0 `));
+  assert.deepEqual(noticeLabels(iPar.stdout), iLabels, 'every I command ran once');
+  assert.equal(summary(iPar.stdout)[3], summary(iSerial.stdout)[3]); assert.equal(summary(iPar.stdout)[4], summary(iSerial.stdout)[4]);
+  const iContract = run(dirI, 'I', { TEST_SHARD_CONTRACT: '1', TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(iContract.status, 0, iContract.stderr); assert.equal(summary(iContract.stdout)[2], 'true'); assert.equal(summary(iContract.stdout)[3], '0');
+  assert.equal(summary(iPar.stdout)[4], summary(iContract.stdout)[4], 'I sees the same registry as contract mode');
+  assert.doesNotMatch(iContract.stdout, /parallel-shard-summary/, 'contract mode never executes I in parallel');
+  const iBad = run(build('I', { [iLabels.find(l => l.startsWith('tests/'))]: 'process.exit(3)' }), 'I', { TEST_SHARD_PARALLELISM: '2' });
+  assert.notEqual(iBad.status, 0, 'a failing I test fails the shard in parallel mode');
+
+  // ---- shard D (Stage 3): allow-listed; 32 commands run once each in parallel; failure still fails the shard ----
+  const dLabels = [...shardConfig.D].sort();
+  assert.equal(dLabels.length, 32, 'the reviewed D execution contract contains 32 commands');
+  assert.ok(require(path.join(ROOT, 'scripts', 'parallel-shard-runner.config.json')).parallelEnabledShards.includes('D'), 'D is allow-listed');
+  const dirD = build('D');
+  const dSerial = run(dirD, 'D'), dPar = run(dirD, 'D', { TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(dSerial.status, 0, dSerial.stderr); assert.equal(dPar.status, 0, dPar.stderr);
+  assert.match(dPar.stdout, new RegExp(`parallel-shard-summary: shard=D concurrency=2 order=longest-first enumerated=${dLabels.length} passed=${dLabels.length} failed=0 aborted=0 notStarted=0 `));
+  assert.deepEqual(noticeLabels(dPar.stdout), dLabels, 'every D command ran once');
+  assert.equal(summary(dPar.stdout)[3], summary(dSerial.stdout)[3]); assert.equal(summary(dPar.stdout)[4], summary(dSerial.stdout)[4]);
+  const dContract = run(dirD, 'D', { TEST_SHARD_CONTRACT: '1', TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(dContract.status, 0, dContract.stderr); assert.equal(summary(dContract.stdout)[2], 'true'); assert.equal(summary(dContract.stdout)[3], '0');
+  assert.equal(summary(dPar.stdout)[4], summary(dContract.stdout)[4], 'D sees the same registry as contract mode');
+  assert.doesNotMatch(dContract.stdout, /parallel-shard-summary/, 'contract mode never executes D in parallel');
+  const dBad = run(build('D', { [dLabels.find(l => l.startsWith('tests/'))]: 'process.exit(3)' }), 'D', { TEST_SHARD_PARALLELISM: '2' });
+  assert.notEqual(dBad.status, 0, 'a failing D test fails the shard in parallel mode');
 
   fs.rmSync(TMP, { recursive: true, force: true });
   console.log('shard-parallel-optin-test: ok');

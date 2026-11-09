@@ -49,7 +49,7 @@ The8/0-sample pending observations are explicitly partial and will change; they 
 
 New synthetic controls preserve the same job queue/execution metrics while adding1111s before job creation, verify additive intervals, reject invented starts for queued jobs, and retain nulls/coverage for missing/empty snapshots. The required contract job already runs this self-test, so this patch does not add workflow work. FinalHEAD hosted CI/review remains separate from local PASS.
 
-Maximum observed job overlap covers only this workflow snapshot, with finish events before starts at identical timestamps. It is not the repository/account/organization runner quota, does not include other workflows and cannot confirm the earlier~20-runner hypothesis. No serial speedup is computed from test sums/wall; no main-push reduction, contract dependency change or capacity assumption follows from this tool.
+Maximum observed job overlap covers only this workflow snapshot, with finish events before starts at identical timestamps. It conservatively counts completed-success and observed in-progress intervals only. Terminal failed/cancelled/neutral/unknown/skipped jobs are excluded even if their timestamps exist; their diagnostic row timings and state counts remain available. Exclusion may undercount actual runner occupancy, but avoids treating cancellation placeholders as confirmed execution. This single-run metric now uses the same eligibility rule as the cross-run overlap tool. It is not the repository/account/organization runner quota, does not include other workflows and cannot confirm the earlier~20-runner hypothesis. No serial speedup is computed from test sums/wall; no main-push reduction, contract dependency change or capacity assumption follows from this tool.
 
 ## Validation — 2026-10-31 JST
 
@@ -70,3 +70,127 @@ The pending snapshot's11 samples are not the eventual full-run median. #4345 rep
 Starting main0d2b6026 includes Work A's merged refounding/buyback tests; its Test4352 remained active. #1229 exacte9f28dee fullCI4350/Codex no findings/threads0 and current-main data integration gate passed, merged3759a6e3. New-main CI is not claimed complete. Active economic branches/Owner-held PRs are untouched; Work B uses an isolated branch/worktree and CI-only files. Existing #1171 null-status/signal/error serial defect remains fixed in main, not reimplemented.
 
 J/C2,E/K1 remain; C18 previously qualified observations are retained until newer complete runs are independently audited. Historical C final-group listing limitation and E local leftover cause remain. E1203 stays Owner-held with separate final merge/enabling decisions. K raw write/output evidence is merged through1229; cross-Node one-byte task_queues stack-frame difference is classified, not normalized. No E/K production enabling. Next: verify current-main and this exactHEAD CI/review, use complete metadata snapshots for queue/overlap evidence, distinguish observed delays from unverified capacity hypotheses.
+
+## Exact-attempt identity
+
+Single-run timing analysis requires a positive integer `run.run_attempt` and a
+matching `job.run_attempt` on every job. Missing or mixed attempt metadata rejects
+the input even when all run IDs, job names and timestamps are otherwise plausible.
+The summary retains `runAttempt`. This brings single-run provenance in line with
+the existing cross-run overlap auditor; it does not change any timing/state rule.
+Use the recorded attempt's jobs endpoint, fetch every page and retain the observation
+time. `runCreationTo*` still uses the original workflow `created_at`; it is not
+relabelled as the start of a rerun attempt. A normalized connector response that removes attempt/creation metadata is
+not a substitute for the raw API fields. Rerunning an old run does not make jobs
+from its previous attempt evidence for the new attempt.
+
+[Retained attempt-specific API field projection](ci-evidence/ci-run-attempt-2026-11-01.json)
+records run41294566245/attempt1, all26 returned jobs, source URLs and an observation
+time. It retains the analyzer inputs, not full job step/actor metadata. The short
+required self-test replays this completed snapshot and rejects a deliberately changed
+job attempt. This is a metadata consistency control, not a rerun of the workload or
+proof that a mixed-attempt response occurred in GitHub production.
+
+## Cross-run pre-start observations
+
+The collection analyzer now returns `preStart` both per run and for the supplied
+subset. `startedJobs` / `observedDelaySeconds` count and sum creation-to-start
+intervals only for completed-success or in-progress jobs with both timestamps.
+`unstartedJobs` / `censoredAgeSeconds` count and sum age since creation, censored at
+`asOf`, for known queued/waiting/pending/requested statuses without an observed start.
+Terminal non-success jobs, missing creation/start evidence and unknown statuses are
+counted in `omittedJobs`; a running job missing its start is not invented queue time.
+Zero-second intervals remain samples. These counters partition the observed jobs;
+zero samples do not certify that no other waiting jobs exist.
+
+Pre-start seconds are distinct from eligible execution seconds. They may include
+approval/dependency/scheduler waiting and are **not proof of ready-to-run demand or
+runner scarcity**. Censored ages are unfinished observations, not completed queue
+durations. Sums include overlapping job intervals: do not divide them by wall time
+and call the result serial speedup, capacity or a causal critical path. Existing
+conservative execution eligibility, quota=null and partial-coverage markers remain.
+
+[Retained two-run input projection](ci-evidence/ci-prestart-snapshots-41303594585-41315187678.json)
+preserves exact attempt metadata, all returned job records as an input-field
+projection (not full step/actor metadata), source API URLs and `asOf`.
+It contains run41303594585 and run41315187678 at their recorded source SHAs, not a
+claim about the latest main or all concurrent workflows. The required self-test
+replays this metadata; no workload is rerun and no production setting is changed.
+
+This retained subset has39 started observations and12 omitted skipped jobs. Its
+creation-to-start sum is6232 job-seconds (3754 and2478 per run), **not** elapsed
+workflow time. The second run separately records1730 seconds before its first job
+was created. No unstarted sample was present in this particular snapshot; synthetic
+queued/approval-waiting controls exercise censoring without inventing live data.
+
+
+## Duration of observed overlap
+
+`parallel-shard-ci-overlap.cjs` now adds `observedActivity` to the existing
+collection summary. It integrates the same conservative, half-open eligible
+execution intervals, grouped by timestamp. `byJobCount` and `byRunCount` report
+wall seconds at each concurrent job/distinct-run count, sorted by count.
+`activeSeconds` is their union, not the sum of job durations; `crossRunSeconds`
+counts wall seconds with at least two distinct supplied runs active. Multiple
+jobs from one run do not count as cross-run activity. Running intervals end at
+the retained `asOf`, so pending observations remain censored.
+
+`firstObservedStart`, `lastObservedEnd` and `spanSeconds` bound only the eligible
+intervals. `uncoveredSeconds` and zero-count bins describe **internal gaps in this
+supplied subset**, never idle runner time. Other workflows and omitted terminal
+non-success/missing-start jobs may occupy runners. With no positive eligible
+interval there are no bins, bounds/span/uncovered are null, and active/cross-run
+seconds are zero. Zero-length intervals and tied finish/start events invent no
+overlap. Coverage remains false and quota remains null. These are observations,
+not physical utilization, billing, cancellation causes or achievable speedup.
+
+Reproduce without rerunning CI:
+
+```sh
+node scripts/parallel-shard-ci-overlap.cjs docs/ci-evidence/ci-prestart-snapshots-41303594585-41315187678.json
+```
+
+The retained two-run input above yields an eligible span of11236.341 seconds
+(2026-11-01T11:49:32.000Z through14:56:48.341Z), union activity2987.341 seconds,
+internal uncovered time8249 seconds and cross-run activity0 seconds. Its
+job-count distribution is: 0→8249s, 1→247s, 2→172s, 3→70s, 4→155s, 5→151s,
+6→79s, 7→75s, 8→220s, 9→251s, 10→121s, 11→137s, 12→894.341s, 13→415s.
+The distinct-run distribution is0→8249s and1→2987.341s. This retained snapshot
+is not current-main evidence and does not establish repository-wide inactivity.
+Existing required timing self-tests cover gaps, ties, same-run concurrency,
+censored running/omitted jobs, no eligible evidence, subsecond intervals,
+order invariance and conservation of span/job-seconds.
+
+## Pending final aggregate after all canonical shards
+
+Three additive fields describe the final `test` gate while a workflow is still
+pending. `pendingAggregatePostShardObservationSeconds` is age since the last
+successful canonical shard ended, censored at `asOf`, only when all 12 shard
+successes/end times and a unique pending aggregate are present.
+`aggregatePendingWithoutStartAgeSeconds` is that aggregate's age since API job
+creation when it has no observed execution start. Queued placeholder starts do
+not count. A running aggregate retains the former age but has no unstarted age.
+Neither metric is a completed duration or evidence of occupied runner time.
+
+`aggregateCreationOffsetFromLastShardSeconds` separately records the signed
+creation offset; negative values mean the aggregate was created before the last
+shard ended, not a negative queue duration. Missing/ambiguous aggregate or
+incomplete canonical end coverage leaves the relevant field null. A completed
+run containing pending jobs remains flagged as inconsistent and gets no ongoing
+pending age. Existing completed aggregate metrics and overlap rules are unchanged.
+
+[Retained API projections](ci-evidence/aggregate-wait-2026-11-02.json) include all
+26 returned jobs for each attempt1 snapshot, original analyzer-required fields,
+source URLs and individual observation times. On 2026-11-02 at 21:52 JST:
+
+| run | source | successful shards | aggregate state | post-shard pending age | unstarted aggregate age | creation offset |
+|---|---|---:|---|---:|---:|---:|
+|41438867867 (main push)|f124d17d|12|pending|590.066s|589.066s|1s|
+|41439426090 (PR #1302)|8a8b37c7|12|pending|267.256s|267.256s|0s|
+
+These snapshots establish a pending final gate despite successful test shards;
+they do not establish scheduler cause, concurrency cancellation, account quota,
+future completion time or CI success. Both workflows stay pending in the replay.
+No workflow dependency, required job, runner setting, production parallelism,
+rerun or cancellation changes. Synthetic controls and the retained replay are
+invoked by the existing required timing self-test.
