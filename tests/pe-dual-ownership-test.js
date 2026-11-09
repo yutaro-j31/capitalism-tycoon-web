@@ -117,7 +117,7 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
 // PE projection sync must retain the reduced legal stake, not recreate sold equity.
 // The existing IPO test covers in-memory reverse updates; this checks persistence.
 {
- const {e,d}=acquire('company',197),id=`pe-subsidiary-${d.id}`;
+ const {x,e,d}=acquire('company',197),id=`pe-subsidiary-${d.id}`;
  d.ownershipRatio=.70;d.currentValuation=350e6;d.ownerCostBasis=100e6;
  const sub=e.syncPESubsidiary(d);
  sub.ipoPreparation={stageIndex:3,completed:true,offerTermID:'balanced',totalCost:0};
@@ -130,6 +130,28 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
  const expected={ownership:d.ownershipRatio,basis:d.ownerCostBasis,
   companyCash:e.g.companyCash,personalCash:e.g.personalCash,
   ledger:e.g.finance.transactions.length};
+ const compact=x.modules.saveStorage.compactStateForStorage(
+  JSON.parse(JSON.stringify(e.g)),'critical').state;
+ const compacted=new e.constructor(JSON.parse(JSON.stringify(compact)));
+ const compactDeal=compacted.g.peDeals.find(row=>row.id===d.id);
+ const compactMirror=compacted.g.subsidiaries.find(row=>row.id===id);
+ assert.ok(compactDeal&&compactMirror,'critical compaction retains the legal PE stake and mirror');
+ assert.equal(compacted.g.peDeals.filter(row=>row.id===d.id).length,1);
+ assert.equal(compacted.g.subsidiaries.filter(row=>row.id===id).length,1);
+ assert.equal(compactDeal.ownershipRatio,expected.ownership,'critical compaction cannot restore sold equity');
+ assert.equal(compactDeal.ownerCostBasis,expected.basis,'critical compaction cannot restore sold basis');
+ assert.equal(compactMirror.ownership,expected.ownership);
+ assert.equal(compactMirror.valuation*compactMirror.ownership,compactDeal.currentValuation,
+  'critical compaction preserves one exact legal PE stake');
+ assert.equal(compacted.companyValue(),e.companyValue(),'critical compaction preserves company value');
+ assert.equal(compacted.g.companyCash,expected.companyCash);
+ assert.equal(compacted.g.personalCash,expected.personalCash);
+ assert.equal(compacted.g.finance.transactions.length,expected.ledger,'critical compaction retains one sale receipt');
+ const compactValue=compacted.companyValue();
+ compacted.syncPESubsidiary(compactDeal);
+ assert.equal(compacted.g.subsidiaries.filter(row=>row.id===id).length,1,'post-compaction sync reuses the mirror');
+ assert.equal(compacted.companyValue(),compactValue,'post-compaction sync is valuation-idempotent');
+ assert.equal(compacted.g.finance.transactions.length,expected.ledger,'post-compaction sync posts no receipt');
  assert.equal(e.save(),true);
  const loaded=e.constructor.load(),deal=loaded.g.peDeals.find(x=>x.id===d.id);
  const mirror=loaded.g.subsidiaries.find(x=>x.id===id);
