@@ -3,11 +3,14 @@
 // forming Fund I from a PE firm with a recorded track record, at the maximum plan and at half the GP commitment. Save
 // faults roll back live/mirror/cache/durable state, a recovery save exceeds the failed allocation, the retried formation
 // equals the uninterrupted one, a fresh durable-only context hydrates the exact state, and Fund II is refused before
-// Fund I meets the follow-on conditions. Node counterpart: tests/pe-fund-formation-save-atomicity-test.js.
+// Fund I meets the follow-on conditions. The same browser gate also covers the G31 canonical PE-fund week transitions:
+// annual fee/payroll, investment-period harvest and final close. Node counterparts: pe-fund-formation-save-atomicity
+// and week-pe-fund-save-atomicity.
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), http = require('node:http'), path = require('node:path');
 const { webkit, devices } = require('playwright');
 const { fixture, VARIANTS: PINNED } = require('./fixtures/pe-fund-formation-atomicity');
+const { fixture: weekFixture } = require('./fixtures/week-pe-fund-atomicity');
 const { inject } = require('./fixtures/pe-fund-acquisition-faults');
 const { FAULT_KINDS, SOFT_FAILURES } = require('./helpers/transaction-fault-case');
 const ROOT = path.resolve(__dirname, '..');
@@ -150,11 +153,101 @@ async function repeat() {
   return normalized(e.g);
 }
 
+async function weekExercise({ state, control, variant, fundID, kind, pending, nested, soft }) {
+  const check = (ok, message) => { if (!ok) throw Error(message); };
+  const plain = value => JSON.parse(JSON.stringify(value));
+  const m = globalThis.__capitalismTycoonModules, e = new m.engine.TycoonEngine(plain(state));
+  const backend = m.saveStorageIDB, key = m.engine.SAVE_KEY;
+  await backend.hydrate(); check(backend.status().available, 'real IndexedDB unavailable');
+  check(e.save() === true, 'PE week baseline save rejected'); await backend.flush();
+  if (pending) check(e.save() === true, 'PE week pending predecessor rejected');
+  const before = JSON.stringify(e.g), prior = plain(e.g), bytes = backend.readSync(key);
+  const predecessorSequence = backend.sequenceOf(bytes), allocated = [];
+  m.saveStorageIDB = { ...backend, nextSequence(...args) { const seq = backend.nextSequence(...args); allocated.push(seq); return seq; } };
+  const saves = { count: 0 }, save = e.save;
+  e.save = function (...args) { if (!this.inTransaction()) saves.count++; return save.apply(this, args); };
+  let injection = { hits: () => 0, restore() {} };
+  if (kind === 'save-before-throw') {
+    let hits = 0; const inner = e.save;
+    e.save = () => { hits++; throw Error('PE fund week save before admission threw'); };
+    injection = { hits: () => hits, restore() { e.save = inner; } };
+  } else if (kind === 'finalize') {
+    let hits = 0; const rebuild = m.finance.rebuildSnapshotForWeek;
+    m.finance.rebuildSnapshotForWeek = function (...args) { if (/finalizeWeekBoundary/.test(new Error().stack)) { hits++; throw Error('PE fund week final close threw'); } return rebuild.apply(this, args); };
+    injection = { hits: () => hits, restore() { m.finance.rebuildSnapshotForWeek = rebuild; } };
+  } else if (kind === 'week') {
+    let hits = 0; const emit = e.emit;
+    e.emit = function (type, ...args) { if (type === 'week') { hits++; throw Error('PE fund week completion threw'); } return emit.call(this, type, ...args); };
+    injection = { hits: () => hits, restore() { e.emit = emit; } };
+  } else if (kind !== 'none') injection = globalThis.__injectPEFormFault(e, m, localStorage, key, kind);
+  const run = () => e.advanceWeek(false); let result, error;
+  try { result = nested ? e.runTransaction(run) : run(); } catch (ex) { error = ex; }
+  finally { injection.restore(); m.saveStorageIDB = backend; }
+  await backend.flush();
+  async function durableBytes() { return new Promise((resolve, reject) => { const request = indexedDB.open(backend.DB_NAME, backend.DB_VERSION); request.onerror = () => reject(request.error); request.onsuccess = () => { const db = request.result, tx = db.transaction(backend.STORE_NAME, 'readonly'), get = tx.objectStore(backend.STORE_NAME).get(key); tx.oncomplete = () => { db.close(); resolve(get.result); }; tx.onerror = () => { db.close(); reject(tx.error); }; }; }); }
+  function normalized(value) { const copy = plain(new m.engine.TycoonEngine(plain(value)).g); delete copy.lastSaveDate; delete copy.saveSequence; return copy; }
+  const fundOf = value => value.peFirm.funds.find(fund => fund.id === fundID);
+  const rows = (value, operationID) => value.finance.transactions.filter(row => row.operationID === operationID);
+  const changed = { fee: ['managementFeesPaid', 'teamPayrollPaid', 'lastManagementFeePeriod', 'cash'], harvest: ['cash', 'status', 'undeployedReturned', 'distributed', 'gpDistributed', 'lpDistributed'], close: ['cash', 'status', 'closedWeek', 'undeployedReturned', 'distributed', 'gpDistributed', 'lpDistributed'] };
+  const evaluation = ['lastProcessedWeek', 'dpiAtEvaluation', 'deploymentRateAtEvaluation', 'evaluatedWeek'];
+  function oracle(baseline = prior, after = plain(e.g)) {
+    const was = fundOf(baseline), now = fundOf(after), base = plain(control);
+    check(after.week === baseline.week + 1, 'one PE fund week');
+    for (const field of new Set([...Object.keys(was), ...Object.keys(now)])) if (![...changed[variant], ...evaluation].includes(field)) check(JSON.stringify(now[field]) === JSON.stringify(was[field]), 'fund ' + field + ' untouched');
+    check(JSON.stringify(after.simulationRng) === JSON.stringify(base.simulationRng), 'PE transition draws no RNG');
+    if (variant === 'fee') {
+      const paid = now.managementFeesPaid - was.managementFeesPaid, payroll = now.teamPayrollPaid - was.teamPayrollPaid;
+      check(now.lastManagementFeePeriod === 1 && paid > 0 && payroll > 0 && payroll <= paid, 'fee/payroll transition');
+      check(now.cash === was.cash - paid, 'fee leaves fund cash');
+      check(rows(after, 'pe-management-fee-' + fundID + '-p1').length === 1 && rows(after, 'pe-team-payroll-' + fundID + '-p1').length === 1, 'fee/payroll receipts');
+      check(after.companyCash - base.companyCash === paid - payroll && after.personalCash === base.personalCash, 'fee cash separation');
+    } else {
+      const returned = was.cash, gp = now.gpDistributed - was.gpDistributed, lp = now.lpDistributed - was.lpDistributed;
+      check(now.status === (variant === 'harvest' ? 'harvesting' : 'closed'), 'fund status');
+      if (variant === 'close') check(now.closedWeek === after.week, 'fund closed this week');
+      check(returned > 0 && now.cash === 0 && now.undeployedReturned - was.undeployedReturned === returned && now.distributed - was.distributed === returned, 'cash returned once');
+      check(gp > 0 && lp > 0 && gp + lp === returned, 'GP/LP split');
+      check(after.personalCash - base.personalCash === gp && after.companyCash === base.companyCash, 'distribution cash separation');
+    }
+    check(m.finance.validate(plain(after)).ok === true, 'PE fund week finance.validate');
+  }
+  const failedSequence = Math.max(predecessorSequence, ...allocated);
+  if (kind !== 'none') {
+    check(injection.hits() > 0, 'PE fund week fault not reached');
+    check(soft.includes(kind) ? result === false && !error : error && /threw/.test(error.message), 'PE fund week wrong failure result');
+    check(JSON.stringify(e.g) === before, 'PE fund week changed full live state');
+    check(localStorage.getItem(key) === bytes && backend.readSync(key) === bytes, 'PE fund week changed mirror/cache');
+    check(await durableBytes() === bytes, 'PE fund week durable or pending predecessor lost');
+    check(allocated.every(Number.isSafeInteger), 'PE fund week invalid allocated sequence');
+  } else {
+    check(result === true && !error && saves.count === 1, 'PE fund week rejected or saved twice'); oracle();
+    check(await durableBytes() === backend.readSync(key), 'PE fund week successful durable copy differs');
+  }
+  globalThis.__peWeekEvidence = { e, backend, key, before, failedSequence, oracle, normalized, durableBytes, saves, run };
+  return normalized(e.g);
+}
+
+async function weekRetry() {
+  const { e, backend, key, before, failedSequence, oracle, normalized, durableBytes, saves, run } = globalThis.__peWeekEvidence;
+  if (JSON.stringify(e.g) !== before || e.save() !== true) throw Error('PE week recovery precondition/save failed');
+  await backend.flush(); const recoverySequence = backend.sequenceOf(backend.readSync(key));
+  if (!(recoverySequence > failedSequence)) throw Error('PE week recovery reused failed sequence');
+  saves.count = 0; if (run() !== true || saves.count !== 1) throw Error('PE week retry failed or saved twice');
+  oracle(); await backend.flush();
+  if (!(backend.sequenceOf(backend.readSync(key)) > recoverySequence) || await durableBytes() !== backend.readSync(key)) throw Error('PE week retry not monotonic/durable');
+  return normalized(e.g);
+}
+
 (async () => {
-  const states = {}, forms = {}, results = [];
+  const states = {}, forms = {}, results = [], weekStates = {}, weekControls = {}, weekFundIDs = {}, weekResults = [];
   for (const variant of VARIANTS) {
     const s = await fixture(variant);
     states[variant] = JSON.parse(JSON.stringify(s.game.g)); forms[variant] = { formOptions: s.options };
+  }
+  for (const variant of ['fee', 'harvest', 'close']) {
+    const s = await weekFixture(variant), control = await weekFixture(variant, { defer: true });
+    assert.equal(control.game.advanceWeek(false), true, variant + ' control week');
+    weekStates[variant] = JSON.parse(JSON.stringify(s.game.g)); weekControls[variant] = JSON.parse(JSON.stringify(control.game.g)); weekFundIDs[variant] = s.fundID;
   }
   fs.mkdirSync(DIR, { recursive: true });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -162,7 +255,7 @@ async function repeat() {
   try {
     browser = await webkit.launch();
     const url = 'http://127.0.0.1:' + server.address().port + '/';
-    const record = ok => fs.writeFileSync(path.join(DIR, 'pe-fund-formation-result.json'), JSON.stringify({ ok, browser: browser.version(), physicalDevice: false, results }, null, 2));
+    const record = ok => fs.writeFileSync(path.join(DIR, 'pe-fund-formation-result.json'), JSON.stringify({ ok, browser: browser.version(), physicalDevice: false, results, weekResults }, null, 2));
     async function open(context) {
       const p = await context.newPage(); await p.goto(url, { waitUntil: 'networkidle' });
       await p.addScriptTag({ content: 'globalThis.__injectPEFormFault=' + inject.toString() + ';' });
@@ -225,7 +318,27 @@ async function repeat() {
         results.push({ mutation: mutation + ' rejected', pass: true });
       } finally { await broken.close(); }
     }
+    const weekArgs = (variant, item) => ({ state: weekStates[variant], control: weekControls[variant], fundID: weekFundIDs[variant], variant, ...item, soft: SOFT_FAILURES });
+    for (const variant of ['fee', 'harvest', 'close']) {
+      const cases = variant === 'harvest'
+        ? ['none', ...FAULT_KINDS.filter(kind => !['change', 'notify'].includes(kind)), 'finalize', 'week'].map(kind => ({ kind, pending: false, nested: false }))
+        : [{ kind: 'none', pending: false, nested: false }];
+      if (variant === 'harvest') for (const kind of ['save-false', 'save-throw']) cases.push({ kind, pending: true, nested: false }, { kind, pending: false, nested: true });
+      let uninterrupted;
+      for (const item of cases) {
+        const context = await browser.newContext(options), label = variant + '/' + JSON.stringify(item);
+        try {
+          const p = await open(context), expected = await p.evaluate(weekExercise, weekArgs(variant, item));
+          await fresh(context, expected, 'PE week ' + label + '/first'); let committed = expected;
+          if (item.kind === 'none') uninterrupted = expected;
+          else { committed = await p.evaluate(weekRetry); assert.deepEqual(committed, uninterrupted, 'PE week ' + label + ': retry differs from uninterrupted'); await fresh(context, committed, 'PE week ' + label + '/retry'); }
+          weekResults.push({ variant, ...item, pass: true }); record(false);
+          console.log('iPhone WebKit PE fund week ' + label + ' / real IDB + fresh hydration PASS');
+        } finally { await context.close(); }
+      }
+    }
     record(true);
     console.log(`PE fund formation real WebKit evidence PASS: ${results.length - controls.length} scenarios + ${controls.length} rejected mutations`);
+    console.log(`PE fund canonical-week real WebKit evidence PASS: ${weekResults.length} scenarios`);
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
