@@ -14,10 +14,10 @@ async function setup(){
  const sid=mboID(game),st=game.stock(sid);assert.ok(st,'fixture stock');game.g.companyStocks[sid]={qty:Math.ceil(st.issuedShares*.6),avg:st.price};game.g.companyCash=Math.max(game.g.companyCash,Math.ceil(st.issuedShares*.4*st.price*1.25)+1_000_000);assert.equal(game.save(),true);await backend.flush();
  return {...s,game,backend,key,durable,control};
 }
-async function rejected(kind){
+async function rejected(kind, nested=false){
  const s=await setup(),before=clone(s.game.g),bytes=s.backend.readSync(s.key),durable=s.durable.get(s.key);
  const fault=inject(s.game,s.modules,s.ctx.localStorage,s.key,kind);let result,error;
- try{result=s.game.executeMBO(mboID(s.game));}catch(e){error=e;}finally{fault.restore();}
+ try{result=nested?s.game.runTransaction(()=>s.game.executeMBO(mboID(s.game))):s.game.executeMBO(mboID(s.game));}catch(e){error=e;}finally{fault.restore();}
  assert.ok(fault.hits()>0,`${kind}: injection reached the writer`);
  if(['save-false','mirror','enqueue-false','enqueue-throw'].includes(kind)){assert.equal(result,false,`${kind}: failed defense returns false`);assert.equal(error,undefined);}
  else assert.match(error?.message||'',/threw/);
@@ -27,7 +27,7 @@ async function rejected(kind){
  const fresh=loadGame({headless:true,random:randomFor(),indexedDB:indexedDBFor(s.durable,{attempts:[]})});await fresh.modules.saveStorageIDB.hydrate();
  assert.deepEqual(economic(fresh.engineModule.TycoonEngine.load().g),economic(new s.engineModule.TycoonEngine(clone(before)).g),`${kind}: fresh hydration`);
  assert.equal(s.game.executeMBO(mboID(s.game)),true,`${kind}: retry succeeds`);
- console.log(`executeMBO ${kind} PASS`);
+ console.log(`executeMBO ${nested?'nested ':''}${kind} PASS`);
 }
 async function normal(){
  const s=await setup(),id=mboID(s.game),st=s.game.stock(id),cash=s.game.g.companyCash,personal=s.game.g.personalCash;
@@ -42,5 +42,7 @@ async function normal(){
 (async()=>{
  await normal();
  for(const kind of ['save-false','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','notify'])await rejected(kind);
+ // G39: rejected inner MBO may not commit the outer runTransaction or leak live/durable changes.
+ for(const kind of ['save-false','save-throw'])await rejected(kind,true);
  console.log('executeMBO save atomicity PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
