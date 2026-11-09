@@ -44,6 +44,7 @@ async function runCompanySaleFault(browser,url,command,fault){
  const context=await browser.newContext(options),p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});
  const proof=await p.evaluate(async({command,fault})=>{
   const m=__capitalismTycoonModules,backend=m.saveStorageIDB,key=m.engine.SAVE_KEY;
+  const durable=()=>new Promise((resolve,reject)=>{const open=indexedDB.open(backend.DB_NAME,backend.DB_VERSION);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction(backend.STORE_NAME,'readonly'),get=tx.objectStore(backend.STORE_NAME).get(key);tx.oncomplete=()=>{db.close();resolve(get.result);};tx.onerror=()=>{db.close();reject(tx.error);};};});
   const state=m.engine.createInitialState({configured:true,seed:135101,companyName:'G1 WebKit Sale',playerName:'Owner'});
   Object.assign(state,{week:20,companyCash:100000000,companyDebt:0,personalCash:100000000,publicCompany:true,sharesOut:100000,
    founderShares:60000,treasuryBuybackShares:0,competitorOwnedRatio:0,stockPrice:100,ticker:'CPTY',isCompanySold:false});
@@ -58,7 +59,7 @@ async function runCompanySaleFault(browser,url,command,fault){
   await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB prerequisite failed');
   if(!e.save())throw new Error('baseline save failed');await backend.flush();
   const before=JSON.stringify(e.g),mirrorBefore=localStorage.getItem(key),cacheBefore=backend.readSync(key),
-   durableBefore=await backend.readDurable(key),save=e.save;
+   durableBefore=await durable(),save=e.save;
   let result,thrown='';
   e.save=fault==='save-false'?()=>false:()=>{throw new Error('company sale save threw');};
   try{result=command==='inbound'?e.acceptInboundBuyoutOffer('offer'):e.acceptBuyoutOffer(1.2);}catch(error){thrown=String(error?.message||error);}
@@ -67,7 +68,7 @@ async function runCompanySaleFault(browser,url,command,fault){
   if(fault==='save-throw'&&!/company sale save threw/.test(thrown))throw new Error('throwing save did not escape');
   if(JSON.stringify(e.g)!==before)throw new Error('failed company sale changed live state');
   if(localStorage.getItem(key)!==mirrorBefore||backend.readSync(key)!==cacheBefore)throw new Error('failed company sale changed mirror/cache');
-  await backend.flush();if(await backend.readDurable(key)!==durableBefore)throw new Error('failed company sale changed durable bytes');
+  await backend.flush();if(await durable()!==durableBefore)throw new Error('failed company sale changed durable bytes');
   const cash=e.g.personalCash,expectedIncrease=command==='inbound'?350000000:Math.ceil(e.companyValue()*1.2*.7);
   result=command==='inbound'?e.acceptInboundBuyoutOffer('offer'):e.acceptBuyoutOffer(1.2);
   if(result!==true||!e.g.isCompanySold||e.g.personalStocks.CPTY!==undefined)throw new Error('retry did not settle the lot once');
