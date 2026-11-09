@@ -58,6 +58,10 @@ for(const change of [
  const mirror=plain(x);mirror.subsidiaries=[{id:'sub',startupID:'s',ownership:0,status:'active'}];
  const ambiguous=project(mirror).conversionLinks[0];assert.equal(ambiguous.status,'unresolved');assert.equal(ambiguous.startupInterestCurrent,null);
  assert.equal(ambiguous.reasons[0].code,'ALIAS_CONFLICT');
+ const duplicateAlias=plain(x);duplicateAlias.startups.push({id:'other',alive:false,subsidiary:false,ownedCompany:0,ownedPersonal:0,ipoStockID:'listed'});
+ const duplicateLinks=project(duplicateAlias).conversionLinks;
+ assert.equal(duplicateLinks.length,2);assert(duplicateLinks.every(row=>row.status==='unresolved'&&row.startupInterestCurrent===null));
+ assert(duplicateLinks.every(row=>row.reasons[0].code==='ALIAS_CONFLICT'),'one listed alias cannot prove two startup conversions');
 }
 {
  let reads=0;const x=fixture();Object.defineProperty(x.startups[0],'ownedPersonal',{get(){reads++;throw Error('getter');}});

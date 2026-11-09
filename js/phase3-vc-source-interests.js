@@ -29,9 +29,10 @@ function projectVCSourceInterests(raw){
   complete:false,wealthComplete:false,commandEligible:false,observations:[],roundObservations:[],conversionLinks:[],issues:[]};
  try{
   if(!record(raw))throw Error('INPUT_INVALID');
-  const startups=rows(field(raw,'startups')),subs=rows(field(raw,'subsidiaries')),counts=new Map(),roundIDs=new Map(),subIDs=new Map(),mirrors=new Map();
+  const startups=rows(field(raw,'startups')),subs=rows(field(raw,'subsidiaries')),counts=new Map(),roundIDs=new Map(),ipoIDs=new Map(),subIDs=new Map(),mirrors=new Map();
   for(const s of startups){
    const key=field(s,'id');if(id(key))counts.set(key,(counts.get(key)||0)+1);
+   const ipo=field(s,'ipoStockID');if(id(ipo))ipoIDs.set(ipo,(ipoIDs.get(ipo)||0)+1);
    const pending=field(s,'activeFundingRound');
    if(record(pending)){const key=field(pending,'id');if(id(key))roundIDs.set(key,(roundIDs.get(key)||0)+1);}
   }
@@ -80,11 +81,12 @@ function projectVCSourceInterests(raw){
    if(!error&&!alive&&!id(ipo))error='LIFECYCLE_UNKNOWN';
    if(id(ipo)){
     const sourcePath=path+'.ipoStockID',mirrorConflict=(mirrors.get(source)||[]).length>0,
-     supported=!error&&!mirrorConflict&&alive===false&&converted===false&&company===0&&personal===0;
+     aliasConflict=ipoIDs.get(ipo)!==1,
+     supported=!error&&!mirrorConflict&&!aliasConflict&&alive===false&&converted===false&&company===0&&personal===0;
     out.conversionLinks.push({startupSourceId:id(source)?source:null,listedAlias:ipo,sourcePath,
      status:supported?'source-observed':'unresolved',assetRole:'lifecycle-source-link',startupInterestCurrent:supported?false:null,
      listedLotStatus:'unverified',shareClassStatus:'unproven',issuerEntityId:null,securityClassId:null,ownershipKey:null,
-     quantity:null,votingFraction:null,wealthValue:null,reasons:[{code:supported?'LISTED_LOT_UNVERIFIED':error||(mirrorConflict?'ALIAS_CONFLICT':'CONVERSION_UNPROVEN'),path:sourcePath}]});
+     quantity:null,votingFraction:null,wealthValue:null,reasons:[{code:supported?'LISTED_LOT_UNVERIFIED':error||((mirrorConflict||aliasConflict)?'ALIAS_CONFLICT':'CONVERSION_UNPROVEN'),path:sourcePath}]});
    }
    for(const [account,stake] of [['company',company],['personal',personal]]){
     const row={startupSourceId:id(source)?source:null,account,sourcePath:path+'.owned'+(account==='company'?'Company':'Personal'),
