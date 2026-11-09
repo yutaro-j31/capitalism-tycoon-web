@@ -40,11 +40,16 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
  const reloadedValue=loaded.companyValue(),reloadedCash=loaded.g.companyCash;
  const reloadedPersonalCash=loaded.g.personalCash,reloadedTx=loaded.g.finance.transactions.length;
  const expectedStake=deal.currentValuation;
+ assert.equal(priorSub.valuation,deal.currentValuation/deal.ownershipRatio,'reload does not round the PE projection valuation');
+ assert.equal(priorSub.ownership,deal.ownershipRatio,'reload does not round the PE projection ownership');
+ assert.equal(priorStake,expectedStake,'reload preserves the legal PE stake value before re-sync');
+ assert.equal(reloadedValue,weeklyValue,'reload cannot fabricate or lose company value through mirror normalization');
  loaded.syncPESubsidiary(deal);
  const currentSub=loaded.g.subsidiaries.find(x=>x.id===id);
  assert.equal(loaded.g.subsidiaries.filter(x=>x.id===id).length,1,'rehydrated direct sync reuses mirror');
  assert.ok(Math.abs(currentSub.valuation*currentSub.ownership-expectedStake)<.01,'rehydrated mirror equals one legal PE stake');
  assert.ok(Math.abs((loaded.companyValue()-reloadedValue)-(expectedStake-priorStake))<.01,'rehydrated sync replaces only the previous stake value');
+ assert.equal(loaded.companyValue(),reloadedValue,'re-sync is valuation-idempotent after reload');
  assert.equal(loaded.g.companyCash,reloadedCash,'rehydrated mirror sync does not move company cash');
  assert.equal(loaded.g.personalCash,reloadedPersonalCash,'rehydrated mirror sync does not move personal cash');
  assert.equal(loaded.g.finance.transactions.length,reloadedTx,'rehydrated mirror sync posts no ledger event');
