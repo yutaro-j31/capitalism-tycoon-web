@@ -40,11 +40,16 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
  const reloadedValue=loaded.companyValue(),reloadedCash=loaded.g.companyCash;
  const reloadedPersonalCash=loaded.g.personalCash,reloadedTx=loaded.g.finance.transactions.length;
  const expectedStake=deal.currentValuation;
+ assert.equal(priorSub.valuation,deal.currentValuation/deal.ownershipRatio,'reload does not round the PE projection valuation');
+ assert.equal(priorSub.ownership,deal.ownershipRatio,'reload does not round the PE projection ownership');
+ assert.equal(priorStake,expectedStake,'reload preserves the legal PE stake value before re-sync');
+ assert.equal(reloadedValue,weeklyValue,'reload cannot fabricate or lose company value through mirror normalization');
  loaded.syncPESubsidiary(deal);
  const currentSub=loaded.g.subsidiaries.find(x=>x.id===id);
  assert.equal(loaded.g.subsidiaries.filter(x=>x.id===id).length,1,'rehydrated direct sync reuses mirror');
  assert.ok(Math.abs(currentSub.valuation*currentSub.ownership-expectedStake)<.01,'rehydrated mirror equals one legal PE stake');
  assert.ok(Math.abs((loaded.companyValue()-reloadedValue)-(expectedStake-priorStake))<.01,'rehydrated sync replaces only the previous stake value');
+ assert.equal(loaded.companyValue(),reloadedValue,'re-sync is valuation-idempotent after reload');
  assert.equal(loaded.g.companyCash,reloadedCash,'rehydrated mirror sync does not move company cash');
  assert.equal(loaded.g.personalCash,reloadedPersonalCash,'rehydrated mirror sync does not move personal cash');
  assert.equal(loaded.g.finance.transactions.length,reloadedTx,'rehydrated mirror sync posts no ledger event');
@@ -53,6 +58,37 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
  const {e,d}=acquire('personal',182),before=JSON.stringify(e.g);
  assert.equal(e.syncPESubsidiary(d),null,'personal PE stake cannot create a company subsidiary mirror');
  assert.equal(JSON.stringify(e.g),before,'rejected personal mirror sync leaves all state unchanged');
+}
+// A unique legacy mirror can predate the source-owned identity markers while retaining
+// the deterministic PE subsidiary ID. Forward sync must repair those markers before a
+// reverse ownership update, without creating an asset or moving cash/ledger state.
+{
+ const {e,d}=acquire('company',184),id=`pe-subsidiary-${d.id}`;
+ const legacy=e.g.subsidiaries.find(row=>row.id===id);
+ const canonicalValue=e.companyValue();
+ delete legacy.source;delete legacy.peDealID;delete legacy.valuationManagedBy;
+ assert.equal(e.save(),true);
+ const loaded=e.constructor.load(),deal=loaded.g.peDeals.find(row=>row.id===d.id);
+ const mirror=loaded.g.subsidiaries.find(row=>row.id===id);
+ assert.ok(deal&&mirror,'unique legacy PE mirror remains loadable');
+ assert.equal(mirror.source,undefined);assert.equal(mirror.peDealID,undefined);
+ assert.equal(mirror.valuationManagedBy,undefined);
+ const before={value:loaded.companyValue(),stake:mirror.valuation*mirror.ownership,companyCash:loaded.g.companyCash,
+  personalCash:loaded.g.personalCash,ledger:loaded.g.finance.transactions.length};
+ assert.equal(loaded.syncPESubsidiary(deal),mirror);
+ assert.equal(mirror.source,'pe');assert.equal(mirror.peDealID,deal.id);
+ assert.equal(mirror.valuationManagedBy,'pe');
+ assert.equal(loaded.g.subsidiaries.filter(row=>row.id===id).length,1);
+ assert.ok(Math.abs((loaded.companyValue()-before.value)-(deal.currentValuation-before.stake))<.01,
+  'identity repair replaces only the malformed mirrored stake');
+ assert.equal(loaded.companyValue(),canonicalValue,'identity repair restores the legal stake value');
+ assert.equal(loaded.g.companyCash,before.companyCash);assert.equal(loaded.g.personalCash,before.personalCash);
+ assert.equal(loaded.g.finance.transactions.length,before.ledger,'identity repair posts no receipt');
+ mirror.ownership-=.10;mirror.carryingBookValue=Math.round(mirror.carryingBookValue*.8);
+ assert.equal(loaded.syncPEDealFromSubsidiary(mirror),deal);
+ assert.equal(deal.ownershipRatio,mirror.ownership,'repaired mirror restores reverse ownership sync');
+ assert.equal(deal.ownerCostBasis,mirror.carryingBookValue,'repaired mirror restores reverse basis sync');
+ assert.equal(mirror.valuation*mirror.ownership,deal.currentValuation);
 }
 // Transfer is fair-value, atomic and commits exactly once.
 {const{x,e,d}=acquire();const price=x.modules.economicOperation.ceilYen(d.currentValuation),pc=e.g.personalCash,cc=e.g.companyCash,pl=e.g.peRealizedPL,tx=e.g.finance.transactions.length;let saves=0,events=[];e.save=()=>{saves++;return true;};e.emit=type=>{events.push(type||'change');};assert.equal(e.transferPEDealToCompany(d.id),true);assert.equal(saves,1);assert.deepEqual(events,['notify','change']);assert.equal(e.g.personalCash,pc+price);assert.equal(e.g.companyCash,cc-price);assert.equal(e.g.peRealizedPL,pl+price-100e6);assert.equal(d.ownerAccount,'company');assert.equal(d.ownerCostBasis,price);assert.equal(e.g.subsidiaries[0].carryingBookValue,price);assert.equal(e.g.finance.transactions.length,tx+1);const snapshot=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),snapshot);}
@@ -108,6 +144,70 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
 {const{e,d}=acquire('company',81),s=e.g.subsidiaries[0];e.updatePersonalExpandedWeekly();stakeMatches(d,s);const value=s.valuation;e.updateSubsidiaries();assert.equal(s.valuation,value);}
 // Existing subsidiary IPO pipeline updates PE ownership, stake valuation and remaining basis and never rolls them back.
 {const{e,d}=acquire('company',91);d.ownershipRatio=.70;d.currentValuation=350e6;d.ownerCostBasis=100e6;const s=e.syncPESubsidiary(d);s.ipoPreparation={stageIndex:3,completed:true,offerTermID:'balanced',totalCost:0};assert.equal(e.ipoSubsidiary(s.id),true);assert.equal(d.ownershipRatio,s.ownership);assert.equal(d.ownerCostBasis,s.carryingBookValue);stakeMatches(d,s);const post={ownership:d.ownershipRatio,basis:d.ownerCostBasis};e.updatePersonalExpandedWeekly();assert.equal(d.ownershipRatio,post.ownership);assert.equal(d.ownerCostBasis,post.basis);stakeMatches(d,s);s.ipoOfferTerms.lockupUntilWeek=e.g.week;e.sellSubsidiaryIPOStake(s.id,.10);assert.equal(d.ownershipRatio,s.ownership);assert.equal(d.ownerCostBasis,s.carryingBookValue);stakeMatches(d,s);}
+// P3-4 FC-G30-01 (partial): IPO -> listed secondary sale -> reload -> direct
+// PE projection sync must retain the reduced legal stake, not recreate sold equity.
+// The existing IPO test covers in-memory reverse updates; this checks persistence.
+{
+ const {x,e,d}=acquire('company',197),id=`pe-subsidiary-${d.id}`;
+ d.ownershipRatio=.70;d.currentValuation=350e6;d.ownerCostBasis=100e6;
+ const sub=e.syncPESubsidiary(d);
+ sub.ipoPreparation={stageIndex:3,completed:true,offerTermID:'balanced',totalCost:0};
+ assert.equal(e.ipoSubsidiary(id),true);
+ sub.ipoOfferTerms.lockupUntilWeek=e.g.week;
+ const preSaleOwnership=d.ownershipRatio,preSaleBasis=d.ownerCostBasis;
+ assert.equal(e.sellSubsidiaryIPOStake(id,.10),true);
+ assert.ok(d.ownershipRatio<preSaleOwnership,'secondary sale reduces the legal PE stake');
+ assert.ok(d.ownerCostBasis<preSaleBasis,'secondary sale reduces the PE cost basis');
+ const expected={ownership:d.ownershipRatio,basis:d.ownerCostBasis,
+  companyCash:e.g.companyCash,personalCash:e.g.personalCash,
+  ledger:e.g.finance.transactions.length};
+ const compact=x.modules.saveStorage.compactStateForStorage(
+  JSON.parse(JSON.stringify(e.g)),'critical').state;
+ const compacted=new e.constructor(JSON.parse(JSON.stringify(compact)));
+ const compactDeal=compacted.g.peDeals.find(row=>row.id===d.id);
+ const compactMirror=compacted.g.subsidiaries.find(row=>row.id===id);
+ assert.ok(compactDeal&&compactMirror,'critical compaction retains the legal PE stake and mirror');
+ assert.equal(compacted.g.peDeals.filter(row=>row.id===d.id).length,1);
+ assert.equal(compacted.g.subsidiaries.filter(row=>row.id===id).length,1);
+ assert.equal(compactDeal.ownershipRatio,expected.ownership,'critical compaction cannot restore sold equity');
+ assert.equal(compactDeal.ownerCostBasis,expected.basis,'critical compaction cannot restore sold basis');
+ assert.equal(compactMirror.ownership,expected.ownership);
+ assert.equal(compactMirror.valuation*compactMirror.ownership,compactDeal.currentValuation,
+  'critical compaction preserves one exact legal PE stake');
+ assert.equal(compacted.companyValue(),e.companyValue(),'critical compaction preserves company value');
+ assert.equal(compacted.g.companyCash,expected.companyCash);
+ assert.equal(compacted.g.personalCash,expected.personalCash);
+ assert.equal(compacted.g.finance.transactions.length,expected.ledger,'critical compaction retains one sale receipt');
+ const compactValue=compacted.companyValue();
+ compacted.syncPESubsidiary(compactDeal);
+ assert.equal(compacted.g.subsidiaries.filter(row=>row.id===id).length,1,'post-compaction sync reuses the mirror');
+ assert.equal(compacted.companyValue(),compactValue,'post-compaction sync is valuation-idempotent');
+ assert.equal(compacted.g.finance.transactions.length,expected.ledger,'post-compaction sync posts no receipt');
+ assert.equal(e.save(),true);
+ const loaded=e.constructor.load(),deal=loaded.g.peDeals.find(x=>x.id===d.id);
+ const mirror=loaded.g.subsidiaries.find(x=>x.id===id);
+ assert.ok(deal&&mirror,'listed PE stake and mirror survive reload');
+ assert.equal(loaded.g.subsidiaries.filter(x=>x.id===id).length,1);
+ assert.equal(deal.ownershipRatio,expected.ownership,'sold equity does not return');
+ assert.equal(deal.ownerCostBasis,expected.basis,'sold basis does not return');
+ assert.equal(mirror.ownership,expected.ownership);
+ assert.equal(mirror.valuation*mirror.ownership,deal.currentValuation,
+  'reload preserves the surviving legal stake without projection drift');
+ assert.equal(loaded.g.companyCash,expected.companyCash);
+ assert.equal(loaded.g.personalCash,expected.personalCash);
+ assert.equal(loaded.g.finance.transactions.length,expected.ledger,'sale receipt is not duplicated');
+ const valueBefore=loaded.companyValue(),stakeBefore=mirror.valuation*mirror.ownership;
+ loaded.syncPESubsidiary(deal);
+ assert.equal(loaded.g.subsidiaries.filter(x=>x.id===id).length,1,'forward sync reuses listed mirror');
+ assert.equal(mirror.ownership,expected.ownership,'forward sync cannot restore sold shares');
+ assert.ok(Math.abs((loaded.companyValue()-valueBefore)-(deal.currentValuation-stakeBefore))<.01,
+  'forward sync replaces only the surviving stake value');
+ assert.equal(loaded.companyValue(),valueBefore,'forward sync is valuation-idempotent after reload');
+ assert.equal(loaded.g.companyCash,expected.companyCash);
+ assert.equal(loaded.g.personalCash,expected.personalCash);
+ assert.equal(loaded.g.finance.transactions.length,expected.ledger);
+}
+
 // Personal and company EXIT route cash/accounting separately and company EXIT removes subsidiary value.
 {const{e,d}=acquire(),p=e.g.personalCash,c=e.g.companyCash;assert.equal(e.exitPEDeal(d.id),true);assert.ok(e.g.personalCash>p);assert.equal(e.g.companyCash,c);}
 {const{x,e,d}=acquire('company',55);d.improvementScore=100;e.syncPESubsidiary(d);const p=e.g.personalCash,c=e.g.companyCash,basis=d.ownerCostBasis,expected=x.modules.peValueCreation.exitValue(d),tx=e.g.finance.transactions.length;assert.equal(e.exitPEDeal(d.id),true);assert.equal(e.g.personalCash,p);assert.equal(e.g.companyCash,c+expected);assert.equal(e.g.subsidiaries.length,0);assert.equal(d.status,'exited');assert.equal(e.g.finance.transactions.length,tx+1);const ev=e.g.finance.transactions.at(-1);assert.equal(ev.assetEffect,-basis);assert.equal(ev.profitEffect,expected-basis);assert.equal(x.modules.finance.validate(e.g).ok,true);}
