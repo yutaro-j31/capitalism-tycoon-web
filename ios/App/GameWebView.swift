@@ -51,7 +51,7 @@ struct GameWebView: UIViewRepresentable {
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <body style="background:#08101f;color:#fff;font:16px -apple-system;padding:48px 24px">
     <h1 style="font-size:20px">ゲーム本体が見つかりません</h1>
-    <p>このアプリの中に web フォルダがありません。配布されたZIPをそのまま開き直してください。</p>
+    <p>このアプリの中に web フォルダがありません。ビルド手順（ios/README.md）を確認してください。</p>
     </body></html>
     """
 

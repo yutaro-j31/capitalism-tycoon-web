@@ -50,11 +50,13 @@ function jobBlock(source, job) {
   return block.join('\n');
 }
 
-assert.equal(workflowFiles.length, 7, 'Phase 2H plus CI Hygiene must retain exactly 7 workflow files');
+assert.equal(workflowFiles.length, 8, 'Phase 2H plus CI Hygiene plus iOS Build must retain exactly 8 workflow files');
 for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml', 'iphone-playtest-remediation.yml', 'physical-iphone-playtest.yml', 'pages-publication-attestation.yml', 'published-save-quota-contract.yml', 'release-attestation-contract.yml']) {
   assert.equal(workflowFiles.includes(file), false, `${file} must remain absent after workflow consolidation`);
 }
-for (const file of ['test.yml', 'strategy-balance.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml', 'ci-hygiene.yml']) {
+// ios-build.yml is the one workflow that needs a macOS runner (Xcode + iOS Simulator); it is
+// path-filtered to ios/** so it never runs for game, test or CI-timing changes.
+for (const file of ['test.yml', 'strategy-balance.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml', 'ci-hygiene.yml', 'ios-build.yml']) {
   assert(workflowFiles.includes(file), `${file} must remain after Phase 2H consolidation`);
 }
 for (const file of ['phase6b3-diagnostic.yml', 'exploration-1000-week.yml', 'issue-294-executive-hiring-diagnostic.yml', 'shareholder-activism.yml', 'ma-deal-room.yml', 'release-readiness.yml', 'iphone-webkit-smoke.yml']) {
@@ -565,7 +567,14 @@ for (const file of workflowFiles) {
   if (hasTrigger(source, 'push')) assert(isMainOnly(triggerBlock(source, 'push')), `${file} must not run on feature-branch pushes`);
 }
 const pullRequestWorkflows = workflowFiles.filter(file => hasTrigger(readWorkflow(file), 'pull_request'));
-assert.equal(pullRequestWorkflows.length, 4, 'Phase 2H retains three PR validation workflows plus close-only CI Hygiene');
+assert.equal(pullRequestWorkflows.length, 5, 'Phase 2H retains three PR validation workflows plus close-only CI Hygiene, plus the ios/**-only iOS Build');
+{
+  const iosPaths = pathsFor(readWorkflow('ios-build.yml'), 'pull_request');
+  assert(iosPaths.length > 0, 'iOS Build must stay path-filtered so it never queues for unrelated PRs');
+  for (const entry of iosPaths) {
+    assert(/^(ios\/|scripts\/build-ios-|tests\/ios-|\.github\/workflows\/ios-build\.yml$)/.test(entry), `iOS Build path filter must stay iOS-only, got ${entry}`);
+  }
+}
 console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day, ${pullRequestWorkflows.length} PR-triggered workflows`);
 
 // Phase 1A: VC follow-on / initial investment WebKit moved from comprehensive-ma and deal-room to

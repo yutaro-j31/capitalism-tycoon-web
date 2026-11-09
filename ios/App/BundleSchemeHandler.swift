@@ -17,16 +17,12 @@ final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         URL(string: "\(scheme)://\(host)/index.html")!
     }
 
-    /// Root of the bundled game, or nil when the package was built without it.
+    /// Root of the bundled game, or nil when the app was built without it.
     static let webRoot: URL? = {
-        for bundle in [Bundle.module, Bundle.main] {
-            guard let root = bundle.url(forResource: "web", withExtension: nil) else { continue }
-            let index = root.appendingPathComponent("index.html")
-            if FileManager.default.fileExists(atPath: index.path) {
-                return root.standardizedFileURL
-            }
-        }
-        return nil
+        guard let root = Bundle.main.url(forResource: "web", withExtension: nil) else { return nil }
+        let index = root.appendingPathComponent("index.html")
+        guard FileManager.default.fileExists(atPath: index.path) else { return nil }
+        return root.standardizedFileURL
     }()
 
     private static let mimeTypes: [String: String] = [

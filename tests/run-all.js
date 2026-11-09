@@ -162,7 +162,6 @@ const nodeTests = [
   ['map-phase2-lazy-load-recovery', 'tests/map-phase2-lazy-load-recovery-test.js'],
   ['map-phase2-marker-placard-interaction', 'tests/map-phase2-marker-placard-interaction-test.js'],
   ['static-asset-cache-coherence', 'tests/static-asset-cache-coherence-test.js'],
-  ['ios-swiftpm-bundle', 'tests/ios-swiftpm-bundle-test.js'],
   ['map-marker-detail-interaction', 'tests/map-marker-detail-interaction-test.js'],
   ['map-marker-anchor-integrity', 'tests/map-marker-anchor-integrity-test.js'],
   ['map-marker-building-affinity', 'tests/map-marker-building-affinity-test.js'],

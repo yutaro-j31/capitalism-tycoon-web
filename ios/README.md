@@ -1,48 +1,45 @@
-# iOSアプリ化（Swift Playgrounds用パッケージ）
+# iOSアプリ化
 
 ブラウザ版のゲームを、そのままの内容でiPhone/iPadアプリとして動かすための最小の入れ物です。
 ゲーム本体（`index.html`・`js/`・`css/`・`assets/`・`prototypes/`）には手を加えず、アプリの中に同梱して
 `WKWebView` で表示します。通信は不要で、オフラインで動きます。
 
+開発者の手元にMacもiPadもない前提なので、ビルドはGitHub Actions上のMacで行います。
+
 ## 構成
 
 | ファイル | 役割 |
 | --- | --- |
-| `swiftpm/Package.swift` | Swift Playgroundsのアプリ定義。`web/` を階層ごと同梱する |
-| `swiftpm/TycoonApp.swift` | アプリの入口。画面全体にゲームを表示する |
-| `swiftpm/GameWebView.swift` | `WKWebView` 本体。確認ダイアログ、ファイル書き出し、外部リンクを扱う |
-| `swiftpm/BundleSchemeHandler.swift` | 同梱したゲームを `tycoon://game/` という固定の場所から配信する |
-| `../scripts/build-ios-swiftpm.js` | 上の4ファイルとゲーム本体を1つのパッケージに組み立てる |
+| `App/TycoonApp.swift` | アプリの入口。画面全体にゲームを表示する |
+| `App/GameWebView.swift` | `WKWebView` 本体。確認ダイアログ、ファイル書き出し、外部リンクを扱う |
+| `App/BundleSchemeHandler.swift` | 同梱したゲームを `tycoon://game/` という固定の場所から配信する |
+| `project.yml` | XcodeGen用のプロジェクト定義。Xcodeプロジェクトはビルド時に生成し、コミットしない |
+| `../scripts/build-ios-web-bundle.js` | ゲーム本体を `ios/build/web/` に写す。読み込むファイルが欠けていれば失敗する |
+| `../tests/ios-web-bundle-test.js` | 同梱の完全性と、アプリ側に必要な機能があることの検査 |
+| `../.github/workflows/ios-build.yml` | 上記を実行し、iOSシミュレータで一度起動して最初の画面を画像で残す |
 
-## パッケージの作り方
+## いま保証していること
 
-```bash
-node scripts/build-ios-swiftpm.js dist
-```
+`iOS Build` ワークフローが緑なら、次が確認できています。
 
-`dist/CapitalismPocketTycoon.swiftpm/` ができます。これをZIPにしてiPadへ渡し、展開して
-Swift Playgroundsで開きます。ゲームが読み込むファイルが1つでも欠けていると、組み立ては失敗します。
+- Swiftのソースがコンパイルできる
+- ゲームのファイルが全部アプリの中に入っている
+- シミュレータ上でアプリが起動し、落ちずに動き続ける（最初の画面の画像が成果物に残る）
 
-## 実機で確認すること
+## まだ保証していないこと
 
-このパッケージはSwiftのコンパイル環境がない場所で書かれており、**実機での動作は未確認**です。
-`tests/ios-swiftpm-bundle-test.js` が保証するのは「必要なファイルが全部入っていること」までです。
-最初に次の順で確認してください。
+- 実機のiPhoneでの動作（シミュレータは実機ではありません）
+- セーブがアプリの再起動後も残ること
+- バックアップの書き出し（共有シート）と確認ダイアログの実際の挙動
+- 署名とApp Store提出
 
-1. Swift Playgroundsでビルドが通り、タイトル画面が出る
-2. 新規ゲームを始めて1週進められる
-3. アプリを完全に終了して開き直しても、続きから始まる（セーブの永続性）
-4. 出店マップが表示される（3D表示とスプライトの読み込み）
-5. 設定画面からセーブのバックアップを書き出せる（共有シートが出る）
-6. 確認が必要な操作で、確認ダイアログが出る
-7. ノッチやホームバーに画面が重ならない
+## App Storeに出すまでに必要なこと
 
-## App Storeに出す前に必要なこと
-
-- `Package.swift` の `bundleIdentifier` は仮の値です。Swift Playgroundsのアプリ設定で、
-  自分のApple Developerアカウントのチームと正式なIDに置き換えます。
-- アプリアイコンは仮のものです。
-- バージョン番号（`displayVersion`・`bundleVersion`）を提出のたびに上げます。
+1. Apple Developer Programへの登録
+2. App Store Connectでアプリの登録枠を作り、APIキーを発行してリポジトリのSecretsに入れる
+3. `project.yml` の `PRODUCT_BUNDLE_IDENTIFIER`（いまは仮の値）を正式なIDに変える
+4. アプリアイコンを追加する
+5. 署名つきビルドとTestFlight送信のジョブを追加する（別PR）
 
 ## セーブについて
 

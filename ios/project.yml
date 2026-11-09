@@ -1,0 +1,43 @@
+# XcodeGen project definition for the iOS shell.
+# The Xcode project is generated in CI (`xcodegen generate`) and never committed.
+# `build/web` is produced first by `node scripts/build-ios-web-bundle.js ios/build`.
+name: CapitalismPocketTycoon
+options:
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+targets:
+  CapitalismPocketTycoon:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: build/web
+        type: folder
+        buildPhase: resources
+    info:
+      path: build/Info.plist
+      properties:
+        CFBundleDisplayName: 資本主義ポケット TYCOON
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIRequiresFullScreen: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        # Placeholder identifier; replaced when App Store signing is set up.
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.capitalism-pocket-tycoon
+        PRODUCT_NAME: CapitalismPocketTycoon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: NO

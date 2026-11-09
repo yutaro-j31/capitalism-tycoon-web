@@ -454,5 +454,9 @@
   "tests/founder-capital-atomicity-webkit-test.js": {
     "reason": "P4-AUD-003 installed Founder Capital contribution: real iPhone WebKit mirror rejection/post-save notification fault rollback, retry, one valid capital/equity posting and cash separation, production reload, fresh durable-only real IndexedDB hydration in p3-writer-atomicity on PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/ios-web-bundle-test.js": {
+    "reason": "iOS shell bundle contract (snapshot completeness, byte-identical game files, MIME coverage, required browser-feature shims); runs with the macOS simulator build that consumes the same snapshot.",
+    "executedBy": ".github/workflows/ios-build.yml"
   }
 }

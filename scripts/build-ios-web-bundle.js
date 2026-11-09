@@ -2,18 +2,15 @@
 'use strict';
 
 /**
- * Assembles the Swift Playgrounds app package for the iOS shell.
+ * Assembles the game snapshot that the iOS shell (ios/App) bundles.
  *
- *   node scripts/build-ios-swiftpm.js [outputDirectory]
+ *   node scripts/build-ios-web-bundle.js [outputDirectory]   (default: ios/build)
  *
- * Output: <outputDirectory>/CapitalismPocketTycoon.swiftpm/
- *   Package.swift, *.swift   copied from ios/swiftpm/
- *   web/                     snapshot of the browser game (index.html, js/, css/,
- *                            assets/, prototypes/)
+ * Output: <outputDirectory>/web/ — index.html, js/, css/, assets/, prototypes/
  *
  * The game files are copied byte-for-byte; nothing is transformed. The script
  * fails when a file the game loads at startup or lazily is missing from the
- * snapshot, so a broken package cannot be produced silently.
+ * snapshot, so a broken app bundle cannot be produced silently.
  */
 
 const fs = require('node:fs');
@@ -21,8 +18,6 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const SHELL_SOURCE = path.join(ROOT, 'ios', 'swiftpm');
-const PACKAGE_NAME = 'CapitalismPocketTycoon.swiftpm';
 
 /** Game files and directories that make up the runtime, relative to the repo root. */
 const WEB_ENTRIES = ['index.html', 'css', 'js', 'assets', 'prototypes'];
@@ -69,14 +64,9 @@ function sourceCommit() {
 }
 
 function build(outputDirectory) {
-  const packageDirectory = path.join(outputDirectory, PACKAGE_NAME);
-  const webDirectory = path.join(packageDirectory, 'web');
-  fs.rmSync(packageDirectory, { recursive: true, force: true });
+  const webDirectory = path.join(outputDirectory, 'web');
+  fs.rmSync(webDirectory, { recursive: true, force: true });
   fs.mkdirSync(webDirectory, { recursive: true });
-
-  const shellFiles = fs.readdirSync(SHELL_SOURCE).filter(name => name.endsWith('.swift')).sort();
-  if (!shellFiles.includes('Package.swift')) throw new Error('ios/swiftpm/Package.swift is missing');
-  for (const name of shellFiles) fs.copyFileSync(path.join(SHELL_SOURCE, name), path.join(packageDirectory, name));
 
   for (const entry of WEB_ENTRIES) {
     const from = path.join(ROOT, entry);
@@ -95,16 +85,15 @@ function build(outputDirectory) {
 
   const info = { sourceCommit: sourceCommit(), startupFiles: startup.length, lazyReferences: lazy.length };
   fs.writeFileSync(path.join(webDirectory, 'build-info.json'), `${JSON.stringify(info, null, 2)}\n`);
-  return { packageDirectory, webDirectory, shellFiles, startup, lazy, info };
+  return { webDirectory, startup, lazy, info };
 }
 
-module.exports = { build, indexReferences, lazyReferences, PACKAGE_NAME, WEB_ENTRIES };
+module.exports = { build, indexReferences, lazyReferences, WEB_ENTRIES };
 
 if (require.main === module) {
-  const outputDirectory = path.resolve(process.argv[2] || path.join(ROOT, 'dist'));
+  const outputDirectory = path.resolve(process.argv[2] || path.join(ROOT, 'ios', 'build'));
   const result = build(outputDirectory);
-  console.log(`built ${result.packageDirectory}`);
-  console.log(`  shell sources: ${result.shellFiles.join(', ')}`);
+  console.log(`built ${result.webDirectory}`);
   console.log(`  startup files: ${result.startup.length}, lazy references: ${result.lazy.length}`);
   console.log(`  source commit: ${result.info.sourceCommit}`);
 }
