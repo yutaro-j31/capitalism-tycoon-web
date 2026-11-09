@@ -1,0 +1,102 @@
+name: iOS Build
+
+# Builds the iOS shell (ios/App) around the unmodified browser game and launches
+# it once in the iOS Simulator. Unsigned: this proves the Swift sources compile,
+# the game snapshot is bundled, and the app starts. It does not produce an
+# installable or App Store build.
+
+on:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'scripts/build-ios-web-bundle.js'
+      - 'tests/ios-web-bundle-test.js'
+      - '.github/workflows/ios-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bundle-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: iOS web bundle contract
+        run: node tests/ios-web-bundle-test.js
+
+  simulator-build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Assemble the game snapshot
+        run: node scripts/build-ios-web-bundle.js ios/build
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Build for the iOS Simulator (unsigned)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project CapitalismPocketTycoon.xcodeproj \
+            -scheme CapitalismPocketTycoon \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tail -n 200
+      - name: Verify the game is inside the app bundle
+        working-directory: ios
+        run: |
+          APP=build/DerivedData/Build/Products/Debug-iphonesimulator/CapitalismPocketTycoon.app
+          test -f "$APP/web/index.html"
+          test -f "$APP/web/js/app.js"
+          test -f "$APP/web/assets/vendor/three-r160.min.js"
+          echo "bundled files: $(find "$APP/web" -type f | wc -l)"
+      - name: Launch in the iOS Simulator and capture the first screen
+        working-directory: ios
+        run: |
+          APP=build/DerivedData/Build/Products/Debug-iphonesimulator/CapitalismPocketTycoon.app
+          UDID=$(xcrun simctl list devices available -j | node -e '
+            const data = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const runtimes = Object.keys(data.devices).filter(key => /iOS/.test(key)).sort().reverse();
+            for (const runtime of runtimes) {
+              const phone = data.devices[runtime].find(device => /^iPhone/.test(device.name));
+              if (phone) { console.log(phone.udid); process.exit(0); }
+            }
+            process.exit(1);')
+          echo "simulator: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" com.example.capitalism-pocket-tycoon
+          sleep 25
+          mkdir -p build/evidence
+          xcrun simctl io "$UDID" screenshot build/evidence/first-screen.png
+          xcrun simctl spawn "$UDID" launchctl list | grep -i capitalism > build/evidence/process.txt || true
+          cat build/evidence/process.txt
+          test -s build/evidence/process.txt
+      - name: Upload launch evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-first-screen-${{ github.sha }}
+          path: ios/build/evidence
+          if-no-files-found: warn
+          retention-days: 14
