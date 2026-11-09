@@ -57,7 +57,8 @@ async function runCompanySaleFault(browser,url,command,fault){
    hostile:false,status:'pending'}];
   await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB prerequisite failed');
   if(!e.save())throw new Error('baseline save failed');await backend.flush();
-  const before=JSON.stringify(e.g),durableBefore=await backend.readDurable(key),save=e.save;
+  const before=JSON.stringify(e.g),mirrorBefore=localStorage.getItem(key),cacheBefore=backend.readSync(key),
+   durableBefore=await backend.readDurable(key),save=e.save;
   let result,thrown='';
   e.save=fault==='save-false'?()=>false:()=>{throw new Error('company sale save threw');};
   try{result=command==='inbound'?e.acceptInboundBuyoutOffer('offer'):e.acceptBuyoutOffer(1.2);}catch(error){thrown=String(error?.message||error);}
@@ -65,7 +66,7 @@ async function runCompanySaleFault(browser,url,command,fault){
   if(fault==='save-false'&&result!==false)throw new Error('rejected save accepted');
   if(fault==='save-throw'&&!/company sale save threw/.test(thrown))throw new Error('throwing save did not escape');
   if(JSON.stringify(e.g)!==before)throw new Error('failed company sale changed live state');
-  if(localStorage.getItem(key)!==before||backend.readSync(key)!==before)throw new Error('failed company sale changed mirror/cache');
+  if(localStorage.getItem(key)!==mirrorBefore||backend.readSync(key)!==cacheBefore)throw new Error('failed company sale changed mirror/cache');
   await backend.flush();if(await backend.readDurable(key)!==durableBefore)throw new Error('failed company sale changed durable bytes');
   const cash=e.g.personalCash,expectedIncrease=command==='inbound'?350000000:Math.ceil(e.companyValue()*1.2*.7);
   result=command==='inbound'?e.acceptInboundBuyoutOffer('offer'):e.acceptBuyoutOffer(1.2);

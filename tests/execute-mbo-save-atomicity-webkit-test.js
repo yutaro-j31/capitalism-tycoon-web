@@ -11,7 +11,7 @@ const { inject } = require('./fixtures/pe-fund-acquisition-faults');
 const ROOT = path.resolve(__dirname, '..');
 const DIR = path.resolve(process.env.MA_DEAL_ROOM_ARTIFACT_DIR || 'artifacts/mbo-atomicity-webkit');
 const options = { ...devices['iPhone 13'], locale: 'ja-JP', timezoneId: 'Asia/Tokyo', serviceWorkers: 'block' };
-const FAULTS = ['save-false', 'mirror', 'enqueue-false', 'enqueue-throw', 'save-throw', 'saved', 'change', 'notify', 'pending-save-false', 'pending-change'];
+const FAULTS = ['save-false', 'mirror', 'enqueue-false', 'enqueue-throw', 'save-throw', 'saved', 'change', 'notify', 'pending-save-false', 'pending-change', 'nested-save-false', 'nested-save-throw'];
 const server = http.createServer((req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
@@ -62,7 +62,7 @@ async function run(browser, url, raw, fault) {
       await backend.hydrate();
       check(backend.status().available, 'real IndexedDB required');
       check(e.save(), 'baseline save'); await backend.flush();
-      const pending = fault.startsWith('pending-'), kind = fault.replace(/^pending-/, '');
+      const pending = fault.startsWith('pending-'), nested = fault.startsWith('nested-'), kind = fault.replace(/^(pending|nested)-/, '');
       if (pending) { e.g.news.unshift('accepted predecessor'); check(e.save(), 'predecessor save'); }
       const before = clone(e.g), bytes = backend.readSync(key), puts = [];
       const basePut = IDBObjectStore.prototype.put;
@@ -73,7 +73,7 @@ async function run(browser, url, raw, fault) {
       const normal = kind === 'normal';
       const injection = normal ? { hits: () => 0, restore() {} } : __mboInject(e, m, localStorage, key, kind);
       let result = null, error = null;
-      try { result = e.executeMBO('EXT'); } catch (ex) { error = ex.message; } finally { injection.restore(); }
+      try { result = nested ? e.runTransaction(() => e.executeMBO('EXT')) : e.executeMBO('EXT'); } catch (ex) { error = ex.message; } finally { injection.restore(); }
       if (!normal) {
         check(injection.hits() > 0, 'fault must reach installed MBO writer');
         const soft = ['save-false', 'mirror', 'enqueue-false', 'enqueue-throw'].includes(kind);
