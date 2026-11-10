@@ -83,6 +83,7 @@
     "./js/ui-enhancer-registry.js",
     "./js/save-storage-idb.js",
     "./js/ui3-shell.js",
+    "./js/ui3-weekly-report.js",
     "./js/app.js",
     "./js/player-media-advertising-ui.js",
     "./js/difficulty-scenario-balance.js",

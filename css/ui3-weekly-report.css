@@ -1,0 +1,34 @@
+/* UI v3 weekly report sheet (docs/ui-v3/README.md 5.4, UI3-2).
+   Layout only: colours, type and spacing tokens come from ui3.css. These rules keep the sheet inside
+   one screen (README: no scrolling) by capping the two blocks whose length depends on game text. */
+
+/* Spacing only. At 390x664 the sheet body is 458px tall and the content measured 470px, so the report
+   would scroll. These rules take the 12px blocks down to 8px and shorten the (non-interactive) event rows,
+   which leaves room for a two-line event headline and a two-line next-move headline as well. */
+.ui3 .u-sheet-body:has([data-ui3-report="next"]) { gap: var(--u-2); padding-bottom: var(--u-3); }
+.ui3 .u-sheet-body [data-ui3-report="summary"] { padding: var(--u-3); gap: var(--u-2); }
+.ui3 .u-sheet-body [data-ui3-report="events"] .u-row { min-height: 48px; }
+
+/* an event headline takes at most two lines */
+.ui3 .u-sheet-body [data-ui3-report="events"] .u-row b {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+/* the next move's note takes one line; the headline takes at most two */
+.ui3 .u-sheet-body [data-ui3-report="next"] b {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.ui3 .u-sheet-body [data-ui3-report="next"] small {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden;
+}
+
+/* The report opens after a week is advanced from ANY screen, including screens the current UI still
+   renders. The current UI's fixed bars sit above the v3 sheet's z-index (50/51), so on those screens they
+   would cover the sheet. The current weekly modal uses z-index 100 (css/app.css .modal-backdrop); the
+   report takes the same level. */
+.ui3:has([data-ui3-report="next"]) .u-scrim { z-index: 100; }
+.ui3:has([data-ui3-report="next"]) .u-sheet { z-index: 101; }
+
+/* css/d-ui-city-lab.css recolours every p and small inside #modal-root while a current-UI screen is shown
+   (`body.city-lab-presentation #modal-root :is(p,small){color:var(--ct-muted)!important}`), which drops the
+   next move's note to a low-contrast colour. The extra specificity restores the v3 label colour. */
+body #modal-root .ui3 .u-sheet [data-ui3-report="next"] small { color: var(--u-muted) !important; }
