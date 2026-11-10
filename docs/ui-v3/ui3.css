@@ -1,0 +1,132 @@
+/* UI v3 — canonical tokens and components.
+   Source of truth for the redesign. Implementation copies this file to
+   css/ui3.css unchanged; screen-specific rules go in css/ui3-<screen>.css.
+   Every rule is scoped under .ui3 so it cannot affect the current D UI. */
+
+.ui3 {
+  /* color */
+  --u-bg: #0b1220;
+  --u-surface: #131c2e;
+  --u-raised: #1b2740;
+  --u-line: #2a3856;
+  --u-text: #f2f5fa;
+  --u-muted: #a3b3cf;          /* 7.9:1 on --u-surface */
+  --u-accent: #f5c563;         /* primary action */
+  --u-accent-ink: #1c1400;
+  --u-up: #4ade80;
+  --u-down: #ff7b7b;
+  --u-company: #6cb6ff;        /* company money, always */
+  --u-personal: #c9aaff;       /* personal money, always */
+  --u-warn: #ffb454;
+  /* type */
+  --u-font: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --u-t-hero: 700 28px/1.15 var(--u-font);
+  --u-t-title: 700 20px/1.25 var(--u-font);
+  --u-t-num: 700 17px/1.2 var(--u-font);
+  --u-t-body: 400 15px/1.5 var(--u-font);
+  --u-t-label: 500 13px/1.35 var(--u-font);   /* smallest allowed text */
+  /* space: 4pt grid */
+  --u-1: 4px; --u-2: 8px; --u-3: 12px; --u-4: 16px; --u-5: 20px; --u-6: 24px;
+  --u-radius: 16px; --u-radius-s: 10px;
+  --u-top-h: 48px; --u-tab-h: 56px; --u-tap: 48px;
+  --u-safe-b: env(safe-area-inset-bottom, 0px); --u-safe-t: env(safe-area-inset-top, 0px);
+
+  background: var(--u-bg); color: var(--u-text); font: var(--u-t-body);
+  -webkit-text-size-adjust: 100%; font-variant-numeric: tabular-nums;
+}
+.ui3 *, .ui3 *::before, .ui3 *::after { box-sizing: border-box; }
+.ui3 button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+.ui3 .u-nowrap, .ui3 .u-money { white-space: nowrap; }   /* a number never splits from its unit */
+
+/* --- shell ------------------------------------------------------------ */
+.ui3 .u-top { position: sticky; top: 0; z-index: 30; height: calc(var(--u-top-h) + var(--u-safe-t)); padding: var(--u-safe-t) var(--u-4) 0;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--u-3);
+  background: rgba(11,18,32,.94); border-bottom: 1px solid var(--u-line); }
+.ui3 .u-top-date { font: var(--u-t-label); color: var(--u-muted); }
+.ui3 .u-top-date b { color: var(--u-text); font-weight: 700; }
+.ui3 .u-wallets { display: flex; gap: var(--u-3); }
+.ui3 .u-wallet { display: flex; align-items: center; gap: 6px; font: var(--u-t-label); background: none; border: 0; padding: 0; min-height: var(--u-tap); }
+.ui3 .u-wallet::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--u-company); }
+.ui3 .u-wallet.personal::before { background: var(--u-personal); }
+.ui3 .u-wallet b { font: var(--u-t-num); font-size: 15px; }
+
+.ui3 .u-screen { padding: var(--u-4) var(--u-4) calc(var(--u-tab-h) + var(--u-safe-b) + 84px); display: grid; gap: var(--u-4); }
+.ui3 .u-h1 { font: var(--u-t-title); margin: 0; display: flex; align-items: center; gap: var(--u-2); }
+.ui3 .u-h2 { font: var(--u-t-label); color: var(--u-muted); margin: 0; letter-spacing: .04em; }
+
+.ui3 .u-tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; height: calc(var(--u-tab-h) + var(--u-safe-b)); padding-bottom: var(--u-safe-b);
+  display: grid; grid-template-columns: repeat(5, 1fr); background: #0e1626; border-top: 1px solid var(--u-line); }
+.ui3 .u-tab { background: none; border: 0; display: grid; place-items: center; align-content: center; gap: 2px; color: var(--u-muted); font: var(--u-t-label); }
+.ui3 .u-tab i { font-style: normal; font-size: 20px; line-height: 1; }
+.ui3 .u-tab[aria-current="page"] { color: var(--u-accent); }
+
+/* advance dock: the one action available on every hub, in the thumb zone */
+.ui3 .u-dock { position: fixed; right: var(--u-4); bottom: calc(var(--u-tab-h) + var(--u-safe-b) + var(--u-3)); z-index: 35; display: flex; gap: var(--u-2); }
+.ui3 .u-advance { height: 52px; padding: 0 var(--u-4); border: 0; border-radius: 26px; background: var(--u-accent); color: var(--u-accent-ink); font: 700 16px/1 var(--u-font); box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+.ui3 .u-advance4 { height: 52px; min-width: 52px; border: 1px solid var(--u-line); border-radius: 26px; background: var(--u-raised); font: var(--u-t-label); }
+
+/* --- components ------------------------------------------------------- */
+.ui3 .u-chips { display: flex; gap: var(--u-2); overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--u-4)); padding: 0 var(--u-4); }
+.ui3 .u-chip { flex: none; height: 40px; padding: 0 var(--u-4); border-radius: 20px; border: 1px solid var(--u-line); background: var(--u-surface); color: var(--u-muted); font: var(--u-t-label); }
+.ui3 .u-chip[aria-pressed="true"], .ui3 .u-chip[aria-current="page"] { background: var(--u-text); color: var(--u-bg); border-color: var(--u-text); font-weight: 700; }
+
+.ui3 .u-card { background: var(--u-surface); border: 1px solid var(--u-line); border-radius: var(--u-radius); padding: var(--u-4); display: grid; gap: var(--u-3); }
+.ui3 .u-stat { display: grid; gap: 2px; min-width: 0; }
+.ui3 .u-stat > span { font: var(--u-t-label); color: var(--u-muted); }
+.ui3 .u-stat > b { font: var(--u-t-num); white-space: nowrap; }
+.ui3 .u-stat.hero > b { font: var(--u-t-hero); }
+.ui3 .u-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--u-3); }
+.ui3 .u-stats.two { grid-template-columns: repeat(2, 1fr); }
+.ui3 .u-delta { font: var(--u-t-label); white-space: nowrap; }
+/* direction colours win over the muted label colour wherever they are applied */
+.ui3 .u-up, .ui3 .u-stat > .u-up, .ui3 .u-row .u-up { color: var(--u-up); }
+.ui3 .u-down, .ui3 .u-stat > .u-down, .ui3 .u-row .u-down { color: var(--u-down); }
+
+.ui3 .u-action { display: grid; grid-template-columns: 40px 1fr 16px; align-items: center; gap: var(--u-3); background: var(--u-surface); border: 1px solid var(--u-line); border-radius: var(--u-radius); padding: var(--u-3) var(--u-3) var(--u-3) var(--u-4); min-height: 72px; text-align: left; width: 100%; }
+.ui3 .u-action i { font-style: normal; font-size: 22px; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--u-raised); }
+.ui3 .u-action b { display: block; font: 700 15px/1.3 var(--u-font); }
+.ui3 .u-action small { display: block; font: var(--u-t-label); color: var(--u-muted); }
+.ui3 .u-action.warn { border-color: var(--u-warn); } .ui3 .u-action.warn i { color: var(--u-warn); }
+/* the whole card is the tap target; the chevron only signals that it navigates */
+.ui3 .u-action::after { content: "›"; color: var(--u-muted); font-size: 20px; }
+
+.ui3 .u-list { display: grid; background: var(--u-surface); border: 1px solid var(--u-line); border-radius: var(--u-radius); overflow: hidden; }
+.ui3 .u-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--u-3); min-height: 56px; padding: var(--u-2) var(--u-4); background: none; border: 0; border-top: 1px solid var(--u-line); text-align: left; width: 100%; }
+.ui3 .u-row:first-child { border-top: 0; }
+.ui3 .u-row b { font: 700 15px/1.3 var(--u-font); display: block; }
+.ui3 .u-row small { font: var(--u-t-label); color: var(--u-muted); display: block; }
+.ui3 .u-row .u-end { text-align: right; }
+
+.ui3 .u-btn { height: var(--u-tap); padding: 0 var(--u-5); border-radius: 24px; border: 1px solid var(--u-line); background: var(--u-raised); font: 700 15px/1 var(--u-font); }
+.ui3 .u-btn.primary { background: var(--u-accent); color: var(--u-accent-ink); border-color: var(--u-accent); }
+.ui3 .u-btn.wide { width: 100%; }
+.ui3 .u-btn:disabled { opacity: .45; }
+.ui3 .u-badge { font: var(--u-t-label); padding: 2px 8px; border-radius: 10px; background: var(--u-raised); color: var(--u-muted); white-space: nowrap; }
+.ui3 .u-badge.good { color: var(--u-up); } .ui3 .u-badge.warn { color: var(--u-warn); }
+.ui3 .u-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--u-raised); border-radius: 12px; padding: 3px; gap: 3px; }
+.ui3 .u-seg button { height: 40px; border: 0; border-radius: 9px; background: none; color: var(--u-muted); font: var(--u-t-label); }
+.ui3 .u-seg button[aria-pressed="true"] { background: var(--u-text); color: var(--u-bg); font-weight: 700; }
+
+/* bottom sheet: all detail and all confirmation lives here */
+.ui3 .u-scrim { position: fixed; inset: 0; z-index: 50; background: rgba(4,8,16,.6); }
+.ui3 .u-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; max-height: 92%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--u-surface); border-radius: 20px 20px 0 0; border-top: 1px solid var(--u-line); }
+.ui3 .u-sheet-head { padding: var(--u-3) var(--u-4) var(--u-2); display: grid; gap: 2px; }
+.ui3 .u-sheet-head::before { content: ""; width: 36px; height: 4px; border-radius: 2px; background: var(--u-line); justify-self: center; margin-bottom: var(--u-2); }
+.ui3 .u-sheet-body { overflow-y: auto; padding: var(--u-2) var(--u-4) var(--u-4); display: grid; gap: var(--u-3); align-content: start; grid-auto-rows: max-content; }
+.ui3 .u-sheet-foot { padding: var(--u-3) var(--u-4) calc(var(--u-3) + var(--u-safe-b)); display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--u-2); border-top: 1px solid var(--u-line); background: var(--u-surface); }
+
+/* map */
+.ui3 .u-map { position: relative; height: calc(100% - var(--u-top-h) - var(--u-tab-h)); overflow: hidden; }
+.ui3 .u-map-chips { position: absolute; top: var(--u-3); left: 0; right: 0; z-index: 3; padding: 0 var(--u-4); margin: 0; }
+.ui3 .u-map-chips .u-chip:not([aria-pressed="true"]) { background: rgba(19,28,46,.92); color: var(--u-text); }
+.ui3 .u-zoom { position: absolute; right: var(--u-3); top: 68px; z-index: 3; display: grid; gap: var(--u-2); }
+.ui3 .u-zoom button { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--u-line); background: rgba(19,28,46,.92); font-size: 20px; }
+.ui3 .u-pin { position: absolute; width: 44px; height: 44px; margin: -44px 0 0 -22px; border: 0; background: none; padding: 0; display: grid; place-items: start center; }
+.ui3 .u-pin::before { content: attr(data-glyph); width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--u-surface); border: 2px solid var(--u-text); font-size: 14px; box-shadow: 0 3px 8px rgba(0,0,0,.4); }
+.ui3 .u-pin::after { content: ""; position: absolute; top: 31px; width: 0; height: 0; border: 6px solid transparent; border-top: 9px solid var(--u-text); border-bottom: 0; }
+.ui3 .u-pin.tenant::before { border-color: var(--u-accent); } .ui3 .u-pin.store::before { border-color: var(--u-up); }
+.ui3 .u-pin.realestate::before { border-color: var(--u-company); } .ui3 .u-pin.rival::before { border-color: var(--u-down); }
+.ui3 .u-pin[aria-pressed="true"]::before { background: var(--u-accent); border-color: var(--u-accent); color: var(--u-accent-ink); }
+.ui3 .u-pin[aria-pressed="true"]::after { border-top-color: var(--u-accent); }
+.ui3 .u-pin-label { position: absolute; transform: translate(-50%, 6px); padding: 3px 10px; border-radius: 10px; background: var(--u-accent); color: var(--u-accent-ink); font: var(--u-t-label); font-weight: 700; white-space: nowrap; }
