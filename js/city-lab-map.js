@@ -3,7 +3,7 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.mapPhase2Canvas)throw new Error('map-phase2-canvas.js must precede city-lab-map.js.');
 if(modules.cityLabMap)throw new Error('city-lab-map.js is already registered.');
-const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=75bcf259f7b7','./prototypes/map-canvas-renderer.js?rev=75bcf259f7b7','./prototypes/map-prefecture-profiles.js?rev=75bcf259f7b7'];
+const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=7b6f3f7fd430','./prototypes/map-canvas-renderer.js?rev=7b6f3f7fd430','./prototypes/map-prefecture-profiles.js?rev=7b6f3f7fd430'];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const PIN_CLASS={competitor:'rival'},PIN_GLYPH={store:'自',tenant:'空',office:'本',realestate:'不',competitor:'敵'};
@@ -148,7 +148,7 @@ function createCity(root,initialOptions){
     const r=viewport.getBoundingClientRect(),occupied=[...root.querySelectorAll('.city-lab-hud,.city-lab-context,.city-lab-controls,.city-lab-filters,.city-lab-footer')].filter(n=>n.offsetHeight>0).map(n=>{const b=n.getBoundingClientRect();return {x:b.left-r.left-6,y:b.top-r.top-6,w:b.width+12,h:b.height+12};}),sheet=root.querySelector('.city-lab-sheet'),bottom=sheet.hidden?72:sheet.offsetHeight+12;
     const rows=[...buildingRows].sort((a,b)=>Number(b.id===state.selected)-Number(a.id===state.selected));
     rows.forEach(a=>{const b=labels.querySelector('[data-city-index="'+a.index+'"]');if(!b)return;const p=project(a),width=Math.min(146,b.offsetWidth||130);const box={x:p.x-width/2,y:p.y-44,w:width,h:44};
-      const pin=options.pins==='u-pin',margin=pin?22:width/2+8,visible=(options.filter==='all'||a.entity.kind===options.filter)&&p.z>=-1&&p.z<=1&&p.x>margin&&p.x<state.width-margin&&p.y>(pin?44:44)&&p.y<state.height-bottom&&(pin||!occupied.some(o=>box.x<o.x+o.w&&box.x+box.w>o.x&&box.y<o.y+o.h&&box.y+box.h>o.y));
+      const pin=options.pins==='u-pin',margin=pin?22:width/2+8,visible=(options.filter==='all'||a.entity.kind===options.filter)&&p.z>=-1&&p.z<=1&&p.x>margin&&p.x<state.width-margin&&p.y>(pin?100:44)&&p.y<state.height-bottom&&(pin||!occupied.some(o=>box.x<o.x+o.w&&box.x+box.w>o.x&&box.y<o.y+o.h&&box.y+box.h>o.y));
       b.hidden=!visible;if(visible){occupied.push(box);b.style.transform=pin?'translate('+Math.round(p.x)+'px,'+Math.round(p.y)+'px)':'translate('+p.x.toFixed(1)+'px,'+p.y.toFixed(1)+'px) translate(-50%,-100%)';}b.classList.toggle('selected',a.id===state.selected);b.setAttribute('aria-pressed',String(a.id===state.selected));
     });root.querySelector('.city-lab-gesture').textContent=Math.round(state.zoom*100)+'% · ドラッグ移動 / ピンチ';
   }

@@ -140,6 +140,9 @@ async function main() {
     assert.equal(frame.labels, 0, 'no pin carries a name until it is selected');
     assert.ok(frame.pins.length >= 3 && frame.pins.every(label => /^(自社店舗|出店候補|オフィス|不動産|競合) /.test(label)), 'every pin is named for assistive technology');
 
+    // No pin sits under the chip row: its tip is at least 100px below the map's top edge (chip row 12-56px + the pin's 44px).
+    const underChips = await page.evaluate(() => { const row = document.querySelector('[data-ui3-map-chips]').getBoundingClientRect(); return [...document.querySelectorAll('.u-pin:not([hidden])')].filter(pin => { const box = pin.getBoundingClientRect(); return box.top < row.bottom && box.bottom > row.top; }).length; });
+    assert.equal(underChips, 0, 'no pin is drawn under the filter chips');
     // Pins are hidden only when they are off screen: at the smallest zoom every pin is shown.
     for (let step = 0; step < 4; step += 1) await page.locator('.u-zoom [data-city-camera="out"]').tap();
     await page.waitForTimeout(400);
