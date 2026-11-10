@@ -1,0 +1,200 @@
+'use strict';
+
+// UI v3 foundation (docs/ui-v3/README.md, task UI3-0).
+// Proves in a real browser that:
+//  - without ?ui=3 nothing changes, even when a v3 screen is registered;
+//  - with ?ui=3 a registered screen is rendered inside the v3 frame, the D UI
+//    enhancer pipeline does not touch it, and an unregistered screen still
+//    renders the current D UI in full;
+//  - every screen stays reachable through [data-action="tab"][data-tab];
+//  - the UI preference never enters the save.
+// Registered in tests/test-execution-registry.json (iPhone Acceptance Playthrough job).
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const http = require('node:http');
+const path = require('node:path');
+const playwright = require('playwright');
+
+const ROOT = path.resolve(__dirname, '..');
+const SAVE_KEY = 'capitalism_tycoon_web_v1';
+const SCREENS = ['home', 'map', 'business', 'office', 'market', 'venture', 'ma', 'overseas', 'assets', 'bank',
+  'report', 'founder', 'strategy', 'media', 'legacy', 'missions', 'rivals', 'news', 'settings'];
+const MIME = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp' };
+
+// --- static contracts ---------------------------------------------------
+const canonicalCss = fs.readFileSync(path.join(ROOT, 'docs', 'ui-v3', 'ui3.css'));
+assert.ok(canonicalCss.equals(fs.readFileSync(path.join(ROOT, 'css', 'ui3.css'))), 'css/ui3.css must stay byte-identical to docs/ui-v3/ui3.css');
+const shellSource = fs.readFileSync(path.join(ROOT, 'js', 'ui3-shell.js'), 'utf8');
+assert.doesNotMatch(shellSource, /Math\.random|MutationObserver|registerUIEnhancer/, 'the v3 shell uses no RNG, observer or D UI enhancer');
+assert.doesNotMatch(shellSource, /\b(?:g|engine\.g)\.[A-Za-z_$][\w$]*\s*(?:=(?!=)|\+=|-=|\+\+|--)/, 'the v3 shell never assigns engine state');
+assert.doesNotMatch(shellSource, /\.save\(|setItem\((?!PREFERENCE_KEY)/, 'the v3 shell never saves the game or writes another storage key');
+for (const rule of canonicalCss.toString('utf8').split('}').map(block => block.split('{')[0].trim()).filter(Boolean)) {
+  for (const selector of rule.replace(/\/\*[\s\S]*?\*\//g, '').split(',').map(part => part.trim()).filter(Boolean)) {
+    assert.match(selector, /^(?:\.ui3\b|body\.ui3-native\b|body:has\(#modal-root \.u-sheet\) \.ui3\b)/, `ui3.css selector must stay scoped to UI v3: ${selector}`);
+  }
+}
+
+function serve() {
+  const server = http.createServer((request, response) => {
+    try {
+      const pathname = decodeURIComponent(new URL(request.url || '/', 'http://127.0.0.1').pathname);
+      const file = path.resolve(ROOT, pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, ''));
+      assert.ok(file.startsWith(`${ROOT}${path.sep}`));
+      const body = fs.readFileSync(file);
+      response.writeHead(200, { 'content-type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream', 'cache-control': 'no-store' });
+      response.end(body);
+    } catch (error) {
+      response.writeHead(404, { 'content-type': 'text/plain' });
+      response.end('Not found');
+    }
+  });
+  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
+}
+
+// Runs in the page: registers two throwaway screens the way a real screen module will.
+function registerProbeScreens() {
+  const ui3 = globalThis.__capitalismTycoonModules.ui3;
+  for (const id of ['home', 'market']) {
+    if (ui3.registeredScreens().includes(id)) continue;
+    ui3.registerScreen(id, { render: ({ g, esc, money }) => `<section class="u-card" data-probe="${esc(id)}"><div class="u-stat"><span>会社現金</span><b class="u-money">${esc(money(g.companyCash))}</b></div></section>` });
+  }
+}
+const goTo = (page, tab) => page.evaluate(id => document.querySelector(`[data-action="tab"][data-tab="${id}"]`).click(), tab);
+const snapshot = page => page.evaluate(key => {
+  const modules = globalThis.__capitalismTycoonModules;
+  const g = modules.playerEngineBridge.getEngine().g;
+  const frame = document.querySelector('#app > .ui3.u-app');
+  return {
+    native: Boolean(frame), frameScreen: frame?.dataset.ui3Screen || null, frameGroup: frame?.dataset.ui3Group || null,
+    bodyNative: document.body.classList.contains('ui3-native'), bodyDUI: document.body.classList.contains('d-ui-active'),
+    sidebar: Boolean(document.getElementById('d-ui-sidebar')), screen: document.getElementById('screen')?.dataset.screen || null,
+    selectedTab: g.selectedTab, week: g.week, pipelineRuns: modules.uiEnhancerRegistry.stats().pipelineRuns,
+    save: localStorage.getItem(key) || '', preference: localStorage.getItem(modules.ui3.PREFERENCE_KEY)
+  };
+}, SAVE_KEY);
+
+async function found(page, url) {
+  await page.goto(url, { waitUntil: 'load' });
+  await page.locator('#setup-form').waitFor({ state: 'visible', timeout: 30000 });
+  await page.locator('#setup-form').evaluate(form => form.requestSubmit());
+  await page.waitForFunction(() => !document.getElementById('setup-form'), null, { timeout: 30000 });
+}
+
+async function main() {
+  const browserName = process.env.UI3_TEST_BROWSER || 'webkit';
+  const server = await serve();
+  const base = `http://127.0.0.1:${server.address().port}/`;
+  const browser = await playwright[browserName].launch(browserName === 'chromium' && process.env.UI3_TEST_CHROME
+    ? { executablePath: process.env.UI3_TEST_CHROME, args: ['--no-sandbox'] } : {});
+  const device = playwright.devices['iPhone 13'];
+  const newPage = async () => {
+    const context = await browser.newContext({ viewport: device.viewport, userAgent: device.userAgent, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ja-JP' });
+    const page = await context.newPage();
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(String(error.message)));
+    return { context, page, pageErrors };
+  };
+  try {
+    // 1. Flag off: a registered v3 screen changes nothing.
+    {
+      const { context, page, pageErrors } = await newPage();
+      await found(page, base);
+      assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.enabled()), false);
+      await page.evaluate(registerProbeScreens);
+      await goTo(page, 'home');
+      const off = await snapshot(page);
+      assert.deepEqual([off.native, off.bodyNative, off.bodyDUI, off.sidebar, off.screen], [false, false, true, true, 'home'], 'without ?ui=3 the current D UI renders, even for a registered screen');
+      assert.equal(off.preference, null);
+      assert.deepEqual(pageErrors, []);
+      await context.close();
+    }
+
+    // 2. Flag on.
+    const { context, page, pageErrors } = await newPage();
+    await found(page, `${base}?ui=3`);
+    assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.enabled()), true);
+    const before = await snapshot(page);
+    assert.deepEqual([before.native, before.bodyDUI, before.sidebar], [false, true, true], 'a screen that is not registered renders the current D UI in full');
+    assert.equal(before.preference, '3', '?ui=3 is remembered on the device');
+
+    await page.evaluate(registerProbeScreens);
+    await goTo(page, 'home');
+    const home = await snapshot(page);
+    assert.deepEqual([home.native, home.frameScreen, home.frameGroup, home.screen], [true, 'home', 'home', 'home']);
+    assert.deepEqual([home.bodyNative, home.bodyDUI, home.sidebar], [true, false, false], 'the D UI shell does not touch a native screen');
+    assert.ok(!/capitalism_tycoon_ui|ui3/.test(home.save) && JSON.parse(home.save).saveVersion === 9, 'the UI preference never enters the save');
+    assert.match(await page.locator('.ui3 .u-top').innerText(), /第1週/);
+    assert.match(await page.locator('.ui3 .u-top').innerText(), /800\.0万/);
+    assert.deepEqual(await page.locator('.ui3 .u-tabbar .u-tab').allInnerTexts().then(list => list.map(text => text.replace(/\s+/g, '').replace(/^[^ぁ-んァ-ヶ一-龠]+/, ''))), ['ホーム', 'マップ', '事業', '投資', '会社']);
+    assert.equal(await page.locator('.ui3 .u-chips').count(), 0, 'the home hub has no chip row');
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[data-ui3-all-screens] [data-tab]')].map(node => node.dataset.tab).sort()), [...SCREENS].sort(), 'every unlocked screen is reachable by id; PE stays hidden until unlocked');
+
+    // Re-rendering a native screen does not run the D UI enhancer pipeline.
+    await goTo(page, 'home');
+    assert.equal((await snapshot(page)).pipelineRuns, home.pipelineRuns);
+
+    // Frame meets the measurable acceptance numbers.
+    const frame = await page.evaluate(() => {
+      const visible = element => { const box = element.getBoundingClientRect(); return box.width > 0 && box.height > 0; };
+      const controls = [...document.querySelectorAll('#app button')].filter(visible).map(element => { const box = element.getBoundingClientRect(); return [element.className, Math.round(box.width), Math.round(box.height)]; });
+      let minFont = 99; const walker = document.createTreeWalker(document.getElementById('app'), NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) { const node = walker.currentNode; if (node.nodeValue.trim() && visible(node.parentElement)) minFont = Math.min(minFont, parseFloat(getComputedStyle(node.parentElement).fontSize)); }
+      const dock = document.querySelector('.ui3 .u-dock').getBoundingClientRect(), tabs = document.querySelector('.ui3 .u-tabbar').getBoundingClientRect();
+      return { controls, minFont, overflowX: document.documentElement.scrollWidth > innerWidth, dockAboveTabs: dock.bottom <= tabs.top, tabsAtBottom: Math.round(tabs.bottom) === innerHeight };
+    });
+    assert.ok(frame.minFont >= 13, `smallest text is ${frame.minFont}px`);
+    assert.deepEqual(frame.controls.filter(([, width, height]) => width < 44 || height < 44), [], 'every control is at least 44x44');
+    assert.deepEqual([frame.overflowX, frame.dockAboveTabs, frame.tabsAtBottom], [false, true, true]);
+
+    // Tab bar -> registered hub screen with chips; chip -> unregistered screen falls back to the D UI.
+    await page.locator('.ui3 .u-tab[data-ui3-group="invest"]').tap();
+    const market = await snapshot(page);
+    assert.deepEqual([market.native, market.frameScreen, market.frameGroup, market.selectedTab], [true, 'market', 'invest', 'market']);
+    assert.deepEqual(await page.locator('.ui3 .u-chips .u-chip').allInnerTexts(), ['株式', 'ベンチャー', 'M&A', '不動産']);
+    assert.equal(await page.locator('.ui3 .u-chip[aria-current="page"]').innerText(), '株式');
+    assert.deepEqual(await page.locator('.ui3 #screen > *').evaluateAll(nodes => nodes.map(node => node.tagName + (node.className ? '.' + node.className : ''))), ['H1.u-h1', 'NAV.u-chips', 'SECTION.u-card'], 'a hub screen is heading, chips, then the screen body');
+    assert.equal(await page.locator('.ui3 #screen > h1').innerText(), '投資');
+    await page.locator('.ui3 .u-chip[data-tab="venture"]').tap();
+    await page.waitForFunction(() => Boolean(document.getElementById('d-ui-sidebar')), null, { timeout: 10000 });
+    const venture = await snapshot(page);
+    assert.deepEqual([venture.native, venture.bodyNative, venture.bodyDUI, venture.sidebar, venture.screen, venture.selectedTab], [false, false, true, true, 'venture', 'venture'], 'an unregistered screen renders the complete current UI');
+    assert.ok(venture.pipelineRuns > market.pipelineRuns, 'the enhancer pipeline resumes on the current UI');
+
+    // Back from the current UI into a native screen; the invest tab remembers its last native screen.
+    await goTo(page, 'home');
+    assert.equal((await snapshot(page)).native, true);
+    assert.equal(await page.locator('.ui3 .u-tab[data-ui3-group="invest"]').getAttribute('data-tab'), 'market');
+
+    // The dock advances the week through the existing action; the frame survives.
+    await page.locator('.ui3 .u-advance').tap();
+    await page.waitForFunction(() => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.week === 2, null, { timeout: 10000 });
+    await page.evaluate(() => document.querySelector('#modal-root [data-action="close-modal"]')?.click());
+    const advanced = await snapshot(page);
+    assert.deepEqual([advanced.native, advanced.week, advanced.bodyDUI], [true, 2, false]);
+    assert.match(await page.locator('.ui3 .u-top').innerText(), /第2週/);
+
+    // Sheet: hides the dock, closes through the existing close-modal action.
+    await page.evaluate(() => { document.getElementById('modal-root').innerHTML = globalThis.__capitalismTycoonModules.ui3.sheet({ eyebrow: '確認', title: 'probe sheet', body: '<p>本文</p>', actions: '<button type="button" class="u-btn primary" data-action="close-modal">閉じる</button>' }); });
+    assert.equal(await page.locator('.ui3 .u-dock').evaluate(node => getComputedStyle(node).display), 'none');
+    const sheetBox = await page.locator('#modal-root .u-sheet').boundingBox();
+    assert.equal(Math.round(sheetBox.y + sheetBox.height), device.viewport.height, 'the sheet is anchored to the bottom edge');
+    await page.locator('#modal-root .u-btn.primary').tap();
+    assert.equal(await page.evaluate(() => document.getElementById('modal-root').innerHTML), '');
+    assert.notEqual(await page.locator('.ui3 .u-dock').evaluate(node => getComputedStyle(node).display), 'none');
+
+    // ?ui=2 returns the device to the current UI.
+    await page.goto(`${base}?ui=2`, { waitUntil: 'load' });
+    await page.locator('.topbar').waitFor({ state: 'attached', timeout: 30000 });
+    assert.deepEqual(await page.evaluate(() => [globalThis.__capitalismTycoonModules.ui3.enabled(), localStorage.getItem(globalThis.__capitalismTycoonModules.ui3.PREFERENCE_KEY)]), [false, null]);
+    assert.deepEqual(pageErrors, []);
+    await context.close();
+    console.log(`ui3-shell-webkit-test: PASS (${browserName})`);
+  } finally {
+    await browser.close();
+    server.close();
+  }
+}
+
+main().catch(error => { console.error(error); process.exit(1); });

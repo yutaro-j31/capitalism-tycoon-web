@@ -31,6 +31,10 @@ function runRegistrationHook(hook){
   return true;
 }
 function runUIEnhancers(){
+  // A UI v3 native screen (docs/ui-v3/README.md 6.1) is not D UI markup: none of the
+  // D UI enhancers may restructure it. The current UI is unaffected: the flag is only
+  // set while js/ui3-shell.js has rendered a registered screen behind ?ui=3.
+  if(modules.ui3?.isNativeActive?.())return false;
   if(!bootComplete){pendingRun=true;deferredRunRequests+=1;return false;}
   if(running)return false;
   running=true;

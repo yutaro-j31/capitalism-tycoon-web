@@ -454,5 +454,9 @@
   "tests/founder-capital-atomicity-webkit-test.js": {
     "reason": "P4-AUD-003 installed Founder Capital contribution: real iPhone WebKit mirror rejection/post-save notification fault rollback, retry, one valid capital/equity posting and cash separation, production reload, fresh durable-only real IndexedDB hydration in p3-writer-atomicity on PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/ui3-shell-webkit-test.js": {
+    "reason": "UI v3 foundation (docs/ui-v3 UI3-0): real-browser proof that ?ui=3 renders registered screens in the v3 frame without the D UI enhancer pipeline, unregistered screens and flag-off renders stay on the current UI, all screens stay reachable, and the UI preference never enters the save; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
   }
 }
