@@ -219,6 +219,8 @@ modules.ui3.registerScreen('home',{
 
 新しいJSを足したら、同じPRで `index.html` と `tests/fixtures/module-load-order.json` を更新する。新しいCSSは `index.html` の `css/ui3.css` の後に足す。
 
+新しい `js/ui3-*.js` が `companyCash` や `personalCash` などのお金の項目を読むと、経済エンジンの「書き込み箇所の一覧」の検査（`AUTHORITATIVE_WRITER_INVENTORY`）が、語が出てくるだけで候補として検出する。同じPRで `node scripts/phase0-5-acceptance.js --refresh-writers` を実行し、`docs/economic-engine/phase0-5-authoritative-writers.json` の差分が**自分のファイルの追加だけ**であることを確かめてコミットする。`exactAuthority` 側（実際の書き込み）に差分が出たら、それは状態を書き換えているということなので、コードを直す。
+
 検査の置き場所：v3の検査は `tests/ui3-*-webkit-test.js` とし、`tests/test-execution-registry.json` に登録して、`.github/workflows/test.yml` の「iPhone Acceptance Playthrough」ジョブに手順を足す。`tests/run-all.js` には足さない（登録数がシャードの保存済み証跡で固定されているため）。手元では `UI3_TEST_BROWSER=chromium UI3_TEST_CHROME=<Chromeのパス>` で実行できる。
 
 ### 6.3 してはいけないこと

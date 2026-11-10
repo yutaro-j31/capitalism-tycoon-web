@@ -645,6 +645,12 @@
         ]
       },
       {
+        "file": "js/ui3-shell.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/workforce.js",
         "tokens": [
           "companyCash"
@@ -1624,6 +1630,12 @@
       },
       {
         "file": "js/semantic-hash-v2.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/ui3-shell.js",
         "tokens": [
           "personalCash"
         ]
