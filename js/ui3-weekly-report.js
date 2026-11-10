@@ -67,9 +67,15 @@ function nextMove({g,engine}){
   return {warn:false,icon:'🏠',title:'ホームを見る',detail:'次にやることを確認します',tab:'home'};
 }
 
-function eventRows(summary,esc){
-  const news=(Array.isArray(summary?.newNews)?summary.newNews:[]).slice(0,MAX_EVENTS);
-  if(!news.length)return '<div class="u-h2">今週の新しい出来事はありません。</div>';
+// This week's events only: the game's news lines ("第N週：…") whose week is the report's week, the
+// first two. Not summary.newNews: that is "news added since the last report", which can carry older
+// weeks (design decision, 2026-11-11).
+function eventRows(g,week,esc){
+  const news=(Array.isArray(g?.news)?g.news:[]).filter(entry=>{
+    const match=/^第(\d+)週[：:]/.exec(String(entry??''));
+    return match&&Number(match[1])===week;
+  }).slice(0,MAX_EVENTS);
+  if(!news.length)return '<div class="u-h2">大きな出来事はありませんでした。</div>';
   return `<div class="u-list" data-ui3-report="events">${news.map(entry=>{
     const text=String(entry??'').replace(/^第\d+週[：:]\s*/,'');
     return `<div class="u-row"><span><b>${esc(text)}</b></span></div>`;
@@ -93,7 +99,7 @@ modules.ui3.registerSheet('weekly-report',{
       +`<div class="u-stat"><span>売上</span><b class="u-money">${esc(money(sales.value))}</b><span class="u-delta${deltaClass(sales)}">${esc(delta(sales))}</span></div>`
       +`<div class="u-stat"><span>会社現金</span><b class="u-money">${esc(money(cash.value))}</b><span class="u-delta${deltaClass(cash)}">${esc(delta(cash))}</span></div>`
       +`</div></section>`
-      +`<div class="u-h2" role="heading" aria-level="2">今週の出来事</div>${eventRows(summary,esc)}`
+      +`<div class="u-h2" role="heading" aria-level="2">今週の出来事</div>${eventRows(g,week,esc)}`
       +`<div class="u-h2" role="heading" aria-level="2">次の一手</div>`
       +`<button type="button" class="u-action${next.warn?' warn':''}" data-ui3-report="next" data-action="tab" data-tab="${esc(next.tab)}"><i aria-hidden="true">${next.icon}</i>`
       +`<span><b>${esc(next.title)}</b><small>${esc(next.detail)}</small></span></button>`;

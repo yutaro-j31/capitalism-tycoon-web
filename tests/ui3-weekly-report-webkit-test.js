@@ -84,9 +84,10 @@ const controls = page => evalIn(page, () => [...document.querySelectorAll('#moda
 const showCrafted = (page, { reports, cashChange, news, cash }) => evalIn(page, ({ reports, cashChange, news, cash }) => {
   const m = globalThis.__capitalismTycoonModules, engine = m.playerEngineBridge.getEngine(), g = engine.g;
   g.reports = reports;
+  g.news = news || [];
   if (cash !== undefined) g.companyCash = cash;
   m.finance.cashBridge = () => ({ netCashChange: cashChange });
-  document.getElementById('modal-root').innerHTML = m.ui3.renderSheet('weekly-report', { engine, engineModule: m.engine, summary: { week: reports[0].week, newNews: news || [] } });
+  document.getElementById('modal-root').innerHTML = m.ui3.renderSheet('weekly-report', { engine, engineModule: m.engine, summary: { week: reports[0].week, newNews: [] } });
 }, { reports, cashChange, news, cash });
 const hero = page => page.locator('#modal-root .u-stat.hero').evaluate(node => ({ value: node.querySelector('b').innerText.trim(), valueClass: node.querySelector('b').className,
   delta: node.querySelector('.u-delta').innerText.trim(), deltaClass: node.querySelector('.u-delta').className }));
@@ -152,9 +153,9 @@ async function main() {
     assert.deepEqual(await page.locator('#modal-root [role="heading"]').allInnerTexts(), ['今週の出来事', '次の一手']);
     const card = await sheetText(page, '#modal-root .u-card');
     assert.match(card, /^利益 \S+ 前週比較なし 売上 \S+ 前週比較なし 会社現金 800\.0万円 前週比較なし$|^利益 \S+ 前週比較なし 売上 \S+ 前週比較なし 会社現金 \S+ 前週比較なし$/, 'profit (large), sales and company cash, each with its week-over-week note');
-    const summary = await evalIn(page, () => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.lastWeeklySummary.newNews);
+    const summary = await evalIn(page, () => { const g = globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g; return g.news.filter(text => text.startsWith(`第${g.lastWeeklySummary.week}週`)); });
     const events = await page.locator('#modal-root .u-list .u-row b').allInnerTexts();
-    assert.deepEqual(events, summary.slice(0, 2).map(text => text.replace(/^第\d+週[：:]\s*/, '')), 'this week\'s events: the first two news lines, without the week prefix');
+    assert.deepEqual(events, summary.slice(0, 2).map(text => text.replace(/^第\d+週[：:]\s*/, '')), 'this week\'s events: the first two news lines of the report\'s week, without the week prefix');
     assert.ok(events.length <= 2);
     const next = await page.locator('#modal-root .u-action').evaluateAll(nodes => nodes.map(node => ({ count: nodes.length, action: node.dataset.action, tab: node.dataset.tab, warn: node.classList.contains('warn'), title: node.querySelector('b').innerText.trim(), tag: node.tagName })));
     assert.equal(next.length, 1, 'exactly one next move');
@@ -245,13 +246,15 @@ async function main() {
     }
     // Events: the first two lines without the week prefix; none -> a plain note; three lines -> still two.
     const week8 = [{ week: 8, profit: 1, sales: 1 }];
-    await showCrafted(page, { reports: week8, cashChange: 0, news: ['第8週：一つ目の出来事。', '二つ目の出来事。', '第8週：三つ目は出ない。'] });
+    await showCrafted(page, { reports: week8, cashChange: 0, news: ['第8週：一つ目の出来事。', '第7週：先週の出来事は出ない。', '第8週：二つ目の出来事。', '第8週：三つ目は出ない。'] });
     assert.deepEqual(await page.locator('#modal-root .u-list .u-row b').allInnerTexts(), ['一つ目の出来事。', '二つ目の出来事。']);
     await showCrafted(page, { reports: week8, cashChange: 0, news: [] });
-    assert.deepEqual([await page.locator('#modal-root .u-list').count(), await sheetText(page, '#modal-root .u-sheet-body > div.u-h2:not([role])')], [0, '今週の新しい出来事はありません。']);
+    assert.deepEqual([await page.locator('#modal-root .u-list').count(), await sheetText(page, '#modal-root .u-sheet-body > div.u-h2:not([role])')], [0, '大きな出来事はありませんでした。']);
+    await showCrafted(page, { reports: week8, cashChange: 0, news: ['第7週：先週の出来事だけ。'] });
+    assert.deepEqual([await page.locator('#modal-root .u-list').count(), await sheetText(page, '#modal-root .u-sheet-body > div.u-h2:not([role])')], [0, '大きな出来事はありませんでした。'], 'news of another week is not this week\'s event');
     // Long text still fits in one screen (two-line headlines, one-line note).
     const longLine = '観光カフェOSがSeries A資金調達を完了しました。さらに全国展開に向けて新しい出資者を迎え入れる予定です。';
-    await showCrafted(page, { reports: [{ week: 8, profit: 500000, sales: 1000000 }, { week: 7, profit: 100000, sales: 1000000 }], cashChange: -1, news: [longLine, longLine], cash: 1000000 });
+    await showCrafted(page, { reports: [{ week: 8, profit: 500000, sales: 1000000 }, { week: 7, profit: 100000, sales: 1000000 }], cashChange: -1, news: ['第8週：' + longLine, '第8週：' + longLine], cash: 1000000 });
     const longBody = await evalIn(page, () => { const body = document.querySelector('#modal-root .u-sheet-body'); return body.scrollHeight - body.clientHeight; });
     assert.ok(longBody <= 0, `long headlines scroll by ${longBody}px`);
     // A critical secretary task (cash below two weeks of fixed cost) comes first and is warned.
