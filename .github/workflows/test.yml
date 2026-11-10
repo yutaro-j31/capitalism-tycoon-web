@@ -347,6 +347,7 @@ jobs:
           node --check tests/iphone-baseline-probe-webkit-test.js
           node --check tests/pe-ui-screen-ownership-webkit-test.js
           node --check tests/ma-deal-room-webkit-test.js
+          node --check tests/ui3-shell-webkit-test.js
       - name: Play every primary game screen in iPhone WebKit
         timeout-minutes: 5
         run: node tests/iphone-full-acceptance-webkit-test.js
@@ -367,6 +368,9 @@ jobs:
       - name: Exercise M&A deal-room flow
         timeout-minutes: 5
         run: node tests/ma-deal-room-webkit-test.js
+      - name: Verify UI v3 shell and current-UI isolation
+        timeout-minutes: 3
+        run: node tests/ui3-shell-webkit-test.js
       - name: Retain iPhone acceptance screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4

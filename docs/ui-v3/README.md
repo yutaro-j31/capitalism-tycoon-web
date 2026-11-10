@@ -71,7 +71,7 @@ iPhone幅（390×664、ChromiumのiPhone 13設定）で創業直後の19画面�
 
 | 部品 | 中身 | 決まり |
 | --- | --- | --- |
-| 上のバー `.u-top`（48px） | 左：`第N週 · M月D日`。右：会社現金（青）と個人現金（紫） | 全画面で同じ。金額を押すと資金の内訳シート |
+| 上のバー `.u-top`（48px） | 左：`第N週 · M月D日`。右：会社現金（青）と個人現金（紫） | 全画面で同じ。金額を押すと資金の内訳シート（シートはUI3-7で追加。それまでは表示のみ） |
 | 下のタブ `.u-tabbar`（56px） | 5つのタブ | 現在のタブは `aria-current="page"` |
 | 進めるボタン `.u-dock` | `4週` と `▶ 進める` | タブの右上に浮かせる。5つのタブすべてで出す。シートが開いている間は隠す。`data-action="advance-week"` / `advance-4` |
 | 下から出るシート `.u-sheet` | 見出し・本文・下端のボタン | 詳細・確認・週間レポートはすべてこれ。高さは画面の92%まで。ボタンは下端に固定 |
@@ -178,12 +178,35 @@ iPhone幅（390×664、ChromiumのiPhone 13設定）で創業直後の19画面�
 
 ## 6. 実装の決まり
 
-### 6.1 切り替え方
+### 6.1 切り替え方（UI3-0で実装済み）
 
-- v3は現行UIと並んで動く。`?ui=3`、または `localStorage['capitalism_tycoon_ui']==='3'` のときだけv3で描く。**この設定をセーブデータに入れない。**
-- 現行の描画の入口は `js/app.js` の `render()`。v3が有効で、かつその画面がv3対応済みなら、`renderScreen(tab)` の代わりにv3の描画を使う。未対応の画面は現行のまま出す（1画面ずつ移せるようにするため）。
-- v3の画面は `<body>` ではなく、v3が描いた最上位の要素に `class="ui3"` を付ける。`ui3.css` は `.ui3` の内側にしか効かない。
-- v3が描いた画面には、D UIの後処理（`js/ui-enhancer-registry.js` 経由の enhancer）を**かけない**。具体的な止め方は最初の作業（UI3-0）で決め、ここに追記する。
+- v3は現行UIと並んで動く。`?ui=3` を付けて開くとv3が有効になり、その端末の `localStorage['capitalism_tycoon_ui']` に記憶される。`?ui=2` で解除。**この設定はセーブデータに入れない。**
+- 画面は1つずつ移す。`modules.ui3.registerScreen(<selectedTabの値>, {render})` で登録した画面だけがv3で描かれる。**登録していない画面は、現行UI（D UI）が外枠ごとそのまま出る。** 創業画面とゲームオーバーは、それぞれの作業で移すまで現行UIのまま。
+- 入口は `js/app.js` の `render()`。`modules.ui3.rendersNatively(tab, g)` が真なら `modules.ui3.renderApp(...)` の結果を `#app` に入れる。偽なら `leaveNative()` を呼んで従来どおり描く。
+- v3の画面にはD UIの後処理をかけない。`js/ui-enhancer-registry.js` の `runUIEnhancers()` は、v3の画面が出ている間（`modules.ui3.isNativeActive()`）は何もしない。現行UIに戻ると再開する。
+- v3が描く最上位の要素に `class="ui3"` が付く。`ui3.css` は `.ui3` の内側（と、v3の画面が出ている間だけ付く `body.ui3-native`）にしか効かない。
+- 全画面への到達は `[data-action="tab"][data-tab="<id>"]` で保証する。v3の枠は、画面に出ていないチップの分も含めて、隠した一覧（`[data-ui3-all-screens]`）に全画面のボタンを持つ。
+
+画面の登録のしかた（`js/ui3-<画面>.js`）：
+
+```js
+(function(){'use strict';
+const modules=globalThis.__capitalismTycoonModules;
+modules.ui3.registerScreen('home',{
+  // 返すのは <main id="screen"> の中身だけ。上のバー・進めるボタン・タブは枠が描く。
+  // 事業・投資・会社の各画面では、見出し（タブ名）とチップも枠が描くので、画面側では見出しを出さない。
+  render({engine,g,engineModule,esc,money}){
+    return `<h1 class="u-h1">${esc(g.companyName)}</h1>`;
+  }
+});
+})();
+```
+
+- `render` は文字列を返すだけ。`g` を読むのはよいが、書き換えない。利用者由来の文字列は必ず `esc()` を通す。金額は `money()`（`compactYen`）で整形する。
+- シートは `modules.ui3.sheet({eyebrow,title,subtitle,body,actions})` の結果を `#modal-root` に入れる。閉じるのは既存の `data-action="close-modal"`。シートが出ている間、進めるボタンは自動で隠れる。
+- スクリプトは `index.html` で `js/ui3-shell.js` の後、`js/app.js` の前に読み込む。
+
+**現行UIの機能は、`js/app.js` が描くHTMLだけではない。** 約80個の enhancer が、描画後に画面へ機能を差し込んでいる（不動産の管理、危機対応、資本配分のメモなど）。v3の画面ではこれらが動かないので、画面を移すときは、その画面に差し込まれている機能も対応表（5.5）に載せ、v3側で出し直す。
 
 ### 6.2 ファイル
 
@@ -191,10 +214,14 @@ iPhone幅（390×664、ChromiumのiPhone 13設定）で創業直後の19画面�
 | --- | --- |
 | `css/ui3.css` | `docs/ui-v3/ui3.css` と同じ内容。片方だけ変えない（一致を検査で守る） |
 | `css/ui3-<画面>.css` | その画面だけの配置。色・文字サイズは書かない |
-| `js/ui3/shell.js` | 上のバー・タブ・進めるボタン・シートの開閉 |
-| `js/ui3/<画面>.js` | 1画面1ファイル。HTML文字列を返す関数だけ |
+| `js/ui3-shell.js` | 上のバー・タブ・進めるボタン・シートの開閉 |
+| `js/ui3-<画面>.js` | 1画面1ファイル。`registerScreen` を呼ぶだけ。`js/` の直下に置く（下位フォルダは既存の検査が認めない） |
 
-新しいJSを足したら、同じPRで `index.html` と `tests/fixtures/module-load-order.json` を更新する。
+新しいJSを足したら、同じPRで `index.html` と `tests/fixtures/module-load-order.json` を更新する。新しいCSSは `index.html` の `css/ui3.css` の後に足す。
+
+新しい `js/ui3-*.js` が `companyCash` や `personalCash` などのお金の項目を読むと、経済エンジンの「書き込み箇所の一覧」の検査（`AUTHORITATIVE_WRITER_INVENTORY`）が、語が出てくるだけで候補として検出する。同じPRで `node scripts/phase0-5-acceptance.js --refresh-writers` を実行し、`docs/economic-engine/phase0-5-authoritative-writers.json` の差分が**自分のファイルの追加だけ**であることを確かめてコミットする。`exactAuthority` 側（実際の書き込み）に差分が出たら、それは状態を書き換えているということなので、コードを直す。
+
+検査の置き場所：v3の検査は `tests/ui3-*-webkit-test.js` とし、`tests/test-execution-registry.json` に登録して、`.github/workflows/test.yml` の「iPhone Acceptance Playthrough」ジョブに手順を足す。`tests/run-all.js` には足さない（登録数がシャードの保存済み証跡で固定されているため）。手元では `UI3_TEST_BROWSER=chromium UI3_TEST_CHROME=<Chromeのパス>` で実行できる。
 
 ### 6.3 してはいけないこと
 
@@ -216,7 +243,7 @@ iPhone幅（390×664、ChromiumのiPhone 13設定）で創業直後の19画面�
 
 | ID | 作業 | 前提 | 終わりの条件 |
 | --- | --- | --- | --- |
-| UI3-0 | 土台：切り替えの仕組み、`css/ui3.css`、`js/ui3/shell.js`（枠だけ）、未対応画面は現行表示、enhancer を止める方法の決定 | 承認 | `?ui=3` で枠が出て、19画面すべてに届く。`?ui=3` なしでは何も変わらない |
+| UI3-0 | **完了。** 土台：切り替えの仕組み、`css/ui3.css`、`js/ui3-shell.js`（枠とシート）、未登録の画面は現行UI、enhancer の停止（6.1） | 承認 | `?ui=3` で、登録した画面がv3の枠で出る。未登録の画面と `?ui=3` なしでは現行UIのまま。全画面に届く。`tests/ui3-shell-webkit-test.js` で確認 |
 | UI3-1 | ホーム | UI3-0 | 5.1のとおり。計測に合格 |
 | UI3-2 | 週間レポート | UI3-0 | 5.4のとおり。スクロールなし |
 | UI3-3 | マップの上の部品とピン、出店シート | UI3-0 | 5.2・5.3のとおり。タップだけで出店できる |

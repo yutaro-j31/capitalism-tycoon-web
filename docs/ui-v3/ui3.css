@@ -39,6 +39,13 @@
 .ui3 .u-nowrap, .ui3 .u-money { white-space: nowrap; }   /* a number never splits from its unit */
 
 /* --- shell ------------------------------------------------------------ */
+/* Page-level rules for a v3 native screen. `ui3-native` is set on <body> by
+   js/ui3-shell.js only while a registered screen is on screen. */
+body.ui3-native { margin: 0; background: #0b1220; }
+.ui3.u-app { min-height: 100vh; min-height: 100dvh; }
+/* the advance dock gives way to any open sheet */
+body:has(#modal-root .u-sheet) .ui3 .u-dock { display: none; }
+.ui3 [hidden] { display: none !important; }
 .ui3 .u-top { position: sticky; top: 0; z-index: 30; height: calc(var(--u-top-h) + var(--u-safe-t)); padding: var(--u-safe-t) var(--u-4) 0;
   display: flex; align-items: center; justify-content: space-between; gap: var(--u-3);
   background: rgba(11,18,32,.94); border-bottom: 1px solid var(--u-line); }

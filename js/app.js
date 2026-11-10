@@ -94,8 +94,12 @@ function confirmModal(title,text,onAction,data='') { modal(`<h2>${esc(title)}</h
 
 function render() {
   document.body.classList.toggle('reduced-motion',Boolean(engine.g.settings?.reducedMotion));
-  if (!engine.g.configured || ui.showSetup) return renderSetup();
+  if (!engine.g.configured || ui.showSetup) { __modules.ui3?.leaveNative(); return renderSetup(); }
   const g=engine.g;
+  // UI v3 (docs/ui-v3/README.md): a screen registered with the v3 shell is rendered by it behind
+  // ?ui=3. Every other screen, and every render without the flag, takes the unchanged path below.
+  if (__modules.ui3?.rendersNatively(g.selectedTab,g)) { app.innerHTML=__modules.ui3.renderApp({engine,engineModule}); return; }
+  __modules.ui3?.leaveNative();
   app.innerHTML=`
     <header class="topbar">
       <div class="brand"><div class="brand-mark">¥</div><div><h1>${esc(g.companyName)}</h1><p>${esc(g.playerName)} · ${engineModule.gameDate(g.week).fullLabel} · 第${g.week}週</p></div></div>
