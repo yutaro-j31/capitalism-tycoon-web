@@ -8,6 +8,8 @@
 //    renders the current D UI in full;
 //  - every screen stays reachable through [data-action="tab"][data-tab];
 //  - the UI preference never enters the save.
+// The page is loaded without the real screen modules (see SCREEN_MODULE), so porting a
+// screen never changes what this test observes.
 // Registered in tests/test-execution-registry.json (iPhone Acceptance Playthrough job).
 
 const assert = require('node:assert/strict');
@@ -18,6 +20,7 @@ const playwright = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
+const SCREEN_MODULE = /\/js\/ui3-(?!shell\.js)[^/?]+\.js(?:\?.*)?$/;
 const SCREENS = ['home', 'map', 'business', 'office', 'market', 'venture', 'ma', 'overseas', 'assets', 'bank',
   'report', 'founder', 'strategy', 'media', 'legacy', 'missions', 'rivals', 'news', 'settings'];
 const MIME = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -27,6 +30,9 @@ const MIME = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=u
 const canonicalCss = fs.readFileSync(path.join(ROOT, 'docs', 'ui-v3', 'ui3.css'));
 assert.ok(canonicalCss.equals(fs.readFileSync(path.join(ROOT, 'css', 'ui3.css'))), 'css/ui3.css must stay byte-identical to docs/ui-v3/ui3.css');
 const shellSource = fs.readFileSync(path.join(ROOT, 'js', 'ui3-shell.js'), 'utf8');
+for (const [url, excluded] of [['/js/ui3-home.js', true], ['/js/ui3-home.js?rev=abc', true], ['/js/ui3-shell.js', false], ['/js/ui3-shell.js?rev=abc', false], ['/js/app.js', false], ['/css/ui3-home.css', false]]) {
+  assert.equal(SCREEN_MODULE.test(url), excluded, `screen-module filter for ${url}`);
+}
 assert.doesNotMatch(shellSource, /Math\.random|MutationObserver|registerUIEnhancer/, 'the v3 shell uses no RNG, observer or D UI enhancer');
 assert.doesNotMatch(shellSource, /\b(?:g|engine\.g)\.[A-Za-z_$][\w$]*\s*(?:=(?!=)|\+=|-=|\+\+|--)/, 'the v3 shell never assigns engine state');
 assert.doesNotMatch(shellSource, /\.save\(|setItem\((?!PREFERENCE_KEY)/, 'the v3 shell never saves the game or writes another storage key');
@@ -91,6 +97,11 @@ async function main() {
   const device = playwright.devices['iPhone 13'];
   const newPage = async () => {
     const context = await browser.newContext({ viewport: device.viewport, userAgent: device.userAgent, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ja-JP' });
+    // This test is about the shell, not about any real screen. Real screen modules
+    // (js/ui3-<screen>.js) are kept out of the page so that the registered set is exactly
+    // the probes below, however many screens have been ported. Each real screen is
+    // covered by its own tests/ui3-<screen>-webkit-test.js.
+    await context.route(SCREEN_MODULE, route => route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: '/* excluded from the UI v3 shell test */' }));
     const page = await context.newPage();
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(String(error.message)));
@@ -115,6 +126,7 @@ async function main() {
     const { context, page, pageErrors } = await newPage();
     await found(page, `${base}?ui=3`);
     assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.enabled()), true);
+    assert.deepEqual(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.registeredScreens()), [], 'no real screen module is loaded in the shell test');
     const before = await snapshot(page);
     assert.deepEqual([before.native, before.bodyDUI, before.sidebar], [false, true, true], 'a screen that is not registered renders the current D UI in full');
     assert.equal(before.preference, '3', '?ui=3 is remembered on the device');
