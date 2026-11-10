@@ -162,6 +162,22 @@ for(const sold of [true,undefined,null,0]){const s=state();s.isCompanySold=sold;
 {
  const s=state(),req=intent(s);s.currentCompanySerial=2;reject(plan(s,req),'GENERATION_UNPROVEN');s.currentCompanySerial=1;s.isCompanySold=true;reject(plan(s,req),'GENERATION_UNPROVEN');
 }
+// G1 D0 (Owner 2026-11-05): a refounded generation is planned afresh only when the scope names it and its serial is above
+// every recorded past company. A scope for another generation, missing or conflicting records, or a sold flag are refused.
+{
+ const later=(serial,past)=>{const s=state();s.currentCompanySerial=serial;if(past!==undefined)s.pastCompanyRecords=past;return s;};
+ const scopeFor=serial=>({...scope(),currentCompanySerial:serial});
+ assert.equal(inspect(deepFreeze(later(2,[{companySerial:1}])),scopeFor(2)).status,'OBSERVED','second generation observed');
+ assert.equal(inspect(deepFreeze(later(3,[{companySerial:2},{companySerial:1}])),scopeFor(3)).status,'OBSERVED','third generation observed');
+ reject(inspect(later(2,[{companySerial:1}]),scope()),'GENERATION_UNPROVEN');
+ reject(inspect(later(1,[]),scopeFor(2)),'GENERATION_UNPROVEN');
+ for(const past of [undefined,[],[{companySerial:2}],[{companySerial:3}],[{companySerial:'1'}],[null],[{}]])reject(inspect(later(2,past),scopeFor(2)),'GENERATION_UNPROVEN');
+ // Review G1-R1-01: empty slots of a sparse record list are unproven evidence, not skipped.
+ for(const past of [new Array(1),[,{companySerial:1}],[{companySerial:1},,],[{companySerial:1},,{companySerial:1}]])reject(inspect(later(2,past),scopeFor(2)),'GENERATION_UNPROVEN');
+ assert.equal(inspect(later(2,[{companySerial:1},{companySerial:1}]),scopeFor(2)).status,'OBSERVED','a dense list with repeated records stays proven');
+ for(const serial of [0,-1,1.5,'2',null])reject(inspect(state(),scopeFor(serial)),'GENERATION_UNPROVEN');
+ const sold=later(2,[{companySerial:1}]);sold.isCompanySold=true;reject(inspect(sold,scopeFor(2)),'GENERATION_UNPROVEN');
+}
 // NG-06/08/09: ticker aliases and malformed/colliding sources are not repaired or merged.
 {
  const s=state(),req=intent(s,'W-IPO-CHAIN');s.publicCompany=false;

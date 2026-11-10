@@ -4,6 +4,21 @@ const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.economicReadModel)throw Error('economic-read-model.js must precede phase3-ownership-planner.js');
 if(modules.phase3OwnershipPlanner)throw Error('ownership planner already registered');
 const {PLAYER_COMPANY_ENTITY_ID:PLAYER,FOUNDER_ENTITY_ID:FOUNDER,PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID:COMMON}=modules.economicReadModel;
+// G1 D0: same rule as economicReadModel.currentCompanyGenerationProven, kept local because the planner reads no reader.
+function currentCompanyGenerationProven(state){
+ const serial=state.currentCompanySerial;
+ if(serial===1)return true;
+ if(!Number.isSafeInteger(serial)||serial<2)return false;
+ const past=state.pastCompanyRecords;
+ if(!Array.isArray(past)||past.length===0)return false;
+ // Every index is checked, so a sparse array's empty slot (which every() would skip) is unproven evidence.
+ for(let i=0;i<past.length;i++){
+  if(!Object.hasOwn(past,i))return false;
+  const row=past[i];
+  if(row===null||typeof row!=='object'||!Number.isSafeInteger(row.companySerial)||row.companySerial<1||row.companySerial>=serial)return false;
+ }
+ return true;
+}
 const BUCKETS=Object.freeze(['sharesOut','treasuryBuybackShares','founderShares','personalOwnShares']);
 // These describe admissible *fact legs*, not installed callable routes or whole-command safety.
 const supported={
@@ -81,12 +96,15 @@ function scopeOf(scope){
  exact(scope,['family','issuerEntityId','securityClassId','currentCompanySerial'],'scope');
  if(field(scope,'family','scope')!=='player-common'||field(scope,'issuerEntityId','scope')!==PLAYER)fail('ISSUER_FAMILY_UNSUPPORTED','scope','Only player-company common facts are modeled.');
  if(field(scope,'securityClassId','scope')!==COMMON)fail('CLASS_UNSUPPORTED','scope.securityClassId','Only the existing single common class is modeled.');
- if(field(scope,'currentCompanySerial','scope')!==1)fail('GENERATION_UNPROVEN','scope.currentCompanySerial','Only the unsold first generation has a proven binding.');
- return {family:'player-common',issuerEntityId:PLAYER,securityClassId:COMMON,currentCompanySerial:1};
+ // G1 D0: the scope names the generation it is for; inspect() checks that this is the state's proven current generation.
+ const serial=field(scope,'currentCompanySerial','scope');
+ if(!Number.isSafeInteger(serial)||serial<1)fail('GENERATION_UNPROVEN','scope.currentCompanySerial','The scope does not name a company generation.');
+ return {family:'player-common',issuerEntityId:PLAYER,securityClassId:COMMON,currentCompanySerial:serial};
 }
 function inspect(state,scope){
  const scoped=scopeOf(scope);record(state,'state');
- if(field(state,'currentCompanySerial','state')!==1||field(state,'isCompanySold','state')!==false)fail('GENERATION_UNPROVEN','state.currentCompanySerial','Sold, refounded or missing generation evidence is unsupported.');
+ if(field(state,'currentCompanySerial','state')!==scoped.currentCompanySerial||field(state,'isCompanySold','state')!==false||!currentCompanyGenerationProven(state))
+  fail('GENERATION_UNPROVEN','state.currentCompanySerial','Sold, unproven or other-generation evidence is unsupported.');
  const ticker=text(field(state,'ticker','state'),'state.ticker'),listed=field(state,'publicCompany','state');
  if(['__proto__','constructor','prototype'].includes(ticker))fail('INPUT_INVALID','state.ticker','Reserved map keys cannot identify the player listing.');
  if(typeof listed!=='boolean')fail('INPUT_INVALID','state.publicCompany','Listing status must be explicit.');

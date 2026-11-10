@@ -63,7 +63,7 @@ function beginOwnershipLeg(engine,leg){
  try{
   if(!insideBoundary(engine)||!leg||!LEG_KINDS.includes(leg.kind))return null;
   const state=engine.g,scope={family:'player-common',issuerEntityId:read.PLAYER_COMPANY_ENTITY_ID,
-   securityClassId:read.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,currentCompanySerial:1};
+   securityClassId:read.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,currentCompanySerial:state.currentCompanySerial};
   const evidence=planner.inspectOwnershipAuthority(state,scope);
   if(evidence.status!=='OBSERVED')return null;
   const plan=planner.planOwnershipChange(state,{scope,writerId:leg.writerId,kind:leg.kind,operationId:leg.operationId,
