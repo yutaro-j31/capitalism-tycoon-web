@@ -49,15 +49,38 @@ function isAvailable(screenID,g){return screenID!=='pe-portfolio'||Boolean(g?.pe
 function registerScreen(id,definition){
   if(!ALL_SCREENS.includes(id))throw new RangeError(`Unknown UI v3 screen: ${id}`);
   if(typeof definition?.render!=='function')throw new TypeError(`UI v3 screen ${id} requires a render function.`);
+  if(definition.useCurrentUI!==undefined&&typeof definition.useCurrentUI!=='function')throw new TypeError(`UI v3 screen ${id}: useCurrentUI must be a function.`);
   if(screens.has(id))throw new Error(`UI v3 screen is already registered: ${id}`);
-  screens.set(id,Object.freeze({render:definition.render}));
+  screens.set(id,Object.freeze({render:definition.render,useCurrentUI:definition.useCurrentUI||null}));
   return id;
+}
+
+// Cash-crisis status, read without normalising state (modules.playerCrisis.snapshot
+// initialises g.playerCrisis; the shell must stay read-only). Absent means stable.
+const CRISIS_LABELS=Object.freeze({watch:'資金繰り注意',distressed:'資金繰り危機',turnaround:'再建中',recovered:'回復確認中',insolvent:'支払不能'});
+function crisisStatus(g){
+  const status=g?.playerCrisis?.status;
+  return typeof status==='string'&&Object.hasOwn(CRISIS_LABELS,status)?status:'stable';
+}
+
+// States in which a screen must be shown by the current UI even though a v3
+// screen is registered, because the current UI carries controls v3 does not
+// have yet (docs/ui-v3/README.md 6.5 and migration-ledger.md). Shell-level rules
+// live here; a screen adds its own through registerScreen({useCurrentUI}).
+const CURRENT_UI_RULES=Object.freeze({
+  // The cash-crisis panel (js/player-crisis-ui.js) is injected into the current
+  // home only, and is the only way to reach the recovery actions.
+  home:g=>crisisStatus(g)!=='stable'
+});
+function usesCurrentUI(screenID,g){
+  if(CURRENT_UI_RULES[screenID]?.(g))return true;
+  return Boolean(screens.get(screenID)?.useCurrentUI?.(g));
 }
 
 // True when js/app.js should hand this render to UI v3. Game over and the
 // founding form stay on the current UI until their own tasks port them.
 function rendersNatively(screenID,g){
-  return enabled&&screens.has(screenID)&&Boolean(g?.configured)&&!g?.gameOver;
+  return enabled&&screens.has(screenID)&&Boolean(g?.configured)&&!g?.gameOver&&!usesCurrentUI(screenID,g);
 }
 
 function topBar(g,engineModule){
@@ -86,6 +109,13 @@ function tabBar(activeGroup,g){
 // acceptance tests rely on it), including screens whose chip is not on screen.
 function screenIndex(g){
   return `<nav hidden data-ui3-all-screens>${ALL_SCREENS.filter(id=>isAvailable(id,g)).map(id=>`<button type="button" data-action="tab" data-tab="${id}" tabindex="-1">${esc(SCREEN_LABELS[id])}</button>`).join('')}</nav>`;
+}
+// While a cash crisis is open, every native screen points at the home screen,
+// where the current UI shows the recovery actions.
+function crisisNotice(g){
+  const status=crisisStatus(g);
+  if(status==='stable')return '';
+  return `<button type="button" class="u-action warn" data-action="tab" data-tab="home" data-ui3-crisis="${status}"><i aria-hidden="true">⚠</i><span><b>${esc(CRISIS_LABELS[status])}</b><small>対応策を確認する</small></span></button>`;
 }
 function dock(){
   return '<div class="u-dock"><button type="button" class="u-advance4" data-action="advance-4" aria-label="4週進める">4週</button>'
@@ -118,7 +148,7 @@ function renderApp(context){
   nativeActive=true;
   setBodyMode(true);
   return `<div class="ui3 u-app" data-ui3-screen="${esc(screenID)}" data-ui3-group="${group.id}">${topBar(g,engineModule)}`
-    +`<main id="screen" class="u-screen" data-screen="${esc(screenID)}">${chips(group,screenID,g)}${body}</main>`
+    +`<main id="screen" class="u-screen" data-screen="${esc(screenID)}">${chips(group,screenID,g)}${crisisNotice(g)}${body}</main>`
     +`${dock()}${tabBar(group,g)}${screenIndex(g)}</div>`;
 }
 // Called by js/app.js before it renders the current UI again.
@@ -146,6 +176,6 @@ modules.ui3=Object.freeze({
   enabled:()=>enabled,
   isNativeActive:()=>nativeActive,
   registeredScreens:()=>[...screens.keys()],
-  registerScreen,rendersNatively,renderApp,leaveNative,sheet,esc
+  registerScreen,rendersNatively,usesCurrentUI,renderApp,leaveNative,sheet,esc
 });
 })();

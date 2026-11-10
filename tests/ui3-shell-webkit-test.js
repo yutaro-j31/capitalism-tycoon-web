@@ -64,7 +64,7 @@ function registerProbeScreens() {
   const ui3 = globalThis.__capitalismTycoonModules.ui3;
   for (const id of ['home', 'market']) {
     if (ui3.registeredScreens().includes(id)) continue;
-    ui3.registerScreen(id, { render: ({ g, esc, money }) => `<section class="u-card" data-probe="${esc(id)}"><div class="u-stat"><span>会社現金</span><b class="u-money">${esc(money(g.companyCash))}</b></div></section>` });
+    ui3.registerScreen(id, { useCurrentUI: id === 'market' ? () => globalThis.__ui3ProbeUseCurrentUI === true : undefined, render: ({ g, esc, money }) => `<section class="u-card" data-probe="${esc(id)}"><div class="u-stat"><span>会社現金</span><b class="u-money">${esc(money(g.companyCash))}</b></div></section>` });
   }
 }
 const goTo = (page, tab) => page.evaluate(id => document.querySelector(`[data-action="tab"][data-tab="${id}"]`).click(), tab);
@@ -186,6 +186,32 @@ async function main() {
     const advanced = await snapshot(page);
     assert.deepEqual([advanced.native, advanced.week, advanced.bodyDUI], [true, 2, false]);
     assert.match(await page.locator('.ui3 .u-top').innerText(), /第2週/);
+
+    // A screen can hand a state back to the current UI (README 6.5), and takes it back afterwards.
+    await page.evaluate(() => { globalThis.__ui3ProbeUseCurrentUI = true; });
+    await goTo(page, 'market');
+    await page.waitForFunction(() => Boolean(document.getElementById('d-ui-sidebar')), null, { timeout: 10000 });
+    const handedBack = await snapshot(page);
+    assert.deepEqual([handedBack.native, handedBack.bodyDUI, handedBack.screen], [false, true, 'market'], 'useCurrentUI() renders the complete current UI for a registered screen');
+    await page.evaluate(() => { globalThis.__ui3ProbeUseCurrentUI = false; });
+    await goTo(page, 'market');
+    assert.deepEqual([(await snapshot(page)).native, await page.locator('.ui3 [data-ui3-crisis]').count()], [true, 0]);
+
+    // Cash crisis: the registered home falls back to the current UI, which carries the recovery
+    // panel, and every other native screen points there. The status is forced on a throwaway
+    // game purely to exercise the routing; nothing is saved by this test afterwards.
+    await page.evaluate(() => { const g = globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g; g.playerCrisis = { ...(g.playerCrisis || {}), status: 'distressed' }; });
+    await goTo(page, 'market');
+    assert.equal((await snapshot(page)).native, true);
+    assert.match(await page.locator('.ui3 [data-ui3-crisis="distressed"]').innerText(), /資金繰り危機/);
+    await page.locator('.ui3 [data-ui3-crisis]').tap();
+    await page.waitForFunction(() => Boolean(document.getElementById('d-ui-sidebar')), null, { timeout: 10000 });
+    const crisisHome = await snapshot(page);
+    assert.deepEqual([crisisHome.native, crisisHome.bodyDUI, crisisHome.screen], [false, true, 'home'], 'during a cash crisis the home screen is the current UI');
+    assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.usesCurrentUI('home', globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g)), true);
+    await page.evaluate(() => { const g = globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g; g.playerCrisis = { ...g.playerCrisis, status: 'stable' }; });
+    await goTo(page, 'home');
+    assert.equal((await snapshot(page)).native, true, 'home returns to v3 once the crisis is over');
 
     // Sheet: hides the dock, closes through the existing close-modal action.
     await page.evaluate(() => { document.getElementById('modal-root').innerHTML = globalThis.__capitalismTycoonModules.ui3.sheet({ eyebrow: '確認', title: 'probe sheet', body: '<p>本文</p>', actions: '<button type="button" class="u-btn primary" data-action="close-modal">閉じる</button>' }); });
