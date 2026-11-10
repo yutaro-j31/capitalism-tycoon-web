@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>UI v3 mockup — 資本主義ポケット TYCOON</title>
+<link rel="stylesheet" href="./ui3.css">
+<style>
+  /* Mockup-only scaffolding: phone frames and a fake map. Not part of the design system. */
+  html, body { margin: 0; background: #05080f; }
+  .frames { display: flex; flex-wrap: wrap; gap: 24px; padding: 24px; }
+  .frame { width: 390px; }
+  .frame > h6 { margin: 0 0 8px; color: #a3b3cf; font: 500 13px -apple-system, "Hiragino Sans", sans-serif; }
+  .phone { position: relative; width: 390px; height: 664px; overflow: hidden; border-radius: 12px; transform: translateZ(0); }
+  .phone .u-scroll { height: 100%; overflow-y: auto; }
+  .phone .u-tabbar, .phone .u-dock, .phone .u-scrim, .phone .u-sheet { position: absolute; }
+  .fakemap { position: absolute; inset: 0; background:
+    linear-gradient(90deg, transparent 0 46%, #c9cfc4 46% 50%, transparent 50%) 0 0/120px 100%,
+    linear-gradient(0deg, transparent 0 44%, #c9cfc4 44% 50%, transparent 50%) 0 0/100% 110px,
+    linear-gradient(135deg, #dfe6d8, #cfd8c8); }
+  .fakemap i { position: absolute; background: #9aa596; border-radius: 4px; box-shadow: 6px 8px 0 #7d8879; }
+</style>
+</head>
+<body>
+<div class="frames">
+
+<!-- 1. HOME -->
+<div class="frame"><h6>1. ホーム</h6>
+<div class="phone ui3" id="m-home"><div class="u-scroll">
+  <header class="u-top">
+    <div class="u-top-date"><b>第13週</b> · 3月26日</div>
+    <div class="u-wallets">
+      <button class="u-wallet" aria-label="会社現金"><span>会社</span><b class="u-money">755.6万</b></button>
+      <button class="u-wallet personal" aria-label="個人現金"><span>個人</span><b class="u-money">198.2万</b></button>
+    </div>
+  </header>
+  <main class="u-screen">
+    <h1 class="u-h1">ポケット商事 <span class="u-badge">創業期</span></h1>
+    <section class="u-card">
+      <div class="u-stat hero"><span>今週の利益</span><b class="u-up">+40.4万円</b><span class="u-delta u-up">前週比 +2,037円</span></div>
+      <div class="u-stats">
+        <div class="u-stat"><span>売上</span><b>121.8万</b></div>
+        <div class="u-stat"><span>企業価値</span><b>2,380万</b></div>
+        <div class="u-stat"><span>店舗</span><b>1店</b></div>
+      </div>
+    </section>
+    <h2 class="u-h2">今週やること</h2>
+    <button class="u-action"><i>🏪</i><span><b>2号店の候補を見る</b><small>現金に余裕あり · 回収 約15週の物件</small></span></button>
+    <button class="u-action"><i>📘</i><span><b>創業ガイド 3/10：値付けを見直す</b><small>客単価を上げる余地があります</small></span></button>
+    <button class="u-action warn"><i>⚠</i><span><b>来週、家賃 29.2万円の支払い</b><small>支払い後の会社現金 726.4万円</small></span></button>
+    <h2 class="u-h2">ニュース</h2>
+    <div class="u-list">
+      <button class="u-row"><span><b>1号店が開店しました</b><small>第4週</small></span><span class="u-end">›</span></button>
+      <button class="u-row"><span><b>ミッション達成：最初の店舗を開く</b><small>第1週 · 報酬 50万円</small></span><span class="u-end">›</span></button>
+    </div>
+  </main></div>
+  <div class="u-dock"><button class="u-advance4">4週</button><button class="u-advance">▶ 進める</button></div>
+  <nav class="u-tabbar"><button class="u-tab" aria-current="page"><i>⌂</i>ホーム</button><button class="u-tab"><i>◉</i>マップ</button><button class="u-tab"><i>▣</i>事業</button><button class="u-tab"><i>↗</i>投資</button><button class="u-tab"><i>▥</i>会社</button></nav>
+</div></div>
+
+<!-- 2. MAP + tenant sheet -->
+<div class="frame"><h6>2. マップ（出店候補を選んだ状態）</h6>
+<div class="phone ui3" id="m-map">
+  <header class="u-top">
+    <div class="u-top-date"><b>第13週</b> · 3月26日</div>
+    <div class="u-wallets"><button class="u-wallet"><span>会社</span><b class="u-money">755.6万</b></button><button class="u-wallet personal"><span>個人</span><b class="u-money">198.2万</b></button></div>
+  </header>
+  <div class="u-map" style="height:calc(100% - 48px)">
+    <div class="fakemap"><i style="left:20px;top:150px;width:70px;height:60px"></i><i style="left:150px;top:120px;width:80px;height:90px"></i><i style="left:280px;top:170px;width:70px;height:50px"></i><i style="left:60px;top:270px;width:90px;height:60px"></i><i style="left:220px;top:260px;width:100px;height:70px"></i></div>
+    <div class="u-chips u-map-chips"><button class="u-chip">東京 ▾</button><button class="u-chip" aria-pressed="true">出店候補 8</button><button class="u-chip">自社 1</button><button class="u-chip">オフィス</button><button class="u-chip">不動産</button><button class="u-chip">競合</button></div>
+    <div class="u-zoom"><button aria-label="拡大">＋</button><button aria-label="縮小">−</button><button aria-label="一覧" style="font-size:13px">一覧</button></div>
+    <button class="u-pin store" data-glyph="🍜" style="left:90px;top:200px" aria-label="自社店舗 1号店"></button>
+    <button class="u-pin tenant" data-glyph="＋" style="left:190px;top:170px" aria-pressed="true" aria-label="出店候補 駅前1階テナント"></button>
+    <button class="u-pin tenant" data-glyph="＋" style="left:300px;top:230px" aria-label="出店候補 オフィス街テナント"></button>
+    <button class="u-pin tenant" data-glyph="＋" style="left:130px;top:300px" aria-label="出店候補 商店街角地テナント"></button>
+    <button class="u-pin realestate" data-glyph="▦" style="left:250px;top:150px" aria-label="不動産 駅前商業ビル"></button>
+    <button class="u-pin rival" data-glyph="⚔" style="left:40px;top:150px" aria-label="競合 麺屋ライバル"></button>
+  </div>
+  <section class="u-sheet" style="max-height:58%">
+    <div class="u-sheet-head"><h1 class="u-h1">駅前1階テナント <span class="u-badge good">適性 A</span></h1><span class="u-h2">東京中央 · 交通量 高い · 週額賃料 29.2万円</span></div>
+    <div class="u-sheet-body">
+      <div class="u-seg"><button aria-pressed="true">ラーメン</button><button>コンビニ</button><button>ジム</button><button>不動産仲介</button></div>
+      <div class="u-stats">
+        <div class="u-stat"><span>初期費用</span><b>403.9万</b></div>
+        <div class="u-stat"><span>週の利益見込み</span><b class="u-up">+27.8万</b></div>
+        <div class="u-stat"><span>回収</span><b>約15週</b></div>
+      </div>
+      <span class="u-h2">出店後の会社現金 <b class="u-money" style="color:var(--u-text)">351.7万円</b> · 開店まで 3週</span>
+    </div>
+    <div class="u-sheet-foot"><button class="u-btn">試算の内訳</button><button class="u-btn primary">出店する</button></div>
+  </section>
+</div></div>
+
+<!-- 3. WEEKLY REPORT -->
+<div class="frame"><h6>3. 週間レポート（1画面で完結）</h6>
+<div class="phone ui3" id="m-report">
+  <header class="u-top"><div class="u-top-date"><b>第7週</b> · 2月12日</div><div class="u-wallets"><button class="u-wallet"><span>会社</span><b class="u-money">661.6万</b></button><button class="u-wallet personal"><span>個人</span><b class="u-money">199.4万</b></button></div></header>
+  <div class="u-scrim"></div>
+  <section class="u-sheet">
+    <div class="u-sheet-head"><span class="u-h2">第7週の結果</span><h1 class="u-h1">黒字が続いています</h1></div>
+    <div class="u-sheet-body">
+      <div class="u-card" style="background:var(--u-raised)">
+        <div class="u-stat hero"><span>利益</span><b class="u-up">+40.4万円</b><span class="u-delta u-up">前週比 +2,037円</span></div>
+        <div class="u-stats two">
+          <div class="u-stat"><span>売上</span><b>121.8万</b><span class="u-delta u-up">+4,428円</span></div>
+          <div class="u-stat"><span>会社現金</span><b>661.6万</b><span class="u-delta u-up">+80.2万</span></div>
+        </div>
+      </div>
+      <h2 class="u-h2">今週の出来事</h2>
+      <div class="u-list">
+        <div class="u-row"><span><b>企業価値が 2,380万円に</b><small>前週比 +692.6万円</small></span></div>
+        <div class="u-row"><span><b>成長マップ「初店舗」を達成</b><small>次の節目：2店舗</small></span></div>
+      </div>
+      <h2 class="u-h2">次の一手</h2>
+      <button class="u-action"><i>🏪</i><span><b>2号店の候補を見る</b><small>現金 661.6万円 · 出店可能</small></span></button>
+    </div>
+    <div class="u-sheet-foot"><button class="u-btn">詳しい決算</button><button class="u-btn primary">閉じる</button></div>
+  </section>
+</div></div>
+
+<!-- 4. HUB: 投資 -->
+<div class="frame"><h6>4. 投資（ハブ画面と一覧の型）</h6>
+<div class="phone ui3" id="m-invest"><div class="u-scroll">
+  <header class="u-top"><div class="u-top-date"><b>第13週</b> · 3月26日</div><div class="u-wallets"><button class="u-wallet"><span>会社</span><b class="u-money">755.6万</b></button><button class="u-wallet personal"><span>個人</span><b class="u-money">198.2万</b></button></div></header>
+  <main class="u-screen">
+    <h1 class="u-h1">投資</h1>
+    <div class="u-chips"><button class="u-chip" aria-current="page">株式</button><button class="u-chip">ベンチャー</button><button class="u-chip">M&amp;A</button><button class="u-chip">不動産</button></div>
+    <div class="u-seg"><button aria-pressed="true">個人口座</button><button>会社口座</button></div>
+    <section class="u-card"><div class="u-stats">
+      <div class="u-stat"><span>買える現金</span><b>198.2万</b></div>
+      <div class="u-stat"><span>保有株の時価</span><b>0円</b></div>
+      <div class="u-stat"><span>含み損益</span><b>±0円</b></div>
+    </div></section>
+    <div class="u-chips"><button class="u-chip" aria-pressed="true">すべて 37</button><button class="u-chip">外食・小売</button><button class="u-chip">不動産・金融</button><button class="u-chip">IT</button><button class="u-chip">★</button></div>
+    <div class="u-list">
+      <button class="u-row"><span><b>東都フーズ</b><small>外食 · 配当 2.1%</small></span><span class="u-end"><b>1,284円</b><small class="u-up">+1.8%</small></span></button>
+      <button class="u-row"><span><b>みなと不動産</b><small>不動産 · 配当 3.4%</small></span><span class="u-end"><b>2,950円</b><small class="u-down">−0.6%</small></span></button>
+      <button class="u-row"><span><b>ノースクラウド</b><small>IT · 無配</small></span><span class="u-end"><b>812円</b><small class="u-up">+4.2%</small></span></button>
+      <button class="u-row"><span><b>関西リテール</b><small>小売 · 配当 1.5%</small></span><span class="u-end"><b>1,640円</b><small class="u-down">−1.1%</small></span></button>
+    </div>
+  </main></div>
+  <div class="u-dock"><button class="u-advance4">4週</button><button class="u-advance">▶ 進める</button></div>
+  <nav class="u-tabbar"><button class="u-tab"><i>⌂</i>ホーム</button><button class="u-tab"><i>◉</i>マップ</button><button class="u-tab"><i>▣</i>事業</button><button class="u-tab" aria-current="page"><i>↗</i>投資</button><button class="u-tab"><i>▥</i>会社</button></nav>
+</div></div>
+
+</div>
+</body>
+</html>

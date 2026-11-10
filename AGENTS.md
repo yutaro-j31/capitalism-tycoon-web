@@ -15,6 +15,7 @@ For code-changing work, refresh repository state and treat current `origin/main`
 Do **not** read every project document for every task. Use progressive disclosure:
 
 - gameplay, progression, businesses, balance: relevant sections of `CLAUDE.md`, `docs/feature-requests.md`, and `docs/gameplay-systems-roadmap.md`
+- UI v3 redesign work (new screens behind `?ui=3`): `docs/ui-v3/README.md` is the single source of truth once Owner-approved; follow its task list and acceptance numbers. Do not start implementation while that file is still marked 設計案.
 - D UI or map work: relevant UI/map sections of `CLAUDE.md`, `docs/ui-redesign-roadmap.md`, and the current map implementation/tests; use `docs/map-phase2-production-integration-audit.md` when historical production-integration detail is needed
 - save, determinism, accounting, company/personal ownership: the corresponding sections of `CLAUDE.md` plus the affected save/accounting tests and implementation
 - CI/workflow work: the affected workflow, its contract tests, recent runs/logs, and the CI/runtime pitfalls in `CLAUDE.md`; read `package.json` only when scripts/dependencies are relevant

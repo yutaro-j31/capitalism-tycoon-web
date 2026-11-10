@@ -54,6 +54,8 @@ A timeout increase is prohibited **when it hides a regression**. A dedicated CI 
 
 D UI (`js/d-ui-shell.js`, `js/d-ui-context-tabs.js`, and `css/d-ui-*.css`) is the production visual language. Extend it screen-by-screen; do not introduce a competing design system.
 
+Exception (Owner instruction, 2026-11-10): a from-scratch presentation redesign, **UI v3**, is specified in `docs/ui-v3/README.md`. Until its cutover the rule above governs maintenance of the current D UI only; new-screen work for the redesign follows that document, stays behind `?ui=3`, and must not change engine, save, accounting, or determinism behavior.
+
 Do not trace/copy third-party game artwork. Layout and interaction patterns may inspire the design, but assets must remain original.
 
 New visual styling belongs in `css/d-ui-*.css` unless an existing contract explicitly says otherwise. `css/app.css` is protected by byte-level extraction tests; do not casually edit it.
