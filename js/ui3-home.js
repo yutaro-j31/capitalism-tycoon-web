@@ -58,14 +58,12 @@ function actionItems({g,engine}){
   if(guide.displayMode==='guide'&&guide.current){
     guideItem={kind:'guide',warn:false,icon:'📘',title:`創業ガイド ${guide.current.order}/${guide.total}：${guide.current.title}`,detail:guide.current.description,
       attributes:{'data-action':'founding-tutorial-jump','data-step':guide.current.id,'data-tab':guide.current.targetTab,'data-focus':guide.current.targetSelector}};
-  }else{
-    // Summary / complete: the current home shows the same card, "成長ロードマップへ" (the missions screen).
-    guideItem={kind:'guide',warn:false,icon:'📘',title:'成長ロードマップ',detail:'進行・目標を確認する',
-      attributes:{'data-action':'founding-tutorial-jump','data-tab':'missions','data-focus':'.mission'}};
   }
+  // After the guide, the current home's "成長ロードマップ" card is not an action here: the missions
+  // entry below reaches the same screen (design decision, 2026-11-11).
   const critical=tasks.filter(row=>row.priority==='critical').map(task);
   const rest=tasks.filter(row=>row.priority!=='critical').map(task);
-  return [...critical,guideItem,...rest].slice(0,MAX_ACTIONS);
+  return [...critical,...(guideItem?[guideItem]:[]),...rest].slice(0,MAX_ACTIONS);
 }
 
 function actionCard(item,esc){
@@ -86,6 +84,14 @@ function newsRows({g,esc}){
   return rows.length?`<h2 class="u-h2">ニュース</h2><div class="u-list">${rows.join('')}</div>`:'';
 }
 
+// A permanent way into 進行・目標: the next milestone that is not achieved yet names the row.
+function missionsRow({engine,esc}){
+  const next=(engine.growthMilestones?.()||[]).find(row=>row&&!row.achieved);
+  const note=next?String(next.title||''):'すべて達成しました';
+  return `<h2 class="u-h2">目標</h2><div class="u-list"><button type="button" class="u-row" data-ui3-home="missions" data-action="tab" data-tab="missions">`
+    +`<span><b>進行・目標</b><small>${esc(note)}</small></span><span class="u-end" aria-hidden="true">›</span></button></div>`;
+}
+
 modules.ui3.registerScreen('home',{
   render(context){
     const {g,engine,esc}=context;
@@ -95,7 +101,8 @@ modules.ui3.registerScreen('home',{
       +profitCard(context)
       +`<h2 class="u-h2">今週やること</h2>`
       +(items.length?items.map(item=>actionCard(item,esc)).join(''):'<p class="u-h2">いま急ぐことはありません。</p>')
-      +newsRows(context);
+      +newsRows(context)
+      +missionsRow(context);
   }
 });
 })();

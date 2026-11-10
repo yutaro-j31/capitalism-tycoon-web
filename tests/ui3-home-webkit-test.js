@@ -128,13 +128,13 @@ async function main() {
     await found(page, `${base}?ui=3`);
     assert.deepEqual(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.registeredScreens()), ['home']);
     assert.deepEqual(await frame(page), { native: true, screen: 'home', crisisPanel: false }, 'the home is native right after founding');
-    assert.deepEqual(await screenShape(page), ['H1.u-h1', 'SECTION.u-card', 'H2.u-h2', 'BUTTON.u-action', 'H2.u-h2', 'DIV.u-list'], 'README 5.1: heading+badge, number card, this week\'s actions, news; nothing else');
+    assert.deepEqual(await screenShape(page), ['H1.u-h1', 'SECTION.u-card', 'H2.u-h2', 'BUTTON.u-action', 'H2.u-h2', 'DIV.u-list', 'H2.u-h2', 'DIV.u-list'], 'README 5.1: heading+badge, number card, this week\'s actions, news, the missions entry; nothing else');
     assert.equal(await page.locator('.ui3 #screen > h1').innerText().then(text => text.replace(/\s+/g, ' ').trim()), 'ポケット商事 実家起業', 'company name and growth stage badge (last achieved milestone)');
     const card = await page.locator('.ui3 #screen .u-card').innerText().then(text => text.replace(/\s+/g, ' ').trim());
     assert.match(card, /^今週の利益 0円 前週比較なし 売上 0円 企業価値 800\.0万円 店舗数 0店$/, 'number card: profit (hero, with previous-week note), sales, company value, stores');
     assert.deepEqual(await actionCards(page), [{ warn: false, action: 'founding-tutorial-jump', tab: 'home', step: 'dashboard', title: '創業ガイド 1/10：会社の現在地を確認', tag: 'BUTTON' }],
       'founding guide current step is the only action at founding, through the existing action');
-    const news = await page.locator('.ui3 #screen .u-list .u-row').evaluateAll(nodes => nodes.map(node => [node.dataset.action, node.dataset.tab, node.querySelector('b').innerText.trim(), node.querySelector('small')?.innerText.trim() || '']));
+    const news = await page.locator('.ui3 #screen .u-row[data-tab="news"]').evaluateAll(nodes => nodes.map(node => [node.dataset.action, node.dataset.tab, node.querySelector('b').innerText.trim(), node.querySelector('small')?.innerText.trim() || '']));
     assert.deepEqual(news, [['tab', 'news', 'ポケット商事を創業しました。', '第1週'], ['tab', 'news', '会社を設立しました。最初の店舗を探しましょう。', '']], 'two news rows that open the news screen');
     assert.equal(await page.locator('.ui3 #screen .u-chips').count(), 0, 'the home hub has no chip row');
     assert.equal(await page.locator('.ui3 .u-btn.primary, .ui3 #screen .u-advance').count(), 0, 'no primary button inside the screen (the only gold control is the dock)');
@@ -189,11 +189,21 @@ async function main() {
     assert.equal((await frame(page)).native, false, 'the news screen is not ported yet, so the current UI renders it');
     await goTo(page, 'home');
 
-    // 6. Finished or summarised founding guide: the same "成長ロードマップ" card the current home shows.
+    // 6. A finished or summarised founding guide leaves no "成長ロードマップ" action; the missions entry is always there.
+    const missionsRow = () => page.locator('.ui3 #screen [data-ui3-home="missions"]').evaluate(node => [node.dataset.action, node.dataset.tab, node.querySelector('b').innerText.trim(), node.querySelector('small').innerText.trim()]);
+    const missionsNow = await missionsRow();
+    assert.deepEqual(missionsNow.slice(0, 3), ['tab', 'missions', '進行・目標'], 'a permanent entry to the missions screen under the heading 目標');
+    assert.ok(missionsNow[3].length > 0, 'its note names the next unachieved milestone');
+    assert.equal(await page.locator('.ui3 #screen h2').filter({ hasText: '目標' }).count(), 1);
     await page.evaluate(() => { globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.publicCompany = true; });   // inspection setup
     await goTo(page, 'home');
-    const roadmap = await actionCards(page);
-    assert.deepEqual(roadmap[0], { warn: false, action: 'founding-tutorial-jump', tab: 'missions', step: '', title: '成長ロードマップ', tag: 'BUTTON' }, 'summary/complete guide keeps the missions entry');
+    const afterGuide = await actionCards(page);
+    assert.ok(afterGuide.every(card => card.tab !== 'missions' && card.title !== '成長ロードマップ'), 'the growth-roadmap card is not an action any more');
+    assert.deepEqual((await missionsRow()).slice(0, 3), ['tab', 'missions', '進行・目標']);
+    await page.locator('.ui3 #screen [data-ui3-home="missions"]').tap();
+    await page.waitForTimeout(500);
+    assert.equal((await engineState(page)).tab, 'missions');
+    await goTo(page, 'home');
     await page.evaluate(() => { globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.publicCompany = false; });
 
     // 7. A cash crisis hands the home to the current UI (shell rule), which carries the recovery actions.
