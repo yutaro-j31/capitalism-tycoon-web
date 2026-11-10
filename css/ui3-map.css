@@ -1,0 +1,47 @@
+/* UI v3 map screen layout (UI3-3, docs/ui-v3/README.md 5.2 / 5.3). Layout only: colours and type come from
+   ui3.css tokens. The 3D workspace's own markup (js/city-lab-map.js) is styled here because the current
+   map CSS is scoped to `body.city-lab-presentation`, which a native v3 screen removes. */
+
+/* the map takes everything between the top bar and the tab bar */
+.ui3.u-app[data-ui3-screen="map"] .u-screen { padding: 0; display: block; }
+.ui3 .u-map { position: fixed; left: 0; right: 0; top: calc(var(--u-top-h) + var(--u-safe-t)); bottom: calc(var(--u-tab-h) + var(--u-safe-b)); height: auto; }
+.ui3 .u-map .d-map-workspace.city-lab-map, .ui3 .u-map .d-map-workspace .city-lab-stage { position: absolute; inset: 0; display: block; width: auto; height: 100% !important; min-height: 0 !important; flex-basis: auto !important; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; overflow: hidden; perspective: none; background: var(--u-surface); }
+.ui3 .u-map .d-map-directory { display: none; }
+.ui3 .u-map .city-lab-viewport, .ui3 .u-map .city-lab-canvas, .ui3 .u-map .city-lab-labels { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ui3 .u-map .city-lab-canvas { display: block; }
+.ui3 .u-map .city-lab-viewport { touch-action: none; }
+.ui3 .u-map .city-lab-labels { pointer-events: none; overflow: hidden; }
+.ui3 .u-map .city-lab-load { position: absolute; top: 50%; left: 0; right: 0; margin: 0; text-align: center; pointer-events: none; font: var(--u-t-label); color: var(--u-muted); }
+
+/* the current map's own HUD, balance, context card, footer, sheet and filter list give way to v3 parts */
+.ui3 .u-map :is(.city-lab-hud, .city-lab-context, .city-lab-footer, .city-lab-sheet, .city-lab-filters, [data-city-camera="fit"], [data-city-camera="filter"]) { display: none; }
+
+/* pins: the shell positions each one with a transform; the pin is the only part that takes touches */
+.ui3 .u-map .city-lab-labels .u-pin { left: 0; top: 0; pointer-events: auto; touch-action: none; }
+.ui3 .u-map .u-pin .u-pin-label { display: none; left: 50%; top: 100%; transform: translate(-50%, 6px); }
+.ui3 .u-map .u-pin[aria-pressed="true"] { z-index: 2; }
+.ui3 .u-map .u-pin[aria-pressed="true"] .u-pin-label { display: block; }
+
+/* chip row: prefecture switcher first, then the filter chips */
+.ui3 .u-map .u-map-chips { display: flex; align-items: center; gap: var(--u-2); overflow-x: auto; scrollbar-width: none; }
+.ui3 .u-map .u-map-filters { display: contents; }
+.ui3 .u-map .u-map-pref { flex: none; display: flex; align-items: center; height: 44px; padding: 0 var(--u-3); border-radius: 20px; border: 1px solid var(--u-line); background: var(--u-surface); }
+.ui3 .u-map .u-map-pref > span { display: none; }
+.ui3 .u-map .u-map-pref select { min-width: var(--u-tap); height: 44px; border: 0; background: transparent; color: var(--u-text); font: var(--u-t-label); font-weight: 700; padding: 0 var(--u-1); }
+
+/* the zoom column carries the list button as its third control */
+.ui3 .u-map .u-zoom button[data-ui3-map-list] { font: var(--u-t-label); font-weight: 700; }
+
+/* a cash-crisis notice (shell) sits above the dock instead of pushing the map down */
+.ui3.u-app[data-ui3-screen="map"] [data-ui3-crisis] { position: fixed; z-index: 36; width: auto; left: var(--u-3); right: var(--u-3); bottom: calc(var(--u-tab-h) + var(--u-safe-b) + 72px); }
+
+/* sheets opened from the map: 58% high; the map stays visible above them, and a tap on it closes the sheet */
+.ui3:has([data-ui3-map-sheet]) .u-sheet { max-height: 58%; }
+.ui3:has([data-ui3-map-sheet]) .u-scrim { background: none; }
+.ui3 .u-map .u-map-chips .u-chip { height: 44px; }
+
+/* the page itself never scrolls on the map: the current UI's bottom padding on <body> must not add height */
+body.ui3-native:has(.ui3[data-ui3-screen="map"]) { padding-bottom: 0 !important; overflow: hidden; }
+
+/* the industry switch in the store sheet: ui3.css draws .u-seg buttons 40px high, the acceptance number is 44 */
+.ui3 .u-sheet .u-seg button { height: 44px; }

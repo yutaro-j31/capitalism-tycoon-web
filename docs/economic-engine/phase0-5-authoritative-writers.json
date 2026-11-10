@@ -645,6 +645,12 @@
         ]
       },
       {
+        "file": "js/ui3-map.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/ui3-shell.js",
         "tokens": [
           "companyCash"

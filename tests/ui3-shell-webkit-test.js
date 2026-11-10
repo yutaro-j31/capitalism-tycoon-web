@@ -213,6 +213,21 @@ async function main() {
     await goTo(page, 'home');
     assert.equal((await snapshot(page)).native, true, 'home returns to v3 once the crisis is over');
 
+    // A screen may attach something markup cannot carry: `mount` runs once, after js/app.js has put the
+    // screen's markup into #app, with the host element and the game; it must be a function.
+    await page.evaluate(() => {
+      const ui3 = globalThis.__capitalismTycoonModules.ui3;
+      globalThis.__ui3Mounts = [];
+      ui3.registerScreen('map', { render: () => '<section data-probe="map-host"></section>', mount: ({ host, g, engine }) => { globalThis.__ui3Mounts.push([host.dataset.ui3Screen, Boolean(host.querySelector('[data-probe="map-host"]')), g.selectedTab, engine.g === g]); } });
+      try { ui3.registerScreen('assets', { render: () => '', mount: 5 }); globalThis.__ui3MountError = 'none'; } catch (error) { globalThis.__ui3MountError = error.name; }
+    });
+    assert.equal(await page.evaluate(() => globalThis.__ui3MountError), 'TypeError', 'mount must be a function');
+    await goTo(page, 'map');
+    await page.waitForFunction(() => globalThis.__ui3Mounts.length === 1, null, { timeout: 10000 });
+    assert.deepEqual(await page.evaluate(() => globalThis.__ui3Mounts), [['map', true, 'map', true]], 'mount runs once, after the markup is in the page');
+    await goTo(page, 'home');
+    assert.equal(await page.evaluate(() => globalThis.__ui3Mounts.length), 1, 'a screen without mount, or another screen, does not run it');
+
     // Sheet: hides the dock, closes through the existing close-modal action.
     await page.evaluate(() => { document.getElementById('modal-root').innerHTML = globalThis.__capitalismTycoonModules.ui3.sheet({ eyebrow: '確認', title: 'probe sheet', body: '<p>本文</p>', actions: '<button type="button" class="u-btn primary" data-action="close-modal">閉じる</button>' }); });
     assert.equal(await page.locator('.ui3 .u-dock').evaluate(node => getComputedStyle(node).display), 'none');

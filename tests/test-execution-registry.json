@@ -458,5 +458,9 @@
   "tests/ui3-shell-webkit-test.js": {
     "reason": "UI v3 foundation (docs/ui-v3 UI3-0): real-browser proof that ?ui=3 renders registered screens in the v3 frame without the D UI enhancer pipeline, unregistered screens and flag-off renders stay on the current UI, all screens stay reachable, and the UI preference never enters the save; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
+  },
+  "tests/ui3-map-webkit-test.js": {
+    "reason": "UI v3 map screen (docs/ui-v3 UI3-3): real-browser proof that the 3D map shows v3 pins, filter chips and zoom/list buttons between the top bar and tab bar, a vacant tenant opens the 58% store sheet and a store is opened with taps only through the existing final confirmation, the other pin kinds reach their existing actions, viewing never changes the game, flag-off keeps the current map and an unavailable 3D map falls back to the current UI; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
   }
 }
