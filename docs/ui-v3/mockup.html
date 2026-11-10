@@ -14,11 +14,8 @@
   .phone { position: relative; width: 390px; height: 664px; overflow: hidden; border-radius: 12px; transform: translateZ(0); }
   .phone .u-scroll { height: 100%; overflow-y: auto; }
   .phone .u-tabbar, .phone .u-dock, .phone .u-scrim, .phone .u-sheet { position: absolute; }
-  .fakemap { position: absolute; inset: 0; background:
-    linear-gradient(90deg, transparent 0 46%, #c9cfc4 46% 50%, transparent 50%) 0 0/120px 100%,
-    linear-gradient(0deg, transparent 0 44%, #c9cfc4 44% 50%, transparent 50%) 0 0/100% 110px,
-    linear-gradient(135deg, #dfe6d8, #cfd8c8); }
-  .fakemap i { position: absolute; background: #9aa596; border-radius: 4px; box-shadow: 6px 8px 0 #7d8879; }
+  /* a capture of the game's own 3D map (js/city-lab-map.js), used only as the mockup backdrop */
+  .map3d { position: absolute; left: 0; top: -16px; width: 100%; height: calc(100% + 16px); object-fit: cover; object-position: 50% 0; }
 </style>
 </head>
 <body>
@@ -66,7 +63,7 @@
     <div class="u-wallets"><button class="u-wallet"><span>会社</span><b class="u-money">755.6万</b></button><button class="u-wallet personal"><span>個人</span><b class="u-money">198.2万</b></button></div>
   </header>
   <div class="u-map" style="height:calc(100% - 48px)">
-    <div class="fakemap"><i style="left:20px;top:150px;width:70px;height:60px"></i><i style="left:150px;top:120px;width:80px;height:90px"></i><i style="left:280px;top:170px;width:70px;height:50px"></i><i style="left:60px;top:270px;width:90px;height:60px"></i><i style="left:220px;top:260px;width:100px;height:70px"></i></div>
+    <img class="map3d" src="./mock-map-3d.jpg" alt="">
     <div class="u-chips u-map-chips"><button class="u-chip">東京 ▾</button><button class="u-chip" aria-pressed="true">出店候補 8</button><button class="u-chip">自社 1</button><button class="u-chip">オフィス</button><button class="u-chip">不動産</button><button class="u-chip">競合</button></div>
     <div class="u-zoom"><button aria-label="拡大">＋</button><button aria-label="縮小">−</button><button aria-label="一覧" style="font-size:13px">一覧</button></div>
     <button class="u-pin store" data-glyph="🍜" style="left:90px;top:200px" aria-label="自社店舗 1号店"></button>
