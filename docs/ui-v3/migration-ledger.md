@@ -33,6 +33,7 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | `business` | リコール危機が未対応（`activeRecallCrisis` が有効で `responded` が偽） | `respond-recall-crisis`（自主回収・補償）と、リコール危機の欄（`renderRecallCrisisSection()`） | 枠の規則 `CURRENT_UI_RULES.business` |
 | `office` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="office"`）を押したとき（次の `tab` 操作まで） | 組織・2Dキャンパス・部門の設置と採用・CXO・重要社員・取締役会とIPO・指示と社内VC（`office-tab` の8タブの中の操作すべて）、支社の契約解除（`close-branch-office`）。仕様は設計担当が UI3-9b に含めて書く | 枠の `openCurrentUI` |
 | `market` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="market"`）を押したとき（次の `tab` 操作まで） | 自社株の操作（`stock-split` `stock-mbo` `founder-share-sale` `defense` `view-earnings` `set-dividend` `buyback`）、チャート（`stock-chart-range`）、信用取引の欄、資本配分の操作（`data-capital-allocation-*`）、業種の絞り込みと銘柄の詳細（`select-stock`） | 枠の `openCurrentUI` |
+| `report` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="report"`）を押したとき（次の `tab` 操作まで） | チャート（`#report-chart`）と表示する指標の選択（`data-bind="reportMetric"`）、会計用語メモ、13週の資金繰り予測（`bank` のシートでも読める） | 枠の `openCurrentUI` |
 
 ## その他の残件
 
@@ -40,7 +41,6 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | --- | --- |
 | ホームの「今週やること」と週間レポートの「次の一手」の選定ロジックが重複している | 共通化は v1.0 では行わない（設計担当の決定 2026-11-11）。 |
 | 金額・数量の入力ダイアログ（`askMoney`、iPhone用の入力ダイアログ） | **UI3-9a で v3 の金額入力シートにした**（`modules.ui3.amountSheet`。`?ui=3` では現行のダイアログは出ない）。残件なし。名前の入力（`askText`）は現行のダイアログのまま（UI3-9b に含める）。 |
-| 銀行画面（`bank`、未移植）の借入・返済の入力で、iPhone 用ダイアログにあった「利用可能枠」「返済後残高」の行（`?ui=3` では `interceptMoney` を止めたので一時的に出ない） | UI3-7 で `bank` を作るとき、`setAmountContext` の `preview` で戻す。 |
 
 ## 画面ごとの表
 
@@ -211,3 +211,35 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | 個人返済 | `repay-personal` | 円（個人） | 会社返済と同じ |
 
 名前の入力（`askText`：`found-digital-business` `launch-product` `add-directive` の指示内容 `start-campaign` の施策名 `create-pe` の業界）は対象外で、現行のダイアログのまま（UI3-9b に含める。設計担当の決定 2026-11-11）。
+
+### `bank`（UI3-7）
+
+洗い出し：UI3-7の担当エージェント、2026-11-11、Chromium・390×664。`node scripts/ui3-dump-screen-actions.js --screen=bank --states=founding,store-open,listed`（創業直後・1号店の開店後・上場後）。`renderBank()` を読んで足した（資金繰り予測は読み取り専用）。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `borrow-company`（会社借入） | `renderBank()` | 常時 | 「操作」の行（同じ操作。UI3-9a の金額入力シートが確認：借入後の残高・残りの借入余力を出す。借入余力が無いと押せない） |
+| `repay-company`（会社返済） | 同上 | 常時 | 「操作」の行（同じ操作。返済後の残高・実行後の会社の現金を出す。借入か現金が無いと押せない） |
+| `borrow-personal`、`repay-personal` | 同上 | 常時 | 口座を「個人」にして同じ行（同じ操作） |
+| 信用スコア・金利・借入限度額（表示のみ） | 同上 | 常時 | カード（借入余力）と「条件」の行 |
+| 13週の資金繰り予測（`renderCashflowForecast()`、表示のみ） | 同上 | 常時 | 「13週の資金繰り予測」のシート（読み取り専用） |
+| 借入金の一覧（`g.finance.loans`、表示のみ。現行では決算画面） | `renderReport()` | 借入があるとき | 「借入金の一覧」のシート（読み取り専用） |
+
+UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可能枠・返済後残高の行）を止めたが、v3 の `bank` は同じ情報を金額入力シートの `preview` で出す（残件は無くなった）。未移植の現行UIの銀行画面から借入・返済を押した場合は、見込みの行の無い金額入力シートになる（`?ui=3` の間。`bank` は v3 になったので、通常は起きない）。
+
+### `report`（UI3-7）
+
+洗い出し：同上（`--screen=report`）。`renderReport()` を読んで足した。操作（`data-action`）は `tab` `advance-week` だけで、期間と指標の選択は `data-bind`（`ui` の中の表示設定）。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `data-bind="financePeriod"`（今週・13週・四半期・年度・52週） | `renderReport()` | 常時 | 画面の上の期間チップ（画面の表示状態。`modules.finance.buildStatements` に直接渡す） |
+| `data-bind="reportMetric"`（チャートの指標）と `#report-chart` | 同上 | 常時 | 現行UI（6.5）。残件 |
+| 財務サマリー・損益計算書・貸借対照表・キャッシュフロー計算書・財務指標・運転資本・配当可能額・週次履歴（表示のみ） | 同上 | 1週進めたあと | 「決算の内訳」の行 → 読み取り専用のシート |
+| 会計用語メモ・13週の資金繰り予測（表示のみ） | 同上 | 常時 | 現行UI（6.5。資金繰り予測は `bank` のシートでも読める） |
+
+決算の値は、現行の画面と同じ `buildStatements` の呼び出し（描画のたびに呼ぶ。集計用の項目が整うことがある）。
+
+未確認：上場後（確認用の旗）の決算の項目の違い。

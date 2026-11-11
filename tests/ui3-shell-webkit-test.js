@@ -329,6 +329,18 @@ async function main() {
       result.chipsSmallDividend = chips('四半期配当設定', 10);
       result.chipsLarge = chips('事業投資', 1000000);
       result.chipsPresets = chips('価格変更', 5000, { unit: '円', presets: [{ value: 500, label: '500円' }, { value: 1000, label: '1,000円' }] });
+      ui3.setAmountContext({ unit: '円', max: 3120000, preview: value => [{ label: '残り', value: `${value}円` }] });
+      open('会社借入', 10000000);
+      const capped = root.querySelector('[data-ui3-amount-input]');
+      result.cappedInitial = capped.value;
+      capped.value = '3120000'; capped.dispatchEvent(new Event('input', { bubbles: true }));
+      result.atMax = [...root.querySelectorAll('[data-ui3-amount-preview] b')].map(node => node.classList.contains('u-down'));
+      capped.value = '3120001'; capped.dispatchEvent(new Event('input', { bubbles: true }));
+      result.overMax = [...root.querySelectorAll('[data-ui3-amount-preview] b')].map(node => node.classList.contains('u-down'));
+      result.overMaxRunnable = !root.querySelector('[data-ui3-amount-run]').disabled;
+      ui3.setAmountContext({ unit: '円', max: 5000000 });
+      open('会社借入', 1000000);
+      result.belowMaxKept = root.querySelector('[data-ui3-amount-input]').value;
       ui3.setAmountContext({ unit: '円', preview: value => [{ label: '返済後残高', value: `${value}円` }, { label: '利用可能枠', value: '9円', tone: 'down' }] });
       open('会社借入', 1000000);
       const input = root.querySelector('[data-ui3-amount-input]'), run = root.querySelector('[data-ui3-amount-run]');
@@ -346,6 +358,7 @@ async function main() {
     assert.deepEqual(amount.yenStates, [['', true], ['x', true], ['-1', true], ['0', false], ['1.5', false], ['12', false], ['1,000', false]], 'yen: 0 or more, decimals allowed; only a negative value or a non-number is refused');
     assert.deepEqual(amount.shareStates, [['', true], ['0', true], ['1.5', true], ['x', true], ['-1', true], ['12', false], ['1,000', false]], 'shares: a whole number of 1 or more');
     assert.deepEqual([amount.chipsSmall, amount.chipsSmallDividend, amount.chipsLarge, amount.chipsPresets], [[], [], ['10万', '50万', '100万'], ['500円', '1,000円']], 'yen chips only from a 10万円 start; presets replace them');
+    assert.deepEqual([amount.cappedInitial, amount.atMax, amount.overMax, amount.overMaxRunnable, amount.belowMaxKept], ['3120000', [false], [true], true, '1000000'], 'an initial value above the maximum starts at the maximum; a value above it is shown in red but can still be run; one below it is kept');
     assert.deepEqual(amount.preview, [['返済後残高', '250円', false], ['利用可能枠', '9円', true]], 'a screen\'s preview replaces the default rows');
     assert.deepEqual(amount.inputmode, ['decimal', 'numeric'], 'the keyboard follows the unit');
     assert.deepEqual([amount.submitted, amount.closed], [[0], true], '0 yen can be submitted (a dividend of 0)');

@@ -645,6 +645,12 @@
         ]
       },
       {
+        "file": "js/ui3-bank.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/ui3-business.js",
         "tokens": [
           "companyCash"
@@ -870,6 +876,12 @@
       },
       {
         "file": "js/treasury-refinancing-policy.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/ui3-bank.js",
         "tokens": [
           "companyDebt"
         ]
@@ -1648,6 +1660,12 @@
       },
       {
         "file": "js/semantic-hash-v2.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/ui3-bank.js",
         "tokens": [
           "personalCash"
         ]
