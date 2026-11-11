@@ -1,0 +1,4 @@
+/* UI v3 business screen layout (UI3-4). Layout only: colours and type come from ui3.css tokens.
+   The best store's name is free text and can be longer than its third of the card: it wraps (two lines at most). */
+.ui3 [data-ui3-business="summary"] .u-stat { min-width: 0; }
+.ui3 [data-ui3-business="summary"] .u-stat > b:not(.u-money) { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }

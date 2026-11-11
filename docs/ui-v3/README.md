@@ -212,6 +212,19 @@ iPhone幅（390×664、ChromiumのiPhone 13設定）で創業直後の19画面�
 
 各画面の作業に入るときは、現行の `render<画面名>()`（`js/app.js`）が出している操作（`data-action`）を全部書き出し、v3のどこから届くかを対応表にしてPRに貼る。**届かなくなる操作を1つも作らない。**
 
+実装で決めたこと（UI3-4：`business` `office`）：
+
+- `business`：カードは「店舗（運営中と準備中の数）・週の利益（営業中の店舗の `lastProfit` の合計）・最も稼ぐ店」。一覧は、店舗（行 → 店舗のシート：コンセプト変更・設備強化・改装・店舗価格・閉店）、運営中の事業（行 → 事業のシート：投資4種・価格変更・FC本部の設置・加盟店募集）、未出店の業種（現行と同じく地図へ）。続けて「IT・デジタル事業」（シート）と「ほかの詳細（現行の画面）」の行。
+- `office`：カードは「本社（名前）・社員数・週の固定費」。一覧は設置済みの部門と在籍のCXO（読み取りのみ）、「操作」（福利厚生投資・リモートワーク・本社契約の解除）、「ほかの詳細（現行の画面）」。
+- **お金が動いて取り消せない操作は共通の確認シート `modules.ui3.confirmSheet` を通す**（6.1）。この画面で通すのは、コンセプト変更・設備強化・改装・FC本部の設置。金額の入力が要る操作（事業投資・価格変更・店舗価格・福利厚生投資・加盟店募集）と、結果を事前提示する現行のダイアログがある操作（閉店・本社契約の解除）は、その現行のダイアログがそのまま確認になる（金額入力のv3のシートは新しい部品になるため作っていない。未決事項）。
+- v3 に載せない操作は、「ほかの詳細（現行の画面）」の行（`data-ui3-current`、6.5）から現行UIの画面を開いて届く。押すとその画面だけ現行UIになり、**次の `tab` 操作で v3 に戻る**。仕組みは枠の `openCurrentUI` にあり、画面側に個別の実装は無い。
+- 事業 × リコール危機が未対応の間は、枠の規則（`CURRENT_UI_RULES.business`）で事業画面を現行UIで出す（6.5）。
+- トースト：v3 のシートが出ている間だけ、画面の上端に出す（`ui3.css`）。シートの下端の確認の金額を隠さないため。
+- FC本部の費用の写し（`FRANCHISE_HQ_COST`）は、検査が `js/engine.js` の `startFranchise` の金額と一致することを確かめる（ずれたら CI で落ちる）。
+- 金額入力のシートは専用の作業 UI3-9a（7章）で作る。それまでは現行のダイアログのまま。
+- `.u-chip` のボタンは `ui3.css` で40pxだったが、合格基準は44px以上なので、`ui3.css` と `docs/ui-v3/ui3.css` を同時に44pxにした（`.u-seg` と同じ扱い。地図の個別の上書きは消した）。
+- 店舗のシートの行は `.u-row` を使う（`ui3.css` の既存の部品）。行を押せない状態（資金不足・条件未達）は `disabled`。
+
 ### 5.6 創業画面
 
 現行の構成（名前・会社名・難易度・出身地・初期特性・シナリオ）のまま、`ui3.css` の部品に載せ替える。1画面に収め、`創業する` を下端に固定する。創業後は必ずページの先頭から始める。
@@ -246,6 +259,7 @@ modules.ui3.registerScreen('home',{
 - シートは `modules.ui3.sheet({eyebrow,title,subtitle,body,actions})` の結果を `#modal-root` に入れる。閉じるのは既存の `data-action="close-modal"`。シートが出ている間、進めるボタンは自動で隠れる。
 - 画面に、マークアップでは渡せないもの（3D地図の canvas など）を付ける必要があるときは、`registerScreen` に `mount(context)` を渡す。`js/app.js` が `#app` にマークアップを入れた直後（同じタスクの終わり）に、1回だけ呼ばれる。`context` は `{engine,g,engineModule,esc,money,host}`（`host` は `.u-app` 要素）。画面がまだ出ているときだけ呼ばれ、関数でなければ登録時に `TypeError`。
 - 画面ではなく、`js/app.js` が出す現行のモーダルを置き換えるシートは、`modules.ui3.registerSheet(id, {render})` で登録する（`id` は `modules.ui3.SHEET_IDS` のもの。今は `weekly-report` だけ）。`render(context)` は `{eyebrow,title,subtitle,body,actions}` を返し、枠が `sheet()` で包む。`context` は `{engine,engineModule,g,esc,money}` と、呼び出し側が渡す値（週間レポートでは `summary`）。`js/app.js` は `modules.ui3.renderSheet(id, context)` を先に呼び、答えが空文字（`?ui=3` でない、未登録、未設定のゲーム）のときだけ、現行のモーダルを出す。
+- お金が動いて取り消せない操作は、`modules.ui3.confirmSheet({eyebrow,title,subtitle,facts,note,confirm,cancelLabel})` の結果を `#modal-root` に入れて確認する。`facts` は `[{label,value,tone?}]`（整形済みの文字列。費用と実行後の会社現金を必ず入れる）、`confirm` は `{label,attributes}`（`attributes` は既存の `data-action` と `data-id` `data-kind`）。下端は「やめる」（`close-modal`）と主ボタン1つ。主ボタンを押すと js/app.js が既存の `action` を実行し、そのあとシートが閉じる（別のダイアログを開く `action` には使わない。そのダイアログごと閉じるため）。この部品は何も実行しない。
 - スクリプトは `index.html` で `js/ui3-shell.js` の後、`js/app.js` の前に読み込む。
 
 **現行UIの機能は、`js/app.js` が描くHTMLだけではない。** 約80個の enhancer が、描画後に画面へ機能を差し込んでいる（不動産の管理、危機対応、資本配分のメモなど）。v3の画面ではこれらが動かないので、画面を移すときは、その画面に差し込まれている機能も対応表（5.5）に載せ、v3側で出し直す。
@@ -295,11 +309,14 @@ modules.ui3.registerScreen('home',{
   ```
 
 - 条件は、できるだけ狭く書く（「その操作が出る状態」だけ）。常に真を返す登録はしない。
+**利用者が選んで現行の画面を開く行**：v3 の画面に載せない操作が残る画面では、行（ボタン）に `data-ui3-current="<screen>"` を付ける。押すと、枠が `modules.ui3.openCurrentUI(screenID)` を呼び、その画面だけ現行UIで出る。**次の `tab` 操作で v3 に戻る。** 状態で自動的に切り替える `useCurrentUI` とは別の仕組みで、画面側に個別の実装は持たない。使ったら、台帳の残件に画面ごとに1行ずつ載せる（UI3-11 の時点で0件）。
+
 - 使ったら、必ず `migration-ledger.md` のその画面の表に、状態・現行UIで出る操作・残件を書く。
 - 残った分は UI3-9b でv3に作り直す。**UI3-11（切り替え）の時点で、`useCurrentUI` と枠の規則は1つも残っていないこと。**
 
 枠が最初から持っている規則（`js/ui3-shell.js` の `CURRENT_UI_RULES`）：
 
+- **事業 × リコール危機が未対応**（`activeRecallCrisis` が有効で、`responded` が偽）：現行の事業画面だけが「自主回収・補償」（`respond-recall-crisis`）を出すため。`modules.companyRecallCrisis.view()` は状態を整える（書き込む）ので使わず、状態を読むだけで判定する。（2026-11-11 設計担当が確定）
 - **ホーム × 資金繰りが「安定」以外**：現行ホームに差し込まれる危機対応のパネル（`js/player-crisis-ui.js`）が、回復策の唯一の入口のため。この間、v3のほかの画面には枠が「資金繰り危機」などの札を出し、押すとホーム（現行UI）へ移る。
 
 ## 7. 作業の分け方
@@ -318,7 +335,8 @@ modules.ui3.registerScreen('home',{
 | UI3-7 | 会社タブ（`bank` `report`） | UI3-1 | 同上 |
 | UI3-8 | 会社タブ（`founder` `legacy` `settings`）と創業画面 | UI3-7 | 同上 |
 | UI3-9 | 事業タブの残り（`strategy` `overseas` `media` `rivals`）とホームのシート（`missions` `news`） | UI3-4 | 同上 |
-| UI3-9b | 現行UIに任せた状態の解消：危機対応のシートなど、`migration-ledger.md` に残件として載っているものをv3で作る。**仕様は着手前に設計担当が書く** | UI3-1〜9 | `useCurrentUI` と `CURRENT_UI_RULES` が空。台帳の残件が0 |
+| UI3-9a | 金額入力シート：`ui3.css` に数値入力の部品を足し、事業投資・価格変更・店舗価格・福利厚生投資・加盟店募集・株数の入力など、現行の金額・数量入力ダイアログを v3 のシートにする。**仕様は着手前に設計担当が書く** | UI3-4 | 現行の入力ダイアログが v3 から開かれない |
+| UI3-9b | 現行UIに任せた状態の解消（本社の8タブの仕様も、設計担当がここに含めて書く）：危機対応のシートなど、`migration-ledger.md` に残件として載っているものをv3で作る。**仕様は着手前に設計担当が書く** | UI3-1〜9 | `useCurrentUI` と `CURRENT_UI_RULES` が空。台帳の残件が0 |
 | UI3-10 | 通し確認：`--ui=3 --enforce` を全画面で合格。iPhoneの通しプレイ検査をv3でも実行 | UI3-1〜9、UI3-9b | 全画面合格 |
 | UI3-11 | 切り替え：v3を既定にする。現行UIのテストをv3向けに置き換える計画をオーナーに出す | UI3-10とオーナー承認 | — |
 

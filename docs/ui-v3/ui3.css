@@ -74,7 +74,7 @@ body:has(#modal-root .u-sheet) .ui3 .u-dock { display: none; }
 
 /* --- components ------------------------------------------------------- */
 .ui3 .u-chips { display: flex; gap: var(--u-2); overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--u-4)); padding: 0 var(--u-4); }
-.ui3 .u-chip { flex: none; height: 40px; padding: 0 var(--u-4); border-radius: 20px; border: 1px solid var(--u-line); background: var(--u-surface); color: var(--u-muted); font: var(--u-t-label); }
+.ui3 .u-chip { flex: none; height: 44px; padding: 0 var(--u-4); border-radius: 20px; border: 1px solid var(--u-line); background: var(--u-surface); color: var(--u-muted); font: var(--u-t-label); }
 .ui3 .u-chip[aria-pressed="true"], .ui3 .u-chip[aria-current="page"] { background: var(--u-text); color: var(--u-bg); border-color: var(--u-text); font-weight: 700; }
 
 .ui3 .u-card { background: var(--u-surface); border: 1px solid var(--u-line); border-radius: var(--u-radius); padding: var(--u-4); display: grid; gap: var(--u-3); }
@@ -137,3 +137,7 @@ body:has(#modal-root .u-sheet) .ui3 .u-dock { display: none; }
 .ui3 .u-pin[aria-pressed="true"]::before { background: var(--u-accent); border-color: var(--u-accent); color: var(--u-accent-ink); }
 .ui3 .u-pin[aria-pressed="true"]::after { border-top-color: var(--u-accent); }
 .ui3 .u-pin-label { position: absolute; transform: translate(-50%, 6px); padding: 3px 10px; border-radius: 10px; background: var(--u-accent); color: var(--u-accent-ink); font: var(--u-t-label); font-weight: 700; white-space: nowrap; }
+
+/* toast: the current UI's toast sits at the bottom edge (css/app.css), where it would cover a sheet's foot.
+   While a v3 sheet is open it goes to the top edge instead (design decision, 2026-11-11). */
+body:has(#modal-root .u-sheet) .toast { top: calc(env(safe-area-inset-top, 0px) + 8px); bottom: auto; }

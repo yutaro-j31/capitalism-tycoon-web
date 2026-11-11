@@ -86,6 +86,8 @@
     "./js/ui3-map.js",
     "./js/ui3-home.js",
     "./js/ui3-weekly-report.js",
+    "./js/ui3-business.js",
+    "./js/ui3-office.js",
     "./js/app.js",
     "./js/player-media-advertising-ui.js",
     "./js/difficulty-scenario-balance.js",

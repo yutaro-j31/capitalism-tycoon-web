@@ -38,7 +38,7 @@ assert.doesNotMatch(shellSource, /\b(?:g|engine\.g)\.[A-Za-z_$][\w$]*\s*(?:=(?!=
 assert.doesNotMatch(shellSource, /\.save\(|setItem\((?!PREFERENCE_KEY)/, 'the v3 shell never saves the game or writes another storage key');
 for (const rule of canonicalCss.toString('utf8').split('}').map(block => block.split('{')[0].trim()).filter(Boolean)) {
   for (const selector of rule.replace(/\/\*[\s\S]*?\*\//g, '').split(',').map(part => part.trim()).filter(Boolean)) {
-    assert.match(selector, /^(?:\.ui3\b|body\.ui3-native\b|body:has\(#modal-root \.u-sheet\) \.ui3\b)/, `ui3.css selector must stay scoped to UI v3: ${selector}`);
+    assert.match(selector, /^(?:\.ui3\b|body\.ui3-native\b|body:has\(#modal-root \.u-sheet\) \.ui3\b|body:has\(#modal-root \.u-sheet\) \.toast$)/, `ui3.css selector must stay scoped to UI v3: ${selector}`);
   }
 }
 
@@ -247,6 +247,12 @@ async function main() {
     assert.equal(await page.locator('.ui3 .u-dock').evaluate(node => getComputedStyle(node).display), 'none');
     const sheetBox = await page.locator('#modal-root .u-sheet').boundingBox();
     assert.equal(Math.round(sheetBox.y + sheetBox.height), device.viewport.height, 'the sheet is anchored to the bottom edge');
+    // While a sheet is open the toast goes to the top edge, so it never covers the sheet's foot.
+    await page.evaluate(() => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().notify('probe toast'));
+    await page.locator('.toast').waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForTimeout(500);
+    const toastBox = await page.locator('.toast').boundingBox();
+    assert.ok(toastBox.y < 40 && toastBox.y + toastBox.height < sheetBox.y, `the toast is at the top edge, above the sheet (y=${toastBox.y})`);
     await page.locator('#modal-root .u-btn.primary').tap();
     assert.equal(await page.evaluate(() => document.getElementById('modal-root').innerHTML), '');
     assert.notEqual(await page.locator('.ui3 .u-dock').evaluate(node => getComputedStyle(node).display), 'none');
@@ -271,6 +277,51 @@ async function main() {
     assert.match(rendered, /^<div class="ui3"><div class="u-scrim" data-action="close-modal"><\/div><section class="u-sheet"/, 'with ?ui=3 renderSheet returns the v3 sheet markup');
     assert.match(rendered, /第7週の結果/);
     assert.equal(await page.evaluate(() => { const m = globalThis.__capitalismTycoonModules; return m.ui3.renderSheet('weekly-report', { engine: { g: { configured: false } }, engineModule: m.engine }); }), '', 'an unconfigured game renders no sheet');
+
+    // A row the user chose to open the current screen from (README 6.5, data-ui3-current): the current UI shows
+    // that screen until the next tab action, which brings v3 back.
+    await page.evaluate(() => {
+      const ui3 = globalThis.__capitalismTycoonModules.ui3;
+      ui3.registerScreen('business', { render: () => '<button type="button" class="u-btn" data-ui3-current="business">probe: current screen</button>' });
+      try { ui3.openCurrentUI('nowhere'); globalThis.__ui3OpenError = 'none'; } catch (error) { globalThis.__ui3OpenError = error.name; }
+    });
+    assert.equal(await page.evaluate(() => globalThis.__ui3OpenError), 'RangeError', 'an unknown screen id is refused');
+    await goTo(page, 'business');
+    await page.locator('[data-ui3-current="business"]').waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('[data-ui3-current="business"]').tap();
+    await page.waitForFunction(() => Boolean(document.getElementById('d-ui-sidebar')), null, { timeout: 10000 });
+    const detour = await snapshot(page);
+    assert.deepEqual([detour.native, detour.bodyDUI, detour.screen], [false, true, 'business'], 'the row opens the complete current screen');
+    await goTo(page, 'business');
+    assert.equal((await snapshot(page)).native, true, 'the next tab action brings the v3 screen back');
+    // Recall crisis: while the response is open (respond-recall-crisis), the business screen is the current UI.
+    const setRecall = responded => page.evaluate(responded => { const g = globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g; g.activeRecallCrisis = responded === null ? null : { id: 'probe-recall', status: 'active', businessID: 'ramen', storeID: null, startedWeek: g.week, baseResolveWeek: g.week + 7, resolveWeek: g.week + 7, salesMultiplier: .6, responded }; }, responded);
+    await setRecall(false);
+    assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.usesCurrentUI('business', globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g)), true);
+    assert.deepEqual(await page.evaluate(() => { const g = globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g; return Object.keys(g.activeRecallCrisis).sort().join(); }), ['baseResolveWeek', 'businessID', 'id', 'resolveWeek', 'responded', 'salesMultiplier', 'startedWeek', 'status', 'storeID'].sort().join(), 'the shell rule itself never normalises the state');
+    await goTo(page, 'business');
+    await page.waitForFunction(() => Boolean(document.getElementById('d-ui-sidebar')), null, { timeout: 10000 });
+    assert.deepEqual([(await snapshot(page)).native, await page.locator('[data-action="respond-recall-crisis"]').count()], [false, 1], 'with an open recall crisis the current business screen carries the response');
+    await setRecall(true);
+    assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.usesCurrentUI('business', globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g)), false, 'responded: the response is no longer needed');
+    await setRecall(null);
+    await goTo(page, 'business');
+    assert.equal((await snapshot(page)).native, true);
+
+    // Confirmation sheet (README 2: money that moves for good is confirmed first): cost and cash afterwards,
+    // one cancel button and one primary button carrying the existing action; it closes after the action ran.
+    await page.evaluate(() => { document.getElementById('modal-root').innerHTML = globalThis.__capitalismTycoonModules.ui3.confirmSheet({ title: 'probe <confirm>', subtitle: 'sub', facts: [{ label: '費用', value: '1万円' }, { label: '実行後の会社現金', value: '−2万円', tone: 'down' }], note: '注意書き', confirm: { label: '実行する', attributes: { 'data-action': 'ui3-probe-confirm', 'data-id': 'a"b' } } }); });
+    assert.deepEqual(await page.locator('#modal-root [data-ui3-confirm-facts] .u-stat').evaluateAll(nodes => nodes.map(node => [node.querySelector('span').innerText, node.querySelector('b').innerText, node.querySelector('b').classList.contains('u-down')])), [['費用', '1万円', false], ['実行後の会社現金', '−2万円', true]]);
+    assert.equal(await page.locator('#modal-root .u-sheet-head h1').innerText(), 'probe <confirm>', 'titles are escaped');
+    assert.equal(await page.locator('#modal-root [data-ui3-confirm-note]').innerText(), '注意書き');
+    assert.deepEqual(await page.locator('#modal-root .u-sheet-foot button').evaluateAll(nodes => nodes.map(node => [node.innerText.trim(), node.dataset.action || '', node.classList.contains('primary'), node.dataset.id || ''])),
+      [['やめる', 'close-modal', false, ''], ['実行する', 'ui3-probe-confirm', true, 'a"b']]);
+    await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').tap();
+    assert.equal(await page.evaluate(() => document.getElementById('modal-root').innerHTML), '', 'やめる closes the sheet');
+    await page.evaluate(() => { globalThis.__ui3ConfirmRan = 0; document.addEventListener('click', event => { if (event.target.closest('[data-action="ui3-probe-confirm"]')) globalThis.__ui3ConfirmRan += 1; }); document.getElementById('modal-root').innerHTML = globalThis.__capitalismTycoonModules.ui3.confirmSheet({ title: 'probe', confirm: { attributes: { 'data-action': 'ui3-probe-confirm' } } }); });
+    await page.locator('#modal-root [data-ui3-confirm]').tap();
+    await page.waitForFunction(() => document.getElementById('modal-root').innerHTML === '', null, { timeout: 5000 });
+    assert.equal(await page.evaluate(() => globalThis.__ui3ConfirmRan), 1, 'the primary button\'s action was dispatched once, then the sheet closed');
 
     // ?ui=2 returns the device to the current UI.
     await page.goto(`${base}?ui=2`, { waitUntil: 'load' });
