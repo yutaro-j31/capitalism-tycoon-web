@@ -23,6 +23,9 @@ const playwright = require('playwright');
 const ROOT = path.resolve(__dirname, '..');
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
 const HOME_MODULE = /\/js\/ui3-home\.js(?:\?.*)?$/;
+// Other screens' modules (js/ui3-<screen>.js) are kept out of the page, so that this test observes the home alone
+// however many screens have been ported; each has its own tests/ui3-<screen>-webkit-test.js.
+const OTHER_SCREEN_MODULES = /\/js\/ui3-(?!shell\.js|home\.js)[^/?]+\.js(?:\?.*)?$/;
 const MIME = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.jpg': 'image/jpeg' };
 
@@ -92,6 +95,7 @@ async function main() {
   const device = playwright.devices['iPhone 13'];
   const newPage = async ({ withoutHome = false } = {}) => {
     const context = await browser.newContext({ viewport: device.viewport, userAgent: device.userAgent, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ja-JP' });
+    await context.route(OTHER_SCREEN_MODULES, route => route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: '/* excluded from the UI v3 home test */' }));
     if (withoutHome) await context.route(HOME_MODULE, route => route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: '/* excluded: control page without the v3 home */' }));
     const page = await context.newPage();
     const pageErrors = [];

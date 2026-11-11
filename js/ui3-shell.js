@@ -51,7 +51,8 @@ function registerScreen(id,definition){
   if(typeof definition?.render!=='function')throw new TypeError(`UI v3 screen ${id} requires a render function.`);
   if(definition.useCurrentUI!==undefined&&typeof definition.useCurrentUI!=='function')throw new TypeError(`UI v3 screen ${id}: useCurrentUI must be a function.`);
   if(screens.has(id))throw new Error(`UI v3 screen is already registered: ${id}`);
-  screens.set(id,Object.freeze({render:definition.render,useCurrentUI:definition.useCurrentUI||null}));
+  if(definition.mount!==undefined&&typeof definition.mount!=='function')throw new TypeError(`UI v3 screen ${id}: mount must be a function.`);
+  screens.set(id,Object.freeze({render:definition.render,useCurrentUI:definition.useCurrentUI||null,mount:definition.mount||null}));
   return id;
 }
 
@@ -147,6 +148,12 @@ function renderApp(context){
   if(!nativeActive)modules.cityLabMap?.release?.();
   nativeActive=true;
   setBodyMode(true);
+  // `mount` runs once js/app.js has put this markup into #app (same task, after the caller returns), for
+  // a screen that has to attach something markup cannot carry, such as the 3D map's canvas.
+  if(definition.mount){
+    const host=()=>globalThis.document?.querySelector?.(`[data-ui3-screen="${screenID}"]`);
+    queueMicrotask(()=>{const element=host();if(nativeActive&&engine.g.selectedTab===screenID&&element)definition.mount({engine,g:engine.g,engineModule,esc,money:engineModule.compactYen,host:element});});
+  }
   return `<div class="ui3 u-app" data-ui3-screen="${esc(screenID)}" data-ui3-group="${group.id}">${topBar(g,engineModule)}`
     +`<main id="screen" class="u-screen" data-screen="${esc(screenID)}">${chips(group,screenID,g)}${crisisNotice(g)}${body}</main>`
     +`${dock()}${tabBar(group,g)}${screenIndex(g)}</div>`;

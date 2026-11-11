@@ -3,9 +3,10 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.mapPhase2Canvas)throw new Error('map-phase2-canvas.js must precede city-lab-map.js.');
 if(modules.cityLabMap)throw new Error('city-lab-map.js is already registered.');
-const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=ef20bfd929e6','./prototypes/map-canvas-renderer.js?rev=ef20bfd929e6','./prototypes/map-prefecture-profiles.js?rev=ef20bfd929e6'];
+const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=7b6f3f7fd430','./prototypes/map-canvas-renderer.js?rev=7b6f3f7fd430','./prototypes/map-prefecture-profiles.js?rev=7b6f3f7fd430'];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const PIN_CLASS={competitor:'rival'},PIN_GLYPH={store:'自',tenant:'空',office:'本',realestate:'不',competitor:'敵'};
 const KIND={store:'自社店舗',tenant:'出店候補',office:'オフィス',realestate:'不動産',competitor:'競合'};
 let loading=null,failed=false,current=null;
 function loadScript(url,ready){
@@ -136,7 +137,7 @@ function createCity(root,initialOptions){
     }
     const treeMesh=new T.InstancedMesh(new T.IcosahedronGeometry(1,1),new T.MeshStandardMaterial({color:colors.green,roughness:1}),trees.length);
     trees.forEach((t,i)=>{dummy.position.set(t.x,t.y,t.z);dummy.scale.set(.65*t.scale,.92*t.scale,.65*t.scale);dummy.rotation.set(0,0,0);dummy.updateMatrix();treeMesh.setMatrixAt(i,dummy.matrix);});treeMesh.instanceMatrix.needsUpdate=true;treeMesh.castShadow=true;treeMesh.receiveShadow=true;treeMesh.computeBoundingSphere();scene.add(treeMesh);
-    const selectionSource=new T.Mesh(pickGeo,pickMat);selectionBox=new T.BoxHelper(selectionSource,0x387b91);selectionBox.visible=false;selectionBox.material.transparent=true;selectionBox.material.opacity=.9;selectionBox.material.depthTest=false;selectionBox.renderOrder=9;scene.add(selectionBox);
+    const selectionSource=new T.Mesh(pickGeo,pickMat);selectionBox=new T.BoxHelper(selectionSource,options.pins==='u-pin'?0xf5c563:0x387b91);selectionBox.visible=false;selectionBox.material.transparent=true;selectionBox.material.opacity=.9;selectionBox.material.depthTest=false;selectionBox.renderOrder=9;scene.add(selectionBox);
     renderer.shadowMap.needsUpdate=true;updateSelection();
   }
   function updateSelection(){if(!selectionBox)return;const p=picks.find(p=>p.userData.assetId===state.selected);selectionBox.visible=!!(state.selected&&p);if(p)selectionBox.setFromObject(p);}
@@ -147,8 +148,8 @@ function createCity(root,initialOptions){
     const r=viewport.getBoundingClientRect(),occupied=[...root.querySelectorAll('.city-lab-hud,.city-lab-context,.city-lab-controls,.city-lab-filters,.city-lab-footer')].filter(n=>n.offsetHeight>0).map(n=>{const b=n.getBoundingClientRect();return {x:b.left-r.left-6,y:b.top-r.top-6,w:b.width+12,h:b.height+12};}),sheet=root.querySelector('.city-lab-sheet'),bottom=sheet.hidden?72:sheet.offsetHeight+12;
     const rows=[...buildingRows].sort((a,b)=>Number(b.id===state.selected)-Number(a.id===state.selected));
     rows.forEach(a=>{const b=labels.querySelector('[data-city-index="'+a.index+'"]');if(!b)return;const p=project(a),width=Math.min(146,b.offsetWidth||130);const box={x:p.x-width/2,y:p.y-44,w:width,h:44};
-      const visible=(options.filter==='all'||a.entity.kind===options.filter)&&p.z>=-1&&p.z<=1&&p.x>width/2+8&&p.x<state.width-width/2-8&&p.y>44&&p.y<state.height-bottom&&!occupied.some(o=>box.x<o.x+o.w&&box.x+box.w>o.x&&box.y<o.y+o.h&&box.y+box.h>o.y);
-      b.hidden=!visible;if(visible){occupied.push(box);b.style.transform='translate('+p.x.toFixed(1)+'px,'+p.y.toFixed(1)+'px) translate(-50%,-100%)';}b.classList.toggle('selected',a.id===state.selected);b.setAttribute('aria-pressed',String(a.id===state.selected));
+      const pin=options.pins==='u-pin',margin=pin?22:width/2+8,visible=(options.filter==='all'||a.entity.kind===options.filter)&&p.z>=-1&&p.z<=1&&p.x>margin&&p.x<state.width-margin&&p.y>(pin?100:44)&&p.y<state.height-bottom&&(pin||!occupied.some(o=>box.x<o.x+o.w&&box.x+box.w>o.x&&box.y<o.y+o.h&&box.y+box.h>o.y));
+      b.hidden=!visible;if(visible){occupied.push(box);b.style.transform=pin?'translate('+Math.round(p.x)+'px,'+Math.round(p.y)+'px)':'translate('+p.x.toFixed(1)+'px,'+p.y.toFixed(1)+'px) translate(-50%,-100%)';}b.classList.toggle('selected',a.id===state.selected);b.setAttribute('aria-pressed',String(a.id===state.selected));
     });root.querySelector('.city-lab-gesture').textContent=Math.round(state.zoom*100)+'% · ドラッグ移動 / ピンチ';
   }
   function schedule(){if(!disposed&&!frame)frame=requestAnimationFrame(render);}
@@ -176,12 +177,19 @@ function createCity(root,initialOptions){
     const key=view.prefID+'|'+view.entities.map(e=>e.id+':'+e.kind).sort().join('|');
     if(key!==viewKey){viewKey=key;const derived=layout(view);buildingRows=derived.buildings.map((a,index)=>({...a,index}));blocks=derived.blocks;urban={color:0xd0dcd4,water:0};
       if(state.pref!==view.prefID){state.pref=view.prefID;state.zoom=.82;state.panX=-3;state.panZ=5;pointers.clear();gesture=null;}
-      buildScene();labels.innerHTML=buildingRows.map(a=>'<button type="button" class="d-map-marker city-lab-marker '+esc(a.entity.kind)+'" data-city-index="'+a.index+'" data-d-ui-marker="'+esc(a.id)+'" aria-label="'+esc(KIND[a.entity.kind]+' '+a.entity.name)+'"><span><b>'+esc(a.entity.kind==='store'?'自':KIND[a.entity.kind])+'</b> '+esc(a.entity.name)+'</span></button>').join('');
+      buildScene();labels.innerHTML=options.pins==='u-pin'?buildingRows.map(a=>'<button type="button" class="u-pin '+esc(PIN_CLASS[a.entity.kind]||a.entity.kind)+'" data-city-index="'+a.index+'" data-d-ui-marker="'+esc(a.id)+'" data-glyph="'+esc(PIN_GLYPH[a.entity.kind]||'・')+'" aria-label="'+esc(KIND[a.entity.kind]+' '+a.entity.name)+'"><span class="u-pin-label">'+esc(a.entity.name)+'</span></button>').join(''):buildingRows.map(a=>'<button type="button" class="d-map-marker city-lab-marker '+esc(a.entity.kind)+'" data-city-index="'+a.index+'" data-d-ui-marker="'+esc(a.id)+'" aria-label="'+esc(KIND[a.entity.kind]+' '+a.entity.name)+'"><span><b>'+esc(a.entity.kind==='store'?'自':KIND[a.entity.kind])+'</b> '+esc(a.entity.name)+'</span></button>').join('');
     }else{buildingRows=buildingRows.map(a=>({...a,entity:view.entities.find(e=>e.id===a.id)||a.entity}));updateSelection();}
     let filters=root.querySelector('.city-lab-filters');if(!filters){filters=document.createElement('div');filters.className='city-lab-filters';filters.hidden=true;root.querySelector('.city-lab-stage').appendChild(filters);}filters.innerHTML=[['all','すべて'],...Object.entries(KIND)].map(([k,v])=>'<button type="button" data-d-ui-action="map-filter" data-kind="'+k+'" aria-pressed="'+String(options.filter===k)+'">'+v+'</button>').join('');
     resize();
   }
-  function cameraAction(action){if(action==='filter'){const filters=root.querySelector('.city-lab-filters');filters.hidden=!filters.hidden;root.querySelector('[data-city-camera="filter"]').setAttribute('aria-expanded',String(!filters.hidden));schedule();return;}const r=viewport.getBoundingClientRect();if(action==='in'||action==='out')zoomAt(state.zoom*(action==='in'?1.22:1/1.22),r.left+r.width/2,r.top+r.height/2);if(action==='fit'){state.panX=-3;state.panZ=5;state.zoom=.82;options.select(null);}if(action==='focus'){const a=buildingRows.find(b=>b.id===state.selected);if(a){state.panX=a.x;state.panZ=a.z+9;state.zoom=1.65;}}schedule();}
+  function cameraAction(action){if(action==='filter'){const filters=root.querySelector('.city-lab-filters');filters.hidden=!filters.hidden;root.querySelector('[data-city-camera="filter"]').setAttribute('aria-expanded',String(!filters.hidden));schedule();return;}const r=viewport.getBoundingClientRect();if(action==='in'||action==='out')zoomAt(state.zoom*(action==='in'?1.22:1/1.22),r.left+r.width/2,r.top+r.height/2);if(action==='fit'){state.panX=-3;state.panZ=5;state.zoom=.82;options.select(null);}if(action==='focus'){const a=buildingRows.find(b=>b.id===state.selected);if(a){
+    if(options.pins==='u-pin'){
+      // v3: bring the pin to `focusY` (a fraction of the map's height) so a sheet below does not cover it.
+      state.zoom=1.3;state.panX=a.x;state.panZ=a.z;applyCamera();
+      const p=project(a),box=viewport.getBoundingClientRect(),from=ground(box.left+p.x,box.top+p.y),to=ground(box.left+state.width/2,box.top+state.height*(options.focusY||.3));
+      if(from&&to){state.panX=clamp(state.panX+from.x-to.x,-33,33);state.panZ=clamp(state.panZ+from.z-to.z,-33,33);}
+    }else{state.panX=a.x;state.panZ=a.z+9;state.zoom=1.65;}
+  }}schedule();}
   function dispose(){if(disposed)return;disposed=true;cancelAnimationFrame(frame);observer.disconnect();pointers.clear();viewport.removeEventListener('pointerdown',down);viewport.removeEventListener('pointermove',move);viewport.removeEventListener('pointerup',up);viewport.removeEventListener('pointercancel',cancel);viewport.removeEventListener('lostpointercapture',lost);viewport.removeEventListener('click',click,true);viewport.removeEventListener('wheel',wheel);canvas.removeEventListener('webglcontextlost',contextLost);disposePicks();if(scene){const geo=new Set(),mat=new Set();scene.traverse(o=>{if(o.geometry)geo.add(o.geometry);if(o.material)mat.add(o.material);});geo.forEach(g=>g.dispose());mat.forEach(m=>m.dispose());}renderer.dispose();renderer.forceContextLoss();}
   return {root,update,schedule,cameraAction,dispose,getDiagnostics:()=>({...state,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,entities:buildingRows.length})};
 }
