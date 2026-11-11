@@ -248,13 +248,15 @@ globalThis.document?.addEventListener('click',event=>{
 const AMOUNT_CHIPS=Object.freeze({'株':[[100,'100'],[500,'500'],[1000,'1,000']],'円':[[100000,'10万'],[500000,'50万'],[1000000,'100万']],'店':[[1,'1'],[3,'3'],[5,'5']]});
 const YEN_CHIPS_FROM=100000;   // the yen chips (10万 / 50万 / 100万) only appear when the dialog starts at 10万円 or more
 const CONTEXT_TTL_MS=3000;
+// a monotonic clock for the context's expiry only (production code draws no wall-clock source)
+const clockNow=()=>{const now=Number(globalThis.performance?.now?.());return Number.isFinite(now)?now:0;};
 let amountContext=null;
 let amountPending=null;
-function setAmountContext(context){amountContext=context&&typeof context==='object'?{...context,at:globalThis.performance?.now?.()??Date.now()}:null;}
+function setAmountContext(context){amountContext=context&&typeof context==='object'?{...context,at:clockNow()}:null;}
 function takeAmountContext(){
   const context=amountContext;amountContext=null;
   if(!context)return null;
-  const age=(globalThis.performance?.now?.()??Date.now())-context.at;
+  const age=clockNow()-context.at;
   return age>=0&&age<CONTEXT_TTL_MS?context:null;
 }
 // What the sheet accepts (design decision, 2026-11-11; engine.setDividend takes 0 and decimals): in yen, a number of
