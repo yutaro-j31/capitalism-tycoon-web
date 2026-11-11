@@ -160,7 +160,7 @@ async function main() {
     assert.equal((await preview(page))[1][2], true, 'a negative cash afterwards is shown in red');
     assert.equal(await run(page).isDisabled(), false, 'it does not stop the run');
     // values that cannot be run
-    for (const [text, pattern] of [['', /入力/], ['0', /0より大きい/], ['-5', /整数/], ['abc', /整数/], ['1.5', /整数/]]) {
+    for (const [text, pattern] of [['', /入力/], ['0', /1以上の整数/], ['-5', /1以上の整数/], ['abc', /1以上の整数/], ['1.5', /1以上の整数/]]) {
       await input(page).fill(text);
       assert.equal(await run(page).isDisabled(), true, `"${text}" cannot be run`);
       assert.match(await page.locator('[data-ui3-amount-error]').innerText(), pattern, `"${text}": the reason is shown`);
@@ -207,12 +207,49 @@ async function main() {
     await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').tap();
     assert.equal(await engineEval(page, engine => engine.g.companyCash), companyCash, 'やめる changes nothing');
 
-    // A price change names no wallet: no preview; the unit is yen.
+    // In yen: 0 or more, decimals allowed; only a negative value or a non-number cannot be run.
+    await page.locator('[data-ui3-biz="business"]').tap();
+    await page.locator('#modal-root [data-action="business-invest"]').first().tap();
+    await input(page).waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await input(page).getAttribute('inputmode'), 'decimal');
+    for (const [text, disabled] of [['-5', true], ['abc', true], ['', true], ['0', false], ['1.5', false], ['1,000', false]]) {
+      await input(page).fill(text);
+      assert.equal(await run(page).isDisabled(), disabled, `yen "${text}"`);
+    }
+    await input(page).fill('-5');
+    assert.match(await page.locator('[data-ui3-amount-error]').innerText(), /0以上の数値/);
+    const cashBeforeNegative = await engineEval(page, engine => engine.g.companyCash);
+    await run(page).click({ force: true }).catch(() => {});
+    assert.equal(await engineEval(page, engine => engine.g.companyCash), cashBeforeNegative, 'a negative amount cannot be run');
+    await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').tap();
+    // A price change names no wallet: no preview, and no yen chips (its initial value is far below 10万円).
     await page.locator('[data-ui3-biz="business"]').tap();
     await page.locator('#modal-root [data-action="business-price"]').tap();
     await input(page).waitFor({ state: 'visible', timeout: 10000 });
     assert.equal(await page.locator('#modal-root [data-ui3-amount-preview]').count(), 0, 'no preview without a wallet');
+    assert.equal(await page.locator('#modal-root [data-ui3-amount-chip]').count(), 0, 'no chips of the wrong magnitude for a price change');
     await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').tap();
+
+    // A dividend of 0 (no dividend) can be set after listing: the engine takes 0 and decimals.
+    await engineEval(page, engine => { engine.g.publicCompany = true; });   // test setup: listed
+    await goTo(page, 'market');
+    await page.locator('[data-ui3-current="market"]').tap();
+    await page.waitForFunction(() => document.body.classList.contains('d-ui-active') && !document.body.classList.contains('ui3-native'), null, { timeout: 10000 });
+    await page.locator('[data-action="set-dividend"]').first().tap();
+    await input(page).waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await page.locator('#modal-root .u-sheet-head h1').innerText(), '四半期配当設定');
+    assert.equal(await page.locator('#modal-root [data-ui3-amount-chip]').count(), 0, 'no chips for a dividend');
+    await input(page).fill('0');
+    assert.equal(await run(page).isDisabled(), false, '0 can be run');
+    await run(page).tap();
+    await page.waitForFunction(() => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.dividendPerShare === 0, null, { timeout: 10000 });
+    await page.locator('[data-action="set-dividend"]').first().tap();
+    await input(page).fill('12.5');
+    assert.equal(await run(page).isDisabled(), false, 'a decimal can be run');
+    await run(page).tap();
+    await page.waitForFunction(() => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.dividendPerShare === 12.5, null, { timeout: 10000 });
+    await page.evaluate(() => document.querySelector('[data-action="tab"][data-tab="home"]').click());
+    await engineEval(page, engine => { engine.g.publicCompany = false; });
 
     // A screen the current UI still draws (the bank): the request is still the v3 sheet.
     await goTo(page, 'bank');

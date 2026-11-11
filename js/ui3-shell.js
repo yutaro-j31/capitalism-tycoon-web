@@ -238,11 +238,15 @@ globalThis.document?.addEventListener('click',event=>{
 // dialog of js/iphone-playtest-fixes.js) while UI v3 is on. `amountSheet` returns true when it took the request;
 // `submit(value)` is called with the number, after the sheet closed, exactly as askMoney's callback is.
 // A screen may describe what the number means just before it dispatches the action: setAmountContext({unit:'株'|
-// '円'|'店',unitPrice,wallet:'company'|'personal',direction:'spend'|'receive',max,note}). The next amountSheet uses
+// '円'|'店',unitPrice,wallet:'company'|'personal',direction:'spend'|'receive',max,note,presets:[{value,label}],
+// preview:(value)=>[{label,value,tone?}]}). `presets` replace the default chips; `preview` replaces the default
+// preview rows (built by the screen from read-only data: borrowing limit, debt after, ...; the shell only shows
+// them). The next amountSheet uses
 // it once (and it expires after a few seconds, so it never reaches an unrelated dialog). With a context that names a
 // wallet the sheet shows the approximate amount and the wallet's cash afterwards; it never blocks on that (the engine
 // decides whether the trade is allowed). Nothing here writes engine state.
 const AMOUNT_CHIPS=Object.freeze({'株':[[100,'100'],[500,'500'],[1000,'1,000']],'円':[[100000,'10万'],[500000,'50万'],[1000000,'100万']],'店':[[1,'1'],[3,'3'],[5,'5']]});
+const YEN_CHIPS_FROM=100000;   // the yen chips (10万 / 50万 / 100万) only appear when the dialog starts at 10万円 or more
 const CONTEXT_TTL_MS=3000;
 let amountContext=null;
 let amountPending=null;
@@ -253,15 +257,16 @@ function takeAmountContext(){
   const age=(globalThis.performance?.now?.()??Date.now())-context.at;
   return age>=0&&age<CONTEXT_TTL_MS?context:null;
 }
-// What askMoney accepts is any finite number; the engine rejects the rest. The sheet accepts a positive whole
-// number (a positive decimal only when the dialog was opened with a decimal initial value, e.g. a dividend).
-function parseAmount(text,allowDecimal){
+// What the sheet accepts (design decision, 2026-11-11; engine.setDividend takes 0 and decimals): in yen, a number of
+// 0 or more, decimals allowed (only a negative value or a non-number is refused; the engine refuses what it
+// cannot use, e.g. an investment of 0); in shares or stores, a whole number of 1 or more.
+function parseAmount(text,unit){
   const cleaned=String(text??'').replace(/,/g,'').trim();
-  const pattern=allowDecimal?/^\d+(\.\d+)?$/:/^\d+$/;
   if(!cleaned)return {value:null,error:'数値を入力してください。'};
-  if(!pattern.test(cleaned))return {value:null,error:allowDecimal?'0より大きい数値を入力してください。':'0より大きい整数を入力してください。'};
+  const whole=unit==='株'||unit==='店';
+  if(whole?!/^\d+$/.test(cleaned):!/^\d+(\.\d+)?$/.test(cleaned))return {value:null,error:whole?'1以上の整数を入力してください。':'0以上の数値を入力してください。'};
   const value=Number(cleaned);
-  if(!Number.isFinite(value)||value<=0)return {value:null,error:'0より大きい数値を入力してください。'};
+  if(!Number.isFinite(value)||(whole&&value<1))return {value:null,error:whole?'1以上の整数を入力してください。':'0以上の数値を入力してください。'};
   return {value,error:''};
 }
 function walletCash(wallet){
@@ -278,14 +283,15 @@ function amountSheet({title='',initial=0,submit}={}){
   const context=takeAmountContext();
   const unit=context?.unit||(String(title).includes('株数')?'株':String(title).includes('募集数')?'店':'円');
   const label=unit==='株'?'株数':unit==='店'?'店数':'金額（円）';
-  const allowDecimal=!Number.isInteger(Number(initial))&&Number.isFinite(Number(initial));
-  amountPending={submit,unit,context,allowDecimal};
+  amountPending={submit,unit,context};
   const max=Number.isFinite(Number(context?.max))&&Number(context.max)>0?Math.floor(Number(context.max)):null;
-  const chips=AMOUNT_CHIPS[unit].map(([value,text])=>`<button type="button" class="u-chip" data-ui3-amount-chip="${value}">${esc(text)}</button>`).join('')
+  const presets=Array.isArray(context?.presets)?context.presets.filter(item=>item&&Number.isFinite(Number(item.value))).map(item=>[Number(item.value),String(item.label??item.value)])
+    :unit==='円'&&!(Number(initial)>=YEN_CHIPS_FROM)?[]:AMOUNT_CHIPS[unit];
+  const chips=presets.map(([value,text])=>`<button type="button" class="u-chip" data-ui3-amount-chip="${value}">${esc(text)}</button>`).join('')
     +(max?`<button type="button" class="u-chip" data-ui3-amount-chip="${max}" data-ui3-amount-max>最大</button>`:'');
-  const preview=context?.wallet?`<div class="u-stats two" data-ui3-amount-preview></div>`:'';
-  const body=`<label class="u-field"><span>${esc(label)}</span><input class="u-input" data-ui3-amount-input inputmode="numeric" autocomplete="off" enterkeyhint="done" value="${esc(String(initial??''))}" aria-describedby="ui3-amount-error"></label>`
-    +`<nav class="u-chips" aria-label="入力の候補">${chips}</nav>`
+  const preview=context&&(context.wallet||typeof context.preview==='function')?`<div class="u-stats" data-ui3-amount-preview></div>`:'';
+  const body=`<label class="u-field"><span>${esc(label)}</span><input class="u-input" data-ui3-amount-input inputmode="${unit==='円'?'decimal':'numeric'}" autocomplete="off" enterkeyhint="done" value="${esc(String(initial??''))}" aria-describedby="ui3-amount-error"></label>`
+    +(chips?`<nav class="u-chips" aria-label="入力の候補">${chips}</nav>`:'')
     +preview
     +(context?.note?`<div class="u-h2" data-ui3-amount-note>${esc(context.note)}</div>`:'')
     +`<p class="u-error" id="ui3-amount-error" role="alert" data-ui3-amount-error></p>`;
@@ -299,31 +305,35 @@ function refreshAmount(){
   const root=globalThis.document?.getElementById('modal-root');
   const input=root?.querySelector('[data-ui3-amount-input]');
   if(!input||!amountPending)return;
-  const {unit,context,allowDecimal}=amountPending;
-  const {value,error}=parseAmount(input.value,allowDecimal);
-  const max=Number.isFinite(Number(context?.max))&&Number(context.max)>0?Number(context.max):null;
-  const message=error||(unit==='株'&&!Number.isInteger(value)?'整数で入力してください。':'');
-  root.querySelector('[data-ui3-amount-error]').textContent=message;
+  const {unit,context}=amountPending;
+  const {value,error}=parseAmount(input.value,unit);
+  root.querySelector('[data-ui3-amount-error]').textContent=error;
   const run=root.querySelector('[data-ui3-amount-run]');
-  if(run)run.disabled=Boolean(message);
+  if(run)run.disabled=Boolean(error);
   const box=root.querySelector('[data-ui3-amount-preview]');
   if(box){
-    const amount=value===null?null:value*(Number.isFinite(Number(context.unitPrice))?Number(context.unitPrice):1);
-    const cash=walletCash(context.wallet);
-    const after=amount===null||cash===null?null:context.direction==='receive'?cash+amount:cash-amount;
-    const walletName=context.wallet==='company'?'会社':'個人';
-    box.innerHTML=`<div class="u-stat"><span>${context.direction==='receive'?'概算の受取額':'概算の金額'}</span><b class="u-money">${esc(amount===null?'—':yenText(amount))}</b></div>`
-      +`<div class="u-stat"><span>実行後の${walletName}の現金</span><b class="u-money${after!==null&&after<0?' u-down':''}">${esc(after===null?'—':yenText(after))}</b></div>`;
+    let rows=[];
+    if(typeof context.preview==='function'){
+      try{rows=value===null?[]:(context.preview(value)||[]);}catch(failure){rows=[];}
+    }else{
+      const amount=value===null?null:value*(Number.isFinite(Number(context.unitPrice))?Number(context.unitPrice):1);
+      const cash=walletCash(context.wallet);
+      const after=amount===null||cash===null?null:context.direction==='receive'?cash+amount:cash-amount;
+      const walletName=context.wallet==='company'?'会社':'個人';
+      rows=[{label:context.direction==='receive'?'概算の受取額':'概算の金額',value:amount===null?'—':yenText(amount)},
+        {label:`実行後の${walletName}の現金`,value:after===null?'—':yenText(after),tone:after!==null&&after<0?'down':undefined}];
+    }
+    box.className=`u-stats${rows.length===2?' two':''}`;
+    box.innerHTML=rows.map(row=>`<div class="u-stat"><span>${esc(row.label)}</span><b class="u-money${row.tone==='down'?' u-down':row.tone==='up'?' u-up':''}">${esc(row.value)}</b></div>`).join('');
   }
-  void max;
 }
 function runAmount(){
   const root=globalThis.document?.getElementById('modal-root');
   const input=root?.querySelector('[data-ui3-amount-input]');
   const pending=amountPending;
   if(!input||!pending)return;
-  const {value,error}=parseAmount(input.value,pending.allowDecimal);
-  if(error||(pending.unit==='株'&&!Number.isInteger(value))){refreshAmount();return;}
+  const {value,error}=parseAmount(input.value,pending.unit);
+  if(error){refreshAmount();return;}
   amountPending=null;
   root.innerHTML='';
   pending.submit(value);
