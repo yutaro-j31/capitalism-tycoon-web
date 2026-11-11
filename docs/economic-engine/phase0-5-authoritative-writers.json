@@ -681,7 +681,31 @@
         ]
       },
       {
+        "file": "js/ui3-media.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/ui3-overseas.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/ui3-rivals.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/ui3-shell.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/ui3-strategy.js",
         "tokens": [
           "companyCash"
         ]
@@ -1696,6 +1720,12 @@
       },
       {
         "file": "js/ui3-market.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/ui3-media.js",
         "tokens": [
           "personalCash"
         ]

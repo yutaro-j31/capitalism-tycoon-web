@@ -38,6 +38,8 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | `ma` | 案件の交渉、統合の進め方、買収ポートフォリオの最優先操作 | `ma-start-dd` `ma-submit-offer` `ma-accept-counter` `ma-financing-*` `ma-board-*` `ma-close-deal` `ma-withdraw-deal`、`start-ma-pmi` `support-ma-pmi` `transport-rebuild`、`data-ma-portfolio-action` | 画面・案件のシートの行 `data-ui3-current="ma"` |
 | `assets` | 土地の建設、投信・債券・高級資産・スポーツ、個人資産の内訳 | `build-property`（名前入力）、`asset-tab` の3タブの購入・売却、`founder-wealth-capture` | 画面の行 `data-ui3-current="assets"` |
 | `pe-portfolio` | 6つのレバー・Exit・ファンドの組成 | `data-pe-portfolio-price` ほか、`exit-pe`、`pe-initiative`、`transfer-pe`、ファンドの組成 | 画面・シートの行 `data-ui3-current="pe-portfolio"` |
+| `strategy` | 店舗ごとの仕入先・自動発注・安全在庫・緊急発注、在庫の表 | `supply-select-supplier` `supply-policy` `supply-safety` `supply-emergency` ほか（`renderSupplyTab()`） | 画面の行 `data-ui3-current="strategy"` |
+| `overseas` | 本社への送金・ローカライズ・ブランド投資 | `overseas-repatriate`（25%・50%・全額）、`overseas-action` の各操作（`renderOverseas()` の海外子会社の欄） | 画面の行 `data-ui3-current="overseas"` |
 
 ## その他の残件
 
@@ -308,3 +310,73 @@ UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可�
 | ファンドの組成（`data-pe-gp-commit` ほか） | `renderPeFundFormation()` | 常時 | 現行UI（6.5）。残件 |
 
 未確認：実際のPEファンドを経た投資先の表示（確認用に作った状態でだけ見た）。
+
+### `strategy`（UI3-9）
+
+洗い出し：UI3-9の担当エージェント、2026-11-11、Chromium・390×664。`node scripts/ui3-dump-screen-actions.js --screen=strategy --states=founding,store-open,office,listed`（創業直後6操作、1号店の開店後は店舗ごとの仕入先・方針などが加わる）。R&D・顧客のタブは現行の描画（`renderStrategyTab()`）を読んで足した。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `strategy-tab`（サプライチェーン・R&D・顧客） | `renderStrategy()` | 常時 | 画面の上の `.u-seg`（表示状態。v3 は状態を書かない） |
+| `vertical-integration`（費用は項目ごと） | 垂直統合の欄 | 未導入の項目 | 項目の行→確認シート（費用・実行後の会社現金）。同じ操作 |
+| `start-rd`（費用は項目ごと。商品開発部門かDX部門が必要） | 研究テーマの欄 | 未着手の項目 | 項目の行→確認シート。部門が無いときは押せず、理由を出す（現行は押せるがエンジンが拒否する）。同じ操作 |
+| `license-patent` | 特許の欄 | 特許があるとき | 「特許」の行（同じ操作。提供中／停止中を行に出す） |
+| `supply-select-supplier`、`supply-policy`、`supply-safety`、`supply-emergency`（店舗ごと） | サプライチェーンの欄 | 営業中の店舗があるとき | 現行UI（6.5）。残件 |
+| 顧客セグメント・市場シェアの表示 | 顧客のタブ | 常時 | 「顧客・市場シェア」の表示（読むだけ） |
+
+未確認：特許のライセンス切り替えの実行（特許を持つ状態を作っていない。操作は現行と同じ `license-patent`）、店舗ごとの仕入れの操作（現行UIで行う）。
+
+### `overseas`（UI3-9）
+
+洗い出し：UI3-9の担当エージェント、2026-11-11。`node scripts/ui3-dump-screen-actions.js --screen=overseas --states=founding,store-open,office,listed`（3操作）。海外子会社の操作は現行の描画（`renderOverseas()`）を読んで足した。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `open-overseas`（設立費用＝国の費用＋店舗費の2倍。本社とCEOが必要） | 進出先の欄 | 常時 | 進出先の行→シート（事業のチップ）→確認シート（設立費用・実行後の会社現金）。本社とCEOが無いときは押せず、理由を出す。現行の `select` は隠して置き、実行の直前に値を合わせる（同じ操作） |
+| `overseas-repatriate`（25%・50%・全額）、ローカライズ・ブランド投資 | 海外子会社の欄 | 海外子会社があるとき | 現行UI（6.5）。残件。海外子会社の一覧は読み取り |
+
+未確認：海外子会社がある状態の送金・投資（現行UIで行う）。
+
+### `media`（UI3-9）
+
+洗い出し：UI3-9の担当エージェント、2026-11-11。`node scripts/ui3-dump-screen-actions.js --screen=media --states=founding,store-open,office,listed`（3操作）。フォーラム・オークションは現行の描画（`renderMedia()`）を読んで足した。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `media-action`（費用は施策ごと、会社の現金） | 広報・SNSの欄 | 常時 | 施策の行→確認シート（費用・実行後の会社現金）。同じ操作 |
+| `venture-forum`（参加費、個人の現金） | ベンチャーフォーラムの欄 | 案内があるとき | 行→確認シート。同じ操作 |
+| `auction-bid`（落札価格＝現在価格×1.08、個人の現金） | 高級品オークションの欄 | 開催中の出品があるとき | 行→確認シート（価格はエンジンの式の写し。検査が一致を確かめる）。同じ操作 |
+| 週刊新聞・大型ビジネスニュース・広報履歴の表示 | 各欄 | 常時 | 読み取りの一覧 |
+
+### `rivals`（UI3-9）
+
+洗い出し：UI3-9の担当エージェント、2026-11-11。`node scripts/ui3-dump-screen-actions.js --screen=rivals --states=founding,store-open,office,listed`（5操作）。競合の新製品への対抗は現行の描画（`renderCompetitorProducts()`）を読んで足した。README 5.5 は「読むだけ」だが、現行の画面にある操作は台帳の規則（届かなくなる操作を0にする）に従って載せた。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `respond-rival`（広告防衛200万円・品質防衛250万円・買収） | 競合反撃システムの欄 | 競合があるとき | 競合の行→シート→確認シート（費用・実行後の会社現金）。同じ週に同じ対策は押せず（エンジンが拒否）、買収は経営が苦しい競合だけ。買収の価格はエンジンの式の写し |
+| `counter-competitor-product`（費用は対抗手段ごと） | 競合の新製品の欄 | 競合の新製品があるとき | 新製品の行→シート→確認シート（エンジンの対抗手段の一覧の費用）。現金が足りないときは押せない（現行と同じ） |
+
+未確認：競合の買収の実行（経営が苦しい競合を作れていない。価格の表示と式の一致までを検査）、新製品への対抗の実行（新製品が出る状態を作っていない）。
+
+### `missions`（UI3-9）
+
+洗い出し：UI3-9の担当エージェント、2026-11-11。`node scripts/ui3-dump-screen-actions.js --screen=missions --states=founding,store-open,office,listed`（操作は枠のものだけ）。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| ミッション・実績・長期目標の表示 | `renderMissions()` | 常時 | 読み取りの一覧（ミッション・長期目標6つ・業界ランキング・受賞歴・実績） |
+
+### `news`（UI3-9）
+
+洗い出し：UI3-9の担当エージェント、2026-11-11。操作は枠のものだけ。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| ニュース履歴・週次経営履歴の表示 | `renderNews()` | 常時 | 読み取りの一覧（それぞれ新しい30件） |
