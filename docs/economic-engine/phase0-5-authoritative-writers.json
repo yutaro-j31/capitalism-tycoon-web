@@ -645,6 +645,12 @@
         ]
       },
       {
+        "file": "js/ui3-assets.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/ui3-bank.js",
         "tokens": [
           "companyCash"
@@ -652,6 +658,12 @@
       },
       {
         "file": "js/ui3-business.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/ui3-ma.js",
         "tokens": [
           "companyCash"
         ]
@@ -670,6 +682,12 @@
       },
       {
         "file": "js/ui3-shell.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/ui3-venture.js",
         "tokens": [
           "companyCash"
         ]
@@ -1665,6 +1683,12 @@
         ]
       },
       {
+        "file": "js/ui3-assets.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
         "file": "js/ui3-bank.js",
         "tokens": [
           "personalCash"
@@ -1690,6 +1714,12 @@
       },
       {
         "file": "js/ui3-shell.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/ui3-venture.js",
         "tokens": [
           "personalCash"
         ]
@@ -2057,6 +2087,12 @@
       },
       {
         "file": "js/semantic-hash-v2.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/ui3-assets.js",
         "tokens": [
           "properties"
         ]

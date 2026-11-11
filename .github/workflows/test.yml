@@ -353,6 +353,7 @@ jobs:
           node --check tests/ui3-home-webkit-test.js
           node --check tests/ui3-business-webkit-test.js
           node --check tests/ui3-market-webkit-test.js
+          node --check tests/ui3-invest-webkit-test.js
           node --check tests/ui3-amount-webkit-test.js
           node --check tests/ui3-bank-webkit-test.js
           node --check tests/ui3-report-webkit-test.js
@@ -395,6 +396,9 @@ jobs:
       - name: Verify UI v3 market screen
         timeout-minutes: 5
         run: node tests/ui3-market-webkit-test.js
+      - name: Verify UI v3 investment screens
+        timeout-minutes: 5
+        run: node tests/ui3-invest-webkit-test.js
       - name: Verify UI v3 amount input sheet
         timeout-minutes: 5
         run: node tests/ui3-amount-webkit-test.js
