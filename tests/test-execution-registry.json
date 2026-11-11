@@ -486,5 +486,13 @@
   "tests/ui3-amount-webkit-test.js": {
     "reason": "UI v3 amount / quantity input sheet (docs/ui-v3 UI3-9a): real-browser proof that the current amount dialogs are unchanged without ?ui=3, with ?ui=3 every askMoney request (v3 screens and current-UI screens) is the v3 sheet, share purchases show the approximate amount and the wallet's cash afterwards and buy exactly the number entered, values that are not positive whole numbers cannot be run, cancelling changes nothing, and the sheet meets the acceptance numbers; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
+  },
+  "tests/ui3-bank-webkit-test.js": {
+    "reason": "UI v3 bank screen (docs/ui-v3 UI3-7): real-browser proof that the current bank screen is unchanged without ?ui=3, the v3 card shows debt, next repayment and borrowing capacity (personal view names the personal cash), borrowing and repaying go through the UI3-9a amount sheet with the balance-after / capacity-or-cash-after preview and move debt and cash by exactly the amount for the company and the personal account, rows are off without capacity or debt, and the loan list and 13-week forecast are read-only; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
+  },
+  "tests/ui3-report-webkit-test.js": {
+    "reason": "UI v3 report screen (docs/ui-v3 UI3-7): real-browser proof that the current report screen is unchanged without ?ui=3, the v3 card shows sales, net income and ending cash equal to the current statements for every period chip, each statement sheet lists the current screen's lines with no control that changes the game, viewing changes nothing, and the chart stays reachable on the current screen; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
   }
 }

@@ -89,6 +89,8 @@
     "./js/ui3-business.js",
     "./js/ui3-office.js",
     "./js/ui3-market.js",
+    "./js/ui3-bank.js",
+    "./js/ui3-report.js",
     "./js/ui3-venture.js",
     "./js/ui3-ma.js",
     "./js/ui3-assets.js",

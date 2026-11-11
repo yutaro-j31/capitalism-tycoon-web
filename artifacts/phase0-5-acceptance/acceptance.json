@@ -47,17 +47,17 @@
       "code": "AUTHORITATIVE_WRITER_INVENTORY",
       "details": {
         "categoryCounts": {
-          "companyCash": 115,
-          "companyDebt": 33,
+          "companyCash": 116,
+          "companyDebt": 34,
           "financeAccountingAuthority": 49,
           "ownershipShares": 20,
           "peFundCash": 2,
-          "personalCash": 54,
+          "personalCash": 55,
           "propertyEconomicState": 60,
           "subsidiaryCarryingValues": 23
         },
-        "declaredHash": "4c703d972172304a193a9597570554467b50d574b28c00736707d7a63f60d210",
-        "discoveredHash": "4c703d972172304a193a9597570554467b50d574b28c00736707d7a63f60d210",
+        "declaredHash": "79fa1993a69046029f7db2f07f09b62be7ac7fd0870ac77afb4a1a238c337402",
+        "discoveredHash": "79fa1993a69046029f7db2f07f09b62be7ac7fd0870ac77afb4a1a238c337402",
         "exactAuthority": {
           "limitedStoreRenovationCompanyCash": [
             {
@@ -197,8 +197,8 @@
         "exactAuthorityDeclaredHash": "d9946dc15768bec8a58296559160fb3ad2e777cd64ba0aaf243ae13182a7b1ca",
         "exactAuthorityDiscoveredHash": "d9946dc15768bec8a58296559160fb3ad2e777cd64ba0aaf243ae13182a7b1ca",
         "exactAuthorityHashMatch": true,
-        "lexicalDeclaredHash": "38794afcd0ff95a1f3dea842ca10b9be8fa2e5c9d611fbe8d2724b4cf9e46307",
-        "lexicalDiscoveredHash": "38794afcd0ff95a1f3dea842ca10b9be8fa2e5c9d611fbe8d2724b4cf9e46307",
+        "lexicalDeclaredHash": "0edcb3a06dc845b531b73e5cdd5b2c9e6095bf6ad9494e35e5def852008aba0d",
+        "lexicalDiscoveredHash": "0edcb3a06dc845b531b73e5cdd5b2c9e6095bf6ad9494e35e5def852008aba0d",
         "lexicalHashMatch": true,
         "limitations": "Lexical discovery identifies candidates only. exactAuthority separately records production mutation evidence for reviewed economic paths; finance/accounting tests remain the behavioral verification layer.",
         "limitedCutoverSingleWriter": true,
@@ -359,7 +359,7 @@
   },
   "harnessSchemaVersion": 1,
   "metadata": {
-    "generatedAt": "2026-11-11T09:49:22.165Z",
+    "generatedAt": "2026-11-11T11:52:08.077Z",
     "timestampIsNonSemantic": true
   },
   "monetaryNumberEnvelope": [
@@ -456,20 +456,20 @@
   "performance": [
     {
       "count": 12,
-      "maxMs": 651.7620610000004,
-      "meanMs": 495.89084083333324,
-      "p50Ms": 465.8398320000001,
-      "p95Ms": 651.7620610000004,
-      "p99Ms": 651.7620610000004,
+      "maxMs": 679.704052,
+      "meanMs": 564.7153996666666,
+      "p50Ms": 560.3513790000002,
+      "p95Ms": 679.704052,
+      "p99Ms": 679.704052,
       "percentileAlgorithm": "nearest-rank"
     },
     {
       "count": 12,
-      "maxMs": 616.6840090000005,
-      "meanMs": 441.24088466666643,
-      "p50Ms": 409.28744000000006,
-      "p95Ms": 616.6840090000005,
-      "p99Ms": 616.6840090000005,
+      "maxMs": 650.9644099999987,
+      "meanMs": 527.4525528333334,
+      "p50Ms": 558.5389619999987,
+      "p95Ms": 650.9644099999987,
+      "p99Ms": 650.9644099999987,
       "percentileAlgorithm": "nearest-rank"
     }
   ],
@@ -481,33 +481,33 @@
   "saveSizes": [
     {
       "compactedSaveBytes": 1274772,
-      "compactionMs": 12.538791999999376,
+      "compactionMs": 14.423007999999754,
       "compactionRatio": 0.7216044560676561,
       "encodingAssumption": "UTF-16-compatible production budget: codeUnits * 2",
-      "loadMs": 417.5183989999996,
+      "loadMs": 399.95928600000116,
       "rawCodeUnits": 883290,
       "rawSaveBytes": 1766580,
-      "serializationMs": 3.831285000000207,
+      "serializationMs": 5.688396999999895,
       "storageMode": "raw",
       "storedCodeUnits": 883307,
       "storedSaveBytes": 1766614
     },
     {
       "compactedSaveBytes": 1277372,
-      "compactionMs": 12.237601999999242,
+      "compactionMs": 12.363338999999542,
       "compactionRatio": 0.7220135882160097,
       "encodingAssumption": "UTF-16-compatible production budget: codeUnits * 2",
-      "loadMs": 447.43675600000097,
+      "loadMs": 502.4499270000015,
       "rawCodeUnits": 884590,
       "rawSaveBytes": 1769180,
-      "serializationMs": 3.7711989999988873,
+      "serializationMs": 3.982362999999168,
       "storageMode": "raw",
       "storedCodeUnits": 884607,
       "storedSaveBytes": 1769214
     }
   ],
   "scenarioTier": "smoke",
-  "sourceMainSha": "8838f0f30ad7fd7fbd3563f3bc12f8cb94fad911",
+  "sourceMainSha": "220fde4dd488944a5f3474545b476f9d706b1790",
   "testedSeeds": [
     1347682305,
     1347682306
