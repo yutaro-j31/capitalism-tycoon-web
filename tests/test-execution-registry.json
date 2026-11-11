@@ -455,6 +455,10 @@
     "reason": "P4-AUD-003 installed Founder Capital contribution: real iPhone WebKit mirror rejection/post-save notification fault rollback, retry, one valid capital/equity posting and cash separation, production reload, fresh durable-only real IndexedDB hydration in p3-writer-atomicity on PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/ui3-home-webkit-test.js": {
+    "reason": "UI v3 home screen (docs/ui-v3 UI3-1): real-browser proof, with the real js/ui3-home.js loaded, that the home renders exactly the README 5.1 contents within the acceptance numbers, its controls reach the existing founding-guide, secretary and news actions in the specified order, a cash crisis hands the home back to the current UI, the signs follow the game, rendering reads state only, and without ?ui=3 the current home is identical with and without the v3 home script; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
+  },
   "tests/ui3-shell-webkit-test.js": {
     "reason": "UI v3 foundation (docs/ui-v3 UI3-0): real-browser proof that ?ui=3 renders registered screens in the v3 frame without the D UI enhancer pipeline, unregistered screens and flag-off renders stay on the current UI, all screens stay reachable, and the UI preference never enters the save; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
