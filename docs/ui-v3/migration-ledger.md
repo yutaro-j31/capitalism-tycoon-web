@@ -32,13 +32,14 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | `business` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="business"`）を押したとき（次の `tab` 操作まで） | 営業時間（`data-store-hours`）、メニュー構成（`store-menu-price` `reset-store-menu-price` `remove-store-menu` `add-store-menu`）、市場分析・顧客レビュー・競合分析・プロダクトの詳細・フランチャイズの一覧と、enhancer が差し込む欄（供給・人事・広告など） | 枠の `openCurrentUI` |
 | `business` | リコール危機が未対応（`activeRecallCrisis` が有効で `responded` が偽） | `respond-recall-crisis`（自主回収・補償）と、リコール危機の欄（`renderRecallCrisisSection()`） | 枠の規則 `CURRENT_UI_RULES.business` |
 | `office` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="office"`）を押したとき（次の `tab` 操作まで） | 組織・2Dキャンパス・部門の設置と採用・CXO・重要社員・取締役会とIPO・指示と社内VC（`office-tab` の8タブの中の操作すべて）、支社の契約解除（`close-branch-office`）。仕様は設計担当が UI3-9b に含めて書く | 枠の `openCurrentUI` |
+| `market` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="market"`）を押したとき（次の `tab` 操作まで） | 自社株の操作（`stock-split` `stock-mbo` `founder-share-sale` `defense` `view-earnings` `set-dividend` `buyback`）、チャート（`stock-chart-range`）、信用取引の欄、資本配分の操作（`data-capital-allocation-*`）、業種の絞り込みと銘柄の詳細（`select-stock`） | 枠の `openCurrentUI` |
 
 ## その他の残件
 
 | 内容 | 扱い |
 | --- | --- |
 | ホームの「今週やること」と週間レポートの「次の一手」の選定ロジックが重複している | 共通化は v1.0 では行わない（設計担当の決定 2026-11-11）。 |
-| 金額・数量の入力ダイアログ（現行のダイアログのまま）：事業投資・価格変更（`business-invest` `business-price`）、店舗価格（`store-price`）、福利厚生投資（`workforce-invest`）、加盟店募集（`recruit-franchise`）、IT・デジタル事業の名前入力（`found-digital-business` `launch-product`） | 専用の作業 UI3-9a（金額入力シート）で v3 にする。仕様は設計担当が書く。ほかの画面（株数・金額の入力）が増えたら、同じ作業の対象としてここに足す。 |
+| 金額・数量の入力ダイアログ（現行のダイアログのまま）：事業投資・価格変更（`business-invest` `business-price`）、店舗価格（`store-price`）、福利厚生投資（`workforce-invest`）、加盟店募集（`recruit-franchise`）、株式の売買の株数（`buy-stock` `sell-stock`）、IT・デジタル事業の名前入力（`found-digital-business` `launch-product`） | 専用の作業 UI3-9a（金額入力シート）で v3 にする。仕様は設計担当が書く。ほかの画面（株数・金額の入力）が増えたら、同じ作業の対象としてここに足す。 |
 
 ## 画面ごとの表
 
@@ -150,3 +151,24 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | `close-branch-office`（支社の解約） | 「本社」タブ | 支社があるとき | 現行UI（6.5）。残件 |
 
 未確認：「本社あり・部門あり」で各タブに出る操作の一覧（タブごとに内容が違い、dump では `office-tab` の切り替えを押していない）。「ほかの詳細」から現行UIに入れば、すべて残る。
+
+### `market`（UI3-5）
+
+洗い出し：UI3-5の担当エージェント、2026-11-11、Chromium・390×664。`node scripts/ui3-dump-screen-actions.js --screen=market --states=founding,store-open,office,listed`。`data-bind`（`ui` の中の表示設定）は現行の描画（`renderMarket()`）を読んで足した。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `data-bind="selectedAccount"`（投資口座：個人／会社） | `renderMarket()` | 常時 | 画面の上の `.u-seg`（個人口座／会社口座）。`buy-stock` `sell-stock` が読む現行UIの設定は、隠した `select` の `change` で合わせる（v3 は状態を書かない） |
+| `buy-stock`（株数は現行のダイアログ） | 銘柄の行 | 常時 | 銘柄のシートの「買う」（同じ操作。株数の入力が要るため確認シートは通せず、現行のダイアログが確認。UI3-9a の対象） |
+| `sell-stock`（同上） | 銘柄の行 | 保有があるとき | 銘柄のシートの「売る」（同上。保有が無いと押せない） |
+| `favorite-stock` | 銘柄の行 | 常時 | 銘柄のシートの行（同じ操作）。お気に入りは一覧に出る |
+| `select-stock`（銘柄の選択・詳細） | 銘柄の行 | 常時 | 銘柄の行 → 銘柄のシート |
+| `data-bind="stockSector"`（業種の絞り込み） | `renderMarket()` | 常時 | 「銘柄を探す」のシートの業種チップ |
+| `stock-chart-range`（13・26・52週・全期間） | 銘柄の詳細 | 銘柄を選んだとき | 現行UI（6.5）。残件 |
+| `stock-split`（2分割）、`stock-mbo`（MBO） | 銘柄の詳細／自社株の欄 | 上場後・条件を満たすとき | 現行UI（6.5）。残件 |
+| `founder-share-sale`、`defense`（3種）、`view-earnings`、`set-dividend`、`buyback` | 自社株の欄 | 上場後 | 現行UI（6.5）。残件 |
+| 資本配分の操作（`data-capital-allocation-*`） | enhancer（`js/capital-allocation-ui.js` ほか） | 上場後・条件を満たすとき | 現行UI（6.5）。残件 |
+| 信用取引の欄（`renderPersonalStockMargin()`） | `renderMarket()` | 条件を満たすとき | 現行UI（6.5）。残件 |
+
+未確認：信用取引の欄の操作（欄が出る状態を作っていない）。実際の IPO を経た上場後の自社株の操作（確認用の旗でだけ見た）。

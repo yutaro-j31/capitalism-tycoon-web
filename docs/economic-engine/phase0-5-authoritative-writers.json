@@ -657,6 +657,12 @@
         ]
       },
       {
+        "file": "js/ui3-market.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/ui3-shell.js",
         "tokens": [
           "companyCash"
@@ -1642,6 +1648,12 @@
       },
       {
         "file": "js/semantic-hash-v2.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/ui3-market.js",
         "tokens": [
           "personalCash"
         ]
