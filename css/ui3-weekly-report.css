@@ -21,13 +21,6 @@
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden;
 }
 
-/* The report opens after a week is advanced from ANY screen, including screens the current UI still
-   renders. The current UI's fixed bars sit above the v3 sheet's z-index (50/51), so on those screens they
-   would cover the sheet. The current weekly modal uses z-index 100 (css/app.css .modal-backdrop); the
-   report takes the same level. */
-.ui3:has([data-ui3-report="next"]) .u-scrim { z-index: 100; }
-.ui3:has([data-ui3-report="next"]) .u-sheet { z-index: 101; }
-
 /* css/d-ui-city-lab.css recolours every p and small inside #modal-root while a current-UI screen is shown
    (`body.city-lab-presentation #modal-root :is(p,small){color:var(--ct-muted)!important}`), which drops the
    next move's note to a low-contrast colour. The extra specificity restores the v3 label colour. */

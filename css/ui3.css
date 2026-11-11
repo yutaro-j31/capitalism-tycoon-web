@@ -111,12 +111,12 @@ body:has(#modal-root .u-sheet) .ui3 .u-dock { display: none; }
 .ui3 .u-badge { font: var(--u-t-label); padding: 2px 8px; border-radius: 10px; background: var(--u-raised); color: var(--u-muted); white-space: nowrap; }
 .ui3 .u-badge.good { color: var(--u-up); } .ui3 .u-badge.warn { color: var(--u-warn); }
 .ui3 .u-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--u-raised); border-radius: 12px; padding: 3px; gap: 3px; }
-.ui3 .u-seg button { height: 40px; border: 0; border-radius: 9px; background: none; color: var(--u-muted); font: var(--u-t-label); }
+.ui3 .u-seg button { height: 44px; border: 0; border-radius: 9px; background: none; color: var(--u-muted); font: var(--u-t-label); }
 .ui3 .u-seg button[aria-pressed="true"] { background: var(--u-text); color: var(--u-bg); font-weight: 700; }
 
 /* bottom sheet: all detail and all confirmation lives here */
-.ui3 .u-scrim { position: fixed; inset: 0; z-index: 50; background: rgba(4,8,16,.6); }
-.ui3 .u-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; max-height: 92%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+.ui3 .u-scrim { position: fixed; inset: 0; z-index: 100; background: rgba(4,8,16,.6); }
+.ui3 .u-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 101; max-height: 92%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
   background: var(--u-surface); border-radius: 20px 20px 0 0; border-top: 1px solid var(--u-line); }
 .ui3 .u-sheet-head { padding: var(--u-3) var(--u-4) var(--u-2); display: grid; gap: 2px; }
 .ui3 .u-sheet-head::before { content: ""; width: 36px; height: 4px; border-radius: 2px; background: var(--u-line); justify-self: center; margin-bottom: var(--u-2); }
