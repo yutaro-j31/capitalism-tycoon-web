@@ -290,7 +290,7 @@ UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可�
 | `save-now`、`export-save`、`import-save`（`#import-file`） | セーブ管理 | 常時 | 「セーブ」の行（同じ操作。`#import-file` は画面に置く） |
 | `save-slot`、`load-slot`（スロット1〜3） | セーブ管理 | 常時 | 「セーブスロット」の行→シート→確認シート（保存は上書き、読み込みは置き換え）。保存は `js/save-storage-ui.js` が先にクリックを取るため、確認シートを閉じてから、隠した現行の `save-slot` ボタンを押す（同じ経路） |
 | `reset-game` → `confirm-reset` | セーブ管理 | 常時 | 「最初からやり直す」の行→確認シート。実行は `confirm-reset`（創業画面に戻る） |
-| `company-buyout` → `confirm-buyout` | 設定 | 常時 | 「会社売却を検討」の行→確認シート（売却額は実行時に決まる）。実行は `confirm-buyout` |
+| `company-buyout` → `confirm-buyout` | 設定 | 常時 | 「会社売却を検討」の行（企業価値2億円未満・売却済みは押せず、理由を出す）→確認シート（売却額（概算）＝企業価値×1.2、創業者の受取（概算））。実行は `confirm-buyout` |
 | 診断・再起動・不具合報告・保存領域・動作確認のツール（`data-release-diagnostics-action` ほか） | enhancer | 常時 | 現行UI（6.5）。残件 |
 
 未確認：会社売却の実行（確認シートまで）、JSONの書き出し・読み込みの実行（ファイルを扱うため。操作は現行と同じ `export-save` `import-save`）。

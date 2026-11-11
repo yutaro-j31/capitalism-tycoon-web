@@ -1,6 +1,6 @@
 # Phase 0.5 Acceptance Evidence
 
-- Source main SHA: `8233dc07adbf12198960ecb7271dfb3b788c392e`
+- Source main SHA: `5ce32db45358fd948c64e140c319245490815fa9`
 - Tier: smoke
 - Overall: **PASS**
 - Seeds / persisted roots: 1347682305, 1347682306 / 1347682305, 1347682306

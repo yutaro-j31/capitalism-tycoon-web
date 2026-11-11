@@ -13,12 +13,17 @@ const esc=modules.ui3.esc;
 const modalRoot=()=>globalThis.document?.getElementById('modal-root');
 let context=null;
 
+const finite=value=>Number.isFinite(Number(value))?Number(value):0;
 const row=(attributes,title,note,end='›')=>`<button type="button" class="u-row"${attributes}><span><b>${esc(title)}</b>${note?`<small>${esc(note)}</small>`:''}</span><span class="u-end">${esc(end)}</span></button>`;
+// Copies of the current screen's own rule (js/app.js settings buyout button and confirm-buyout: company value of 200,000,000 yen or more,
+// not yet sold; the sale price is company value x 1.2); tests/ui3-company-webkit-test.js checks them against the app's text.
+const BUYOUT_MIN_VALUE=200000000,BUYOUT_MULTIPLIER=1.2;
 const STYLES=[['aggressive','成長重視'],['balanced','バランス'],['defensive','守備重視']];
 
 function render(ctx){
   context=ctx;
-  const {g}=ctx;
+  const {g,engine}=ctx;
+  const buyoutReason=g.isCompanySold?'会社はすでに売却済みです':finite(engine.companyValue())<BUYOUT_MIN_VALUE?'企業価値2億円以上で売却できます':'';
   const auto=Boolean(g.autoManage),motion=Boolean(g.settings?.reducedMotion),style=g.autoManageStyle||'balanced';
   const onOff=(key,on)=>`<div class="u-seg" role="group" data-ui3-settings="${key}"><button type="button" data-ui3-set="${key}" data-value="true" aria-pressed="${on}">オン</button><button type="button" data-ui3-set="${key}" data-value="false" aria-pressed="${!on}">オフ</button></div>`;
   // the current screen's own controls, hidden: the app's change handler (js/app.js) reads `data-setting`
@@ -39,7 +44,7 @@ function render(ctx){
     +row(' data-ui3-settings="slots"','セーブスロット','スロット1〜3に保存・読み込み')+`</div>`;
   const danger=`<h2 class="u-h2">データの削除・会社の売却</h2><div class="u-list" data-ui3-settings="danger">`
     +row(' data-ui3-settings-confirm="reset"','最初からやり直す','進行状況をすべて削除する','削除')
-    +row(' data-ui3-settings-confirm="buyout"','会社売却を検討','事業経営を終えて個人資産モードへ','売却')+`</div>`;
+    +row(` data-ui3-settings-confirm="buyout"${buyoutReason?' disabled':''}`,'会社売却を検討',buyoutReason||'事業経営を終えて個人資産モードへ',buyoutReason?'—':'売却')+`</div>`;
   const more=row(' data-ui3-current="settings"','ほかの詳細（現行の画面）','診断・最新版で再起動・不具合報告・保存領域・動作確認のツール');
   return game+saves+danger+`<h2 class="u-h2">そのほか</h2><div class="u-list">${more}</div>`+hidden;
 }
@@ -54,10 +59,18 @@ function askConfirm(kind,id){
     'save-slot':{title:`スロット${id}に保存`,subtitle:'スロットの中身は、いまの進行状況で上書きされます。',confirm:{label:'保存する',attributes:{'data-ui3-settings-run':'save-slot','data-id':id}}},
     'load-slot':{title:`スロット${id}を読み込む`,subtitle:'いまの進行状況は、スロットの内容に置き換わります。保存していない分は失われます。',confirm:{label:'読み込む',attributes:{'data-action':'load-slot','data-id':id}}},
     reset:{title:'最初からやり直す',subtitle:'現在の進行状況をすべて削除します。この操作は取り消せません。',confirm:{label:'削除してやり直す',attributes:{'data-action':'confirm-reset'}}},
-    buyout:{title:'会社を売却する',subtitle:'会社を売却すると事業経営は終了し、個人資産モードへ移行します。取り消せません。',note:'売却額は実行時に決まります。',confirm:{label:'売却する',attributes:{'data-action':'confirm-buyout'}}}
+    buyout:{title:'会社を売却する',subtitle:'会社を売却すると事業経営は終了し、個人資産モードへ移行します。取り消せません。',note:'個人で保有する自社株の分は別に受け取ります（上の金額に含まれません）。',confirm:{label:'売却する',attributes:{'data-action':'confirm-buyout'}}}
   };
   const spec=sheets[kind];
-  if(spec)show(modules.ui3.confirmSheet({...spec,facts:[]}));
+  if(!spec)return;
+  let facts=[];
+  if(kind==='buyout'){
+    const {g,money,engine}=context;
+    if(g.isCompanySold||finite(engine.companyValue())<BUYOUT_MIN_VALUE)return;
+    const price=finite(engine.companyValue())*BUYOUT_MULTIPLIER;
+    facts=[{label:'売却額（概算）',value:money(price),tone:'up'},{label:'創業者の受取（概算）',value:money(price*finite(g.founderOwnershipRatio))}];
+  }
+  show(modules.ui3.confirmSheet({...spec,facts}));
 }
 
 function onClick(event){

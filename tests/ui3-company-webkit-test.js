@@ -125,6 +125,11 @@ async function main() {
   assert.ok(expansionSource.includes('const cost=1500000;'), 'the successor training cost matches the engine');
   assert.ok(expansionSource.includes('const cost=10000000;if(this.g.personalCash<cost)return this.fail(\'設立費用が不足しています。\')'), 'the family trust set-up cost matches the engine');
   assert.ok(expansionSource.includes('specs={education:[800000,6],network:[600000,7],successor:[700000,5],foundation:[5000000,1]'), 'the self-investment costs match the engine');
+  // the copies of the current screen's company-sale rule (js/app.js)
+  const appSource = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8');
+  assert.ok(appSource.includes('engine.acceptBuyoutOffer(1.2)'), 'the sale multiplier 1.2 matches the app');
+  assert.ok(appSource.includes("btn('会社売却を検討','company-buyout',{kind:'danger',disabled:engine.companyValue()<200_000_000||g.isCompanySold})"), 'the sale threshold matches the current settings screen');
+  assert.ok(fs.readFileSync(path.join(ROOT, 'js', 'engine.js'), 'utf8').includes('this.g.publicCompany===false&&this.companyValue()<200_000_000'), 'the engine refuses the same unlisted case');
   try {
     // 1. Flag off: the current screens, unchanged by the presence of the v3 scripts.
     const current = { founder: [], legacy: [], settings: [] };
@@ -265,10 +270,23 @@ async function main() {
     await cancel(page);
     // buyout and reset are confirmations; cancelling changes nothing
     const dangerBaseline = await digest(page);
+    // The company sale: not offered below the current screen's threshold (with the reason); above it the sheet shows the engine's amounts.
+    assert.equal(await page.locator('[data-ui3-settings-confirm="buyout"]').isDisabled(), true, 'the sale is not offered right after founding');
+    assert.match(await page.locator('[data-ui3-settings-confirm="buyout"]').innerText(), /企業価値2億円以上/, 'with the reason');
+    await engineEval(page, engine => { engine.companyValue = () => 300000000; engine.emit?.(); });
+    await goTo(page, 'home'); await goTo(page, 'settings');
+    await page.locator('[data-ui3-settings-confirm="buyout"]:not([disabled])').waitFor({ state: 'visible' });
     await page.locator('[data-ui3-settings-confirm="buyout"]').tap();
     await page.locator('#modal-root [data-ui3-confirm]').waitFor({ state: 'visible' });
+    const saleFacts = await confirmFacts(page);
+    const ratio = await engineEval(page, engine => engine.g.founderOwnershipRatio);
+    const shownSale = await page.evaluate(amount => globalThis.__capitalismTycoonModules.engine.compactYen(amount), 300000000 * 1.2);
+    const shownFounder = await page.evaluate(amount => globalThis.__capitalismTycoonModules.engine.compactYen(amount), 300000000 * 1.2 * ratio);
+    assert.deepEqual(saleFacts, [['売却額（概算）', shownSale], ['創業者の受取（概算）', shownFounder]], 'company value x 1.2, and the founder share of it');
+    assert.doesNotMatch(await page.locator('#modal-root .u-sheet').innerText(), /実行時に決まります/);
     await sheetOk(page, 'buyout confirm');
     await cancel(page);
+    await engineEval(page, engine => { delete engine.companyValue; engine.emit?.(); });
     await page.locator('[data-ui3-settings-confirm="reset"]').tap();
     await page.locator('#modal-root [data-ui3-confirm]').waitFor({ state: 'visible' });
     await cancel(page);
