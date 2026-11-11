@@ -42,6 +42,3 @@
 
 /* the page itself never scrolls on the map: the current UI's bottom padding on <body> must not add height */
 body.ui3-native:has(.ui3[data-ui3-screen="map"]) { padding-bottom: 0 !important; overflow: hidden; }
-
-/* the industry switch in the store sheet: ui3.css draws .u-seg buttons 40px high, the acceptance number is 44 */
-.ui3 .u-sheet .u-seg button { height: 44px; }

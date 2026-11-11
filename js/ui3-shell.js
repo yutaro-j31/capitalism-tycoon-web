@@ -178,11 +178,33 @@ function sheet({eyebrow='',title='',subtitle='',body='',actions=''}={}){
     +`<div class="u-sheet-body">${body}</div>${actions?`<div class="u-sheet-foot">${actions}</div>`:''}</section></div>`;
 }
 
+// Sheets that js/app.js shows in #modal-root in place of a current-UI modal (README 6.1, "シート").
+// A sheet module registers `render(context)` returning the arguments of sheet(); js/app.js asks
+// renderSheet() first and falls back to its own modal when the answer is ''.
+const SHEET_IDS=Object.freeze(['weekly-report']);
+const sheetRenderers=new Map();
+function registerSheet(id,definition){
+  if(!SHEET_IDS.includes(id))throw new RangeError(`Unknown UI v3 sheet: ${id}`);
+  if(typeof definition?.render!=='function')throw new TypeError(`UI v3 sheet ${id} requires a render function.`);
+  if(sheetRenderers.has(id))throw new Error(`UI v3 sheet is already registered: ${id}`);
+  sheetRenderers.set(id,Object.freeze({render:definition.render}));
+  return id;
+}
+// The finished sheet markup, or '' when UI v3 is off, the sheet is not registered, or the game is
+// not configured. context is {engine,engineModule,...}; the renderer also receives g, esc and money.
+function renderSheet(id,context){
+  if(!enabled||!sheetRenderers.has(id)||!context?.engine?.g?.configured)return '';
+  const {engine,engineModule}=context;
+  const parts=sheetRenderers.get(id).render({...context,g:engine.g,esc,money:engineModule.compactYen});
+  return parts?sheet(parts):'';
+}
+
 modules.ui3=Object.freeze({
-  PREFERENCE_KEY,GROUPS,SCREEN_LABELS,ALL_SCREENS,
+  PREFERENCE_KEY,GROUPS,SCREEN_LABELS,ALL_SCREENS,SHEET_IDS,
   enabled:()=>enabled,
   isNativeActive:()=>nativeActive,
   registeredScreens:()=>[...screens.keys()],
-  registerScreen,rendersNatively,usesCurrentUI,renderApp,leaveNative,sheet,esc
+  registeredSheets:()=>[...sheetRenderers.keys()],
+  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,esc
 });
 })();

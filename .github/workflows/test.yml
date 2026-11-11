@@ -349,6 +349,8 @@ jobs:
           node --check tests/ma-deal-room-webkit-test.js
           node --check tests/ui3-shell-webkit-test.js
           node --check tests/ui3-map-webkit-test.js
+          node --check tests/ui3-weekly-report-webkit-test.js
+          node --check tests/ui3-home-webkit-test.js
       - name: Play every primary game screen in iPhone WebKit
         timeout-minutes: 5
         run: node tests/iphone-full-acceptance-webkit-test.js
@@ -375,6 +377,12 @@ jobs:
       - name: Verify UI v3 map screen and store sheet
         timeout-minutes: 5
         run: node tests/ui3-map-webkit-test.js
+      - name: Verify UI v3 weekly report sheet
+        timeout-minutes: 3
+        run: node tests/ui3-weekly-report-webkit-test.js
+      - name: Verify UI v3 home screen
+        timeout-minutes: 3
+        run: node tests/ui3-home-webkit-test.js
       - name: Retain iPhone acceptance screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4

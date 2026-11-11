@@ -67,6 +67,16 @@ function registerProbeScreens() {
     ui3.registerScreen(id, { useCurrentUI: id === 'market' ? () => globalThis.__ui3ProbeUseCurrentUI === true : undefined, render: ({ g, esc, money }) => `<section class="u-card" data-probe="${esc(id)}"><div class="u-stat"><span>会社現金</span><b class="u-money">${esc(money(g.companyCash))}</b></div></section>` });
   }
 }
+// Runs in the page: registers a throw-away sheet the way a real sheet module (js/ui3-weekly-report.js) does.
+function registerProbeSheet() {
+  const ui3 = globalThis.__capitalismTycoonModules.ui3;
+  if (ui3.registeredSheets().includes('weekly-report')) return;
+  ui3.registerSheet('weekly-report', { render: ({ g, summary, esc, money }) => ({ eyebrow: '第' + (summary?.week ?? g.week) + '週の結果', title: 'probe report', body: '<p>' + esc(money(g.companyCash)) + '</p>', actions: '<button type="button" class="u-btn primary" data-action="close-modal">閉じる</button>' }) });
+}
+const renderProbeSheet = () => {
+  const m = globalThis.__capitalismTycoonModules, engine = m.playerEngineBridge.getEngine();
+  return m.ui3.renderSheet('weekly-report', { engine, engineModule: m.engine, summary: { week: 7 } });
+};
 const goTo = (page, tab) => page.evaluate(id => document.querySelector(`[data-action="tab"][data-tab="${id}"]`).click(), tab);
 const snapshot = page => page.evaluate(key => {
   const modules = globalThis.__capitalismTycoonModules;
@@ -114,6 +124,10 @@ async function main() {
       await found(page, base);
       assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.enabled()), false);
       await page.evaluate(registerProbeScreens);
+      // A registered sheet is not shown either: renderSheet answers '' so js/app.js keeps its current modal.
+      assert.deepEqual(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.registeredSheets()), [], 'no real sheet module is loaded in the shell test');
+      await page.evaluate(registerProbeSheet);
+      assert.equal(await page.evaluate(renderProbeSheet), '', 'without ?ui=3 renderSheet is empty, even for a registered sheet');
       await goTo(page, 'home');
       const off = await snapshot(page);
       assert.deepEqual([off.native, off.bodyNative, off.bodyDUI, off.sidebar, off.screen], [false, false, true, true, 'home'], 'without ?ui=3 the current D UI renders, even for a registered screen');
@@ -236,6 +250,27 @@ async function main() {
     await page.locator('#modal-root .u-btn.primary').tap();
     assert.equal(await page.evaluate(() => document.getElementById('modal-root').innerHTML), '');
     assert.notEqual(await page.locator('.ui3 .u-dock').evaluate(node => getComputedStyle(node).display), 'none');
+
+    // Sheet registry: only known ids, a render function, no duplicates; renderSheet is '' until one is registered.
+    assert.equal(await page.evaluate(renderProbeSheet), '', 'an unregistered sheet renders as an empty string');
+    const sheetErrors = await page.evaluate(() => {
+      const ui3 = globalThis.__capitalismTycoonModules.ui3, errors = [];
+      for (const attempt of [() => ui3.registerSheet('nope', { render: () => ({}) }), () => ui3.registerSheet('weekly-report', {}), () => ui3.registerSheet('weekly-report', { render: 1 })]) {
+        try { attempt(); errors.push('no error'); } catch (error) { errors.push(error.constructor.name); }
+      }
+      return errors;
+    });
+    assert.deepEqual(sheetErrors, ['RangeError', 'TypeError', 'TypeError'], 'unknown id, missing render and non-function render are refused');
+    await page.evaluate(registerProbeSheet);
+    assert.deepEqual(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.registeredSheets()), ['weekly-report']);
+    const duplicate = await page.evaluate(() => {
+      try { globalThis.__capitalismTycoonModules.ui3.registerSheet('weekly-report', { render: () => ({}) }); return 'no error'; } catch (error) { return error.constructor.name; }
+    });
+    assert.equal(duplicate, 'Error', 'a second registration of the same sheet is refused');
+    const rendered = await page.evaluate(renderProbeSheet);
+    assert.match(rendered, /^<div class="ui3"><div class="u-scrim" data-action="close-modal"><\/div><section class="u-sheet"/, 'with ?ui=3 renderSheet returns the v3 sheet markup');
+    assert.match(rendered, /第7週の結果/);
+    assert.equal(await page.evaluate(() => { const m = globalThis.__capitalismTycoonModules; return m.ui3.renderSheet('weekly-report', { engine: { g: { configured: false } }, engineModule: m.engine }); }), '', 'an unconfigured game renders no sheet');
 
     // ?ui=2 returns the device to the current UI.
     await page.goto(`${base}?ui=2`, { waitUntil: 'load' });
