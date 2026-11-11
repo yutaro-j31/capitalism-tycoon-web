@@ -94,10 +94,11 @@ function confirmModal(title,text,onAction,data='') { modal(`<h2>${esc(title)}</h
 
 function render() {
   document.body.classList.toggle('reduced-motion',Boolean(engine.g.settings?.reducedMotion));
-  if (!engine.g.configured || ui.showSetup) { __modules.ui3?.leaveNative(); return renderSetup(); }
+  if (!engine.g.configured || ui.showSetup) { if (__modules.ui3?.renderSetupInto?.(app,{engine,engineModule})) return; __modules.ui3?.leaveNative(); return renderSetup(); }
   const g=engine.g;
   // UI v3 (docs/ui-v3/README.md): a screen registered with the v3 shell is rendered by it behind
   // ?ui=3. Every other screen, and every render without the flag, takes the unchanged path below.
+  if (g.gameOver && __modules.ui3?.renderGameOverInto?.(app,{engine,engineModule})) return;
   if (__modules.ui3?.rendersNatively(g.selectedTab,g)) { app.innerHTML=__modules.ui3.renderApp({engine,engineModule}); return; }
   __modules.ui3?.leaveNative();
   app.innerHTML=`

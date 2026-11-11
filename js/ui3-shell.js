@@ -93,6 +93,44 @@ function rendersNatively(screenID,g){
   return enabled&&screens.has(screenID)&&Boolean(g?.configured)&&!g?.gameOver&&!usesCurrentUI(screenID,g);
 }
 
+// The founding form and the game-over screen are not tab screens: each is registered once (`registerSetup`, `registerGameOver`)
+// and js/app.js asks the shell to draw it into #app (`renderSetupInto`, `renderGameOverInto`). Both return false, and draw
+// nothing, unless v3 is on and the screen is registered, so the current form / overlay is drawn exactly as before.
+let setupDefinition=null,gameOverDefinition=null;
+function registerSetup(definition){
+  if(typeof definition?.render!=='function')throw new TypeError('UI v3 setup screen requires a render function.');
+  if(setupDefinition)throw new Error('UI v3 setup screen is already registered.');
+  setupDefinition=Object.freeze({render:definition.render});
+  return true;
+}
+function registerGameOver(definition){
+  if(typeof definition?.render!=='function')throw new TypeError('UI v3 game-over screen requires a render function.');
+  if(gameOverDefinition)throw new Error('UI v3 game-over screen is already registered.');
+  gameOverDefinition=Object.freeze({render:definition.render});
+  return true;
+}
+function drawStandalone(target,definition,kind,context){
+  const {engine,engineModule}=context;
+  const body=String(definition.render({engine,g:engine.g,engineModule,esc,money:engineModule.compactYen})??'');
+  if(!nativeActive)modules.cityLabMap?.release?.();
+  nativeActive=true;
+  setBodyMode(true);
+  target.innerHTML=`<div class="ui3 u-app u-standalone" data-ui3-${kind}>${body}</div>`;
+  return true;
+}
+function renderSetupInto(target,context){
+  if(!enabled||!setupDefinition||!target)return false;
+  return drawStandalone(target,setupDefinition,'setup',context);
+}
+function renderGameOverInto(target,context){
+  if(!enabled||!gameOverDefinition||!target||!context?.engine?.g?.gameOver)return false;
+  return drawStandalone(target,gameOverDefinition,'gameover',context);
+}
+// A new game always starts from the top of the page (the founding form is a long page on a small screen).
+globalThis.document?.addEventListener('submit',event=>{
+  if(event.target instanceof Element&&event.target.id==='setup-form'&&event.target.closest('[data-ui3-setup]'))globalThis.scrollTo?.(0,0);
+},true);
+
 function topBar(g,engineModule){
   const date=engineModule.gameDate(g.week);
   const money=engineModule.compactYen;
@@ -388,6 +426,6 @@ modules.ui3=Object.freeze({
   isNativeActive:()=>nativeActive,
   registeredScreens:()=>[...screens.keys()],
   registeredSheets:()=>[...sheetRenderers.keys()],
-  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,setAmountContext,esc
+  registerScreen,registerSheet,registerSetup,registerGameOver,renderSetupInto,renderGameOverInto,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,setAmountContext,esc
 });
 })();

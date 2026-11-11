@@ -359,6 +359,7 @@ jobs:
           node --check tests/ui3-bank-webkit-test.js
           node --check tests/ui3-report-webkit-test.js
           node --check tests/ui3-company-webkit-test.js
+          node --check tests/ui3-setup-webkit-test.js
       - name: Play every primary game screen in iPhone WebKit
         timeout-minutes: 5
         run: node tests/iphone-full-acceptance-webkit-test.js
@@ -415,6 +416,9 @@ jobs:
       - name: Verify UI v3 company tab screens (founder, legacy, settings)
         timeout-minutes: 5
         run: node tests/ui3-company-webkit-test.js
+      - name: Verify UI v3 founding form and game-over screen
+        timeout-minutes: 5
+        run: node tests/ui3-setup-webkit-test.js
       - name: Retain iPhone acceptance screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4

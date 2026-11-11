@@ -131,6 +131,19 @@ body:has(#modal-root .u-sheet) .ui3 .u-dock { display: none; }
 .ui3 .u-error { margin: 0; min-height: 0; font: var(--u-t-label); color: var(--u-down); }
 .ui3 .u-error:empty { display: none; }
 
+/* founding form and game-over screen (standalone screens: no top bar, tab bar or advance buttons; README 5.6) */
+.ui3.u-standalone { display: flex; flex-direction: column; }
+body.ui3-native:has(.u-standalone) { padding-bottom: 0; }
+.ui3 .u-setup { padding: calc(var(--u-safe-t) + var(--u-4)) var(--u-4) 0; display: grid; gap: var(--u-3); align-content: start; }
+.ui3 .u-setup-recovery { flex: 1; padding: var(--u-3) var(--u-4) calc(var(--u-safe-b) + 150px); }
+.ui3 .u-setup-head { display: flex; align-items: center; gap: var(--u-3); }
+.ui3 .u-setup-logo { width: 40px; height: 40px; border-radius: 12px; background: var(--u-accent); color: var(--u-accent-ink); display: grid; place-items: center; font: 800 22px/1 var(--u-font); }
+.ui3 .u-setup-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--u-3); }
+.ui3 .u-input.u-input-text { height: 44px; font: 600 16px/1 var(--u-font); }
+.ui3 .u-setup-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: var(--u-3) var(--u-4) calc(var(--u-3) + var(--u-safe-b)); background: var(--u-bg); border-top: 1px solid var(--u-line); display: grid; gap: var(--u-2); }
+.ui3 .u-setup-note { margin: 0; font: var(--u-t-label); color: var(--u-muted); }
+.ui3 .u-over { flex: 1; padding: calc(var(--u-safe-t) + var(--u-6)) var(--u-4) var(--u-6); display: grid; gap: var(--u-4); align-content: start; }
+
 /* map */
 .ui3 .u-map { position: relative; height: calc(100% - var(--u-top-h) - var(--u-tab-h)); overflow: hidden; }
 .ui3 .u-map-chips { position: absolute; top: var(--u-3); left: 0; right: 0; z-index: 3; padding: 0 var(--u-4); margin: 0; }
