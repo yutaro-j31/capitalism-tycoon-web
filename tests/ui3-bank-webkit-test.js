@@ -141,6 +141,7 @@ async function main() {
     assert.equal(await page.locator('#modal-root #iphone-money-form').count(), 0, 'no iPhone dialog');
     assert.equal(await page.locator('[data-ui3-amount-max]').getAttribute('data-ui3-amount-chip'), String(Math.floor(before.capacity)), 'the maximum is the borrowing capacity');
     assert.match(await page.locator('#modal-root [data-ui3-amount-note]').innerText(), /借入余力/);
+    assert.equal(await page.locator('#modal-root [data-ui3-amount-input]').inputValue(), String(Math.floor(before.capacity)), 'the dialog starts at the capacity, not at the 10M of askMoney');
     await page.locator('#modal-root [data-ui3-amount-input]').fill('1000000');
     const rows = await page.locator('#modal-root [data-ui3-amount-preview] .u-stat').evaluateAll(nodes => nodes.map(node => [node.querySelector('span').innerText, node.querySelector('b').innerText, node.querySelector('b').classList.contains('u-down')]));
     assert.deepEqual(rows, [['借入後の残高', await yen(page, before.debt + 1000000), false], ['残りの借入余力', await yen(page, before.capacity - 1000000), false]]);

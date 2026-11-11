@@ -287,12 +287,14 @@ function amountSheet({title='',initial=0,submit}={}){
   const label=unit==='株'?'株数':unit==='店'?'店数':'金額（円）';
   amountPending={submit,unit,context};
   const max=Number.isFinite(Number(context?.max))&&Number(context.max)>0?Math.floor(Number(context.max)):null;
+  // an initial value above the known maximum starts at the maximum (a loan dialog opened at 10M with 3.12M capacity)
+  const start=max&&Number(initial)>max?max:initial;
   const presets=Array.isArray(context?.presets)?context.presets.filter(item=>item&&Number.isFinite(Number(item.value))).map(item=>[Number(item.value),String(item.label??item.value)])
-    :unit==='円'&&!(Number(initial)>=YEN_CHIPS_FROM)?[]:AMOUNT_CHIPS[unit];
+    :unit==='円'&&!(Number(start)>=YEN_CHIPS_FROM)?[]:AMOUNT_CHIPS[unit];
   const chips=presets.map(([value,text])=>`<button type="button" class="u-chip" data-ui3-amount-chip="${value}">${esc(text)}</button>`).join('')
     +(max?`<button type="button" class="u-chip" data-ui3-amount-chip="${max}" data-ui3-amount-max>最大</button>`:'');
   const preview=context&&(context.wallet||typeof context.preview==='function')?`<div class="u-stats" data-ui3-amount-preview></div>`:'';
-  const body=`<label class="u-field"><span>${esc(label)}</span><input class="u-input" data-ui3-amount-input inputmode="${unit==='円'?'decimal':'numeric'}" autocomplete="off" enterkeyhint="done" value="${esc(String(initial??''))}" aria-describedby="ui3-amount-error"></label>`
+  const body=`<label class="u-field"><span>${esc(label)}</span><input class="u-input" data-ui3-amount-input inputmode="${unit==='円'?'decimal':'numeric'}" autocomplete="off" enterkeyhint="done" value="${esc(String(start??''))}" aria-describedby="ui3-amount-error"></label>`
     +(chips?`<nav class="u-chips" aria-label="入力の候補">${chips}</nav>`:'')
     +preview
     +(context?.note?`<div class="u-h2" data-ui3-amount-note>${esc(context.note)}</div>`:'')
@@ -325,6 +327,9 @@ function refreshAmount(){
       rows=[{label:context.direction==='receive'?'概算の受取額':'概算の金額',value:amount===null?'—':yenText(amount)},
         {label:`実行後の${walletName}の現金`,value:after===null?'—':yenText(after),tone:after!==null&&after<0?'down':undefined}];
     }
+    // a value above the known maximum is shown in red (the run is not stopped: the engine decides)
+    const max=Number.isFinite(Number(context.max))&&Number(context.max)>0?Math.floor(Number(context.max)):null;
+    if(max!==null&&value!==null&&value>max)rows=rows.map(row=>({...row,tone:'down'}));
     box.className=`u-stats${rows.length===2?' two':''}`;
     box.innerHTML=rows.map(row=>`<div class="u-stat"><span>${esc(row.label)}</span><b class="u-money${row.tone==='down'?' u-down':row.tone==='up'?' u-up':''}">${esc(row.value)}</b></div>`).join('');
   }
