@@ -29,6 +29,8 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | --- | --- | --- | --- |
 | `home` | 資金繰りが「安定」以外 | `founder-capital`、`emergency-bridge`、`sponsor-injection`、`turnaround-fund`、資産売却、経費削減（`js/player-crisis-ui.js` のパネル）、再建計画の開始（`data-player-turnaround-action`、`js/player-turnaround-plan-ui.js`） | 枠の規則 `CURRENT_UI_RULES.home` |
 | `map` | 3Dの地図が使えない（WebGL・アセット・コンテキストの失敗） | 現行のCanvas2D地図とその操作一式（`city-retry`、一覧の `details`、現行のマーカーと詳細パネル） | 画面の登録の `useCurrentUI`（失敗を検知したら、その後は現行UI） |
+| `business` | 利用者が「ほかの詳細（現行の画面）」を押したとき（次のタブ操作まで） | 営業時間（`data-store-hours`）、メニュー構成（`store-menu-price` `reset-store-menu-price` `remove-store-menu` `add-store-menu`）、市場分析・顧客レビュー・競合分析・リコール危機（`respond-recall-crisis`）・プロダクトの詳細・フランチャイズの一覧と、enhancer が差し込む欄（供給・人事・広告など）、`business-invest` 以外の事業ごとの操作の残り | 画面の登録の `useCurrentUI`（押した後、次の `tab` 操作で v3 に戻る） |
+| `office` | 同上 | 組織・2Dキャンパス・部門の設置と採用・CXO・重要社員・取締役会とIPO・指示と社内VC（`office-tab` の8タブの中の操作すべて）、支社の契約解除（`close-branch-office`） | 同上 |
 
 ## その他の残件
 
@@ -103,3 +105,46 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 
 未確認：再建計画の進行中に出る欄（状態を作っていない。読み取り専用で操作が無いことはソースで確認した）。
 未確認：実際のIPOを経た上場後、成長の欄の行、資産売却と経費削減の操作。
+
+### `business`（UI3-4）
+
+洗い出し：UI3-4の担当エージェント、2026-11-11、Chromium・390×664。`node scripts/ui3-dump-screen-actions.js --screen=business --states=founding,store-open,office,listed`（創業直後・1号店の開店後・本社あり・上場後）。`data-action` 以外（`data-store-hours` の選択など）は現行の描画（`renderBusiness()` `renderStoreEquipment()`）を読んで足した。enhancer が差し込む欄は、操作の一覧には出ないものがあるため未確認（下）。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`（`‹`） | enhancer（`city-lab-work-header`） | 常時 | 下のタブ「マップ」 |
+| `advance-week` | enhancer（`city-lab-capital`） | 常時 | 枠の「進める」ボタン |
+| `tab` → `map`（未出店の業種の行、`data-business-idle`） | `renderBusiness()` | 未出店の業種があるとき | 「未出店の業種」の行（同じ操作） |
+| `business-invest`（品質・広告・効率化・DX） | `businessFullCard()` | 運営中の事業 | 運営中の事業の行 → 事業のシート（同じ操作。金額は現行の金額入力ダイアログ） |
+| `business-price` | `businessFullCard()` | 運営中の事業 | 事業のシート（同じ操作） |
+| `start-franchise`（FC本部を設置） | 事業ポートフォリオの上 | 常時（条件を満たさないと失敗） | 事業のシートの行 → **確認シート**（費用と実行後の会社現金）→ 同じ操作。直営3店未満は行を押せない |
+| `recruit-franchise` | フランチャイズの欄 | FC本部の設置後 | 事業のシートの行（同じ操作） |
+| `store-concept`（3種） | 店舗の欄 | 店舗がある | 店舗のシートの行 → **確認シート** → 同じ操作 |
+| `upgrade-store-equipment` | 店舗の欄 | 店舗がある（最大レベル未満） | 店舗のシートの行 → **確認シート** → 同じ操作 |
+| `renovate-store` | 店舗の欄 | 改装が必要なとき | 店舗のシートの行 → **確認シート** → 同じ操作 |
+| `store-price`、`reset-store-price` | 店舗の欄 | 店舗がある／店舗別価格のとき | 店舗のシートの行（同じ操作。金額は現行の金額入力ダイアログ） |
+| `close-store` | 店舗の欄 | 店舗がある | 店舗のシートの行（同じ操作。結果の事前提示は現行の確認ダイアログ） |
+| `found-digital-business` | IT・デジタル事業 | 店舗を持たない創業直後 | 「IT・デジタル事業」の行 → シート（同じ操作。名前は現行のダイアログ） |
+| `launch-product` | IT・デジタル事業 | 商品開発部門があるとき | 同上 |
+| 営業時間（`data-store-hours` の `select`） | 店舗の欄 | 店舗がある | 現行UI（6.5）。残件 |
+| メニュー構成（`store-menu-price` `reset-store-menu-price` `remove-store-menu` `add-store-menu`） | 店舗の欄 | ラーメン店がある | 現行UI（6.5）。残件 |
+| `respond-recall-crisis`（自主回収・補償） | リコール危機の欄 | リコール危機のとき | 現行UI（6.5）。残件 |
+| 市場分析・顧客レビュー・競合分析・プロダクトの詳細・FCの一覧（読み取り中心） | `renderMarketInsightSection()` ほか | 店舗・プロダクトがあるとき | 現行UI（6.5）。残件 |
+
+未確認：enhancer が `business` に差し込む欄の操作（供給・人事・広告の連携など）。現行UIの「ほかの詳細」にすべて残るので届かなくなることはないが、一覧は作っていない。UI3-9b の前に洗い出す。
+
+### `office`（UI3-4）
+
+洗い出し：同上（`--screen=office`）。`data-action` 以外は `renderOffice()` `renderOfficeTab()` を読んで足した。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `workforce-invest`（福利厚生投資） | 「組織」タブ | 常時 | 「操作」の行（同じ操作。金額は現行の金額入力ダイアログ） |
+| `toggle-remote`（リモートワーク ON/OFF） | 「組織」タブ | 常時 | 「操作」の行（同じ操作） |
+| `cancel-office`（本社契約解除） | 「本社」タブ | 本社があるとき | 「操作」の行（同じ操作。現行の確認ダイアログ） |
+| `office-tab`（組織・本社・2Dキャンパス・部門・CXO・重要社員・取締役会とIPO・指示と社内VC） | 8つのタブ | 常時 | 現行UI（6.5）。残件（v3 の画面は本社・社員数・固定費、設置済みの部門、在籍のCXOを読み取りで出す） |
+| 部門の設置と採用、CXOの任命、重要社員、取締役会、IPO、指示、社内VC、2Dキャンパスの操作 | 各タブの中 | 本社・部門があるとき | 現行UI（6.5）。残件 |
+| `close-branch-office`（支社の解約） | 「本社」タブ | 支社があるとき | 現行UI（6.5）。残件 |
+
+未確認：「本社あり・部門あり」で各タブに出る操作の一覧（タブごとに内容が違い、dump では `office-tab` の切り替えを押していない）。「ほかの詳細」から現行UIに入れば、すべて残る。

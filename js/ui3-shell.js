@@ -178,6 +178,31 @@ function sheet({eyebrow='',title='',subtitle='',body='',actions=''}={}){
     +`<div class="u-sheet-body">${body}</div>${actions?`<div class="u-sheet-foot">${actions}</div>`:''}</section></div>`;
 }
 
+// Confirmation sheet for an operation that moves money and cannot be undone (contract, purchase, sale,
+// investment, borrowing; README 2, decided 2026-11-11). It states what it costs and what the company
+// holds afterwards, and its primary button carries the EXISTING `data-action` (plus data-id / data-kind)
+// that js/app.js already handles; this component never runs anything itself. Place the result in
+// #modal-root. Do not use it for an action that opens another modal (that modal would be closed with it).
+//   facts:   [{label,value,tone?}]   value is already formatted; tone 'up' | 'down' colours it
+//   confirm: {label,attributes}      attributes: {'data-action':…,'data-id':…}
+function confirmSheet({eyebrow='確認',title='',subtitle='',facts=[],note='',confirm={},cancelLabel='やめる'}={}){
+  const attributes=Object.entries(confirm.attributes||{}).map(([name,value])=>` ${esc(name)}="${esc(value)}"`).join('');
+  const columns=facts.length===2?' two':'';
+  const body=`<div class="u-stats${columns}" data-ui3-confirm-facts>${facts.map(fact=>`<div class="u-stat"><span>${esc(fact.label)}</span><b class="u-money${fact.tone==='up'?' u-up':fact.tone==='down'?' u-down':''}">${esc(fact.value)}</b></div>`).join('')}</div>`
+    +(note?`<div class="u-h2" data-ui3-confirm-note>${esc(note)}</div>`:'');
+  return sheet({eyebrow,title,subtitle,body,
+    actions:`<button type="button" class="u-btn" data-action="close-modal">${esc(cancelLabel)}</button>`
+      +`<button type="button" class="u-btn primary" data-ui3-confirm${attributes}>${esc(confirm.label||'実行する')}</button>`});
+}
+// The confirm button's action is dispatched by js/app.js's own click handler; afterwards the sheet is
+// closed (unless the action put something else into #modal-root).
+globalThis.document?.addEventListener('click',event=>{
+  const button=event.target instanceof Element?event.target.closest('[data-ui3-confirm]'):null;
+  const root=globalThis.document.getElementById('modal-root');
+  if(!button||!root?.contains(button))return;
+  setTimeout(()=>{if(root.querySelector('[data-ui3-confirm]'))root.innerHTML='';},0);
+});
+
 // Sheets that js/app.js shows in #modal-root in place of a current-UI modal (README 6.1, "シート").
 // A sheet module registers `render(context)` returning the arguments of sheet(); js/app.js asks
 // renderSheet() first and falls back to its own modal when the answer is ''.
@@ -205,6 +230,6 @@ modules.ui3=Object.freeze({
   isNativeActive:()=>nativeActive,
   registeredScreens:()=>[...screens.keys()],
   registeredSheets:()=>[...sheetRenderers.keys()],
-  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,esc
+  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,esc
 });
 })();

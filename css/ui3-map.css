@@ -38,7 +38,6 @@
 /* sheets opened from the map: 58% high; the map stays visible above them, and a tap on it closes the sheet */
 .ui3:has([data-ui3-map-sheet]) .u-sheet { max-height: 58%; }
 .ui3:has([data-ui3-map-sheet]) .u-scrim { background: none; }
-.ui3 .u-map .u-map-chips .u-chip { height: 44px; }
 
 /* the page itself never scrolls on the map: the current UI's bottom padding on <body> must not add height */
 body.ui3-native:has(.ui3[data-ui3-screen="map"]) { padding-bottom: 0 !important; overflow: hidden; }

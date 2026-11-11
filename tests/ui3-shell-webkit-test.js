@@ -272,6 +272,21 @@ async function main() {
     assert.match(rendered, /第7週の結果/);
     assert.equal(await page.evaluate(() => { const m = globalThis.__capitalismTycoonModules; return m.ui3.renderSheet('weekly-report', { engine: { g: { configured: false } }, engineModule: m.engine }); }), '', 'an unconfigured game renders no sheet');
 
+    // Confirmation sheet (README 2: money that moves for good is confirmed first): cost and cash afterwards,
+    // one cancel button and one primary button carrying the existing action; it closes after the action ran.
+    await page.evaluate(() => { document.getElementById('modal-root').innerHTML = globalThis.__capitalismTycoonModules.ui3.confirmSheet({ title: 'probe <confirm>', subtitle: 'sub', facts: [{ label: '費用', value: '1万円' }, { label: '実行後の会社現金', value: '−2万円', tone: 'down' }], note: '注意書き', confirm: { label: '実行する', attributes: { 'data-action': 'ui3-probe-confirm', 'data-id': 'a"b' } } }); });
+    assert.deepEqual(await page.locator('#modal-root [data-ui3-confirm-facts] .u-stat').evaluateAll(nodes => nodes.map(node => [node.querySelector('span').innerText, node.querySelector('b').innerText, node.querySelector('b').classList.contains('u-down')])), [['費用', '1万円', false], ['実行後の会社現金', '−2万円', true]]);
+    assert.equal(await page.locator('#modal-root .u-sheet-head h1').innerText(), 'probe <confirm>', 'titles are escaped');
+    assert.equal(await page.locator('#modal-root [data-ui3-confirm-note]').innerText(), '注意書き');
+    assert.deepEqual(await page.locator('#modal-root .u-sheet-foot button').evaluateAll(nodes => nodes.map(node => [node.innerText.trim(), node.dataset.action || '', node.classList.contains('primary'), node.dataset.id || ''])),
+      [['やめる', 'close-modal', false, ''], ['実行する', 'ui3-probe-confirm', true, 'a"b']]);
+    await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').tap();
+    assert.equal(await page.evaluate(() => document.getElementById('modal-root').innerHTML), '', 'やめる closes the sheet');
+    await page.evaluate(() => { globalThis.__ui3ConfirmRan = 0; document.addEventListener('click', event => { if (event.target.closest('[data-action="ui3-probe-confirm"]')) globalThis.__ui3ConfirmRan += 1; }); document.getElementById('modal-root').innerHTML = globalThis.__capitalismTycoonModules.ui3.confirmSheet({ title: 'probe', confirm: { attributes: { 'data-action': 'ui3-probe-confirm' } } }); });
+    await page.locator('#modal-root [data-ui3-confirm]').tap();
+    await page.waitForFunction(() => document.getElementById('modal-root').innerHTML === '', null, { timeout: 5000 });
+    assert.equal(await page.evaluate(() => globalThis.__ui3ConfirmRan), 1, 'the primary button\'s action was dispatched once, then the sheet closed');
+
     // ?ui=2 returns the device to the current UI.
     await page.goto(`${base}?ui=2`, { waitUntil: 'load' });
     await page.locator('.topbar').waitFor({ state: 'attached', timeout: 30000 });

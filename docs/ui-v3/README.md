@@ -212,6 +212,15 @@ iPhone幅（390×664、ChromiumのiPhone 13設定）で創業直後の19画面�
 
 各画面の作業に入るときは、現行の `render<画面名>()`（`js/app.js`）が出している操作（`data-action`）を全部書き出し、v3のどこから届くかを対応表にしてPRに貼る。**届かなくなる操作を1つも作らない。**
 
+実装で決めたこと（UI3-4：`business` `office`）：
+
+- `business`：カードは「店舗（運営中と準備中の数）・週の利益（営業中の店舗の `lastProfit` の合計）・最も稼ぐ店」。一覧は、店舗（行 → 店舗のシート：コンセプト変更・設備強化・改装・店舗価格・閉店）、運営中の事業（行 → 事業のシート：投資4種・価格変更・FC本部の設置・加盟店募集）、未出店の業種（現行と同じく地図へ）。続けて「IT・デジタル事業」（シート）と「ほかの詳細（現行の画面）」の行。
+- `office`：カードは「本社（名前）・社員数・週の固定費」。一覧は設置済みの部門と在籍のCXO（読み取りのみ）、「操作」（福利厚生投資・リモートワーク・本社契約の解除）、「ほかの詳細（現行の画面）」。
+- **お金が動いて取り消せない操作は共通の確認シート `modules.ui3.confirmSheet` を通す**（6.1）。この画面で通すのは、コンセプト変更・設備強化・改装・FC本部の設置。金額の入力が要る操作（事業投資・価格変更・店舗価格・福利厚生投資・加盟店募集）と、結果を事前提示する現行のダイアログがある操作（閉店・本社契約の解除）は、その現行のダイアログがそのまま確認になる（金額入力のv3のシートは新しい部品になるため作っていない。未決事項）。
+- v3 に載せない操作は、「ほかの詳細（現行の画面）」の行から現行UIの画面を開いて届く（6.5）。押すとその画面だけ現行UIになり、**次の `tab` 操作で v3 に戻る**。`useCurrentUI` は、この行を押してから次のタブ操作までの間だけ真を返す。
+- `.u-chip` のボタンは `ui3.css` で40pxだったが、合格基準は44px以上なので、`ui3.css` と `docs/ui-v3/ui3.css` を同時に44pxにした（`.u-seg` と同じ扱い。地図の個別の上書きは消した）。
+- 店舗のシートの行は `.u-row` を使う（`ui3.css` の既存の部品）。行を押せない状態（資金不足・条件未達）は `disabled`。
+
 ### 5.6 創業画面
 
 現行の構成（名前・会社名・難易度・出身地・初期特性・シナリオ）のまま、`ui3.css` の部品に載せ替える。1画面に収め、`創業する` を下端に固定する。創業後は必ずページの先頭から始める。
@@ -246,6 +255,7 @@ modules.ui3.registerScreen('home',{
 - シートは `modules.ui3.sheet({eyebrow,title,subtitle,body,actions})` の結果を `#modal-root` に入れる。閉じるのは既存の `data-action="close-modal"`。シートが出ている間、進めるボタンは自動で隠れる。
 - 画面に、マークアップでは渡せないもの（3D地図の canvas など）を付ける必要があるときは、`registerScreen` に `mount(context)` を渡す。`js/app.js` が `#app` にマークアップを入れた直後（同じタスクの終わり）に、1回だけ呼ばれる。`context` は `{engine,g,engineModule,esc,money,host}`（`host` は `.u-app` 要素）。画面がまだ出ているときだけ呼ばれ、関数でなければ登録時に `TypeError`。
 - 画面ではなく、`js/app.js` が出す現行のモーダルを置き換えるシートは、`modules.ui3.registerSheet(id, {render})` で登録する（`id` は `modules.ui3.SHEET_IDS` のもの。今は `weekly-report` だけ）。`render(context)` は `{eyebrow,title,subtitle,body,actions}` を返し、枠が `sheet()` で包む。`context` は `{engine,engineModule,g,esc,money}` と、呼び出し側が渡す値（週間レポートでは `summary`）。`js/app.js` は `modules.ui3.renderSheet(id, context)` を先に呼び、答えが空文字（`?ui=3` でない、未登録、未設定のゲーム）のときだけ、現行のモーダルを出す。
+- お金が動いて取り消せない操作は、`modules.ui3.confirmSheet({eyebrow,title,subtitle,facts,note,confirm,cancelLabel})` の結果を `#modal-root` に入れて確認する。`facts` は `[{label,value,tone?}]`（整形済みの文字列。費用と実行後の会社現金を必ず入れる）、`confirm` は `{label,attributes}`（`attributes` は既存の `data-action` と `data-id` `data-kind`）。下端は「やめる」（`close-modal`）と主ボタン1つ。主ボタンを押すと js/app.js が既存の `action` を実行し、そのあとシートが閉じる（別のダイアログを開く `action` には使わない。そのダイアログごと閉じるため）。この部品は何も実行しない。
 - スクリプトは `index.html` で `js/ui3-shell.js` の後、`js/app.js` の前に読み込む。
 
 **現行UIの機能は、`js/app.js` が描くHTMLだけではない。** 約80個の enhancer が、描画後に画面へ機能を差し込んでいる（不動産の管理、危機対応、資本配分のメモなど）。v3の画面ではこれらが動かないので、画面を移すときは、その画面に差し込まれている機能も対応表（5.5）に載せ、v3側で出し直す。

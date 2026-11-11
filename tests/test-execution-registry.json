@@ -470,5 +470,9 @@
   "tests/ui3-map-webkit-test.js": {
     "reason": "UI v3 map screen (docs/ui-v3 UI3-3): real-browser proof that the 3D map shows v3 pins, filter chips and zoom/list buttons between the top bar and tab bar, a vacant tenant opens the 58% store sheet and a store is opened with taps only through the existing final confirmation, the other pin kinds reach their existing actions, viewing never changes the game, flag-off keeps the current map and an unavailable 3D map falls back to the current UI; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
+  },
+  "tests/ui3-business-webkit-test.js": {
+    "reason": "UI v3 business and office screens plus the shared confirmation sheet (docs/ui-v3 UI3-4): real-browser proof that the current screens are unchanged without ?ui=3, the v3 screens show the README 5.5 shape and acceptance numbers, store rows open the store sheet whose money-moving rows go through the confirmation sheet (cost and cash afterwards, cancel changes nothing, the existing action runs once and the sheet closes), the other rows reach the existing dialogs and actions, viewing never changes the game, and the current screen stays reachable for what is not ported; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
   }
 }

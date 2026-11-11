@@ -74,7 +74,7 @@ body:has(#modal-root .u-sheet) .ui3 .u-dock { display: none; }
 
 /* --- components ------------------------------------------------------- */
 .ui3 .u-chips { display: flex; gap: var(--u-2); overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--u-4)); padding: 0 var(--u-4); }
-.ui3 .u-chip { flex: none; height: 40px; padding: 0 var(--u-4); border-radius: 20px; border: 1px solid var(--u-line); background: var(--u-surface); color: var(--u-muted); font: var(--u-t-label); }
+.ui3 .u-chip { flex: none; height: 44px; padding: 0 var(--u-4); border-radius: 20px; border: 1px solid var(--u-line); background: var(--u-surface); color: var(--u-muted); font: var(--u-t-label); }
 .ui3 .u-chip[aria-pressed="true"], .ui3 .u-chip[aria-current="page"] { background: var(--u-text); color: var(--u-bg); border-color: var(--u-text); font-weight: 700; }
 
 .ui3 .u-card { background: var(--u-surface); border: 1px solid var(--u-line); border-radius: var(--u-radius); padding: var(--u-4); display: grid; gap: var(--u-3); }
