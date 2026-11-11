@@ -474,5 +474,9 @@
   "tests/ui3-business-webkit-test.js": {
     "reason": "UI v3 business and office screens plus the shared confirmation sheet (docs/ui-v3 UI3-4): real-browser proof that the current screens are unchanged without ?ui=3, the v3 screens show the README 5.5 shape and acceptance numbers, store rows open the store sheet whose money-moving rows go through the confirmation sheet (cost and cash afterwards, cancel changes nothing, the existing action runs once and the sheet closes), the other rows reach the existing dialogs and actions, viewing never changes the game, and the current screen stays reachable for what is not ported; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
+  },
+  "tests/ui3-market-webkit-test.js": {
+    "reason": "UI v3 market screen (docs/ui-v3 UI3-5): real-browser proof that the current market screen is unchanged without ?ui=3, the v3 screen shows the README 5.5 shape (account cash, market value, unrealised gain; holdings and favourites; every stock with a sector filter) and the acceptance numbers, the stock sheet buys and sells through the current share-count dialogs for the personal and the company account (holdings move by exactly the number entered, the other account does not), favourites work, viewing and cancelling change nothing, and the current screen stays reachable for the rest; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
   }
 }
