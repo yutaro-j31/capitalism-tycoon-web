@@ -348,6 +348,7 @@ jobs:
           node --check tests/pe-ui-screen-ownership-webkit-test.js
           node --check tests/ma-deal-room-webkit-test.js
           node --check tests/ui3-shell-webkit-test.js
+          node --check tests/ui3-weekly-report-webkit-test.js
           node --check tests/ui3-home-webkit-test.js
       - name: Play every primary game screen in iPhone WebKit
         timeout-minutes: 5
@@ -372,6 +373,9 @@ jobs:
       - name: Verify UI v3 shell and current-UI isolation
         timeout-minutes: 3
         run: node tests/ui3-shell-webkit-test.js
+      - name: Verify UI v3 weekly report sheet
+        timeout-minutes: 3
+        run: node tests/ui3-weekly-report-webkit-test.js
       - name: Verify UI v3 home screen
         timeout-minutes: 3
         run: node tests/ui3-home-webkit-test.js
