@@ -479,6 +479,10 @@
     "reason": "UI v3 market screen (docs/ui-v3 UI3-5): real-browser proof that the current market screen is unchanged without ?ui=3, the v3 screen shows the README 5.5 shape (account cash, market value, unrealised gain; holdings and favourites; every stock with a sector filter) and the acceptance numbers, the stock sheet buys and sells through the current share-count dialogs for the personal and the company account (holdings move by exactly the number entered, the other account does not), favourites work, viewing and cancelling change nothing, and the current screen stays reachable for the rest; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
   },
+  "tests/ui3-invest-webkit-test.js": {
+    "reason": "UI v3 investment screens venture, ma, assets and pe-portfolio (docs/ui-v3 UI3-6): real-browser proof that the current screens are unchanged without ?ui=3, each v3 screen shows the README 5.5 shape and the acceptance numbers, the startup sheet invests through the amount sheet and moves the company or personal cash by exactly the number entered, due diligence, secondary sales, subsidiary conversion and property sales go through the confirmation sheet (cost and cash afterwards, cancel changes nothing, the existing action runs once), viewing never changes the game, and the current screens stay reachable for what is not ported; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
+  },
   "tests/ui3-amount-webkit-test.js": {
     "reason": "UI v3 amount / quantity input sheet (docs/ui-v3 UI3-9a): real-browser proof that the current amount dialogs are unchanged without ?ui=3, with ?ui=3 every askMoney request (v3 screens and current-UI screens) is the v3 sheet, share purchases show the approximate amount and the wallet's cash afterwards and buy exactly the number entered, values that are not positive whole numbers cannot be run, cancelling changes nothing, and the sheet meets the acceptance numbers; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
