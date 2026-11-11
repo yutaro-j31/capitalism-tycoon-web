@@ -234,6 +234,128 @@ globalThis.document?.addEventListener('click',event=>{
   setTimeout(()=>{if(root.querySelector('[data-ui3-confirm]'))root.innerHTML='';},0);
 });
 
+// Amount / quantity input sheet (README 5.7, UI3-9a): replaces js/app.js's askMoney dialog (and the iPhone amount
+// dialog of js/iphone-playtest-fixes.js) while UI v3 is on. `amountSheet` returns true when it took the request;
+// `submit(value)` is called with the number, after the sheet closed, exactly as askMoney's callback is.
+// A screen may describe what the number means just before it dispatches the action: setAmountContext({unit:'株'|
+// '円'|'店',unitPrice,wallet:'company'|'personal',direction:'spend'|'receive',max,note,presets:[{value,label}],
+// preview:(value)=>[{label,value,tone?}]}). `presets` replace the default chips; `preview` replaces the default
+// preview rows (built by the screen from read-only data: borrowing limit, debt after, ...; the shell only shows
+// them). The next amountSheet uses
+// it once (and it expires after a few seconds, so it never reaches an unrelated dialog). With a context that names a
+// wallet the sheet shows the approximate amount and the wallet's cash afterwards; it never blocks on that (the engine
+// decides whether the trade is allowed). Nothing here writes engine state.
+const AMOUNT_CHIPS=Object.freeze({'株':[[100,'100'],[500,'500'],[1000,'1,000']],'円':[[100000,'10万'],[500000,'50万'],[1000000,'100万']],'店':[[1,'1'],[3,'3'],[5,'5']]});
+const YEN_CHIPS_FROM=100000;   // the yen chips (10万 / 50万 / 100万) only appear when the dialog starts at 10万円 or more
+const CONTEXT_TTL_MS=3000;
+// a monotonic clock for the context's expiry only (production code draws no wall-clock source)
+const clockNow=()=>{const now=Number(globalThis.performance?.now?.());return Number.isFinite(now)?now:0;};
+let amountContext=null;
+let amountPending=null;
+function setAmountContext(context){amountContext=context&&typeof context==='object'?{...context,at:clockNow()}:null;}
+function takeAmountContext(){
+  const context=amountContext;amountContext=null;
+  if(!context)return null;
+  const age=clockNow()-context.at;
+  return age>=0&&age<CONTEXT_TTL_MS?context:null;
+}
+// What the sheet accepts (design decision, 2026-11-11; engine.setDividend takes 0 and decimals): in yen, a number of
+// 0 or more, decimals allowed (only a negative value or a non-number is refused; the engine refuses what it
+// cannot use, e.g. an investment of 0); in shares or stores, a whole number of 1 or more.
+function parseAmount(text,unit){
+  const cleaned=String(text??'').replace(/,/g,'').trim();
+  if(!cleaned)return {value:null,error:'数値を入力してください。'};
+  const whole=unit==='株'||unit==='店';
+  if(whole?!/^\d+$/.test(cleaned):!/^\d+(\.\d+)?$/.test(cleaned))return {value:null,error:whole?'1以上の整数を入力してください。':'0以上の数値を入力してください。'};
+  const value=Number(cleaned);
+  if(!Number.isFinite(value)||(whole&&value<1))return {value:null,error:whole?'1以上の整数を入力してください。':'0以上の数値を入力してください。'};
+  return {value,error:''};
+}
+function walletCash(wallet){
+  const g=modules.playerEngineBridge?.getEngine?.()?.g;
+  if(!g)return null;
+  const cash=wallet==='company'?g.companyCash:wallet==='personal'?g.personalCash:null;
+  return Number.isFinite(Number(cash))?Number(cash):null;
+}
+const yenText=value=>modules.engine?.compactYen?modules.engine.compactYen(value):`${Math.round(value).toLocaleString('ja-JP')}円`;
+function amountSheet({title='',initial=0,submit}={}){
+  if(!enabled||typeof submit!=='function'||!globalThis.document?.getElementById('modal-root'))return false;
+  const g=modules.playerEngineBridge?.getEngine?.()?.g;
+  if(!g?.configured)return false;
+  const context=takeAmountContext();
+  const unit=context?.unit||(String(title).includes('株数')?'株':String(title).includes('募集数')?'店':'円');
+  const label=unit==='株'?'株数':unit==='店'?'店数':'金額（円）';
+  amountPending={submit,unit,context};
+  const max=Number.isFinite(Number(context?.max))&&Number(context.max)>0?Math.floor(Number(context.max)):null;
+  const presets=Array.isArray(context?.presets)?context.presets.filter(item=>item&&Number.isFinite(Number(item.value))).map(item=>[Number(item.value),String(item.label??item.value)])
+    :unit==='円'&&!(Number(initial)>=YEN_CHIPS_FROM)?[]:AMOUNT_CHIPS[unit];
+  const chips=presets.map(([value,text])=>`<button type="button" class="u-chip" data-ui3-amount-chip="${value}">${esc(text)}</button>`).join('')
+    +(max?`<button type="button" class="u-chip" data-ui3-amount-chip="${max}" data-ui3-amount-max>最大</button>`:'');
+  const preview=context&&(context.wallet||typeof context.preview==='function')?`<div class="u-stats" data-ui3-amount-preview></div>`:'';
+  const body=`<label class="u-field"><span>${esc(label)}</span><input class="u-input" data-ui3-amount-input inputmode="${unit==='円'?'decimal':'numeric'}" autocomplete="off" enterkeyhint="done" value="${esc(String(initial??''))}" aria-describedby="ui3-amount-error"></label>`
+    +(chips?`<nav class="u-chips" aria-label="入力の候補">${chips}</nav>`:'')
+    +preview
+    +(context?.note?`<div class="u-h2" data-ui3-amount-note>${esc(context.note)}</div>`:'')
+    +`<p class="u-error" id="ui3-amount-error" role="alert" data-ui3-amount-error></p>`;
+  globalThis.document.getElementById('modal-root').innerHTML=sheet({eyebrow:unit==='株'?'株数を入力':unit==='店'?'店数を入力':'金額を入力',title,body,
+    actions:'<button type="button" class="u-btn" data-action="close-modal">やめる</button><button type="button" class="u-btn primary" data-ui3-amount-run>実行する</button>'});
+  refreshAmount();
+  globalThis.document.querySelector('#modal-root [data-ui3-amount-input]')?.focus?.({preventScroll:true});
+  return true;
+}
+function refreshAmount(){
+  const root=globalThis.document?.getElementById('modal-root');
+  const input=root?.querySelector('[data-ui3-amount-input]');
+  if(!input||!amountPending)return;
+  const {unit,context}=amountPending;
+  const {value,error}=parseAmount(input.value,unit);
+  root.querySelector('[data-ui3-amount-error]').textContent=error;
+  const run=root.querySelector('[data-ui3-amount-run]');
+  if(run)run.disabled=Boolean(error);
+  const box=root.querySelector('[data-ui3-amount-preview]');
+  if(box){
+    let rows=[];
+    if(typeof context.preview==='function'){
+      try{rows=value===null?[]:(context.preview(value)||[]);}catch(failure){rows=[];}
+    }else{
+      const amount=value===null?null:value*(Number.isFinite(Number(context.unitPrice))?Number(context.unitPrice):1);
+      const cash=walletCash(context.wallet);
+      const after=amount===null||cash===null?null:context.direction==='receive'?cash+amount:cash-amount;
+      const walletName=context.wallet==='company'?'会社':'個人';
+      rows=[{label:context.direction==='receive'?'概算の受取額':'概算の金額',value:amount===null?'—':yenText(amount)},
+        {label:`実行後の${walletName}の現金`,value:after===null?'—':yenText(after),tone:after!==null&&after<0?'down':undefined}];
+    }
+    box.className=`u-stats${rows.length===2?' two':''}`;
+    box.innerHTML=rows.map(row=>`<div class="u-stat"><span>${esc(row.label)}</span><b class="u-money${row.tone==='down'?' u-down':row.tone==='up'?' u-up':''}">${esc(row.value)}</b></div>`).join('');
+  }
+}
+function runAmount(){
+  const root=globalThis.document?.getElementById('modal-root');
+  const input=root?.querySelector('[data-ui3-amount-input]');
+  const pending=amountPending;
+  if(!input||!pending)return;
+  const {value,error}=parseAmount(input.value,pending.unit);
+  if(error){refreshAmount();return;}
+  amountPending=null;
+  root.innerHTML='';
+  pending.submit(value);
+}
+globalThis.document?.addEventListener('input',event=>{if(event.target instanceof Element&&event.target.matches('[data-ui3-amount-input]'))refreshAmount();},true);
+globalThis.document?.addEventListener('keydown',event=>{
+  if(event.key==='Enter'&&event.target instanceof Element&&event.target.matches('[data-ui3-amount-input]')){event.preventDefault();runAmount();}
+},true);
+globalThis.document?.addEventListener('click',event=>{
+  const target=event.target instanceof Element?event.target:null;
+  if(!target)return;
+  const chip=target.closest('[data-ui3-amount-chip]');
+  if(chip){
+    const input=globalThis.document.querySelector('#modal-root [data-ui3-amount-input]');
+    if(input){input.value=String(chip.dataset.ui3AmountChip);refreshAmount();input.focus?.({preventScroll:true});}
+    return;
+  }
+  if(target.closest('[data-ui3-amount-run]'))runAmount();
+},true);
+
 // Sheets that js/app.js shows in #modal-root in place of a current-UI modal (README 6.1, "シート").
 // A sheet module registers `render(context)` returning the arguments of sheet(); js/app.js asks
 // renderSheet() first and falls back to its own modal when the answer is ''.
@@ -261,6 +383,6 @@ modules.ui3=Object.freeze({
   isNativeActive:()=>nativeActive,
   registeredScreens:()=>[...screens.keys()],
   registeredSheets:()=>[...sheetRenderers.keys()],
-  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,esc
+  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,setAmountContext,esc
 });
 })();

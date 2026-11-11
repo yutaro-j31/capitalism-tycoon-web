@@ -119,7 +119,20 @@ function syncAccount(){
 function onClick(event){
   const target=event.target instanceof Element?event.target:null;
   if(!target||!context)return;
-  if(target.closest('[data-ui3-sync-account]')&&!target.closest('[disabled]')){syncAccount();return;}
+  const trade=target.closest('[data-ui3-sync-account]');
+  if(trade&&!target.closest('[disabled]')){
+    // tell the amount sheet what the number means (README 5.7): shares of this stock, in this account
+    const id=trade.dataset.id,buying=trade.dataset.action==='buy-stock';
+    const stock=(context.g.market||[]).find(item=>item.id===id);
+    if(stock){
+      const holding=finite(holdingsOf(context.g)[id]?.qty);
+      const cash=finite(state.account==='company'?context.g.companyCash:context.g.personalCash);
+      const unitCost=finite(stock.price)*1.001;   // the current stock panel's own purchasable-quantity rule (stockTradeCapacity)
+      modules.ui3.setAmountContext({unit:'株',unitPrice:finite(stock.price),wallet:state.account,direction:buying?'spend':'receive',
+        max:buying?(unitCost>0?Math.floor(cash/unitCost):0):holding});
+    }
+    syncAccount();return;
+  }
   const account=target.closest('[data-ui3-mkt-account]');
   if(account){state.account=account.dataset.ui3MktAccount;syncAccount();return;}
   const sector=target.closest('[data-ui3-mkt-sector]');

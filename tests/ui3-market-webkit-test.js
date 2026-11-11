@@ -55,11 +55,12 @@ const engineEval = (page, fn, arg) => page.evaluate(([source, value]) => {
   return (0, eval)(`(${source})`)(engine, value);
 }, [fn.toString(), arg]);
 const digest = page => engineEval(page, engine => JSON.stringify(engine.g, (key, value) => (key === 'lastSaveDate' || key === 'saveSequence' ? undefined : value)));
-const cancelDialog = page => page.locator('#modal-root [data-iphone-money-cancel], #modal-root [data-action="close-modal"]').first().tap();
+// the share-count dialog is the v3 amount sheet (UI3-9a)
+const cancelDialog = page => page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').tap();
 async function enterAmount(page, amount) {
-  await page.locator('#modal-root .modal input').waitFor({ state: 'visible', timeout: 10000 });
-  await page.locator('#modal-root .modal input').fill(String(amount));
-  await page.locator('#modal-root .modal').evaluate(modal => (modal.requestSubmit ? modal.requestSubmit() : modal.querySelector('button[type="submit"],#modal-ok').click()));
+  await page.locator('#modal-root [data-ui3-amount-input]').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#modal-root [data-ui3-amount-input]').fill(String(amount));
+  await page.locator('#modal-root [data-ui3-amount-run]').tap();
 }
 
 async function found(page, url) {
@@ -221,7 +222,7 @@ async function main() {
     const beforeCancel = await digest(page);
     await page.locator('[data-ui3-market="holdings"] .u-row').first().tap();
     await page.locator('#modal-root [data-action="buy-stock"]').tap();
-    await page.locator('#modal-root .modal input').waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('#modal-root [data-ui3-amount-input]').waitFor({ state: 'visible', timeout: 10000 });
     await cancelDialog(page);
     assert.equal(await digest(page), beforeCancel, 'cancelling the share dialog changes nothing');
     await page.locator('[data-ui3-mkt-account="personal"]').tap();

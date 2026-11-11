@@ -51,7 +51,7 @@ function openMoneyModal(context){
  form.addEventListener('submit',event=>{event.preventDefault();const value=parseAmount(input.value);if(value<=0||value>context.max){refresh();input.focus({preventScroll:true});return;}try{const result=context.execute(value);if(result===false)throw new Error('操作を実行できませんでした。');root.innerHTML='';schedule();}catch(err){error.textContent=err?.message||String(err);input.focus({preventScroll:true});}});
  refresh();input.focus({preventScroll:true});input.select?.();return true;
 }
-function interceptMoney(event){const target=event.target?.closest?.('[data-action]');if(!target)return false;const action=target.dataset.action;if(!['business-invest','borrow-company','repay-company','borrow-personal','repay-personal'].includes(action))return false;const context=moneyContext(action,target.dataset.id,target.dataset.kind);if(!context)return false;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();openMoneyModal(context);return true;}
+function interceptMoney(event){if(modules.ui3?.enabled?.())return false;const target=event.target?.closest?.('[data-action]');if(!target)return false;const action=target.dataset.action;if(!['business-invest','borrow-company','repay-company','borrow-personal','repay-personal'].includes(action))return false;const context=moneyContext(action,target.dataset.id,target.dataset.kind);if(!context)return false;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();openMoneyModal(context);return true;}
 /*
  * PR D (see docs/map-phase2-production-integration-audit.md section 6, PR
  * D): the legacy per-viewport zoom-level state, its zoom-in/zoom-out/reset

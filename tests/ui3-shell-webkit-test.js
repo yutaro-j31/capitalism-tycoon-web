@@ -132,6 +132,7 @@ async function main() {
       const off = await snapshot(page);
       assert.deepEqual([off.native, off.bodyNative, off.bodyDUI, off.sidebar, off.screen], [false, false, true, true, 'home'], 'without ?ui=3 the current D UI renders, even for a registered screen');
       assert.equal(off.preference, null);
+      assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.amountSheet({ title: '購入株数', initial: 100, submit() {} })), false, 'without ?ui=3 the amount sheet takes nothing (askMoney keeps its dialog)');
       assert.deepEqual(pageErrors, []);
       await context.close();
     }
@@ -307,6 +308,47 @@ async function main() {
     await setRecall(null);
     await goTo(page, 'business');
     assert.equal((await snapshot(page)).native, true);
+
+    // Amount sheet (README 5.7): the unit follows the title unless a context says otherwise; a context is used once
+    // and expires; the value must be a positive whole number.
+    const amount = await page.evaluate(async () => {
+      const ui3 = globalThis.__capitalismTycoonModules.ui3, root = document.getElementById('modal-root'), seen = [];
+      const open = (title, initial) => { const taken = ui3.amountSheet({ title, initial, submit(value) { seen.push(value); } }); return { taken, label: root.querySelector('.u-field > span')?.textContent, preview: Boolean(root.querySelector('[data-ui3-amount-preview]')) }; };
+      const result = { shares: open('購入株数', 100), stores: open('加盟店募集数', 1), yen: open('価格変更', 5000) };
+      ui3.setAmountContext({ unit: '円', wallet: 'company', direction: 'spend' });
+      result.withContext = open('事業投資', 1000000);
+      result.contextUsedOnce = open('事業投資', 1000000).preview;
+      ui3.setAmountContext({ unit: '円', wallet: 'company', direction: 'spend' });
+      await new Promise(resolve => setTimeout(resolve, 3300));
+      result.expired = open('事業投資', 1000000).preview;
+      const states = (title, initial, texts) => { open(title, initial); const input = root.querySelector('[data-ui3-amount-input]'), run = root.querySelector('[data-ui3-amount-run]'); return texts.map(text => { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); return [text, run.disabled]; }); };
+      result.yenStates = states('事業投資', 1000000, ['', 'x', '-1', '0', '1.5', '12', '1,000']);
+      result.shareStates = states('購入株数', 100, ['', '0', '1.5', 'x', '-1', '12', '1,000']);
+      const chips = (title, initial, context) => { if (context) ui3.setAmountContext(context); open(title, initial); return [...root.querySelectorAll('[data-ui3-amount-chip]')].map(chip => chip.textContent); };
+      result.chipsSmall = chips('価格変更', 5000);
+      result.chipsSmallDividend = chips('四半期配当設定', 10);
+      result.chipsLarge = chips('事業投資', 1000000);
+      result.chipsPresets = chips('価格変更', 5000, { unit: '円', presets: [{ value: 500, label: '500円' }, { value: 1000, label: '1,000円' }] });
+      ui3.setAmountContext({ unit: '円', preview: value => [{ label: '返済後残高', value: `${value}円` }, { label: '利用可能枠', value: '9円', tone: 'down' }] });
+      open('会社借入', 1000000);
+      const input = root.querySelector('[data-ui3-amount-input]'), run = root.querySelector('[data-ui3-amount-run]');
+      input.value = '250'; input.dispatchEvent(new Event('input', { bubbles: true }));
+      result.preview = [...root.querySelectorAll('[data-ui3-amount-preview] .u-stat')].map(stat => [stat.querySelector('span').textContent, stat.querySelector('b').textContent, stat.querySelector('b').classList.contains('u-down')]);
+      result.inputmode = [root.querySelector('[data-ui3-amount-input]').getAttribute('inputmode'), (open('購入株数', 100), root.querySelector('[data-ui3-amount-input]').getAttribute('inputmode'))];
+      open('配当', 12);
+      const field = root.querySelector('[data-ui3-amount-input]'), button = root.querySelector('[data-ui3-amount-run]');
+      field.value = '0'; field.dispatchEvent(new Event('input', { bubbles: true })); button.click();
+      result.submitted = seen; result.closed = root.innerHTML === '';
+      return result;
+    });
+    assert.deepEqual([amount.shares.taken, amount.shares.label, amount.stores.label, amount.yen.label], [true, '株数', '店数', '金額（円）'], 'the unit follows the title');
+    assert.deepEqual([amount.withContext.preview, amount.contextUsedOnce, amount.expired], [true, false, false], 'a context is used once and expires');
+    assert.deepEqual(amount.yenStates, [['', true], ['x', true], ['-1', true], ['0', false], ['1.5', false], ['12', false], ['1,000', false]], 'yen: 0 or more, decimals allowed; only a negative value or a non-number is refused');
+    assert.deepEqual(amount.shareStates, [['', true], ['0', true], ['1.5', true], ['x', true], ['-1', true], ['12', false], ['1,000', false]], 'shares: a whole number of 1 or more');
+    assert.deepEqual([amount.chipsSmall, amount.chipsSmallDividend, amount.chipsLarge, amount.chipsPresets], [[], [], ['10万', '50万', '100万'], ['500円', '1,000円']], 'yen chips only from a 10万円 start; presets replace them');
+    assert.deepEqual(amount.preview, [['返済後残高', '250円', false], ['利用可能枠', '9円', true]], 'a screen\'s preview replaces the default rows');
+    assert.deepEqual(amount.inputmode, ['decimal', 'numeric'], 'the keyboard follows the unit');
+    assert.deepEqual([amount.submitted, amount.closed], [[0], true], '0 yen can be submitted (a dividend of 0)');
 
     // Confirmation sheet (README 2: money that moves for good is confirmed first): cost and cash afterwards,
     // one cancel button and one primary button carrying the existing action; it closes after the action ran.
