@@ -253,7 +253,13 @@ async function main() {
     await page.waitForFunction(id => !globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.properties.find(x => x.id === id).owner, property.id, { timeout: 10000 });
     const sold = await engineEval(page, engine => engine.g.companyCash);
     assert.ok(sold > cashBeforeSell, 'the company received the sale');
-    assert.ok(Math.abs(sold - cashBeforeSell - Math.ceil(value * 0.97)) <= Math.ceil(value * 0.97), 'the amount is the 97% rule (taxes may follow)');
+    // The sale amount on the confirmation sheet is a copy of the engine's rule (js/engine.js sellProperty: 97% of the value).
+    // The company cash must rise by exactly the amount the sheet showed (taxes, if any, are reported in the notice).
+    const expectedProceeds = Math.ceil(value * 0.97);
+    assert.equal(sold - cashBeforeSell, expectedProceeds, 'the cash rose by exactly the sale amount shown (97% of the value)');
+    const shown = await page.evaluate(amount => globalThis.__capitalismTycoonModules.engine.compactYen(amount), expectedProceeds);
+    assert.equal(sellFacts[0][1], shown, 'the confirmation sheet showed that amount');
+    assert.match(fs.readFileSync(path.join(ROOT, 'js', 'engine.js'), 'utf8'), /proceeds=ceilYen\(p\.value\*\.97\)/, 'the 97% copy matches the engine rule');
     await page.locator('[data-ui3-current="assets"]').tap();
     await page.waitForFunction(() => document.body.classList.contains('d-ui-active') && !document.body.classList.contains('ui3-native'), null, { timeout: 10000 });
     assert.ok(await page.locator('[data-action="asset-tab"]').count() > 0, 'the current assets screen with its sub-tabs');

@@ -89,9 +89,9 @@ function confirmSell(id){
   const {g,money}=context;
   const s=(g.maSubsidiaries||[]).find(x=>x.id===id);
   if(!s)return;
-  show(modules.ui3.confirmSheet({title:`${s.name}を売却`,subtitle:'売却額は評価額の85〜130%の間で決まります。取り消せません。',
+  show(modules.ui3.confirmSheet({title:`${s.name}を売却`,subtitle:'取り消せません。',
     facts:[{label:'評価額',value:money(finite(s.valuation))},{label:'いまの会社の現金',value:money(finite(g.companyCash))}],
-    note:'売却額と損益は、実行後の通知とレポートで確認できます。',
+    note:'売却額は実行時に決まります（評価額の85〜130%）。売却額と損益は、実行後の通知とレポートで確認できます。',
     confirm:{label:'売却する',attributes:{'data-action':'sell-ma','data-id':id}}}));
 }
 function confirmRefresh(){
