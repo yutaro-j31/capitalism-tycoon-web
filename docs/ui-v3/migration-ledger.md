@@ -34,6 +34,9 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | `office` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="office"`）を押したとき（次の `tab` 操作まで） | 組織・2Dキャンパス・部門の設置と採用・CXO・重要社員・取締役会とIPO・指示と社内VC（`office-tab` の8タブの中の操作すべて）、支社の契約解除（`close-branch-office`）。仕様は設計担当が UI3-9b に含めて書く | 枠の `openCurrentUI` |
 | `market` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="market"`）を押したとき（次の `tab` 操作まで） | 自社株の操作（`stock-split` `stock-mbo` `founder-share-sale` `defense` `view-earnings` `set-dividend` `buyback`）、チャート（`stock-chart-range`）、信用取引の欄、資本配分の操作（`data-capital-allocation-*`）、業種の絞り込みと銘柄の詳細（`select-stock`） | 枠の `openCurrentUI` |
 | `report` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="report"`）を押したとき（次の `tab` 操作まで） | チャート（`#report-chart`）と表示する指標の選択（`data-bind="reportMetric"`）、会計用語メモ、13週の資金繰り予測（`bank` のシートでも読める） | 枠の `openCurrentUI` |
+| `founder` | 個人不動産・PE・エンジェル投資・行動履歴 | `establish-personal-re-corp` `buy-personal-re` と個人不動産の賃貸方式・再開発（`switch-rental-mode` `start-personal-re-redevelopment` ほか）、`create-pe`（個人・会社）、`create-angel`、行動履歴 | 画面の行 `data-ui3-current="founder"` |
+| `legacy` | 信託への移管、新会社の創業、エンディング・殿堂記録・歴代会社 | `transfer-trust`（金額入力）、`new-company`（フォーム）、記録の表示 | 画面の行 `data-ui3-current="legacy"` |
+| `settings` | 診断・再起動・不具合報告・保存領域・動作確認のツール、保存待ちセーブの復元 | `data-release-diagnostics-action` `data-playtest-report-action` `data-save-storage-action` `data-physical-action` `data-probe-action`、`restore-stored-save` `dismiss-stored-save` | 画面の行 `data-ui3-current="settings"` |
 
 ## その他の残件
 
@@ -243,3 +246,51 @@ UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可�
 決算の値は、現行の画面と同じ `buildStatements` の呼び出し（描画のたびに呼ぶ。集計用の項目が整うことがある）。
 
 未確認：上場後（確認用の旗）の決算の項目の違い。
+
+### `founder`（UI3-8）
+
+洗い出し：UI3-8の担当エージェント、2026-11-11、Chromium・390×664。`node scripts/ui3-dump-screen-actions.js --screen=founder --states=founding,store-open,listed`（どの状態でも同じ16操作）。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `founder-action`（店舗探索・地元イベント・学習3種・人脈） | `renderFounder()` | 常時 | 「自宅での行動」の行（同じ操作。費用なし） |
+| `upgrade-home`（費用はランクごとの表） | `renderFounder()` | 自宅が最高ランクでないとき | 「自分への投資」の行→確認シート（費用・実行後の個人現金。費用表はエンジンの写しで、検査が一致を確かめる）。同じ操作 |
+| `founder-invest`（後継者育成70万円、財団500万円） | 自己投資の欄 | 常時 | 「自分への投資」の行→確認シート。同じ操作 |
+| 地元で見つけた候補の `tab` → `map` | 候補の欄 | 店舗探索の後 | 「地元で見つけた候補」の行（同じ操作） |
+| `establish-personal-re-corp`、`buy-personal-re`、賃貸方式・再開発、`create-pe`、`create-angel`、行動履歴 | `renderPersonalAlternativeAssets()` ほか | 常時・条件を満たすとき | 現行UI（6.5）。残件 |
+
+未確認：個人不動産・PE・エンジェル投資の操作（現行UIで行う）。
+
+### `legacy`（UI3-8）
+
+洗い出し：UI3-8の担当エージェント、2026-11-11。`node scripts/ui3-dump-screen-actions.js --screen=legacy --states=founding,store-open,listed`（6操作。創業直後は後継者が未指名）。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `retire-founder`（現行は確認ダイアログ → `confirm-retire-founder`） | `renderRetirement()` | 常時（条件未達は押せない） | 「引退して承継する」の行→確認シート（見込み評価・現世代スコア）。実行は `confirm-retire-founder` |
+| `appoint-successor`（費用は候補ごと） | 後継者の欄 | 後継者が未指名 | 候補の行→確認シート（費用・実行後の個人現金）。同じ操作 |
+| `train-successor`（150万円） | 後継者の欄 | 後継者がいるとき | 「育成プログラム」の行→確認シート。同じ操作 |
+| `execute-succession` | 後継者の欄 | 準備度70以上 | 「経営承継を実行」の行（同じ操作。準備度70未満は押せない） |
+| `establish-trust`（1,000万円） | ファミリートラストの欄 | 未設立 | 「ファミリートラストを設立」の行→確認シート。同じ操作 |
+| `download-result-card` | エンディングの欄 | 常時 | 「結果カードを保存」の行（同じ操作） |
+| `transfer-trust`（金額）、`new-company`（会社名・出資額・開始方針のフォーム）、エンディング・殿堂記録・歴代会社の表示 | 各欄 | 設立済み・会社売却後 | 現行UI（6.5）。残件 |
+
+未確認：引退・承継の実行（条件を満たす状態を作っていない。操作は現行と同じ `confirm-retire-founder` `execute-succession`）。
+
+### `settings`（UI3-8）
+
+洗い出し：UI3-8の担当エージェント、2026-11-11。`node scripts/ui3-dump-screen-actions.js --screen=settings --states=founding,store-open,listed`（23操作）。`data-setting` の3つのコントロールは、現行の描画（`renderSettings()`）を読んで足した。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `data-setting`（自動経営・自動経営方針・動きを減らす） | `renderSettings()` | 常時 | `.u-seg`（隠した現行のコントロールを `change` で動かす。書き込みは現行のハンドラ） |
+| `save-now`、`export-save`、`import-save`（`#import-file`） | セーブ管理 | 常時 | 「セーブ」の行（同じ操作。`#import-file` は画面に置く） |
+| `save-slot`、`load-slot`（スロット1〜3） | セーブ管理 | 常時 | 「セーブスロット」の行→シート→確認シート（保存は上書き、読み込みは置き換え）。保存は `js/save-storage-ui.js` が先にクリックを取るため、確認シートを閉じてから、隠した現行の `save-slot` ボタンを押す（同じ経路） |
+| `reset-game` → `confirm-reset` | セーブ管理 | 常時 | 「最初からやり直す」の行→確認シート。実行は `confirm-reset`（創業画面に戻る） |
+| `company-buyout` → `confirm-buyout` | 設定 | 常時 | 「会社売却を検討」の行→確認シート（売却額は実行時に決まる）。実行は `confirm-buyout` |
+| 診断・再起動・不具合報告・保存領域・動作確認のツール（`data-release-diagnostics-action` ほか） | enhancer | 常時 | 現行UI（6.5）。残件 |
+
+未確認：会社売却の実行（確認シートまで）、JSONの書き出し・読み込みの実行（ファイルを扱うため。操作は現行と同じ `export-save` `import-save`）。

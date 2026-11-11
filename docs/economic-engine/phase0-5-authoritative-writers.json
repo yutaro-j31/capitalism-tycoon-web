@@ -1671,6 +1671,18 @@
         ]
       },
       {
+        "file": "js/ui3-founder.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/ui3-legacy.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
         "file": "js/ui3-market.js",
         "tokens": [
           "personalCash"
