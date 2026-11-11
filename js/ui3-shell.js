@@ -71,10 +71,19 @@ function crisisStatus(g){
 const CURRENT_UI_RULES=Object.freeze({
   // The cash-crisis panel (js/player-crisis-ui.js) is injected into the current
   // home only, and is the only way to reach the recovery actions.
-  home:g=>crisisStatus(g)!=='stable'
+  home:g=>crisisStatus(g)!=='stable',
+  // The recall-crisis section (respond-recall-crisis, "自主回収・補償") is drawn by the current business
+  // screen only. Read straight from the state, not through modules.companyRecallCrisis.view(), which
+  // normalises g (design decision, 2026-11-11).
+  business:g=>{const crisis=g?.activeRecallCrisis;return Boolean(crisis&&typeof crisis==='object'&&crisis.status==='active'&&!crisis.responded);}
 });
+// Screens the user chose to open in the current UI from a `data-ui3-current="<screen>"` row (README 6.5,
+// "利用者が選んで現行の画面を開く行"): shown by the current UI until the next `tab` action.
+const openedCurrent=new Set();
+let openingCurrent=false;
 function usesCurrentUI(screenID,g){
   if(CURRENT_UI_RULES[screenID]?.(g))return true;
+  if(openedCurrent.has(screenID))return true;
   return Boolean(screens.get(screenID)?.useCurrentUI?.(g));
 }
 
@@ -168,6 +177,28 @@ function leaveNative(){
   return true;
 }
 
+// Opens the current UI's version of a screen from a v3 screen, for what the v3 screen does not carry yet.
+// It goes through the hidden screen index (the existing `tab` action), and the next `tab` action by the user
+// brings v3 back. Rows ask for it with `data-ui3-current="<screen>"`; nothing is written to the engine.
+function openCurrentUI(screenID){
+  if(!ALL_SCREENS.includes(screenID))throw new RangeError(`Unknown UI v3 screen: ${screenID}`);
+  const button=globalThis.document?.querySelector?.(`[data-ui3-all-screens] [data-action="tab"][data-tab="${screenID}"]`);
+  if(!button)return false;
+  openedCurrent.add(screenID);
+  const root=globalThis.document.getElementById('modal-root');
+  if(root)root.innerHTML='';
+  openingCurrent=true;
+  try{button.click();}finally{openingCurrent=false;}
+  return true;
+}
+globalThis.document?.addEventListener('click',event=>{
+  const target=event.target instanceof Element?event.target:null;
+  if(!target)return;
+  if(!openingCurrent&&openedCurrent.size&&target.closest('[data-action="tab"]'))openedCurrent.clear();
+  const row=target.closest('[data-ui3-current]');
+  if(row&&!row.disabled)openCurrentUI(row.dataset.ui3Current);
+},true);
+
 // Bottom sheet markup for detail, confirmation and the weekly report. The scrim
 // closes through the existing `close-modal` action; callers place the result in
 // #modal-root (js/app.js owns that node and its click delegation).
@@ -230,6 +261,6 @@ modules.ui3=Object.freeze({
   isNativeActive:()=>nativeActive,
   registeredScreens:()=>[...screens.keys()],
   registeredSheets:()=>[...sheetRenderers.keys()],
-  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,esc
+  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,esc
 });
 })();

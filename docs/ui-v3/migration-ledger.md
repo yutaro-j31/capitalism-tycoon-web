@@ -29,14 +29,16 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | --- | --- | --- | --- |
 | `home` | 資金繰りが「安定」以外 | `founder-capital`、`emergency-bridge`、`sponsor-injection`、`turnaround-fund`、資産売却、経費削減（`js/player-crisis-ui.js` のパネル）、再建計画の開始（`data-player-turnaround-action`、`js/player-turnaround-plan-ui.js`） | 枠の規則 `CURRENT_UI_RULES.home` |
 | `map` | 3Dの地図が使えない（WebGL・アセット・コンテキストの失敗） | 現行のCanvas2D地図とその操作一式（`city-retry`、一覧の `details`、現行のマーカーと詳細パネル） | 画面の登録の `useCurrentUI`（失敗を検知したら、その後は現行UI） |
-| `business` | 利用者が「ほかの詳細（現行の画面）」を押したとき（次のタブ操作まで） | 営業時間（`data-store-hours`）、メニュー構成（`store-menu-price` `reset-store-menu-price` `remove-store-menu` `add-store-menu`）、市場分析・顧客レビュー・競合分析・リコール危機（`respond-recall-crisis`）・プロダクトの詳細・フランチャイズの一覧と、enhancer が差し込む欄（供給・人事・広告など）、`business-invest` 以外の事業ごとの操作の残り | 画面の登録の `useCurrentUI`（押した後、次の `tab` 操作で v3 に戻る） |
-| `office` | 同上 | 組織・2Dキャンパス・部門の設置と採用・CXO・重要社員・取締役会とIPO・指示と社内VC（`office-tab` の8タブの中の操作すべて）、支社の契約解除（`close-branch-office`） | 同上 |
+| `business` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="business"`）を押したとき（次の `tab` 操作まで） | 営業時間（`data-store-hours`）、メニュー構成（`store-menu-price` `reset-store-menu-price` `remove-store-menu` `add-store-menu`）、市場分析・顧客レビュー・競合分析・プロダクトの詳細・フランチャイズの一覧と、enhancer が差し込む欄（供給・人事・広告など） | 枠の `openCurrentUI` |
+| `business` | リコール危機が未対応（`activeRecallCrisis` が有効で `responded` が偽） | `respond-recall-crisis`（自主回収・補償）と、リコール危機の欄（`renderRecallCrisisSection()`） | 枠の規則 `CURRENT_UI_RULES.business` |
+| `office` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="office"`）を押したとき（次の `tab` 操作まで） | 組織・2Dキャンパス・部門の設置と採用・CXO・重要社員・取締役会とIPO・指示と社内VC（`office-tab` の8タブの中の操作すべて）、支社の契約解除（`close-branch-office`）。仕様は設計担当が UI3-9b に含めて書く | 枠の `openCurrentUI` |
 
 ## その他の残件
 
 | 内容 | 扱い |
 | --- | --- |
 | ホームの「今週やること」と週間レポートの「次の一手」の選定ロジックが重複している | 共通化は v1.0 では行わない（設計担当の決定 2026-11-11）。 |
+| 金額・数量の入力ダイアログ（現行のダイアログのまま）：事業投資・価格変更（`business-invest` `business-price`）、店舗価格（`store-price`）、福利厚生投資（`workforce-invest`）、加盟店募集（`recruit-franchise`）、IT・デジタル事業の名前入力（`found-digital-business` `launch-product`） | 専用の作業 UI3-9a（金額入力シート）で v3 にする。仕様は設計担当が書く。ほかの画面（株数・金額の入力）が増えたら、同じ作業の対象としてここに足す。 |
 
 ## 画面ごとの表
 
@@ -131,7 +133,7 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | `respond-recall-crisis`（自主回収・補償） | リコール危機の欄 | リコール危機のとき | 現行UI（6.5）。残件 |
 | 市場分析・顧客レビュー・競合分析・プロダクトの詳細・FCの一覧（読み取り中心） | `renderMarketInsightSection()` ほか | 店舗・プロダクトがあるとき | 現行UI（6.5）。残件 |
 
-未確認：enhancer が `business` に差し込む欄の操作（供給・人事・広告の連携など）。現行UIの「ほかの詳細」にすべて残るので届かなくなることはないが、一覧は作っていない。UI3-9b の前に洗い出す。
+確認済み（UI3-4、`tests/ui3-business-webkit-test.js`）：設備強化・コンセプト変更・FC本部の設置の実行（確認シートに出た金額のとおり現金が減る）。未確認：改装の実行（改装が必要な状態を作っていない）、enhancer が `business` に差し込む欄の操作（供給・人事・広告の連携など。現行UIの「ほかの詳細」にすべて残るので届かなくなることはないが、一覧は作っていない。UI3-9b の前に洗い出す）。
 
 ### `office`（UI3-4）
 

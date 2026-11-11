@@ -33,6 +33,16 @@ for (const file of ['ui3-business.js', 'ui3-office.js']) {
   assert.doesNotMatch(source, /\b(?:g|engine\.g|context\.g|state\(\))\.[A-Za-z_$][\w$]*\s*(?:=(?!=)|\+=|-=|\+\+|--)/, `${file} never assigns engine state`);
   assert.doesNotMatch(source, /\.save\(|localStorage|sessionStorage|(?<![\w.])confirm\(/, `${file} never saves, stores or uses the browser's confirm()`);
 }
+// The franchise head-office cost shown by the screen is a copy of the engine's constant: they must not drift apart.
+{
+  const engineSource = fs.readFileSync(path.join(ROOT, 'js', 'engine.js'), 'utf8');
+  const engineCost = /startFranchise\(businessID\)[\s\S]*?companyCash<([\d_]+)\)return this\.fail\('FC本部整備費/.exec(engineSource)?.[1];
+  const screenCost = /FRANCHISE_HQ_COST=([\d_]+)/.exec(fs.readFileSync(path.join(ROOT, 'js', 'ui3-business.js'), 'utf8'))?.[1];
+  assert.ok(engineCost && screenCost, 'both franchise costs were found');
+  assert.equal(Number(screenCost.replace(/_/g, '')), Number(engineCost.replace(/_/g, '')), 'ui3-business.js FRANCHISE_HQ_COST equals the cost in engine.startFranchise');
+  const charged = /companyCash-=([\d_]+)/.exec(engineSource.slice(engineSource.indexOf('startFranchise(businessID)')))?.[1];
+  assert.equal(Number(charged.replace(/_/g, '')), Number(engineCost.replace(/_/g, '')), 'the engine charges what it checks');
+}
 const index = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 assert.ok(index.indexOf('./js/ui3-business.js') > index.indexOf('./js/ui3-shell.js') && index.indexOf('./js/ui3-office.js') < index.indexOf('./js/app.js'), 'index.html loads both scripts after the shell and before app.js');
 
@@ -221,7 +231,12 @@ async function main() {
     assert.match(await page.locator('#modal-root [data-ui3-confirm-note]').innerText(), /移行ペナルティ/);
     assert.equal(await page.locator('[data-ui3-confirm]').getAttribute('data-action'), 'store-concept');
     assert.ok(await page.locator('[data-ui3-confirm]').getAttribute('data-kind'));
-    await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').tap();
+    const conceptBefore = await engineEval(page, engine => { const id = engine.g.stores[0].id, plan = engine.getStoreConceptPlan(id); return { id, current: plan.currentID, cost: plan.cost, cash: engine.g.companyCash }; });
+    const conceptKind = await page.locator('[data-ui3-confirm]').getAttribute('data-kind');
+    await page.locator('[data-ui3-confirm]').tap();
+    await page.waitForFunction(() => !document.querySelector('#modal-root [data-ui3-confirm]'), null, { timeout: 10000 });
+    const conceptAfter = await engineEval(page, (engine, id) => ({ current: engine.getStoreConceptPlan(id).currentID, cash: engine.g.companyCash }), conceptBefore.id);
+    assert.deepEqual([conceptAfter.current, conceptAfter.cash], [conceptKind, conceptBefore.cash - conceptBefore.cost], 'the concept changed and cash fell by exactly the cost shown');
 
     // Other rows reach the existing dialogs: store price (amount dialog) and closing (the current confirmation).
     await page.locator('[data-ui3-biz="store"]').tap();
@@ -252,7 +267,11 @@ async function main() {
     await page.locator('#modal-root [data-ui3-biz="franchise"]').tap();
     assert.deepEqual(await page.locator('#modal-root [data-ui3-confirm-facts] .u-stat > span').allInnerTexts(), ['費用', '実行後の会社現金']);
     assert.equal(await page.locator('[data-ui3-confirm]').getAttribute('data-action'), 'start-franchise');
-    await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').tap();
+    const franchiseCash = await engineEval(page, engine => engine.g.companyCash);
+    const franchiseCost = Number(/FRANCHISE_HQ_COST=([\d_]+)/.exec(fs.readFileSync(path.join(ROOT, 'js', 'ui3-business.js'), 'utf8'))[1].replace(/_/g, ''));
+    await page.locator('[data-ui3-confirm]').tap();
+    await page.waitForFunction(() => !document.querySelector('#modal-root [data-ui3-confirm]'), null, { timeout: 10000 });
+    assert.deepEqual(await engineEval(page, engine => [engine.g.franchiseStoresByBusinessID.ramen, engine.g.companyCash]), [0, franchiseCash - franchiseCost], 'the franchise head office was set up for exactly the cost shown');
 
     // 4. Office.
     await goTo(page, 'office');
@@ -283,7 +302,7 @@ async function main() {
     await cancelDialog(page);
 
     // 5. The current screen as the way to what is not ported; any tab action brings v3 back.
-    await page.locator('[data-ui3-office-current]').tap();
+    await page.locator('[data-ui3-current="office"]').tap();
     await page.waitForFunction(() => document.body.classList.contains('d-ui-active') && !document.body.classList.contains('ui3-native'), null, { timeout: 10000 });
     assert.ok(await page.locator('[data-screen="office"]').count() > 0, 'the current office screen is shown');
     assert.ok(await page.locator('[data-action="office-tab"]').count() >= 6, 'with all its tabs');
@@ -291,7 +310,7 @@ async function main() {
     await goTo(page, 'office');
     await page.locator('[data-ui3-office="summary"]').waitFor({ state: 'visible', timeout: 10000 });
     await goTo(page, 'business');
-    await page.locator('[data-ui3-biz="current"]').tap();
+    await page.locator('[data-ui3-current="business"]').tap();
     await page.waitForFunction(() => document.body.classList.contains('d-ui-active') && !document.body.classList.contains('ui3-native'), null, { timeout: 10000 });
     assert.ok(await page.locator('[data-screen="business"]').count() > 0, 'the current business screen is shown');
     await page.evaluate(() => document.querySelector('[data-action="tab"][data-tab="business"]').click());

@@ -6,7 +6,7 @@
 // Money that moves for good (concept change, equipment, renovation, franchise head office) goes through the
 // shared confirmation sheet, modules.ui3.confirmSheet. Everything the v3 screen does not carry yet (opening
 // hours, menu composition, market analysis, recall crisis, product sections, ...) stays reachable: the last
-// row opens the current screen for this tab (README 6.5; migration-ledger.md, 残件).
+// row opens the current screen for this tab (README 6.5: data-ui3-current; migration-ledger.md, 残件).
 //
 // Presentation only. Every control dispatches an existing `data-action`; nothing here writes engine state.
 (function(){'use strict';
@@ -17,7 +17,6 @@ const FRANCHISE_HQ_COST=5000000;   // "FC本部整備費500万円" (engine.start
 const INVEST_KINDS=[['quality','品質投資'],['brand','広告'],['efficiency','効率化'],['dx','DX']];
 const esc=modules.ui3.esc;
 const modalRoot=()=>globalThis.document?.getElementById('modal-root');
-let showCurrent=false,escaping=false;
 
 const finite=value=>Number.isFinite(Number(value))?Number(value):0;
 function signed(value,money){
@@ -60,7 +59,7 @@ function render(ctx){
   const idle=portfolio.idle.map(item=>row(` data-action="tab" data-tab="map" data-business-idle="${esc(item.businessID)}"`,item.name,
     item.affordable?`最低 ${money(item.minimumUpfront)}`:`資金不足 あと${money(item.shortfall)}`)).join('');
   const digital=row(' data-ui3-biz="digital"','IT・デジタル事業','プロダクトの開発・創業');
-  const more=row(' data-ui3-biz="current"','ほかの詳細（現行の画面）','営業時間・メニュー・市場分析・フランチャイズの一覧など');
+  const more=row(' data-ui3-current="business"','ほかの詳細（現行の画面）','営業時間・メニュー・市場分析・フランチャイズの一覧など');
   return card
     +'<h2 class="u-h2">店舗</h2>'+storeRows
     +(operating?`<h2 class="u-h2">運営中の事業</h2><div class="u-list" data-ui3-business="businesses">${operating}</div>`:'')
@@ -177,20 +176,9 @@ function confirmFranchise(id){
     confirm:{label:'設置する',attributes:{'data-action':'start-franchise','data-id':id}}});
 }
 
-// ---- the current screen as the way to what is not ported ------------------------------------------
-function openCurrent(){
-  showCurrent=true;
-  const root=modalRoot();
-  if(root)root.innerHTML='';
-  escaping=true;
-  try{globalThis.document.querySelector('[data-ui3-all-screens] [data-action="tab"][data-tab="business"]')?.click();}finally{escaping=false;}
-}
-
 function onClick(event){
   const target=event.target instanceof Element?event.target:null;
   if(!target)return;
-  // any tab action leaves the "current screen" detour, so the v3 screen is back the next time it is opened
-  if(!escaping&&showCurrent&&target.closest('[data-action="tab"]'))showCurrent=false;
   const control=target.closest('[data-ui3-biz]');
   if(!control||control.disabled||!context)return;
   const id=control.dataset.id,kind=control.dataset.kind;
@@ -202,14 +190,10 @@ function onClick(event){
     case 'equipment':confirmEquipment(id);break;
     case 'renovate':confirmRenovation(id);break;
     case 'franchise':confirmFranchise(id);break;
-    case 'current':openCurrent();break;
     default:break;
   }
 }
 globalThis.document?.addEventListener('click',onClick,true);
 
-modules.ui3.registerScreen('business',{
-  useCurrentUI:()=>showCurrent,
-  render
-});
+modules.ui3.registerScreen('business',{render});
 })();
