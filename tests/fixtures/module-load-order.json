@@ -89,6 +89,8 @@
     "./js/ui3-business.js",
     "./js/ui3-office.js",
     "./js/ui3-market.js",
+    "./js/ui3-bank.js",
+    "./js/ui3-report.js",
     "./js/app.js",
     "./js/player-media-advertising-ui.js",
     "./js/difficulty-scenario-balance.js",
