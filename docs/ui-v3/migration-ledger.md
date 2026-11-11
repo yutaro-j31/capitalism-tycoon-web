@@ -33,6 +33,10 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | `business` | リコール危機が未対応（`activeRecallCrisis` が有効で `responded` が偽） | `respond-recall-crisis`（自主回収・補償）と、リコール危機の欄（`renderRecallCrisisSection()`） | 枠の規則 `CURRENT_UI_RULES.business` |
 | `office` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="office"`）を押したとき（次の `tab` 操作まで） | 組織・2Dキャンパス・部門の設置と採用・CXO・重要社員・取締役会とIPO・指示と社内VC（`office-tab` の8タブの中の操作すべて）、支社の契約解除（`close-branch-office`）。仕様は設計担当が UI3-9b に含めて書く | 枠の `openCurrentUI` |
 | `market` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="market"`）を押したとき（次の `tab` 操作まで） | 自社株の操作（`stock-split` `stock-mbo` `founder-share-sale` `defense` `view-earnings` `set-dividend` `buyback`）、チャート（`stock-chart-range`）、信用取引の欄、資本配分の操作（`data-capital-allocation-*`）、業種の絞り込みと銘柄の詳細（`select-stock`） | 枠の `openCurrentUI` |
+| `venture` | 子会社のIPO、新規事業の分析、資本配分の実行、ベンチャー拡張の欄 | 子会社IPO（`ipo-subsidiary` と準備の各段階）、`data-new-business-analysis-action`、`data-group-capital-execution-action`、`renderVentureExpansion()` | 画面の行 `data-ui3-current="venture"`（利用者が押したとき。次の `tab` 操作まで） |
+| `ma` | 案件の交渉、統合の進め方、買収ポートフォリオの最優先操作 | `ma-start-dd` `ma-submit-offer` `ma-accept-counter` `ma-financing-*` `ma-board-*` `ma-close-deal` `ma-withdraw-deal`、`start-ma-pmi` `support-ma-pmi` `transport-rebuild`、`data-ma-portfolio-action` | 画面・案件のシートの行 `data-ui3-current="ma"` |
+| `assets` | 土地の建設、投信・債券・高級資産・スポーツ、個人資産の内訳 | `build-property`（名前入力）、`asset-tab` の3タブの購入・売却、`founder-wealth-capture` | 画面の行 `data-ui3-current="assets"` |
+| `pe-portfolio` | 6つのレバー・Exit・ファンドの組成 | `data-pe-portfolio-price` ほか、`exit-pe`、`pe-initiative`、`transfer-pe`、ファンドの組成 | 画面・シートの行 `data-ui3-current="pe-portfolio"` |
 
 ## その他の残件
 
@@ -211,3 +215,64 @@ UI3-9b で解消する。UI3-11 の時点で0件であること。
 | 個人返済 | `repay-personal` | 円（個人） | 会社返済と同じ |
 
 名前の入力（`askText`：`found-digital-business` `launch-product` `add-directive` の指示内容 `start-campaign` の施策名 `create-pe` の業界）は対象外で、現行のダイアログのまま（UI3-9b に含める。設計担当の決定 2026-11-11）。
+
+### `venture`（UI3-6）
+
+洗い出し：UI3-6の担当エージェント、2026-11-11、Chromium・390×664。`node scripts/ui3-dump-screen-actions.js --screen=venture --states=founding,store-open,office,listed`（どの状態でも同じ10操作）。投資先を持つ・追加ラウンドが出る・子会社がある状態の操作は、現行の描画（`renderVenture()`）とエンジン（`js/engine.js` `js/expansion.js`）を読んで足した。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `invest-startup-company` / `invest-startup-personal`（金額は `askMoney`） | 候補・投資先の行 | 運営中で追加ラウンドが無いとき | 投資先のシートの「会社で投資」「個人で投資」（同じ操作。金額は v3 の金額入力シート。財布・上限（その財布の現金）を渡す） |
+| `follow-on-startup-company` / `follow-on-startup-personal`（金額は `askMoney`） | 投資先の行（追加ラウンド） | 追加ラウンドが開いていて持分があるとき | 投資先のシートの「追加出資」の行（同じ操作。金額は金額入力シート。上限は残りの額と現金の小さいほう） |
+| `conduct-startup-dd` | 候補の行 | DD未実施 | 確認シート（費用＝最低投資額の5%、実行後の個人現金）。同じ操作 |
+| `make-subsidiary` | 投資先の行 | 会社持分50%以上 | 確認シート（持分・評価額）。同じ操作 |
+| `sell-startup-secondary-confirm` → `sell-startup-secondary`（会社／個人） | 投資先の行 | 持分があるとき | 確認シート（売却額＝`previewStartupSecondarySale`、実行後のその財布の現金、割引）。実行は `sell-startup-secondary`（現行の確認ダイアログは出さない） |
+| `ipo-subsidiary`（IPOは準備の段階を踏む：監査・主幹事・審査・公開条件） | 子会社の行 | 常時（準備が完了するまでは失敗する） | 子会社のシートに準備の状況を表示。準備と実行は現行UI（6.5）。残件 |
+| 新規事業の分析（`data-new-business-analysis-action`）、資本配分の実行（`data-group-capital-execution-action`）、ベンチャー拡張の欄（`renderVentureExpansion()`） | enhancer | 常時 | 現行UI（6.5）。残件 |
+
+未確認：追加ラウンドが開いている状態の「追加出資」（開く状態を作っていない。操作は現行と同じ `follow-on-startup-*`）。
+
+### `ma`（UI3-6）
+
+洗い出し：UI3-6の担当エージェント、2026-11-11、Chromium・390×664。`node scripts/ui3-dump-screen-actions.js --screen=ma --states=founding,store-open,office,listed`（5操作。投資部門なしの状態）。案件・買収済み企業がある状態の操作は、現行の描画（`renderMA()`）とエンジンを読んで足した。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `generate-ma`（候補を入れ替える。費用なし） | 上のボタン | 投資部門があるとき | 確認シート（いまの候補は入れ替わる）。同じ操作 |
+| `tab` → `pe-portfolio` | 上のボタン | 常時 | PEが解放済みのとき、「そのほか」の行（解放前は下のタブにも出ない） |
+| `ma-open-deal` | 候補の行 | 候補があり案件が無いとき | 候補のシートの「案件を開く」（同じ操作。費用なし。実行後にシートを閉じる） |
+| `ma-start-dd`、`ma-submit-offer`、`ma-accept-counter`、`ma-financing-*`、`ma-board-approve` / `ma-board-revoke`、`ma-close-deal`、`ma-withdraw-deal`（案件の交渉） | 案件のカード | 案件があるとき | 案件のシート（状態・期限・合意価格を表示）の行から現行UI（6.5）。残件 |
+| `start-ma-pmi`、`support-ma-pmi`、`transport-rebuild`（統合の進め方） | 買収済み企業のカード | 買収済みがあるとき | 買収済み企業のシートの行から現行UI（6.5）。残件 |
+| `sell-ma`（売却額は評価額の85〜130%の間で決まる） | 買収済み企業のカード | 買収済みがあるとき | 買収済み企業のシートの「売却する」→確認シート（評価額・いまの会社の現金。売却額は乱数で決まるため実行後の現金は出さない）。同じ操作 |
+| `data-ma-portfolio-action`（買収ポートフォリオの最優先操作） | enhancer（`js/ma-portfolio-summary-ui.js`） | 常時 | 現行UI（6.5）。残件 |
+
+未確認：案件がある状態の各操作の実行（現行の画面で行う）、買収済み企業の売却の実行（買収済みの状態を作っていない）。
+
+### `assets`（UI3-6）
+
+洗い出し：UI3-6の担当エージェント、2026-11-11、Chromium・390×664。`node scripts/ui3-dump-screen-actions.js --screen=assets --states=founding,store-open,office,listed`（7操作）。物件を持つ状態と他のタブの操作は、現行の描画（`renderAssets()` `renderAssetTab()`）を読んで足した。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
+| `asset-tab`（不動産・投信・債券・高級資産・スポーツ） | `renderAssets()` | 常時 | 不動産は画面本体。ほかのタブは現行UI（6.5）。残件 |
+| `sell-property`（売却額は評価額の97%） | 物件の行 | 物件を持つとき | 物件のシートの「売却する」→確認シート（売却額、実行後のその財布の現金）。同じ操作 |
+| `buy-property-company` / `buy-property-personal`、`negotiate-property-*` | マップの物件のシート | 常時 | 既存の入口（マップ。UI3-3）。この画面には「物件を買う（マップ）」の行 |
+| `build-property`（建物の種類は名前入力 `askText`） | 物件の行 | 会社の土地 | 現行UI（6.5）。残件（`askText` は UI3-9b） |
+| `buy-personal-investment` / `sell-personal-investment`、`buy-luxury` / `sell-luxury`、`buy-team-*` ほか（他のタブの操作） | `renderAssetTab()` | 各タブ | 現行UI（6.5）。残件 |
+| `founder-wealth-capture`（内訳を算定） | `renderFounderWealthBreakdown()` | 常時 | 現行UI（6.5）。残件 |
+
+未確認：売却時の譲渡益の税（確認シートの売却額は概算。実行後の通知で確認）。他のタブの操作の実行。
+
+### `pe-portfolio`（UI3-6）
+
+洗い出し：UI3-6の担当エージェント、2026-11-11。画面は PE が解放されるまで下のタブに出ず、`data-action="tab"` では開けないため、洗い出しスクリプトは「未確認」を返す。現行の描画（`renderPePortfolio()`、`renderPeFundFormation()`）を読んで足した。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `data-pe-portfolio-price` ほかの6つのレバー（価格・品質・拠点・仕入れ・人員・商品構成）、`exit-pe`、`pe-initiative`、`transfer-pe` | 投資先のカード | 買収済みの企業があるとき | README の指定どおり「既存の操作をそのまま」。投資先のシート（読み取り）から現行UI（6.5）。残件 |
+| ファンドの組成（`data-pe-gp-commit` ほか） | `renderPeFundFormation()` | 常時 | 現行UI（6.5）。残件 |
+
+未確認：実際のPEファンドを経た投資先の表示（確認用に作った状態でだけ見た）。
