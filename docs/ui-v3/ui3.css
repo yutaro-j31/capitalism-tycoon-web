@@ -123,6 +123,14 @@ body:has(#modal-root .u-sheet) .ui3 .u-dock { display: none; }
 .ui3 .u-sheet-body { overflow-y: auto; padding: var(--u-2) var(--u-4) var(--u-4); display: grid; gap: var(--u-3); align-content: start; grid-auto-rows: max-content; }
 .ui3 .u-sheet-foot { padding: var(--u-3) var(--u-4) calc(var(--u-3) + var(--u-safe-b)); display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--u-2); border-top: 1px solid var(--u-line); background: var(--u-surface); }
 
+/* input (amount and quantity sheets, README 5.7) */
+.ui3 .u-field { display: grid; gap: var(--u-1); }
+.ui3 .u-field > span { font: var(--u-t-label); color: var(--u-muted); }
+.ui3 .u-input { width: 100%; height: 48px; padding: 0 var(--u-3); border-radius: var(--u-radius-s); border: 1px solid var(--u-line); background: var(--u-raised); color: var(--u-text); font: 700 20px/1 var(--u-font); font-variant-numeric: tabular-nums; }
+.ui3 .u-input:focus-visible { outline: 2px solid var(--u-accent); outline-offset: 1px; }
+.ui3 .u-error { margin: 0; min-height: 0; font: var(--u-t-label); color: var(--u-down); }
+.ui3 .u-error:empty { display: none; }
+
 /* map */
 .ui3 .u-map { position: relative; height: calc(100% - var(--u-top-h) - var(--u-tab-h)); overflow: hidden; }
 .ui3 .u-map-chips { position: absolute; top: var(--u-3); left: 0; right: 0; z-index: 3; padding: 0 var(--u-4); margin: 0; }

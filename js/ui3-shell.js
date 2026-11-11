@@ -234,6 +234,116 @@ globalThis.document?.addEventListener('click',event=>{
   setTimeout(()=>{if(root.querySelector('[data-ui3-confirm]'))root.innerHTML='';},0);
 });
 
+// Amount / quantity input sheet (README 5.7, UI3-9a): replaces js/app.js's askMoney dialog (and the iPhone amount
+// dialog of js/iphone-playtest-fixes.js) while UI v3 is on. `amountSheet` returns true when it took the request;
+// `submit(value)` is called with the number, after the sheet closed, exactly as askMoney's callback is.
+// A screen may describe what the number means just before it dispatches the action: setAmountContext({unit:'株'|
+// '円'|'店',unitPrice,wallet:'company'|'personal',direction:'spend'|'receive',max,note}). The next amountSheet uses
+// it once (and it expires after a few seconds, so it never reaches an unrelated dialog). With a context that names a
+// wallet the sheet shows the approximate amount and the wallet's cash afterwards; it never blocks on that (the engine
+// decides whether the trade is allowed). Nothing here writes engine state.
+const AMOUNT_CHIPS=Object.freeze({'株':[[100,'100'],[500,'500'],[1000,'1,000']],'円':[[100000,'10万'],[500000,'50万'],[1000000,'100万']],'店':[[1,'1'],[3,'3'],[5,'5']]});
+const CONTEXT_TTL_MS=3000;
+let amountContext=null;
+let amountPending=null;
+function setAmountContext(context){amountContext=context&&typeof context==='object'?{...context,at:globalThis.performance?.now?.()??Date.now()}:null;}
+function takeAmountContext(){
+  const context=amountContext;amountContext=null;
+  if(!context)return null;
+  const age=(globalThis.performance?.now?.()??Date.now())-context.at;
+  return age>=0&&age<CONTEXT_TTL_MS?context:null;
+}
+// What askMoney accepts is any finite number; the engine rejects the rest. The sheet accepts a positive whole
+// number (a positive decimal only when the dialog was opened with a decimal initial value, e.g. a dividend).
+function parseAmount(text,allowDecimal){
+  const cleaned=String(text??'').replace(/,/g,'').trim();
+  const pattern=allowDecimal?/^\d+(\.\d+)?$/:/^\d+$/;
+  if(!cleaned)return {value:null,error:'数値を入力してください。'};
+  if(!pattern.test(cleaned))return {value:null,error:allowDecimal?'0より大きい数値を入力してください。':'0より大きい整数を入力してください。'};
+  const value=Number(cleaned);
+  if(!Number.isFinite(value)||value<=0)return {value:null,error:'0より大きい数値を入力してください。'};
+  return {value,error:''};
+}
+function walletCash(wallet){
+  const g=modules.playerEngineBridge?.getEngine?.()?.g;
+  if(!g)return null;
+  const cash=wallet==='company'?g.companyCash:wallet==='personal'?g.personalCash:null;
+  return Number.isFinite(Number(cash))?Number(cash):null;
+}
+const yenText=value=>modules.engine?.compactYen?modules.engine.compactYen(value):`${Math.round(value).toLocaleString('ja-JP')}円`;
+function amountSheet({title='',initial=0,submit}={}){
+  if(!enabled||typeof submit!=='function'||!globalThis.document?.getElementById('modal-root'))return false;
+  const g=modules.playerEngineBridge?.getEngine?.()?.g;
+  if(!g?.configured)return false;
+  const context=takeAmountContext();
+  const unit=context?.unit||(String(title).includes('株数')?'株':String(title).includes('募集数')?'店':'円');
+  const label=unit==='株'?'株数':unit==='店'?'店数':'金額（円）';
+  const allowDecimal=!Number.isInteger(Number(initial))&&Number.isFinite(Number(initial));
+  amountPending={submit,unit,context,allowDecimal};
+  const max=Number.isFinite(Number(context?.max))&&Number(context.max)>0?Math.floor(Number(context.max)):null;
+  const chips=AMOUNT_CHIPS[unit].map(([value,text])=>`<button type="button" class="u-chip" data-ui3-amount-chip="${value}">${esc(text)}</button>`).join('')
+    +(max?`<button type="button" class="u-chip" data-ui3-amount-chip="${max}" data-ui3-amount-max>最大</button>`:'');
+  const preview=context?.wallet?`<div class="u-stats two" data-ui3-amount-preview></div>`:'';
+  const body=`<label class="u-field"><span>${esc(label)}</span><input class="u-input" data-ui3-amount-input inputmode="numeric" autocomplete="off" enterkeyhint="done" value="${esc(String(initial??''))}" aria-describedby="ui3-amount-error"></label>`
+    +`<nav class="u-chips" aria-label="入力の候補">${chips}</nav>`
+    +preview
+    +(context?.note?`<div class="u-h2" data-ui3-amount-note>${esc(context.note)}</div>`:'')
+    +`<p class="u-error" id="ui3-amount-error" role="alert" data-ui3-amount-error></p>`;
+  globalThis.document.getElementById('modal-root').innerHTML=sheet({eyebrow:unit==='株'?'株数を入力':unit==='店'?'店数を入力':'金額を入力',title,body,
+    actions:'<button type="button" class="u-btn" data-action="close-modal">やめる</button><button type="button" class="u-btn primary" data-ui3-amount-run>実行する</button>'});
+  refreshAmount();
+  globalThis.document.querySelector('#modal-root [data-ui3-amount-input]')?.focus?.({preventScroll:true});
+  return true;
+}
+function refreshAmount(){
+  const root=globalThis.document?.getElementById('modal-root');
+  const input=root?.querySelector('[data-ui3-amount-input]');
+  if(!input||!amountPending)return;
+  const {unit,context,allowDecimal}=amountPending;
+  const {value,error}=parseAmount(input.value,allowDecimal);
+  const max=Number.isFinite(Number(context?.max))&&Number(context.max)>0?Number(context.max):null;
+  const message=error||(unit==='株'&&!Number.isInteger(value)?'整数で入力してください。':'');
+  root.querySelector('[data-ui3-amount-error]').textContent=message;
+  const run=root.querySelector('[data-ui3-amount-run]');
+  if(run)run.disabled=Boolean(message);
+  const box=root.querySelector('[data-ui3-amount-preview]');
+  if(box){
+    const amount=value===null?null:value*(Number.isFinite(Number(context.unitPrice))?Number(context.unitPrice):1);
+    const cash=walletCash(context.wallet);
+    const after=amount===null||cash===null?null:context.direction==='receive'?cash+amount:cash-amount;
+    const walletName=context.wallet==='company'?'会社':'個人';
+    box.innerHTML=`<div class="u-stat"><span>${context.direction==='receive'?'概算の受取額':'概算の金額'}</span><b class="u-money">${esc(amount===null?'—':yenText(amount))}</b></div>`
+      +`<div class="u-stat"><span>実行後の${walletName}の現金</span><b class="u-money${after!==null&&after<0?' u-down':''}">${esc(after===null?'—':yenText(after))}</b></div>`;
+  }
+  void max;
+}
+function runAmount(){
+  const root=globalThis.document?.getElementById('modal-root');
+  const input=root?.querySelector('[data-ui3-amount-input]');
+  const pending=amountPending;
+  if(!input||!pending)return;
+  const {value,error}=parseAmount(input.value,pending.allowDecimal);
+  if(error||(pending.unit==='株'&&!Number.isInteger(value))){refreshAmount();return;}
+  amountPending=null;
+  root.innerHTML='';
+  pending.submit(value);
+}
+globalThis.document?.addEventListener('input',event=>{if(event.target instanceof Element&&event.target.matches('[data-ui3-amount-input]'))refreshAmount();},true);
+globalThis.document?.addEventListener('keydown',event=>{
+  if(event.key==='Enter'&&event.target instanceof Element&&event.target.matches('[data-ui3-amount-input]')){event.preventDefault();runAmount();}
+},true);
+globalThis.document?.addEventListener('click',event=>{
+  const target=event.target instanceof Element?event.target:null;
+  if(!target)return;
+  const chip=target.closest('[data-ui3-amount-chip]');
+  if(chip){
+    const input=globalThis.document.querySelector('#modal-root [data-ui3-amount-input]');
+    if(input){input.value=String(chip.dataset.ui3AmountChip);refreshAmount();input.focus?.({preventScroll:true});}
+    return;
+  }
+  if(target.closest('[data-ui3-amount-run]'))runAmount();
+},true);
+
 // Sheets that js/app.js shows in #modal-root in place of a current-UI modal (README 6.1, "シート").
 // A sheet module registers `render(context)` returning the arguments of sheet(); js/app.js asks
 // renderSheet() first and falls back to its own modal when the answer is ''.
@@ -261,6 +371,6 @@ modules.ui3=Object.freeze({
   isNativeActive:()=>nativeActive,
   registeredScreens:()=>[...screens.keys()],
   registeredSheets:()=>[...sheetRenderers.keys()],
-  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,esc
+  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,setAmountContext,esc
 });
 })();

@@ -70,7 +70,8 @@ const engineEval = (page, fn, arg) => page.evaluate(([source, value]) => {
 }, [fn.toString(), arg]);
 const digest = page => engineEval(page, engine => JSON.stringify(engine.g, (key, value) => (key === 'lastSaveDate' || key === 'saveSequence' ? undefined : value)));
 // the current dialogs: amount dialogs on iPhone have their own cancel button, the others use close-modal
-const cancelDialog = page => page.locator('#modal-root [data-iphone-money-cancel], #modal-root [data-action="close-modal"]').first().tap();
+// the amount dialogs are v3 sheets now (UI3-9a); the name dialog of the IT business is still the current one
+const cancelDialog = page => page.locator('#modal-root .u-sheet-foot [data-action="close-modal"], #modal-root .modal [data-action="close-modal"]').first().tap();
 const sheetText = page => page.locator('#modal-root .u-sheet').innerText();
 const rowTexts = (page, selector) => page.locator(selector).evaluateAll(nodes => nodes.map(node => node.querySelector('b')?.innerText.trim() || node.innerText.trim()));
 const actionsIn = (page, selector) => page.evaluate(selector => [...document.querySelectorAll(`${selector} [data-action]`)].map(node => `${node.dataset.action}${node.dataset.kind ? ':' + node.dataset.kind : ''}${node.disabled ? '(disabled)' : ''}`), selector);
@@ -241,7 +242,7 @@ async function main() {
     // Other rows reach the existing dialogs: store price (amount dialog) and closing (the current confirmation).
     await page.locator('[data-ui3-biz="store"]').tap();
     await page.locator('#modal-root [data-action="store-price"]').tap();
-    await page.locator('#modal-root .modal input').waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('#modal-root [data-ui3-amount-input]').waitFor({ state: 'visible', timeout: 10000 });
     await cancelDialog(page);
     await page.locator('[data-ui3-biz="store"]').tap();
     await page.locator('#modal-root [data-action="close-store"]').tap();
@@ -258,7 +259,7 @@ async function main() {
     assert.equal(await page.locator('[data-ui3-business="business-actions"] [data-ui3-biz="franchise"]').isDisabled(), true, 'the franchise head office needs three open stores');
     assert.deepEqual((await sheetMetrics(page)).small, []);
     await page.locator('#modal-root [data-action="business-invest"]').first().tap();
-    await page.locator('#modal-root .modal input').waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('#modal-root [data-ui3-amount-input]').waitFor({ state: 'visible', timeout: 10000 });
     await cancelDialog(page);
     // The franchise confirmation, with three stores forced on a throwaway game (not saved by this test).
     await engineEval(page, engine => { const open = engine.g.stores.find(store => store.businessID === 'ramen'); for (let i = 0; i < 2; i += 1) engine.g.stores.push({ ...open, id: `${open.id}-extra-${i}`, name: `追加${i}` }); engine.g.companyCash = 20000000; });
@@ -288,7 +289,7 @@ async function main() {
     await page.locator('[data-action="toggle-remote"]').tap();
     await page.waitForFunction(before => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.remoteWorkEnabled === before, remoteBefore, { timeout: 10000 });
     await page.locator('[data-action="workforce-invest"]').tap();
-    await page.locator('#modal-root .modal input').waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('#modal-root [data-ui3-amount-input]').waitFor({ state: 'visible', timeout: 10000 });
     await cancelDialog(page);
     // With a head office: the cancellation row appears (existing confirmation), departments and CXOs are listed.
     await engineEval(page, engine => { engine.g.hasHeadOffice = true; engine.g.officeName = 'テスト本社'; engine.g.departments.hr = true; engine.g.executives = { cfo: { role: 'CFO', name: '財務太郎', rank: 'A', trait: '堅実' } }; });

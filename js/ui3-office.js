@@ -41,5 +41,11 @@ function render({g,engine,money}){
     +`<h2 class="u-h2">操作</h2><div class="u-list" data-ui3-office="operations">${operations}</div>`;
 }
 
+// welfare investment spends company money: say what the number is (README 5.7)
+globalThis.document?.addEventListener('click',event=>{
+  const control=event.target instanceof Element?event.target.closest('[data-action="workforce-invest"]'):null;
+  if(control&&!control.disabled)modules.ui3.setAmountContext({unit:'円',wallet:'company',direction:'spend'});
+},true);
+
 modules.ui3.registerScreen('office',{render});
 })();

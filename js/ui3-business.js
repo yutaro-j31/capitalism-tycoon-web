@@ -179,6 +179,11 @@ function confirmFranchise(id){
 function onClick(event){
   const target=event.target instanceof Element?event.target:null;
   if(!target)return;
+  // amount dialogs that spend company money: say what the number is (README 5.7)
+  const spend=target.closest('[data-action="business-invest"]');
+  if(spend&&!spend.disabled)modules.ui3.setAmountContext({unit:'円',wallet:'company',direction:'spend'});
+  const recruit=target.closest('[data-action="recruit-franchise"]');
+  if(recruit&&!recruit.disabled)modules.ui3.setAmountContext({unit:'店',unitPrice:1000000,wallet:'company',direction:'spend'});   // engine.recruitFranchise: 100万円 per store
   const control=target.closest('[data-ui3-biz]');
   if(!control||control.disabled||!context)return;
   const id=control.dataset.id,kind=control.dataset.kind;

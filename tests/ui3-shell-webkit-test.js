@@ -132,6 +132,7 @@ async function main() {
       const off = await snapshot(page);
       assert.deepEqual([off.native, off.bodyNative, off.bodyDUI, off.sidebar, off.screen], [false, false, true, true, 'home'], 'without ?ui=3 the current D UI renders, even for a registered screen');
       assert.equal(off.preference, null);
+      assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.amountSheet({ title: '購入株数', initial: 100, submit() {} })), false, 'without ?ui=3 the amount sheet takes nothing (askMoney keeps its dialog)');
       assert.deepEqual(pageErrors, []);
       await context.close();
     }
@@ -307,6 +308,30 @@ async function main() {
     await setRecall(null);
     await goTo(page, 'business');
     assert.equal((await snapshot(page)).native, true);
+
+    // Amount sheet (README 5.7): the unit follows the title unless a context says otherwise; a context is used once
+    // and expires; the value must be a positive whole number.
+    const amount = await page.evaluate(async () => {
+      const ui3 = globalThis.__capitalismTycoonModules.ui3, root = document.getElementById('modal-root'), seen = [];
+      const open = (title, initial) => { const taken = ui3.amountSheet({ title, initial, submit(value) { seen.push(value); } }); return { taken, label: root.querySelector('.u-field > span')?.textContent, preview: Boolean(root.querySelector('[data-ui3-amount-preview]')) }; };
+      const result = { shares: open('購入株数', 100), stores: open('加盟店募集数', 1), yen: open('価格変更', 5000) };
+      ui3.setAmountContext({ unit: '円', wallet: 'company', direction: 'spend' });
+      result.withContext = open('事業投資', 1000000);
+      result.contextUsedOnce = open('事業投資', 1000000).preview;
+      ui3.setAmountContext({ unit: '円', wallet: 'company', direction: 'spend' });
+      await new Promise(resolve => setTimeout(resolve, 3300));
+      result.expired = open('事業投資', 1000000).preview;
+      const input = root.querySelector('[data-ui3-amount-input]'), run = root.querySelector('[data-ui3-amount-run]');
+      result.states = ['', '0', '-1', '1.5', 'x', '12', '1,000'].map(text => { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); return [text, run.disabled]; });
+      input.value = '7'; input.dispatchEvent(new Event('input', { bubbles: true })); run.click();
+      result.submitted = seen; result.closed = root.innerHTML === '';
+      result.decimal = (() => { ui3.amountSheet({ title: '四半期配当設定', initial: 12.5, submit() {} }); const field = root.querySelector('[data-ui3-amount-input]'), button = root.querySelector('[data-ui3-amount-run]'); field.value = '12.5'; field.dispatchEvent(new Event('input', { bubbles: true })); const ok = !button.disabled; root.innerHTML = ''; return ok; })();
+      return result;
+    });
+    assert.deepEqual([amount.shares.taken, amount.shares.label, amount.stores.label, amount.yen.label], [true, '株数', '店数', '金額（円）'], 'the unit follows the title');
+    assert.deepEqual([amount.withContext.preview, amount.contextUsedOnce, amount.expired], [true, false, false], 'a context is used once and expires');
+    assert.deepEqual(amount.states, [['', true], ['0', true], ['-1', true], ['1.5', true], ['x', true], ['12', false], ['1,000', false]], 'only a positive whole number can be run');
+    assert.deepEqual([amount.submitted, amount.closed, amount.decimal], [[7], true, true], 'the value is submitted after the sheet closed; a decimal initial value allows decimals');
 
     // Confirmation sheet (README 2: money that moves for good is confirmed first): cost and cash afterwards,
     // one cancel button and one primary button carrying the existing action; it closes after the action ran.
