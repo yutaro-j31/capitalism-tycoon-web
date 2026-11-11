@@ -35,6 +35,10 @@ const holdingsOf=g=>(state.account==='company'?g.companyStocks:g.personalStocks)
 // week-over-week change, rounded to the 0.1% that is displayed, so a change that shows as 0.0% is not coloured
 const changeOf=stock=>finite(stock.previous)>0?Math.round((finite(stock.price)-finite(stock.previous))/finite(stock.previous)*1000)/1000:0;
 const accountLabel=()=>state.account==='company'?'会社':'個人';
+// The current stock panel's own condition (js/app.js stockTradeCapacity): a company account trades only with the
+// investment department. Read, never written.
+const blockedOf=g=>state.account==='company'&&!g.departments?.investment;
+const BLOCKED_TITLE='会社口座の売買には投資部門が必要です';
 
 function render(ctx){
   context=ctx;
@@ -62,7 +66,8 @@ function render(ctx){
     :`<div class="u-h2" data-ui3-market="none">${accountLabel()}口座の保有とお気に入りはまだありません。「銘柄を探す」から選びます。</div>`;
   const more=row(' data-ui3-mkt="all"','銘柄を探す',`${market.length}銘柄`)
     +row(' data-ui3-current="market"','ほかの詳細（現行の画面）','自社株の操作（分割・MBO・配当・自社株買い）、チャート、信用取引、資本配分など');
-  return seg+card+'<h2 class="u-h2">保有・お気に入り</h2>'+list+`<h2 class="u-h2">そのほか</h2><div class="u-list">${more}</div>`;
+  const blocked=blockedOf(g)?`<button type="button" class="u-action warn" data-ui3-market="blocked" data-action="tab" data-tab="office"><i aria-hidden="true">⚠</i><span><b>${BLOCKED_TITLE}</b><small>本社の部門を設定する</small></span></button>`:'';
+  return seg+blocked+card+'<h2 class="u-h2">保有・お気に入り</h2>'+list+`<h2 class="u-h2">そのほか</h2><div class="u-list">${more}</div>`;
 }
 
 // ---- sheets ------------------------------------------------------------------------------------
@@ -75,17 +80,19 @@ function stockSheet(id){
   const holding=holdingsOf(g)[id];
   const quantity=finite(holding?.qty);
   const favourite=(g.favoriteStockIds||[]).includes(id);
+  const blocked=blockedOf(g);
   const change=changeOf(stock);
   const valuation=`PER ${stock.per?`${finite(stock.per).toFixed(1)}倍`:'—'} / PBR ${stock.pbr?`${finite(stock.pbr).toFixed(1)}倍`:'—'}`;
   const body=`<span hidden data-ui3-market-sheet></span><div class="u-stats">`
     +`<div class="u-stat"><span>株価</span><b class="u-money">${esc(money(finite(stock.price)))}</b></div>`
     +`<div class="u-stat"><span>前週比</span><b class="u-money${direction(change)}">${esc(signedPercent(change))}</b></div>`
     +`<div class="u-stat"><span>保有（${accountLabel()}）</span><b class="u-money">${esc(quantity>0?`${Math.round(quantity).toLocaleString('ja-JP')}株`:'—')}</b></div></div>`
+    +(blocked?`<div class="u-h2" data-ui3-market="blocked-note">${BLOCKED_TITLE}（本社の部門で投資部門を設置します）。</div>`:'')
     +(quantity>0?`<div class="u-h2" data-ui3-market="average">平均取得価格 ${esc(money(finite(holding.avg)))}</div>`:'')
     +`<div class="u-list">${row(` data-action="favorite-stock" data-id="${esc(id)}" data-ui3-mkt-refresh="${esc(id)}"`,favourite?'お気に入りから外す':'お気に入りに入れる','',favourite?'★':'☆')}</div>`;
   show(modules.ui3.sheet({eyebrow:`${stock.id} · ${stock.sector}`,title:stock.name,subtitle:`時価総額 ${money(finite(stock.marketCap))} · ${valuation}`,body,
-    actions:`<button type="button" class="u-btn" data-action="sell-stock" data-id="${esc(id)}" data-ui3-sync-account${quantity>0?'':' disabled'}>売る</button>`
-      +`<button type="button" class="u-btn primary" data-action="buy-stock" data-id="${esc(id)}" data-ui3-sync-account>買う</button>`}));
+    actions:`<button type="button" class="u-btn" data-action="sell-stock" data-id="${esc(id)}" data-ui3-sync-account${quantity>0&&!blocked?'':' disabled'}>売る</button>`
+      +`<button type="button" class="u-btn primary" data-action="buy-stock" data-id="${esc(id)}" data-ui3-sync-account${blocked?' disabled':''}>買う</button>`}));
 }
 
 function allStocksSheet(){

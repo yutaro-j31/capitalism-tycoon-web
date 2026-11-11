@@ -197,12 +197,20 @@ async function main() {
     const companyBefore = await engineEval(page, (engine, id) => ({ cash: engine.g.companyCash, qty: engine.g.companyStocks[id]?.qty || 0, personal: engine.g.personalStocks[id]?.qty || 0 }), stock.id);
     await page.locator('[data-ui3-market="holdings"] .u-row').first().tap();
     assert.equal((await page.locator('#modal-root .u-stats .u-stat > span').allInnerTexts())[2], '保有（会社）');
-    // the game's own rule: a company account needs the investment department; without it the trade is refused
-    await page.locator('#modal-root [data-action="buy-stock"]').tap();
-    await enterAmount(page, 3);
-    await page.waitForFunction(() => [...document.querySelectorAll('.toast')].some(toast => /投資部門が必要/.test(toast.innerText)), null, { timeout: 10000 });
-    assert.equal(await engineEval(page, (engine, id) => engine.g.companyStocks[id]?.qty || 0, stock.id), companyBefore.qty, 'refused: nothing was bought');
+    // The game's own rule (the current stock panel's condition): a company account trades only with the
+    // investment department. Without it the screen says so first and the sheet's buttons are off.
+    assert.equal(await engineEval(page, engine => Boolean(engine.g.departments.investment)), false);
+    const warn = await page.locator('[data-ui3-market="blocked"]').evaluate(node => [node.className, node.dataset.action, node.dataset.tab, node.querySelector('b').innerText]);
+    assert.deepEqual(warn, ['u-action warn', 'tab', 'office', '会社口座の売買には投資部門が必要です'], 'the warning card sits under the account switch and leads to the office');
+    assert.equal(await page.locator('[data-ui3-market="account"] ~ [data-ui3-market="blocked"]').count(), 1);
+    assert.deepEqual(await page.locator('#modal-root .u-sheet-foot button').evaluateAll(nodes => nodes.map(node => [node.innerText.trim(), node.disabled])), [['売る', true], ['買う', true]], 'both buttons are off');
+    assert.match(await page.locator('#modal-root [data-ui3-market="blocked-note"]').innerText(), /投資部門が必要です/);
+    await page.locator('#modal-root .u-scrim').tap({ position: { x: 100, y: 8 } });
+    assert.equal(await engineEval(page, (engine, id) => engine.g.companyStocks[id]?.qty || 0, stock.id), companyBefore.qty, 'nothing was bought');
     await engineEval(page, engine => { engine.g.departments.investment = true; });   // test setup: the investment department exists
+    await goTo(page, 'market');
+    await page.locator('[data-ui3-market="summary"]').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('[data-ui3-market="blocked"]').count(), 0, 'with the department the warning is gone');
     await page.locator('[data-ui3-market="holdings"] .u-row').first().tap();
     await page.locator('#modal-root [data-action="buy-stock"]').tap();
     await enterAmount(page, 3);
