@@ -188,11 +188,11 @@ function otherSheet(entity){
     const id=esc(entity.rawID);
     const rowAction=(action,label)=>`<button type="button" class="u-row" data-action="${action}" data-id="${id}"><span><b>${label}</b></span><span class="u-end" aria-hidden="true">›</span></button>`;
     more=property.owner
-      ?`<div class="u-list" data-ui3-map="more">${rowAction('sell-property','この物件を売却')}</div>`
+      ?`<div class="u-list" data-ui3-map="more">${`<button type="button" class="u-row" data-ui3-map-sell data-id="${id}"><span><b>この物件を売却</b></span><span class="u-end" aria-hidden="true">›</span></button>`}</div>`
       :`<div class="u-list" data-ui3-map="more">${rowAction('negotiate-property-company','会社で価格交渉')}${rowAction('negotiate-property-personal','個人で価格交渉')}</div>`;
     actions=property.owner
       ?`${close}<button type="button" class="u-btn primary" data-action="tab" data-tab="assets">不動産を見る</button>`
-      :`<button type="button" class="u-btn" data-action="buy-property-personal" data-id="${id}">個人で購入</button><button type="button" class="u-btn primary" data-action="buy-property-company" data-id="${id}">会社で購入</button>`;
+      :`<button type="button" class="u-btn" data-ui3-map-buy="personal" data-id="${id}">個人で購入</button><button type="button" class="u-btn primary" data-ui3-map-buy="company" data-id="${id}">会社で購入</button>`;
   }else{
     const presence=entity.presence||{};
     subtitle='競合店舗';
@@ -200,6 +200,31 @@ function otherSheet(entity){
     actions=`${close}<button type="button" class="u-btn primary" data-action="tab" data-tab="rivals">競合を見る</button>`;
   }
   return {eyebrow:KIND[kind]||'',title,subtitle,body:`${marker}<div class="u-stats two" data-ui3-map="facts">${stats}</div>${more}`,actions};
+}
+
+// Buying and selling a property move money for good, so both go through a confirmation sheet (README 6.6, UI3-10b). The price is the engine's:
+// buyProperty charges ceilYen(price) to the chosen wallet; sellProperty pays ceil(value x 0.97) (the same copy as js/ui3-assets.js).
+function confirmBuy(owner,id){
+  const {g,money}=context;
+  const property=(g.properties||[]).find(item=>item.id===id);
+  if(!property||property.owner)return;
+  const price=Math.ceil(finite(property.price)),wallet=owner==='company'?'会社':'個人',cash=finite(owner==='company'?g.companyCash:g.personalCash);
+  const root=modalRoot();
+  if(root)root.innerHTML=modules.ui3.confirmSheet({title:`${property.name}を購入`,subtitle:`${wallet}の現金で買います。取り消せません。`,
+    facts:[{label:'購入価格',value:money(price)},{label:`実行後の${wallet}現金`,value:money(cash-price),tone:cash-price<0?'down':undefined}],
+    note:cash<price?`${wallet}の現金が足りないため、実行しても購入できません。`:'',
+    confirm:{label:'購入する',attributes:{'data-action':owner==='company'?'buy-property-company':'buy-property-personal','data-id':id}}});
+}
+function confirmSell(id){
+  const {g,money}=context;
+  const property=(g.properties||[]).find(item=>item.id===id);
+  if(!property||!property.owner)return;
+  const proceeds=Math.ceil(finite(property.value)*.97),wallet=property.owner==='company'?'会社':'個人',cash=finite(property.owner==='company'?g.companyCash:g.personalCash);
+  const root=modalRoot();
+  if(root)root.innerHTML=modules.ui3.confirmSheet({title:`${property.name}を売却`,subtitle:`${wallet}の物件を売ります。取り消せません。`,
+    facts:[{label:'売却額（評価額の97%）',value:money(proceeds),tone:'up'},{label:`実行後の${wallet}現金`,value:money(cash+proceeds)}],
+    note:'概算です。譲渡益への税などは、実行後の通知とレポートで確認できます。',
+    confirm:{label:'売却する',attributes:{'data-action':'sell-property','data-id':id}}});
 }
 
 function openDetail(entity){
@@ -249,6 +274,10 @@ function onClick(event){
   // The click a touch tap produces after the pin or list row that opened this sheet lands on the new
   // scrim; it must not close the sheet it just opened.
   if(target.closest('#modal-root .u-scrim')&&performance.now()-state.openedAt<SETTLE_MS){event.stopPropagation();event.preventDefault();return;}
+  const buy=target.closest('[data-ui3-map-buy]');
+  if(buy){confirmBuy(buy.dataset.ui3MapBuy,buy.dataset.id);return;}
+  const sell=target.closest('[data-ui3-map-sell]');
+  if(sell){confirmSell(sell.dataset.id);return;}
   const business=target.closest('[data-ui3-map-business]');
   if(business){state.business=business.dataset.ui3MapBusiness;const entity=entityById(state.selected);if(entity)openDetail(entity);return;}
   if(target.closest('[data-ui3-map-breakdown]')){

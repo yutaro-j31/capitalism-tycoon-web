@@ -26,6 +26,22 @@ const SCREENS = ['home', 'map', 'business', 'office', 'market', 'venture', 'ma',
 const MIME = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp' };
 
+// --- the state rules are exactly two (README 10.1, UI3-10b) -----------------
+// A game state may send a screen to the current UI only through CURRENT_UI_RULES in the shell (home: the cash-crisis panel, which is
+// switched off as soon as js/ui3-crisis.js registers the crisis sheet; business: the recall crisis) or through a screen's own
+// `useCurrentUI` (map: 3D unavailable). To add a rule, change README 10.1 first (it lists the only ones allowed), then this test.
+{
+  const shellSource = fs.readFileSync(path.join(ROOT, 'js', 'ui3-shell.js'), 'utf8');
+  const rules = /const CURRENT_UI_RULES=Object\.freeze\(\{([\s\S]*?)\n\}\);/.exec(shellSource);
+  assert.ok(rules, 'CURRENT_UI_RULES is found in the shell');
+  const keys = [...rules[1].replace(/\/\/.*$/gm, '').matchAll(/^\s{2}([a-z-]+):/gm)].map(match => match[1]);
+  assert.deepEqual(keys, ['home', 'business'], 'the shell has exactly two state rules (home is switched off by the crisis sheet)');
+  assert.match(shellSource, /home:g=>!crisisSheet&&crisisStatus\(g\)!=='stable'/, 'the home rule is lifted once the crisis sheet is registered');
+  const withOwnRule = fs.readdirSync(path.join(ROOT, 'js')).filter(name => /^ui3-.*\.js$/.test(name) && name !== 'ui3-shell.js')
+    .filter(name => /useCurrentUI\s*:/.test(fs.readFileSync(path.join(ROOT, 'js', name), 'utf8')));
+  assert.deepEqual(withOwnRule, ['ui3-map.js'], 'only the map screen registers its own useCurrentUI');
+}
+
 // --- static contracts ---------------------------------------------------
 const canonicalCss = fs.readFileSync(path.join(ROOT, 'docs', 'ui-v3', 'ui3.css'));
 assert.ok(canonicalCss.equals(fs.readFileSync(path.join(ROOT, 'css', 'ui3.css'))), 'css/ui3.css must stay byte-identical to docs/ui-v3/ui3.css');
@@ -126,6 +142,7 @@ async function main() {
       await page.evaluate(registerProbeScreens);
       // A registered sheet is not shown either: renderSheet answers '' so js/app.js keeps its current modal.
       assert.deepEqual(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.registeredSheets()), [], 'no real sheet module is loaded in the shell test');
+      assert.deepEqual(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.stateRuleScreens()), ['home', 'business'], 'the shell exposes exactly two state rules');
       await page.evaluate(registerProbeSheet);
       assert.equal(await page.evaluate(renderProbeSheet), '', 'without ?ui=3 renderSheet is empty, even for a registered sheet');
       await goTo(page, 'home');

@@ -42,7 +42,11 @@ function render(ctx){
   const found=(g.tenants||[]).filter(t=>(g.recommendedTenantIDsFromHomeSearch||[]).includes(t.id));
   const foundRows=found.length?`<h2 class="u-h2">地元で見つけた候補</h2><div class="u-list" data-ui3-founder="found">${found.map(t=>row(' data-action="tab" data-tab="map"',t.name,`交通量${finite(t.traffic).toFixed(2)} · 家賃${money(finite(t.rent))}/週`,'マップへ')).join('')}</div>`:'';
   const more=row(' data-ui3-current="founder"','ほかの詳細（現行の画面）','個人不動産・PE・エンジェル投資・行動履歴');
-  return card+'<h2 class="u-h2">自宅での行動</h2><div class="u-list" data-ui3-founder="actions">'+actions+'</div>'
+  // the latest results of the home actions, read from the same log the current screen's history card shows (UI3-10b: a home action
+  // such as a local event only appends a line here, so without it pressing the row showed nothing)
+  const entries=(g.founderHomeActionLog||[]).slice(0,3);
+  const history=entries.length?`<div class="u-card" data-ui3-founder="history" aria-label="直近の行動">${entries.map(line=>`<div class="u-h2">${esc(line)}</div>`).join('')}</div>`:'';
+  return card+'<h2 class="u-h2">自宅での行動</h2><div class="u-list" data-ui3-founder="actions">'+actions+'</div>'+history
     +'<h2 class="u-h2">自分への投資</h2><div class="u-list" data-ui3-founder="invest-list">'+upgrade+invest+'</div>'
     +foundRows+`<h2 class="u-h2">そのほか</h2><div class="u-list">${more}</div>`;
 }

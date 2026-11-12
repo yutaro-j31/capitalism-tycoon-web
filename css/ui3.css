@@ -81,6 +81,8 @@ body:has(#modal-root .u-sheet) .ui3 .u-dock { display: none; }
 .ui3 .u-stat { display: grid; gap: 2px; min-width: 0; }
 .ui3 .u-stat > span { font: var(--u-t-label); color: var(--u-muted); }
 .ui3 .u-stat > b { font: var(--u-t-num); white-space: nowrap; }
+/* a text value (a head-office or store name) wraps to at most two lines instead of running into the next column (UI3-10b); numbers (.u-money) keep their no-wrap rule */
+.ui3 .u-stat > b:not(.u-money), .ui3 .u-stat > b.u-text { white-space: normal; overflow-wrap: anywhere; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .ui3 .u-stat.hero > b { font: var(--u-t-hero); }
 .ui3 .u-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--u-3); }
 .ui3 .u-stats.two { grid-template-columns: repeat(2, 1fr); }

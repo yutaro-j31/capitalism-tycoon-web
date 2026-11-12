@@ -293,10 +293,28 @@ async function main() {
       await page.locator('#modal-root .u-sheet [data-ui3-map-sheet]').waitFor({ state: 'attached', timeout: 10000 });
       reach[kind] = await page.evaluate(() => [...document.querySelectorAll('#modal-root .u-sheet [data-action]')].map(node => node.dataset.action));
       assert.ok(reach[kind].includes(expected), `${kind}: ${reach[kind]}`);
+      if (kind === 'realestate') {
+        // UI3-10b: buying moves money for good, so it asks first. The sheet carries two buy buttons that open a confirmation sheet showing the
+        // engine's price (ceilYen(price)) and the cash afterwards; cancelling changes nothing; confirming runs the existing action.
+        assert.equal(await page.locator('#modal-root .u-sheet [data-ui3-map-buy]').count(), 2, 'a listing offers buying for the company and for the founder');
+        const listing = await page.evaluate(() => { const g = globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g; const id = document.querySelector('#modal-root [data-ui3-map-buy]').dataset.id; const p = g.properties.find(item => item.id === id); return { id, price: Math.ceil(p.price), personal: g.personalCash }; });
+        const compact = amount => page.evaluate(value => globalThis.__capitalismTycoonModules.engine.compactYen(value), amount);
+        await page.locator('#modal-root [data-ui3-map-buy="personal"]').tap();
+        await page.locator('#modal-root [data-ui3-confirm]').waitFor({ state: 'visible', timeout: 10000 });
+        const facts = await page.locator('#modal-root [data-ui3-confirm-facts] .u-stat').evaluateAll(nodes => nodes.map(node => [node.querySelector('span').innerText, node.querySelector('b').innerText]));
+        assert.deepEqual(facts, [['購入価格', await compact(listing.price)], ['実行後の個人現金', await compact(listing.personal - listing.price)]], 'the confirmation shows the engine price and the cash afterwards');
+        const cashBefore = () => page.evaluate(() => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.personalCash);
+        await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').first().tap();
+        assert.equal(await cashBefore(), listing.personal, 'cancelling buys nothing');
+        assert.equal(await page.evaluate(id => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.properties.find(item => item.id === id).owner || '', listing.id), '');
+        await page.locator('[data-ui3-map-list]').tap();
+        await page.locator('#modal-root [data-ui3-map-pick]').first().tap();
+        await page.locator('#modal-root .u-sheet [data-ui3-map-sheet]').waitFor({ state: 'attached', timeout: 10000 });
+      }
       await tapMapAboveSheet(page);
     }
     await page.locator('[data-ui3-map-filter="all"]').tap();
-    assert.deepEqual(reach.realestate.sort(), ['buy-property-company', 'buy-property-personal', 'negotiate-property-company', 'negotiate-property-personal'], 'an unowned listing: both ways to buy and both ways to negotiate');
+    assert.deepEqual(reach.realestate.sort(), ['negotiate-property-company', 'negotiate-property-personal'], 'an unowned listing: both ways to negotiate (buying goes through a confirmation sheet, below)');
     assert.ok(Array.isArray(reach.office) && Array.isArray(reach.realestate), `office and real-estate pins were reached: ${JSON.stringify(reach)}`);
     console.log('reach', JSON.stringify(reach));
 
@@ -311,7 +329,7 @@ async function main() {
     });
     await goTo(page, 'map');
     await waitForPins(page);
-    for (const [kind, expected] of [['realestate', ['sell-property', 'tab']], ['office', ['contract-branch-office']]]) {
+    for (const [kind, expected] of [['realestate', ['tab']], ['office', ['contract-branch-office']]]) {
       await page.locator(`[data-ui3-map-filter="${kind}"]`).tap();
       await page.waitForTimeout(300);
       await page.locator('[data-ui3-map-list]').tap();
@@ -320,6 +338,22 @@ async function main() {
       await page.locator('#modal-root .u-sheet [data-ui3-map-sheet]').waitFor({ state: 'attached', timeout: 10000 });
       const actions = await page.evaluate(() => [...document.querySelectorAll('#modal-root .u-sheet [data-action]')].map(node => node.dataset.action));
       for (const action of expected) assert.ok(actions.includes(action), `${kind}: ${actions}`);
+      if (kind === 'realestate') {
+        // selling goes through a confirmation sheet too: ceil(value x 0.97), cancelling changes nothing, confirming sells at that amount
+        assert.equal(await page.locator('#modal-root .u-sheet [data-ui3-map-sell]').count(), 1, 'an owned property offers selling');
+        assert.equal(await page.locator('#modal-root .u-sheet [data-action="sell-property"]').count(), 0, 'the sell row does not sell by itself');
+        const owned = await page.evaluate(() => { const g = globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g; const p = g.properties.find(item => item.id === globalThis.__ui3OwnedProperty); return { proceeds: Math.ceil(p.value * 0.97), company: g.companyCash }; });
+        await page.locator('#modal-root [data-ui3-map-sell]').tap();
+        await page.locator('#modal-root [data-ui3-confirm]').waitFor({ state: 'visible', timeout: 10000 });
+        const sale = await page.locator('#modal-root [data-ui3-confirm-facts] .u-stat').evaluateAll(nodes => nodes.map(node => node.querySelector('b').innerText));
+        const shown = amount => page.evaluate(value => globalThis.__capitalismTycoonModules.engine.compactYen(value), amount);
+        assert.deepEqual(sale, [await shown(owned.proceeds), await shown(owned.company + owned.proceeds)], 'the sale confirmation shows the engine amount and the cash afterwards');
+        await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').first().tap();
+        assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.companyCash), owned.company, 'cancelling sells nothing');
+        await page.locator('[data-ui3-map-list]').tap();
+        await page.locator(`#modal-root [data-ui3-map-pick="realestate:${await page.evaluate(() => globalThis.__ui3OwnedProperty)}"]`).tap();
+        await page.locator('#modal-root .u-sheet [data-ui3-map-sheet]').waitFor({ state: 'attached', timeout: 10000 });
+      }
       await tapMapAboveSheet(page);
     }
     await page.locator('[data-ui3-map-filter="all"]').tap();
