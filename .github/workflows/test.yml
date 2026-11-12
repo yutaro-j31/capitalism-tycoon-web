@@ -355,6 +355,8 @@ jobs:
           node --check tests/ui3-market-webkit-test.js
           node --check tests/ui3-returns-webkit-test.js
           node --check tests/ui3-crisis-webkit-test.js
+          node --check tests/ui3-advance-crisis-stop-webkit-test.js
+          node --check tests/ui3-map-startup-race-webkit-test.js
           node --check tests/ui3-rest-webkit-test.js
           node --check tests/ui3-text-webkit-test.js
           node --check tests/ui3-reachability-webkit-test.js
@@ -410,6 +412,12 @@ jobs:
       - name: Verify UI v3 cash-crisis response sheet
         timeout-minutes: 5
         run: node tests/ui3-crisis-webkit-test.js
+      - name: Verify UI v3 "4週" stops at a cash crisis
+        timeout-minutes: 5
+        run: node tests/ui3-advance-crisis-stop-webkit-test.js
+      - name: Verify UI v3 map when its modules load late
+        timeout-minutes: 5
+        run: node tests/ui3-map-startup-race-webkit-test.js
       - name: Verify UI v3 strategy, overseas, media, rivals, missions and news screens
         timeout-minutes: 5
         run: node tests/ui3-rest-webkit-test.js

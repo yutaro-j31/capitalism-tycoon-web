@@ -530,5 +530,13 @@
   "tests/ui3-report-webkit-test.js": {
     "reason": "UI v3 report screen (docs/ui-v3 UI3-7): real-browser proof that the current report screen is unchanged without ?ui=3, the v3 card shows sales, net income and ending cash equal to the current statements for every period chip, each statement sheet lists the current screen's lines with no control that changes the game, viewing changes nothing, and the chart stays reachable on the current screen; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
+  },
+  "tests/ui3-advance-crisis-stop-webkit-test.js": {
+    "reason": "UI v3 \"4週\" stops at a cash crisis (docs/ui-v3 UI3-12a, playtest finding B14): real-browser proof, for the v3 button and the current UI's button, that without a crisis \"4週\" runs exactly four weeks, and that when a crisis starts in the middle of the four weeks it stops in that week without bankruptcy, shows the weekly report and a toast saying why, and leaves the crisis response reachable; the stop only reads engine.g.playerCrisis; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
+  },
+  "tests/ui3-map-startup-race-webkit-test.js": {
+    "reason": "UI v3 map when its modules arrive after the first draw (docs/ui-v3 UI3-12a, playtest finding B17): real-browser proof that with the 3D map script held back the page has no error and the map appears when the script arrives, and that when the 3D map module never registers the map waits a bounded time and then shows the current UI's map without a page error, a recovery dialog or a permanent loading state; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
   }
 }
