@@ -42,9 +42,29 @@ function workspaceOptions(){
   return {engine:context.engine,selected:state.selected,filter:state.filter,pins:'u-pin',focusY:FOCUS_Y,
     directoryOpen:false,onDirectoryToggle(){},detail:()=>'',select,fallback:useCurrentMap};
 }
+// js/city-lab-map.js and js/map-phase2-canvas.js load after js/app.js, which can already draw the map tab
+// (and queue this screen's mount) when the saved game was left on it. Until both are registered the map waits,
+// a bounded number of times, then hands over to the current UI's Canvas2D map (README 6.5): it never stays "loading".
+const MAP_MODULE_RETRY_MS=50,MAP_MODULE_MAX_TRIES=100;
+const mapModulesReady=()=>Boolean(modules.cityLabMap?.renderWorkspace&&modules.mapPhase2Canvas?.buildMapViewModel);
+let waitingForMapModules=false;
+function awaitMapModules(){
+  if(waitingForMapModules)return;
+  waitingForMapModules=true;
+  const container=host?.querySelector('[data-ui3-map]');
+  if(container&&!container.firstChild)container.innerHTML='<p class="u-h2" data-ui3-map-loading>地図を読み込み中です。</p>';
+  let tries=0;
+  const tick=()=>{
+    if(mapModulesReady()){waitingForMapModules=false;if(host?.isConnected&&!unavailable)startMap();return;}
+    if(++tries>=MAP_MODULE_MAX_TRIES){waitingForMapModules=false;if(host?.isConnected)useCurrentMap();return;}
+    setTimeout(tick,MAP_MODULE_RETRY_MS);
+  };
+  setTimeout(tick,MAP_MODULE_RETRY_MS);
+}
 function refreshMap(){
   const container=host?.querySelector('[data-ui3-map]');
-  if(!container||!context)return false;
+  if(!container||!context||!mapModulesReady())return false;
+  container.querySelector('[data-ui3-map-loading]')?.remove();
   return modules.cityLabMap.renderWorkspace(container,context.g,workspaceOptions());
 }
 // 3D map unavailable (no WebGL, context lost, assets failed): the current UI draws the Canvas2D
@@ -309,14 +329,18 @@ modules.ui3.registerScreen('map',{
       // handler clears it: the map host is replaced on every render, #modal-root is not.
       globalThis.document.addEventListener('click',onClick,true);
     }
-    const entity=entityById(state.selected);
-    if(!entity){state.selected=null;state.sheet=null;}
-    if(!refreshMap()){useCurrentMap();return;}
-    decorate();
-    // the workspace builds its stage asynchronously the first time (assets load), so decorate again then
-    if(!host.querySelector('[data-ui3-map-chips]'))waitForStage();
+    startMap();
   }
 });
+function startMap(){
+  if(!mapModulesReady()){awaitMapModules();return;}
+  const entity=entityById(state.selected);
+  if(!entity){state.selected=null;state.sheet=null;}
+  if(!refreshMap()){useCurrentMap();return;}
+  decorate();
+  // the workspace builds its stage asynchronously the first time (assets load), so decorate again then
+  if(!host.querySelector('[data-ui3-map-chips]'))waitForStage();
+}
 function waitForStage(){
   let tries=0;
   const tick=()=>{

@@ -912,10 +912,25 @@ function confirmPropertyNegotiation(id,owner){
   modal(`<h2>${esc(p.name)}の価格交渉（${ownerLabel}）</h2><p>掲示価格${yen(p.price)}より安く提示します。提示額が低いほど決裂しやすくなります。</p>${rows}<p class="hint">決裂すると${cooldown}週間はこの物件に再交渉できません（掲示価格での即時購入は引き続き可能です）。</p><div class="modal-actions">${btn('閉じる','close-modal',{kind:'ghost'})}</div>`);
 }
 
+// 「4週」は、資金繰り危機が新しく始まった週・段階が進んだ週で止める（UI3-12a）。危機の猶予を、対応策を見ないまま使い切らせないため。
+// 読むだけ：engine.g.playerCrisis.status を見て、週数を数えるだけで状態は書かない。進む週数が減るだけで、各週の計算は変わらない。
+const CRISIS_SEVERITY=Object.freeze({stable:0,recovered:0,watch:1,turnaround:2,distressed:3,insolvent:4});
+const crisisSeverity=g=>CRISIS_SEVERITY[g.playerCrisis?.status]??0;
+function advanceUpToFourWeeks(){
+  let before=crisisSeverity(engine.g);
+  for(let i=0;i<4&&!engine.g.gameOver;i++){
+    engine.advanceWeek(false);
+    const after=crisisSeverity(engine.g);
+    if(after>before)return true;
+    before=after;
+  }
+  return false;
+}
+
 function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
   switch(name){
     case 'tab': engine.g.selectedTab=el.dataset.tab;closeModal();engine.save();render();break;
-    case 'advance-week':engine.advanceWeek(true);break;case 'advance-4':for(let i=0;i<4&&!engine.g.gameOver;i++)engine.advanceWeek(false);showWeeklySummary(engine.g.lastWeeklySummary);render();break;
+    case 'advance-week':engine.advanceWeek(true);break;case 'advance-4':{const stoppedByCrisis=advanceUpToFourWeeks();showWeeklySummary(engine.g.lastWeeklySummary);render();if(stoppedByCrisis&&!engine.g.gameOver)toast('資金繰りが悪化したため、ここで止めました。対応策を確認してください。','warning');break;}
     case 'close-modal':closeModal();break;
     case 'open-store':{const businessID=$(`#business-${id}`).value;confirmOpenStore(id,businessID);break;}
     case 'contract-office':engine.contractOffice(id);break;case 'contract-branch-office':engine.contractBranchOffice(id);break;case 'close-branch-office':engine.closeBranchOffice(id);break;case 'cancel-office':confirmModal('オフィス契約解除','部門やCXOがいる場合は解除できません。','confirm-cancel-office');break;case 'confirm-cancel-office':engine.cancelOffice();closeModal();break;
