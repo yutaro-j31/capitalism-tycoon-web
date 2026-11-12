@@ -1401,6 +1401,12 @@
           "sharesOut",
           "treasuryBuybackShares"
         ]
+      },
+      {
+        "file": "js/ui3-market.js",
+        "tokens": [
+          "treasuryBuybackShares"
+        ]
       }
     ],
     "peFundCash": [
