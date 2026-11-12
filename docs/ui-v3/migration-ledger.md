@@ -486,3 +486,45 @@ UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可�
 | --- | --- | --- | --- |
 | `sell-property`（マップの物件のシートの「この物件を売却」） | マップの物件のシート | 保有物件 | 確認シート（売却額＝評価額の97%、実行後の現金）→ 同じ操作。以前は確認なしで売却されていた |
 | `founder-action`（自宅での行動6つ）の結果の表示 | 創業者の画面 | 常時 | 直近3件の「行動履歴」を読み取りで表示（以前は、地元イベントを押しても画面に何も出なかった） |
+
+### 「今週やること」の行き先（秘書タスクと創業ガイド、UI3-10c）
+
+ホームの行（`data-ui3-dest`）の行き先を決め直した表。「対処の操作」は、検査（`tests/ui3-destinations-webkit-test.js`）が、行を押した先で**見えて・押せて・指で届く**ことを確かめるもの。仕組みは README 10.10。
+
+| タスク ID | 現行の行き先 | v3 の行き先（画面／シート） | そこで押せる対処の操作 |
+| --- | --- | --- | --- |
+| `finance_cash_negative` | bank | **危機対応シート**（危機の宣言前は資金調達の画面） | 創業者資金の注入・緊急融資など（宣言前：資金調達の読み取り。借入余力が0なので「借りる」は押せない） |
+| `finance_cash_runway` | bank | 資金調達（v3） | 「借りる」（`data-ui3-bank-amount="borrow"`） |
+| `finance_loss_runway` | report | 決算（v3） | 情報のみ（決算の要約）。対処は資金調達・事業の画面 |
+| `finance_debt_due` | bank | 資金調達（v3） | 「返す」（`data-ui3-bank-amount="repay"`） |
+| `finance_high_interest` | bank | 資金調達（v3） | 「返す」 |
+| `finance_debt_heavy` | bank | 資金調達（v3） | 「返す」 |
+| `supply_stockout` | business | 事業（v3）→ **その店舗のシート**→「在庫と仕入れ」へスクロール | 自動発注の方針・安全在庫・緊急仕入れ・仕入先を変える |
+| `supply_overstock` | business | 同上 | 同上 |
+| `store_loss` | business | 事業（v3）→ **赤字の店舗のシート** | 店舗価格を変更（`store-price`）ほか |
+| `workforce_fatigue` | office | 本社（v3） | 福利厚生投資（`workforce-invest`）・リモートワーク（`toggle-remote`） |
+| `workforce_retention` | office | **現行の本社を直接開く**（重要社員タブ） | 重要社員の育成（`train-keyperson`）。focus は現行と同じ |
+| `growth_product_ready` | business | **現行の事業を直接開く** | 現行の事業画面のプロダクト欄（v3 にプロダクトの投入・改善は無い）。focus は現行と同じ |
+| `growth_competitor_alert` | rivals | 競合（v3） | 競合の行 → 広告防衛・品質防衛・買収 |
+| `growth_ipo_ready` | office | **現行の本社を直接開く**（取締役会・IPOタブ） | IPO実行（`execute-ipo`）。focus は現行と同じ |
+| `growth_expansion_capacity` | map | マップ（v3） | ピン → 出店する |
+| `crisis_active` | strategy | **危機対応シート**（宣言前は資金調達の画面） | 同 `finance_cash_negative` |
+| `ma_dd_completed_*` `ma_counter_*` `ma_competing_bid_*` `ma_financing_*` `ma_financing_invalid_*` `ma_accepted_*` `ma_board_*` `ma_deadline_*` | ma | **現行のM&A画面を直接開く**（案件の部屋が画面に出る） | 案件の操作（DD・オファー・資金調達・取締役会・クロージング）。v3 の M&A 画面にあるのは候補と案件の読み取りだけ |
+| `ma_pmi_planning_*` `ma_pmi_stalled_*` | ma | **現行のM&A画面を直接開く**（子会社の欄） | 統合の進め方（PMI方針）。focus は現行と同じ |
+
+| 創業ガイドの手順 | 現行の行き先 | v3 の行き先 | 対処の操作 |
+| --- | --- | --- | --- |
+| `dashboard`（会社の現在地） | home | ホーム（v3） | 情報のみ（今週の成績）。押すと確認済みになる（`js/app.js` の処理のまま） |
+| `first_store`（最初の店舗） | map | マップ（v3） | ピン → 出店する |
+| `unit_economics`（価格・商品・供給） | strategy（サプライチェーン） | 事業（v3）→ **最初の店舗のシート**→「在庫と仕入れ」へスクロール | 在庫と仕入れの操作（`supply_stockout` と同じ） |
+| `first_week`（最初の週を進める） | home | ホーム（v3） | 「進める」（画面下の `.u-advance`） |
+| `weekly_recap`（週間インパクト） | home | ホーム（v3） | 情報のみ（今週の成績） |
+| `first_improvement`（最初の改善） | business | 事業（v3）→ **事業のシート** | 投資（`business-invest`）・価格（`business-price`） |
+| `cash_runway`（黒字と現金余力） | report | 決算（v3） | 情報のみ（決算の要約） |
+| `growth_step`（2店舗目） | map | マップ（v3） | ピン → 出店する |
+| `organization`（組織経営） | office | 本社（v3） | 部門の行 → 設置する |
+| `graduation`（完了） | missions | 進行・目標（v3） | 情報のみ（長期目標・進行中のミッション） |
+
+- 秘書タスクの ID は26種（財務6・供給2・赤字店1・組織2・成長4・危機1・M&A 10）。設計担当の「15種」は、このうち成長の出店余力とM&A 10種を除いた数と思われる。創業ガイドは10手順。
+- 「対処の操作が v3 に無い」ものを現行の画面で開く行き先は、残件（10.1「残してよいもの」の『ほかの詳細』と同じ扱い）。戻るボタン（UI3-9b-5）で v3 に戻れる。
+- 検査で確かめられていないもの：M&A の `ma_accepted_*` は、承認の連鎖（条件・上場・DD）を作らず、承認の検証を「有効」に差し替えて行を出した。`growth_product_ready` の行き先は、現行の画面が開くことまで（プロダクトの操作の有無は、プロダクトの状態が必要なので確かめていない）。
