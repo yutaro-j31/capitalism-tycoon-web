@@ -44,11 +44,34 @@ function workspaceOptions(){
 }
 function refreshMap(){
   const container=host?.querySelector('[data-ui3-map]');
-  if(!container||!context)return false;
+  if(!container||!context||!modules.cityLabMap?.renderWorkspace)return false;
   return modules.cityLabMap.renderWorkspace(container,context.g,workspaceOptions());
 }
 // 3D map unavailable (no WebGL, context lost, assets failed): the current UI draws the Canvas2D
 // fallback for the map until the page is reloaded (README 6.5; migration-ledger.md).
+// js/city-lab-map.js is the last script on the page: a map screen mounted before it registers (a reload that
+// lands on the map) waits for it, with a bounded number of tries, and then takes the same fallback as a 3D
+// failure. It never stays on "loading" and never touches a module that is not there.
+const WAIT_TRIES=60,WAIT_MS=100;
+let waiting=null;
+function waitForCityLab(){
+  if(waiting)return;
+  let tries=0;
+  const step=()=>{
+    waiting=null;
+    if(unavailable)return;
+    if(modules.cityLabMap?.renderWorkspace){
+      if(!host?.isConnected||!context)return;
+      if(!refreshMap()){useCurrentMap();return;}
+      decorate();
+      if(!host.querySelector('[data-ui3-map-chips]'))waitForStage();
+      return;
+    }
+    if(++tries>=WAIT_TRIES){useCurrentMap();return;}
+    waiting=globalThis.setTimeout(step,WAIT_MS);
+  };
+  waiting=globalThis.setTimeout(step,WAIT_MS);
+}
 function useCurrentMap(){
   if(unavailable)return;
   unavailable=true;
@@ -311,6 +334,7 @@ modules.ui3.registerScreen('map',{
     }
     const entity=entityById(state.selected);
     if(!entity){state.selected=null;state.sheet=null;}
+    if(!modules.cityLabMap?.renderWorkspace){waitForCityLab();return;}
     if(!refreshMap()){useCurrentMap();return;}
     decorate();
     // the workspace builds its stage asynchronously the first time (assets load), so decorate again then

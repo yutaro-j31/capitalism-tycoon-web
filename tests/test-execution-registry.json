@@ -515,6 +515,10 @@
     "reason": "UI v3 cash-crisis response sheet (docs/ui-v3 UI3-9b-1): real-browser proof that the current crisis panel is unchanged without ?ui=3, the v3 home stays during a crisis and the notice and the first action slot open the sheet, every confirmation shows the engine's own quote, the founder's injection moves the personal and company cash by exactly the amount entered, the emergency loan moves cash and debt as quoted, cancelling changes nothing, actions the current panel disables are disabled with the reason, and one press calls the engine function once; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
   },
+  "tests/ui3-12a-webkit-test.js": {
+    "reason": "UI v3 play-test stalls (docs/ui-v3 UI3-12a, B14 and B17): real-browser proof that the 4-week button stops in the week a funding crisis starts or worsens (current UI and the v3 dock button) and shows the week-end report instead of running on to insolvency, still advances four weeks when there is no crisis, and that the v3 map screen mounted before the map module has registered waits for it with a bounded number of tries, draws when it arrives and takes the current-map fallback when it never does, with no page errors; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
+  },
   "tests/ui3-returns-webkit-test.js": {
     "reason": "UI v3 shareholder returns on the market screen (docs/ui-v3 UI3-9b-2): real-browser proof that the current panel is unchanged without ?ui=3, the section appears only after listing and shows the current panel's numbers, the dividend goes through the existing set-dividend action and the amount sheet (the value entered, zero included, with the engine's planned total previewed), the buy-back goes through the existing buyback action and the amount sheet (the company cash falls by exactly the cost of the shares bought, as previewed), the buy-back is disabled like the current button with the reason shown, and cancelling changes nothing; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"

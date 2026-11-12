@@ -912,10 +912,24 @@ function confirmPropertyNegotiation(id,owner){
   modal(`<h2>${esc(p.name)}の価格交渉（${ownerLabel}）</h2><p>掲示価格${yen(p.price)}より安く提示します。提示額が低いほど決裂しやすくなります。</p>${rows}<p class="hint">決裂すると${cooldown}週間はこの物件に再交渉できません（掲示価格での即時購入は引き続き可能です）。</p><div class="modal-actions">${btn('閉じる','close-modal',{kind:'ghost'})}</div>`);
 }
 
+// 4 weeks at a time, but never past the moment a funding crisis starts or worsens: the player needs the
+// week-end report and the response sheet (founder money, emergency loan ...) before the next week runs.
+// Only the existing playerCrisis.status is read; the number of weeks advanced is the only thing that changes.
+const CRISIS_QUIET=new Set(['stable','recovered']);
+const crisisStatus=()=>String(engine.g.playerCrisis?.status||'stable');
+function advanceUpToFourWeeks(){
+  for(let i=0;i<4&&!engine.g.gameOver;i++){
+    const before=crisisStatus();
+    engine.advanceWeek(false);
+    const after=crisisStatus();
+    if(after!==before&&!CRISIS_QUIET.has(after))break;
+  }
+}
+
 function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
   switch(name){
     case 'tab': engine.g.selectedTab=el.dataset.tab;closeModal();engine.save();render();break;
-    case 'advance-week':engine.advanceWeek(true);break;case 'advance-4':for(let i=0;i<4&&!engine.g.gameOver;i++)engine.advanceWeek(false);showWeeklySummary(engine.g.lastWeeklySummary);render();break;
+    case 'advance-week':engine.advanceWeek(true);break;case 'advance-4':advanceUpToFourWeeks();showWeeklySummary(engine.g.lastWeeklySummary);render();break;
     case 'close-modal':closeModal();break;
     case 'open-store':{const businessID=$(`#business-${id}`).value;confirmOpenStore(id,businessID);break;}
     case 'contract-office':engine.contractOffice(id);break;case 'contract-branch-office':engine.contractBranchOffice(id);break;case 'close-branch-office':engine.closeBranchOffice(id);break;case 'cancel-office':confirmModal('オフィス契約解除','部門やCXOがいる場合は解除できません。','confirm-cancel-office');break;case 'confirm-cancel-office':engine.cancelOffice();closeModal();break;
