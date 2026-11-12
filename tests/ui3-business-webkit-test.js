@@ -314,6 +314,19 @@ async function main() {
     await page.locator('[data-ui3-current="business"]').tap();
     await page.waitForFunction(() => document.body.classList.contains('d-ui-active') && !document.body.classList.contains('ui3-native'), null, { timeout: 10000 });
     assert.ok(await page.locator('[data-screen="business"]').count() > 0, 'the current business screen is shown');
+    // README 10.6: the return button sits above the current UI's bottom navigation (measured at 390x664), 48px high, and brings v3 back
+    await page.locator('#ui3-return').waitFor({ state: 'visible', timeout: 10000 });
+    const place = await page.evaluate(() => {
+      const box = document.getElementById('ui3-return').getBoundingClientRect();
+      const fixed = [...document.querySelectorAll('body *')].filter(element => element.id !== 'ui3-return' && getComputedStyle(element).position === 'fixed' && !element.closest('.toast, #toast-root')).map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
+      return { height: Math.round(box.height), overlaps: fixed.filter(rect => box.left < rect.right && box.right > rect.left && box.top < rect.bottom && box.bottom > rect.top).length, fixed: fixed.length, rects: fixed.map(rect => [Math.round(rect.left), Math.round(rect.top), Math.round(rect.right), Math.round(rect.bottom)]), btn: [Math.round(box.left), Math.round(box.top), Math.round(box.right), Math.round(box.bottom)], vh: innerHeight };
+    });
+    assert.deepEqual([place.height >= 48, place.overlaps], [true, 0], `the return button does not overlap the current UI's fixed parts: ${JSON.stringify(place)}`);
+    await page.locator('#ui3-return').tap();
+    await page.waitForFunction(() => document.body.classList.contains('ui3-native') && !document.getElementById('ui3-return'), null, { timeout: 10000 });
+    assert.equal(await page.locator('[data-ui3-business="summary"]').count(), 1, 'the return button brings the v3 business screen back');
+    await page.locator('[data-ui3-current="business"]').tap();
+    await page.waitForFunction(() => document.body.classList.contains('d-ui-active') && !document.body.classList.contains('ui3-native'), null, { timeout: 10000 });
     await page.evaluate(() => document.querySelector('[data-action="tab"][data-tab="business"]').click());
     await page.locator('[data-ui3-business="summary"]').waitFor({ state: 'visible', timeout: 10000 });
 

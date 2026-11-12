@@ -133,6 +133,10 @@ async function main() {
       assert.deepEqual([off.native, off.bodyNative, off.bodyDUI, off.sidebar, off.screen], [false, false, true, true, 'home'], 'without ?ui=3 the current D UI renders, even for a registered screen');
       assert.equal(off.preference, null);
       assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.amountSheet({ title: '購入株数', initial: 100, submit() {} })), false, 'without ?ui=3 the amount sheet takes nothing (askMoney keeps its dialog)');
+      // the return button (UI3-9b-5) never appears without ?ui=3, even after a click
+      await page.evaluate(() => document.body.click());
+      await page.waitForTimeout(600);
+      assert.equal(await page.locator('#ui3-return').count(), 0, 'without ?ui=3 there is no return button');
       assert.deepEqual(pageErrors, []);
       await context.close();
     }
@@ -293,8 +297,28 @@ async function main() {
     await page.waitForFunction(() => Boolean(document.getElementById('d-ui-sidebar')), null, { timeout: 10000 });
     const detour = await snapshot(page);
     assert.deepEqual([detour.native, detour.bodyDUI, detour.screen], [false, true, 'business'], 'the row opens the complete current screen');
+    // README 10.6: the return button. Under <body>, 48px (its place against the real bottom navigation is checked in ui3-business-webkit-test), hidden while a dialog is open,
+    // and pressing it brings the same screen back in v3 through the tab action.
+    await page.locator('#ui3-return').waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await page.locator('#ui3-return').innerText(), '‹ 新しい画面に戻る');
+    const ret = await page.evaluate(() => {
+      const button = document.getElementById('ui3-return'), box = button.getBoundingClientRect();
+      return { parent: button.parentElement.tagName, cls: button.className, height: Math.round(box.height), width: Math.round(box.width), centre: Math.round(box.left + box.width / 2), viewport: innerWidth,  inside: box.left >= 0 && box.right <= innerWidth, to: button.dataset.ui3ReturnTo };
+    });
+    assert.deepEqual([ret.parent, ret.cls.split(' ').includes('ui3'), ret.height >= 48, ret.inside, ret.to], ['BODY', true, true, true, 'business'], JSON.stringify(ret));
+    assert.ok(Math.abs(ret.centre - ret.viewport / 2) <= 1, 'bottom centre');
+    await page.evaluate(() => { document.getElementById('modal-root').innerHTML = '<div class="modal">probe dialog</div>'; document.body.click(); });
+    await page.waitForFunction(() => !document.getElementById('ui3-return'), null, { timeout: 5000 });
+    await page.evaluate(() => { document.getElementById('modal-root').innerHTML = ''; document.body.click(); });
+    await page.locator('#ui3-return').waitFor({ state: 'visible', timeout: 5000 });
+    await page.locator('#ui3-return').tap();
+    await page.waitForFunction(() => document.body.classList.contains('ui3-native') && !document.getElementById('ui3-return'), null, { timeout: 10000 });
+    assert.deepEqual([(await snapshot(page)).native, (await snapshot(page)).screen], [true, 'business'], 'the return button brings the same screen back in v3');
+    await page.locator('[data-ui3-current="business"]').tap();
+    await page.waitForFunction(() => Boolean(document.getElementById('d-ui-sidebar')), null, { timeout: 10000 });
     await goTo(page, 'business');
     assert.equal((await snapshot(page)).native, true, 'the next tab action brings the v3 screen back');
+    assert.equal(await page.locator('#ui3-return').count(), 0, 'the button is gone once v3 is back');
     // Recall crisis: while the response is open (respond-recall-crisis), the business screen is the current UI.
     const setRecall = responded => page.evaluate(responded => { const g = globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g; g.activeRecallCrisis = responded === null ? null : { id: 'probe-recall', status: 'active', businessID: 'ramen', storeID: null, startedWeek: g.week, baseResolveWeek: g.week + 7, resolveWeek: g.week + 7, salesMultiplier: .6, responded }; }, responded);
     await setRecall(false);
@@ -303,6 +327,8 @@ async function main() {
     await goTo(page, 'business');
     await page.waitForFunction(() => Boolean(document.getElementById('d-ui-sidebar')), null, { timeout: 10000 });
     assert.deepEqual([(await snapshot(page)).native, await page.locator('[data-action="respond-recall-crisis"]').count()], [false, 1], 'with an open recall crisis the current business screen carries the response');
+    await page.evaluate(() => document.body.click()); await page.waitForTimeout(600);
+    assert.equal(await page.locator('#ui3-return').count(), 0, 'a screen that is the current UI because of a state rule has no return button');
     await setRecall(true);
     assert.equal(await page.evaluate(() => globalThis.__capitalismTycoonModules.ui3.usesCurrentUI('business', globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g)), false, 'responded: the response is no longer needed');
     await setRecall(null);
