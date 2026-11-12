@@ -431,3 +431,15 @@ UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可�
 | 診断・再起動・不具合報告・保存領域・動作確認のツール（`data-release-diagnostics-action` ほか） | enhancer | 常時 | 現行UI（6.5）。残件 |
 
 未確認：会社売却の実行（確認シートまで）、JSONの書き出し・読み込みの実行（ファイルを扱うため。操作は現行と同じ `export-save` `import-save`）。
+
+### 創業画面・ゲームオーバー（UI3-8b）
+
+洗い出し：UI3-8bの担当エージェント、2026-11-11、Chromium・390×664。現行の創業画面（`renderSetup()`）は、フォーム（`#setup-form`）と、ページの起動スクリプト（`index.html` の `data-setup-recovery-bootstrap`）が `</form>` の後ろに足す復旧の欄からなる。ゲームオーバーは `renderGameOver()` の覆い（`.game-over`）で、操作は「設定を開く」だけ。覆いの「設定を開く」は、確認用に `g.gameOver` を立てただけの状態では設定の画面に移るが、実際に倒産した状態（`gameOver` が立ったまま）では同じ画面に戻るだけだった（設計担当が実際に押して確認）。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| フォームの6つの入力（`playerName` `companyName` `difficulty` `founderPrefID` `founderTraitID` `scenario`）と、`創業する`（送信） | `renderSetup()` | 創業前・やり直した直後 | 創業画面（同じ `id="setup-form"`、同じ `name` と選択肢、同じ送信の経路で `engine.configure` が呼ばれる）。「創業する」を下端に固定 |
+| `import-save`（JSONセーブを読み込む）と隠した `#import-file` | 起動スクリプトが足す復旧の欄 | 創業前 | 創業画面の「JSONセーブを読み込む」の行（同じ操作、同じ `#import-file`）。起動スクリプトが二重に足さないよう、同じ印（`data-setup-recovery`）を付けて描く |
+| 覆いの「設定を開く」（`tab` → `settings`）と、そこから届いた操作 | `renderGameOver()` | 倒産後 | 「設定を開く」の行は**置かない**（ゲームオーバーの間はどのタブでもこの画面が出るので、押しても同じ画面に戻るだけ。設計担当が実際に押して確認）。倒産後に意味のある操作は、すべて同じ画面にある：最初からやり直す（確認シート、`confirm-reset`）、スロット1〜3の読み込み（確認シート、`load-slot`）、JSON書き出し（`export-save`）、JSON読み込み（`import-save` と `#import-file`）、結果カードの保存（`download-result-card`）。診断・再起動・不具合報告・保存領域・動作確認のツールは、v1.0 では倒産後に届かなくてよい（README 10.1） |
+
+未確認：JSONの読み込みの実行（ファイルを扱うため。操作は現行と同じ `import-save`）、倒産に至る実際の遊び（確認用に `g.gameOver` を立てて確かめた）。
