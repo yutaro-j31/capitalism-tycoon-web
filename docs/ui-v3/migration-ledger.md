@@ -222,7 +222,7 @@ v1.0（UI3-11）の時点で残してよいものは、`README.md` 10.1 で決�
 | 個人借入 | `borrow-personal` | 円（個人） | 会社借入と同じ |
 | 個人返済 | `repay-personal` | 円（個人） | 会社返済と同じ |
 
-名前の入力（`askText`：`found-digital-business` `launch-product` `add-directive` の指示内容 `start-campaign` の施策名 `create-pe` の業界）は対象外で、現行のダイアログのまま（UI3-9b に含める。設計担当の決定 2026-11-11）。
+名前の入力（`askText`）は UI3-9b-4 で v3 の入力シート（`modules.ui3.textSheet`）にした（下の表）。旧記述：現行のダイアログのまま（UI3-9b に含める。設計担当の決定 2026-11-11）。
 
 ### `bank`（UI3-7）
 
@@ -300,7 +300,7 @@ UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可�
 | `asset-tab`（不動産・投信・債券・高級資産・スポーツ） | `renderAssets()` | 常時 | 不動産は画面本体。ほかのタブは現行UI（6.5）。残件 |
 | `sell-property`（売却額は評価額の97%） | 物件の行 | 物件を持つとき | 物件のシートの「売却する」→確認シート（売却額、実行後のその財布の現金）。同じ操作 |
 | `buy-property-company` / `buy-property-personal`、`negotiate-property-*` | マップの物件のシート | 常時 | 既存の入口（マップ。UI3-3）。この画面には「物件を買う（マップ）」の行 |
-| `build-property`（建物の種類は名前入力 `askText`） | 物件の行 | 会社の土地 | 現行UI（6.5）。残件（`askText` は UI3-9b） |
+| `build-property`（建物の種類は名前入力 `askText`） | 物件の行 | 会社の土地 | 現行UI（6.5）。残件（名前入力は UI3-9b-4 で v3 のシートになる） |
 | `buy-personal-investment` / `sell-personal-investment`、`buy-luxury` / `sell-luxury`、`buy-team-*` ほか（他のタブの操作） | `renderAssetTab()` | 各タブ | 現行UI（6.5）。残件 |
 | `founder-wealth-capture`（内訳を算定） | `renderFounderWealthBreakdown()` | 常時 | 現行UI（6.5）。残件 |
 
@@ -465,3 +465,17 @@ UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可�
 
 入口：枠の札（どの画面からでも。ホームにも出る）だけ。ホームの「今週やること」には足さない（入口が2つ続けて出るため）。シートを登録すると `CURRENT_UI_RULES.home` は効かなくなり、危機の間もホームは v3 のまま。
 未確認：スポンサー出資・事業再生ファンド・事業整理・固定費削減の実行（確認シートの見積もりがエンジンと一致することまで。創業者資金の注入・緊急融資・再建計画の開始は実行して現金・負債の動きを確かめた）。
+
+### 名前の入力（`askText`、UI3-9b-4）
+
+`js/app.js` の `askText` の先頭に1行だけ足し、`?ui=3` では `modules.ui3.textSheet` が受ける。現行のダイアログは `?ui=3` なしで変わらない。現行の `askText` は空も長い文字も受け付けるので、v3 の既定も同じ（呼び出し元ごとの規則は引数 `allowEmpty` `maxLength` で渡せる。7か所とも現行どおり既定）。
+
+| 呼び出し（`data-action`） | 見出し／ラベル／初期値 | 続き | v3での行き先 |
+| --- | --- | --- | --- |
+| `open-store`（見積もりが取れないときの新店舗） | 新店舗／店舗名／「会社名 N号店」 | `engine.openStore` | 入力シート（同じ呼び出し） |
+| `build-property` | 土地開発／建物種別／本社ビル | `engine.buildOnLand` | 入力シート |
+| `found-digital-business` | IT・デジタル事業を創業／プロダクト名／ひな形の名前 | `engine.foundDigitalBusiness` | 入力シート |
+| `launch-product` | プロダクト開発／プロダクト名／ひな形の名前 | `engine.launchProduct` | 入力シート |
+| `add-directive` | CXO指示／指示内容／成長投資 | 指示予算の金額入力シート → `engine.addDirective` | 入力シート |
+| `start-campaign` | 部門施策／施策名／重点改善キャンペーン | 施策予算の金額入力シート → `engine.startCampaign` | 入力シート |
+| `create-pe` | PE案件組成／業界／テック | 投資額の金額入力シート → `engine.createPEDeal` | 入力シート |
