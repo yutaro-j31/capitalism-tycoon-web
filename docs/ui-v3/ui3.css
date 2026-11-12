@@ -162,3 +162,6 @@ body.ui3-native:has(.u-standalone) { padding-bottom: 0; }
 /* toast: the current UI's toast sits at the bottom edge (css/app.css), where it would cover a sheet's foot.
    While a v3 sheet is open it goes to the top edge instead (design decision, 2026-11-11). */
 body:has(#modal-root .u-sheet) .toast { top: calc(env(safe-area-inset-top, 0px) + 8px); bottom: auto; }
+
+/* "‹ 新しい画面に戻る" (README 10.6): shown under <body> only while a current-UI screen opened from a data-ui3-current row is on screen. */
+.ui3.u-return { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--u-safe-b, 0px) + 84px); z-index: 90; min-height: 48px; padding: 0 var(--u-5); border: 1px solid var(--u-line); border-radius: 999px; background: var(--u-raised); color: var(--u-text); font: var(--u-t-label); font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.45); white-space: nowrap; }

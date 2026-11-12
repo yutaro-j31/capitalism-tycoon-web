@@ -242,12 +242,64 @@ function openCurrentUI(screenID){
   try{button.click();}finally{openingCurrent=false;}
   return true;
 }
+// "‹ 新しい画面に戻る" (UI3-9b-5, README 10.6): a button straight under <body> (outside #app, so no render drops it) that is
+// shown only while a screen the user opened with a `data-ui3-current` row is on screen, and no sheet or dialog is open. It brings the
+// same screen back in v3 through the existing `tab` action (a probe button inside #app carries it, as the hidden screen index does).
+// Screens that are the current UI because of a state rule (CURRENT_UI_RULES) never get it. Visibility is refreshed after clicks;
+// nothing here observes the DOM and nothing is written to the engine.
+let returnTimers=[];
+function returnTarget(){
+  const g=modules.playerEngineBridge?.getEngine?.()?.g;
+  if(!enabled||!g?.configured||g.gameOver)return null;
+  const screenID=g.selectedTab;
+  if(!openedCurrent.has(screenID)||CURRENT_UI_RULES[screenID]?.(g))return null;
+  const root=globalThis.document?.getElementById('modal-root');
+  if(root&&root.innerHTML.trim())return null;
+  return screenID;
+}
+function syncReturnButton(){
+  const doc=globalThis.document;
+  if(!doc?.body)return;
+  const screenID=returnTarget();
+  let button=doc.getElementById('ui3-return');
+  if(!screenID){button?.remove();return;}
+  if(!button){
+    button=doc.createElement('button');
+    button.type='button';button.id='ui3-return';button.className='ui3 u-return';
+    button.setAttribute('data-ui3-return','');
+    button.textContent='‹ 新しい画面に戻る';
+    doc.body.append(button);
+  }
+  button.dataset.ui3ReturnTo=screenID;
+  // sit 12px above the current UI's bottom navigation wherever it is (README 10.6: never overlap it); the default is the CSS value
+  const nav=doc.getElementById('d-ui-sidebar');
+  const rect=nav?.getBoundingClientRect?.();
+  const fixedNav=nav&&rect.height>0&&globalThis.getComputedStyle(nav).position==='fixed';
+  if(fixedNav)button.style.bottom=`${Math.max(12,Math.round(globalThis.innerHeight-rect.top+12))}px`;
+  else button.style.removeProperty('bottom');
+}
+function scheduleReturnSync(){
+  for(const timer of returnTimers)globalThis.clearTimeout(timer);
+  returnTimers=[0,120,400].map(delay=>globalThis.setTimeout(syncReturnButton,delay));
+}
+function returnToNative(screenID){
+  const app=globalThis.document?.getElementById('app');
+  if(!app||!ALL_SCREENS.includes(screenID))return false;
+  const probe=globalThis.document.createElement('button');
+  probe.type='button';probe.hidden=true;probe.dataset.action='tab';probe.dataset.tab=screenID;
+  app.append(probe);
+  try{probe.click();}finally{probe.remove();}
+  return true;
+}
 globalThis.document?.addEventListener('click',event=>{
   const target=event.target instanceof Element?event.target:null;
   if(!target)return;
+  const back=target.closest('[data-ui3-return]');
+  if(back){returnToNative(back.dataset.ui3ReturnTo);scheduleReturnSync();return;}
   if(!openingCurrent&&openedCurrent.size&&target.closest('[data-action="tab"]'))openedCurrent.clear();
   const row=target.closest('[data-ui3-current]');
   if(row&&!row.disabled)openCurrentUI(row.dataset.ui3Current);
+  if(enabled)scheduleReturnSync();
 },true);
 
 // Bottom sheet markup for detail, confirmation and the weekly report. The scrim
