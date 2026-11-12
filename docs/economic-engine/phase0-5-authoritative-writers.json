@@ -663,6 +663,12 @@
         ]
       },
       {
+        "file": "js/ui3-crisis.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/ui3-ma.js",
         "tokens": [
           "companyCash"
@@ -924,6 +930,12 @@
       },
       {
         "file": "js/ui3-bank.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/ui3-crisis.js",
         "tokens": [
           "companyDebt"
         ]
@@ -1719,6 +1731,12 @@
         ]
       },
       {
+        "file": "js/ui3-crisis.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
         "file": "js/ui3-founder.js",
         "tokens": [
           "personalCash"
@@ -2123,6 +2141,12 @@
       },
       {
         "file": "js/ui3-assets.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/ui3-crisis.js",
         "tokens": [
           "properties"
         ]

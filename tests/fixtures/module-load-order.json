@@ -89,6 +89,7 @@
     "./js/ui3-business.js",
     "./js/ui3-office.js",
     "./js/ui3-market.js",
+    "./js/ui3-crisis.js",
     "./js/ui3-strategy.js",
     "./js/ui3-overseas.js",
     "./js/ui3-media.js",

@@ -495,6 +495,10 @@
     "reason": "UI v3 founding form and game-over screen (docs/ui-v3 UI3-8b): real-browser proof that the current founding form is unchanged without ?ui=3, the v3 form has the same fields and names and fits one screen with the button fixed at the bottom, submitting it through the current handler founds the company with the chosen values and starts at the top of the page, the game-over screen shows the reason, starting over and loading a slot are confirmations, and the current screens stay as they were; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
   },
+  "tests/ui3-crisis-webkit-test.js": {
+    "reason": "UI v3 cash-crisis response sheet (docs/ui-v3 UI3-9b-1): real-browser proof that the current crisis panel is unchanged without ?ui=3, the v3 home stays during a crisis and the notice and the first action slot open the sheet, every confirmation shows the engine's own quote, the founder's injection moves the personal and company cash by exactly the amount entered, the emergency loan moves cash and debt as quoted, cancelling changes nothing, actions the current panel disables are disabled with the reason, and one press calls the engine function once; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
+  },
   "tests/ui3-amount-webkit-test.js": {
     "reason": "UI v3 amount / quantity input sheet (docs/ui-v3 UI3-9a): real-browser proof that the current amount dialogs are unchanged without ?ui=3, with ?ui=3 every askMoney request (v3 screens and current-UI screens) is the v3 sheet, share purchases show the approximate amount and the wallet's cash afterwards and buy exactly the number entered, values that are not positive whole numbers cannot be run, cancelling changes nothing, and the sheet meets the acceptance numbers; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"

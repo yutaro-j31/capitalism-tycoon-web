@@ -63,6 +63,7 @@ function actionItems({g,engine}){
   // entry below reaches the same screen (design decision, 2026-11-11).
   const critical=tasks.filter(row=>row.priority==='critical').map(task);
   const rest=tasks.filter(row=>row.priority!=='critical').map(task);
+  // (The cash-crisis response sheet is opened by the shell's notice, which every v3 screen shows including this one; no slot here: README 10.2.)
   return [...critical,...(guideItem?[guideItem]:[]),...rest].slice(0,MAX_ACTIONS);
 }
 
