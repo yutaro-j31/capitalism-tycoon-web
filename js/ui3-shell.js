@@ -53,6 +53,8 @@ function registerCrisisSheet(definition){
   return true;
 }
 const crisisSheetRegistered=()=>enabled&&crisisSheet!==null;
+// Opens the registered crisis response sheet (the shell's crisis notice does the same; used by the home's "crisis_active" row, UI3-10c).
+const openCrisisSheet=()=>crisisSheetRegistered()&&crisisSheet.open()!==false;   // false while the crisis is not declared (the sheet has nothing to show)
 
 function groupOf(screenID){return GROUPS.find(group=>group.screens.includes(screenID))||GROUPS[0];}
 function isAvailable(screenID,g){return screenID!=='pe-portfolio'||Boolean(g?.peFirm?.unlocked);}
@@ -543,6 +545,6 @@ modules.ui3=Object.freeze({
   registeredScreens:()=>[...screens.keys()],
   stateRuleScreens:()=>Object.keys(CURRENT_UI_RULES),   // read-only: the screens a game state can send to the current UI (README 10.1)
   registeredSheets:()=>[...sheetRenderers.keys()],
-  registerScreen,registerSheet,registerCrisisSheet,crisisSheetRegistered,crisisStatus,registerSetup,registerGameOver,renderSetupInto,renderGameOverInto,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,textSheet,setAmountContext,esc
+  registerScreen,registerSheet,registerCrisisSheet,crisisSheetRegistered,openCrisisSheet,crisisStatus,registerSetup,registerGameOver,renderSetupInto,renderGameOverInto,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,textSheet,setAmountContext,esc
 });
 })();

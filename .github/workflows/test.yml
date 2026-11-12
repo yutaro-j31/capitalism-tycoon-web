@@ -358,6 +358,7 @@ jobs:
           node --check tests/ui3-rest-webkit-test.js
           node --check tests/ui3-text-webkit-test.js
           node --check tests/ui3-reachability-webkit-test.js
+          node --check tests/ui3-destinations-webkit-test.js
           node --check tests/ui3-departments-webkit-test.js
           node --check tests/ui3-invest-webkit-test.js
           node --check tests/ui3-amount-webkit-test.js
@@ -418,6 +419,9 @@ jobs:
       - name: Verify every UI v3 button does something (reachability)
         timeout-minutes: 12
         run: node tests/ui3-reachability-webkit-test.js
+      - name: Verify every home row leads to its operation (destinations)
+        timeout-minutes: 12
+        run: node tests/ui3-destinations-webkit-test.js
       - name: Verify UI v3 office departments
         timeout-minutes: 5
         run: node tests/ui3-departments-webkit-test.js
