@@ -1,7 +1,8 @@
 // UI v3 game-over screen — docs/ui-v3/README.md 5.6 (UI3-8b). Replaces the current screen's "倒産" overlay while v3 is on: the reason, and
-// what the current overlay led to (its "設定を開く" button opens the settings tab, whose save / reset controls matter here): starting
+// what the current overlay's "設定を開く" led to that still matters after a bankruptcy: starting
 // over (a confirmation sheet; the existing `confirm-reset`), loading a slot (confirmation sheet; the existing `load-slot`), saving the result
-// card and exporting the save (the existing actions). Nothing here writes engine state.
+// card, exporting and importing the save (the existing actions; `#import-file` is the existing file input). There is no "設定を開く" row: while the game
+// is over every tab shows this screen, so it would do nothing (README 6.6). Nothing here writes engine state.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.ui3?.registerGameOver||!modules.ui3.confirmSheet)throw new Error('js/ui3-shell.js must be loaded before ui3-gameover.js.');
@@ -15,9 +16,9 @@ function render(ctx){
     +row(' data-ui3-gameover-confirm="reset"','最初からやり直す','新しい会社を創業する','開始')
     +[1,2,3].map(i=>row(` data-ui3-gameover-confirm="load-slot" data-id="${i}"`,`スロット${i}から読み込む`,'保存した進行状況に戻る','読込')).join('')
     +row(' data-action="download-result-card"','結果カードを保存','エンディングと記録を画像で保存','保存')
-    +row(' data-action="tab" data-tab="settings"','設定を開く','現行の「設定を開く」と同じ（設定の画面へ）')
     +row(' data-action="export-save"','JSON書き出し','バックアップのファイルを保存する','書き出し')
-    +`</div></div>`;
+    +row(' data-action="import-save"','JSON読み込み','バックアップのファイルから戻る','読み込み')
+    +`</div><input id="import-file" type="file" accept="application/json,.json" hidden></div>`;
 }
 function onClick(event){
   const target=event.target instanceof Element?event.target:null;

@@ -179,6 +179,31 @@ async function main() {
     });
     assert.deepEqual([over.small, over.overflowX], [0, false]);
     assert.ok(over.screens <= 2);
+    // Every button on the screen does something when pressed (README 6.6): a sheet opens, a file chooser opens, a download starts or
+    // the screen changes. (The current overlay's "設定を開く" is not on this screen: it would only redraw this screen.)
+    assert.equal(await page.locator('[data-action="tab"]').count(), 0, 'no row that only redraws the game-over screen');
+    const buttons = await page.locator('[data-ui3-gameover-body] button.u-row').count();
+    assert.ok(buttons >= 7, `the game-over actions are all there (${buttons})`);
+    assert.equal(await page.locator('[data-ui3-gameover-body] [data-action="import-save"]').count(), 1, 'the JSON import row');
+    assert.equal(await page.locator('#import-file').count(), 1, 'one file input for the existing import-save action');
+    const stateBefore = await digest(page);
+    for (let index = 0; index < buttons; index++) {
+      const row = page.locator('[data-ui3-gameover-body] button.u-row').nth(index);
+      const label = (await row.innerText()).split('\n')[0];
+      const happened = await Promise.race([
+        page.waitForEvent('filechooser', { timeout: 4000 }).then(() => 'file chooser'),
+        page.waitForEvent('download', { timeout: 4000 }).then(() => 'download'),
+        page.waitForFunction(() => document.getElementById('modal-root').innerHTML !== '', null, { timeout: 4000 }).then(() => 'sheet'),
+        page.waitForFunction(() => !document.querySelector('[data-ui3-gameover-body]'), null, { timeout: 4000 }).then(() => 'screen changed'),
+        row.tap().then(() => new Promise(resolve => setTimeout(() => resolve(null), 4500)))
+      ].map(promise => promise.catch(() => null))).then(value => value);
+      assert.ok(happened, `pressing "${label}" does something`);
+      if (happened === 'sheet') await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').first().tap();
+      await page.waitForTimeout(300);
+    }
+    // (the existing export / result-card actions add a line to the news log; nothing else moves)
+    const withoutNews = text => { const state = JSON.parse(text); delete state.news; return JSON.stringify(state); };
+    assert.equal(withoutNews(await digest(page)), withoutNews(stateBefore), 'none of these presses changed the game (the news log aside)');
     const before = await digest(page);
     await page.locator('[data-ui3-gameover-confirm="load-slot"][data-id="1"]').tap();
     await page.locator('#modal-root [data-ui3-confirm]').waitFor({ state: 'visible' });
