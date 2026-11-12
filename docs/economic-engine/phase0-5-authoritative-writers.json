@@ -693,6 +693,12 @@
         ]
       },
       {
+        "file": "js/ui3-office.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/ui3-overseas.js",
         "tokens": [
           "companyCash"
