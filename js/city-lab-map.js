@@ -3,7 +3,7 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.mapPhase2Canvas)throw new Error('map-phase2-canvas.js must precede city-lab-map.js.');
 if(modules.cityLabMap)throw new Error('city-lab-map.js is already registered.');
-const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=9af8c628c262','./prototypes/map-canvas-renderer.js?rev=9af8c628c262','./prototypes/map-prefecture-profiles.js?rev=9af8c628c262'];
+const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=38c6a03102ce','./prototypes/map-canvas-renderer.js?rev=38c6a03102ce','./prototypes/map-prefecture-profiles.js?rev=38c6a03102ce'];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const PIN_CLASS={competitor:'rival'},PIN_GLYPH={store:'自',tenant:'空',office:'本',realestate:'不',competitor:'敵'};
