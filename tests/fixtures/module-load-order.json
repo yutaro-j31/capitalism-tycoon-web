@@ -98,6 +98,8 @@
     "./js/ui3-news.js",
     "./js/ui3-bank.js",
     "./js/ui3-report.js",
+    "./js/ui3-setup.js",
+    "./js/ui3-gameover.js",
     "./js/ui3-venture.js",
     "./js/ui3-ma.js",
     "./js/ui3-assets.js",

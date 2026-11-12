@@ -3,7 +3,7 @@
 // UI v3 cash-crisis response sheet (docs/ui-v3/README.md 10.2, task UI3-9b-1). Loads the real js/ui3-crisis.js. Proves in a real
 // browser that:
 //  - without ?ui=3 the current crisis panel (js/player-crisis-ui.js) is unchanged with and without the v3 script;
-//  - during a crisis the v3 home stays, and the shell's notice and the first "今週やること" slot open the response sheet;
+//  - during a crisis the v3 home stays, with one entry only (the shell's notice), which opens the response sheet;
 //  - the sheet shows the engine's own quote (cash, shortfall, loan, sponsor equity), the founder's injection starts from the current
 //    panel's own default and moves the personal and the company cash by exactly the amount entered, cancelling changes nothing;
 //  - actions the current panel disables are disabled with the reason; one press calls the engine function once (no double run).
@@ -19,7 +19,7 @@ const ROOT = path.resolve(__dirname, '..');
 const MIME = { '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp' };
 const SCREEN_MODULE = /\/js\/ui3-(?:crisis)\.js(?:\?.*)?$/;
-const OTHER_SCREEN_MODULES = /\/js\/ui3-(?!shell\.js|crisis\.js|home\.js)[^/?]+\.js(?:\?.*)?$/;
+const OTHER_SCREEN_MODULES = /\/js\/ui3-(?!shell\.js|crisis\.js|home\.js|gameover\.js)[^/?]+\.js(?:\?.*)?$/;
 
 // --- static contracts ---------------------------------------------------
 const FILES = ['ui3-crisis'];
@@ -112,10 +112,15 @@ async function main() {
   // a real crisis, built the way tests/player-crisis-actions-test.js builds it (cash below zero, a finance state, the crisis evaluation)
   const makeCrisis = (page, cash = -1000000, personal = 50000000, propertyValue = 0) => engineEval(page, (engine, [c, p, v]) => {
     const m = globalThis.__capitalismTycoonModules;
+    // a new crisis from scratch (the earlier actions' cooldowns and history are part of the test setup, not of v3)
+    delete engine.g.playerCrisis; delete engine.g.playerCrisisActions; delete engine.g.playerTurnaroundPlan; delete engine.g.playerTurnaroundFund;
     engine.g.week = 2; engine.g.companyCash = c; engine.g.personalCash = p; engine.g.companyCredit = 80;
     if (v > 0) { const property = engine.g.properties[0]; property.owner = 'company'; property.purchasePrice = v; property.price = v; property.value = v; }
     engine.g.finance = m.finance.defaultFinanceState(engine.g);
     m.playerCrisis.evaluate(engine.g);
+    // the engine's own reads initialise these sub-states (the current panel does the same on every draw); do it in the setup so that
+    // the "opening the sheet changes nothing" check below compares a state that is already initialised, as in a loaded game
+    engine.crisisLiquidityOptions(); engine.turnaroundPlanSnapshot?.(); engine.turnaroundFundOptions?.();
     engine.emit();
     return m.playerCrisis.snapshot(engine.g).status;
   }, [cash, personal, propertyValue]);
@@ -156,12 +161,11 @@ async function main() {
     assert.equal(await makeCrisis(page), 'distressed');
     await page.locator('[data-ui3-screen="home"]').waitFor({ state: 'visible', timeout: 10000 });
     assert.equal(await page.locator('#player-crisis-panel').count(), 0, 'the current crisis panel is not drawn');
-    assert.equal(await page.locator('[data-ui3-crisis-open]').count(), 2, 'the notice and the first action slot');
-    assert.match(await page.locator('.u-screen [data-ui3-crisis-open]').nth(1).innerText(), /資金繰り/);
-    const homeCards = await page.locator('.u-screen .u-action').count();
-    assert.ok(homeCards <= 4, `the crisis row takes one of the three slots (${homeCards} action rows with the notice)`);
+    assert.equal(await page.locator('[data-ui3-crisis-open]').count(), 1, 'one entry only: the shell notice (the home has no second row for it)');
+    assert.match(await page.locator('[data-ui3-crisis-open]').innerText(), /資金繰り危機/);
+    assert.equal(await page.locator('[data-ui3-screen="home"] .u-action:not([data-ui3-crisis-open])').evaluateAll(nodes => nodes.filter(n => /資金繰りの対応策/.test(n.innerText)).length), 0, 'no "資金繰りの対応策を確認する" row among this week\'s actions');
     const baseline = await digest(page);
-    await page.locator('.u-screen > [data-ui3-crisis-open]').first().tap();
+    await page.locator('[data-ui3-crisis-open]').first().tap();
     await page.locator('[data-ui3-crisis-sheet]').waitFor({ state: 'attached' });
     assert.equal(await digest(page), baseline, 'opening the sheet changes nothing');
     await sheetOk(page, 'crisis sheet');
@@ -193,7 +197,7 @@ async function main() {
     await cancel(page);
     assert.equal(await digest(page), beforeCancel, 'cancelling changes nothing');
     await countCalls(page, ['injectFounderCapital', 'requestSponsorInjection', 'executeCrisisCostReduction', 'executeCrisisDisposition', 'requestEmergencyBridgeLoan', 'startTurnaroundPlan', 'cancelTurnaroundPlan', 'acceptTurnaroundFund']);
-    await page.locator('.u-screen > [data-ui3-crisis-open]').first().tap();
+    await page.locator('[data-ui3-crisis-open]').first().tap();
     await page.locator('[data-ui3-cr="founder"]').tap();
     await page.locator('#modal-root [data-ui3-amount-input]').waitFor({ state: 'visible', timeout: 10000 });
     const cashBefore = await engineEval(page, engine => ({ company: engine.g.companyCash, personal: engine.g.personalCash }));
@@ -219,6 +223,18 @@ async function main() {
     await sheetOk(page, 'sponsor confirm');
     await cancel(page);
     assert.equal((await calls(page)).requestSponsorInjection, 0, 'cancelling calls nothing');
+    // (designer, 2026-11-12) equity and assets move and cannot be undone: the execution is checked, not only the quote.
+    await page.locator('[data-ui3-crisis-open]').first().tap();
+    await page.locator('[data-ui3-cr="sponsor"]').tap();
+    await page.locator('#modal-root [data-ui3-confirm]').waitFor({ state: 'visible' });
+    const sponsorBefore = await engineEval(page, engine => ({ cash: engine.g.companyCash, founder: engine.g.founderOwnershipRatio, shares: engine.g.sharesOutstanding }));
+    await page.locator('#modal-root [data-ui3-confirm]').tap();
+    await page.waitForFunction(() => window.__calls.requestSponsorInjection === 1, null, { timeout: 10000 });
+    const sponsorAfter = await engineEval(page, engine => ({ cash: engine.g.companyCash, founder: engine.g.founderOwnershipRatio, shares: engine.g.sharesOutstanding }));
+    assert.equal(sponsorAfter.cash - sponsorBefore.cash, sponsorQuote.amount, 'the company received exactly the quoted sponsor amount');
+    assert.ok(sponsorAfter.founder < sponsorBefore.founder, 'the founder was diluted');
+    assert.equal((await calls(page)).requestSponsorInjection, 1, 'one press, one call');
+
 
     // With a property the credit line exists: the emergency loan moves the cash and the debt as quoted; the disposal shows the engine's quote.
     await makeCrisis(page, -1000000, 50000000, 100000000);
@@ -254,6 +270,16 @@ async function main() {
       await cancel(page);
       assert.equal((await calls(page)).executeCrisisDisposition, 0, 'cancelling calls nothing');
       await page.locator('[data-ui3-crisis-open]').first().tap();
+      await page.locator('[data-ui3-cr="dispose"]').first().tap();
+      await page.locator('#modal-root [data-ui3-confirm]').waitFor({ state: 'visible' });
+      const disposeBefore = await engineEval(page, engine => engine.g.companyCash);
+      await page.locator('#modal-root [data-ui3-confirm]').tap();
+      await page.waitForFunction(() => window.__calls.executeCrisisDisposition === 1, null, { timeout: 10000 });
+      const disposeAfter = await engineEval(page, engine => engine.g.companyCash);
+      assert.equal(disposeAfter - disposeBefore, candidates.dispose[0].cash, 'the company received exactly the quoted recovery');
+      assert.equal((await calls(page)).executeCrisisDisposition, 1, 'one press, one call');
+      await makeCrisis(page, -1000000, 50000000, 100000000);
+      await page.locator('[data-ui3-crisis-open]').first().tap();
     }
     if (candidates.cost.length) {
       await page.locator('[data-ui3-cr="cost"]').first().tap();
@@ -280,6 +306,27 @@ async function main() {
       assert.equal(await engineEval(page, engine => engine.g.playerTurnaroundPlan.status), 'active');
       assert.equal((await calls(page)).startTurnaroundPlan, 1, 'one press, one call');
     }
+
+    // The "recovered" state: the sheet shows the engine's confirmation progress and the debt.
+    await makeCrisis(page);
+    await engineEval(page, engine => { const m = globalThis.__capitalismTycoonModules; engine.g.companyCash = 900000000; for (let i = 0; i < 3 && m.playerCrisis.snapshot(engine.g).status !== 'recovered'; i++) { engine.g.week++; m.playerCrisis.evaluate(engine.g); } engine.emit(); });
+    const recovered = await engineEval(page, engine => { const s = globalThis.__capitalismTycoonModules.playerCrisis.snapshot(engine.g); return { status: s.status, weeks: s.recoveryWeeks, debt: engine.g.companyDebt }; });
+    assert.equal(recovered.status, 'recovered');
+    await page.waitForSelector('[data-ui3-crisis-open]', { timeout: 10000 });
+    await page.locator('[data-ui3-crisis-open]').first().tap();
+    await page.locator('[data-ui3-crisis-sheet]').waitFor({ state: 'attached' });
+    const recoveredText = await page.locator('#modal-root .u-sheet').innerText();
+    assert.ok(recoveredText.includes('回復確認中'), 'the status is named');
+    assert.ok(recoveredText.includes(`${recovered.weeks}/2週`), 'the confirmation progress is the engine\'s');
+    assert.ok(recoveredText.includes(await money(recovered.debt)), 'the debt is the engine\'s');
+    await cancel(page);
+
+    // "Insolvent": the grace period ends and the game is over; the v3 game-over screen takes the place of the sheet and the notice.
+    await makeCrisis(page, -20000000, 0);
+    await engineEval(page, engine => { const m = globalThis.__capitalismTycoonModules; for (let i = 0; i < 6 && !engine.g.gameOver; i++) { engine.g.week++; m.playerCrisis.evaluate(engine.g); } engine.emit(); });
+    assert.equal(await engineEval(page, engine => [engine.g.gameOver, globalThis.__capitalismTycoonModules.playerCrisis.snapshot(engine.g).status].join()), 'true,insolvent');
+    await page.locator('[data-ui3-gameover-body]').waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await page.locator('[data-ui3-crisis-open]').count(), 0, 'no crisis notice on the game-over screen');
 
     assert.deepEqual(pageErrors, []);
     await context.close();

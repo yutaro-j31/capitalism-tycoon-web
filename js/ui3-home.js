@@ -63,10 +63,8 @@ function actionItems({g,engine}){
   // entry below reaches the same screen (design decision, 2026-11-11).
   const critical=tasks.filter(row=>row.priority==='critical').map(task);
   const rest=tasks.filter(row=>row.priority!=='critical').map(task);
-  // While a cash crisis is open the first slot opens the crisis response sheet (README 10.2); it takes one of the three places.
-  const crisis=modules.ui3.crisisSheetRegistered?.()&&modules.ui3.crisisStatus(g)!=='stable'
-    ?[{kind:'crisis',warn:true,icon:'⚠',title:'資金繰りの対応策を確認する',detail:'現金・不足額・回復策をまとめて見る',attributes:{'data-ui3-crisis-open':''}}]:[];
-  return [...crisis,...critical,...(guideItem?[guideItem]:[]),...rest].slice(0,MAX_ACTIONS);
+  // (The cash-crisis response sheet is opened by the shell's notice, which every v3 screen shows including this one; no slot here: README 10.2.)
+  return [...critical,...(guideItem?[guideItem]:[]),...rest].slice(0,MAX_ACTIONS);
 }
 
 function actionCard(item,esc){
