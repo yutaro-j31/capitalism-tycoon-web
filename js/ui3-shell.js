@@ -412,6 +412,57 @@ globalThis.document?.addEventListener('click',event=>{
   if(target.closest('[data-ui3-amount-run]'))runAmount();
 },true);
 
+// Text input sheet (UI3-9b-4, README 10.5): the v3 form of js/app.js askText(). Returns true when it took the request.
+// `allowEmpty` (default true, as the current dialog accepts anything) and `maxLength` (default none) let a caller pass its own rule.
+let textPending=null;
+function textSheet({title='',label='',initial='',submit,allowEmpty=true,maxLength=null}={}){
+  if(!enabled||typeof submit!=='function'||!globalThis.document?.getElementById('modal-root'))return false;
+  const g=modules.playerEngineBridge?.getEngine?.()?.g;
+  if(!g?.configured)return false;
+  const limit=Number.isFinite(Number(maxLength))&&Number(maxLength)>0?Math.floor(Number(maxLength)):null;
+  textPending={submit,allowEmpty:allowEmpty!==false,limit};
+  const body=`<label class="u-field"><span>${esc(label)}</span><input class="u-input" data-ui3-text-input type="text" autocomplete="off" enterkeyhint="done"${limit?` maxlength="${limit}"`:''} value="${esc(String(initial??''))}" aria-describedby="ui3-text-error"></label>`
+    +`<p class="u-error" id="ui3-text-error" role="alert" data-ui3-text-error></p>`;
+  globalThis.document.getElementById('modal-root').innerHTML=sheet({eyebrow:'入力',title,body,
+    actions:'<button type="button" class="u-btn" data-action="close-modal">やめる</button><button type="button" class="u-btn primary" data-ui3-text-run>決定する</button>'});
+  refreshText();
+  globalThis.document.querySelector('#modal-root [data-ui3-text-input]')?.focus?.({preventScroll:true});
+  return true;
+}
+function textError(value){
+  if(!textPending)return '';
+  if(!textPending.allowEmpty&&!String(value).trim())return '入力してください。';
+  if(textPending.limit&&String(value).length>textPending.limit)return `${textPending.limit}文字以内で入力してください。`;
+  return '';
+}
+function refreshText(){
+  const root=globalThis.document?.getElementById('modal-root');
+  const input=root?.querySelector('[data-ui3-text-input]');
+  if(!input||!textPending)return;
+  const error=textError(input.value);
+  root.querySelector('[data-ui3-text-error]').textContent=error;
+  const run=root.querySelector('[data-ui3-text-run]');
+  if(run)run.disabled=Boolean(error);
+}
+function runText(){
+  const root=globalThis.document?.getElementById('modal-root');
+  const input=root?.querySelector('[data-ui3-text-input]');
+  const pending=textPending;
+  if(!input||!pending)return;
+  if(textError(input.value)){refreshText();return;}
+  const value=input.value;
+  textPending=null;
+  root.innerHTML='';
+  pending.submit(value);
+}
+globalThis.document?.addEventListener('input',event=>{if(event.target instanceof Element&&event.target.matches('[data-ui3-text-input]'))refreshText();},true);
+globalThis.document?.addEventListener('keydown',event=>{
+  if(event.key==='Enter'&&event.target instanceof Element&&event.target.matches('[data-ui3-text-input]')){event.preventDefault();runText();}
+},true);
+globalThis.document?.addEventListener('click',event=>{
+  if(event.target instanceof Element&&event.target.closest('[data-ui3-text-run]'))runText();
+},true);
+
 // Sheets that js/app.js shows in #modal-root in place of a current-UI modal (README 6.1, "シート").
 // A sheet module registers `render(context)` returning the arguments of sheet(); js/app.js asks
 // renderSheet() first and falls back to its own modal when the answer is ''.
@@ -439,6 +490,6 @@ modules.ui3=Object.freeze({
   isNativeActive:()=>nativeActive,
   registeredScreens:()=>[...screens.keys()],
   registeredSheets:()=>[...sheetRenderers.keys()],
-  registerScreen,registerSheet,registerCrisisSheet,crisisSheetRegistered,crisisStatus,registerSetup,registerGameOver,renderSetupInto,renderGameOverInto,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,setAmountContext,esc
+  registerScreen,registerSheet,registerCrisisSheet,crisisSheetRegistered,crisisStatus,registerSetup,registerGameOver,renderSetupInto,renderGameOverInto,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,textSheet,setAmountContext,esc
 });
 })();
