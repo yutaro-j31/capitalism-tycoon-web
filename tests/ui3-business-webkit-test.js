@@ -150,14 +150,14 @@ async function main() {
 
     const baseline = await digest(page);
 
-    // IT / digital sheet at founding: the founding action, through the current name dialog.
+    // IT / digital sheet at founding: the founding action, through the v3 text sheet (UI3-9b-4).
     await page.locator('[data-ui3-biz="digital"]').tap();
     await page.locator('[data-ui3-business="digital-actions"]').waitFor({ state: 'visible' });
     assert.ok((await actionsIn(page, '#modal-root')).every(action => action.startsWith('found-digital-business') || action === 'close-modal'), 'at founding: found-digital-business rows');
     const digitalSheet = await sheetMetrics(page);
     assert.deepEqual([digitalSheet.small, digitalSheet.primaries, digitalSheet.bottom], [[], 1, device.viewport.height]);
     await page.locator('#modal-root [data-action="found-digital-business"]:not([disabled])').first().tap();
-    await page.locator('#modal-root .modal input').waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('#modal-root [data-ui3-text-input]').waitFor({ state: 'visible', timeout: 10000 });
     await cancelDialog(page);
     assert.equal(await page.evaluate(() => document.getElementById('modal-root').innerHTML), '');
     assert.equal(await digest(page), baseline, 'looking at sheets never changes the game');
