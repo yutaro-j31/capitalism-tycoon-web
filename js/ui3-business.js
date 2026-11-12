@@ -88,11 +88,10 @@ function supplySection(store){
   const supply=supplyModule();
   const settings=g.supplySettingsByStoreID?.[store.id];
   const id=esc(store.id);
-  // the state is what last week's result says (g.supplyResultsByStoreID[storeID].stockoutLostDemand, the figure the current supply tab shows as
-  // 機会損失), not a guess: lost demand -> how much; none -> no stock-out; no result yet (the week has not closed) -> say so
-  const result=g.supplyResultsByStoreID?.[store.id];
-  const lost=result&&Number.isFinite(Number(result.stockoutLostDemand))?Number(result.stockoutLostDemand):null;
-  const state=lost===null?['まだ結果がありません','']:lost>0?[`先週、欠品で${Math.round(lost).toLocaleString('ja-JP')}食の機会損失`,' u-down']:['先週の欠品なし',''];
+  // the state comes from one function, supply.storeStockStatus (UI3-10d; the secretary uses it too): last week's lost demand
+  // (g.supplyResultsByStoreID[storeID].stockoutLostDemand), else too much stock on hand, else no stock-out; no result yet (the week has not closed) says so
+  const status=supply.storeStockStatus?.(g,store.id)||{hasResult:false,stockout:false,overstock:false,lostDemand:0,coverWeeks:0};
+  const state=!status.hasResult?['まだ結果がありません','']:status.stockout?[`先週、欠品で${Math.round(status.lostDemand).toLocaleString('ja-JP')}食の機会損失`,' u-down']:status.overstock?[`在庫が多め（先週の販売の${status.coverWeeks.toFixed(1)}週分）`,'']:['先週の欠品なし',''];
   if(!settings){
     return `<h2 class="u-h2">在庫と仕入れ</h2><section class="u-card" data-ui3-supply-card data-id="${id}"><div class="u-stats"><div class="u-stat"><span>在庫の状態</span><b class="${state[1].trim()}">${esc(state[0])}</b></div></div><div class="u-h2">仕入れの設定は、最初の週が進むと使えます。</div></section>`;
   }

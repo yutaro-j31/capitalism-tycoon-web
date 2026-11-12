@@ -106,7 +106,11 @@ const ADD_STORE = (engine, [name, patch]) => {
   const store = g.stores.find(item => item.name === name);
   store.status = 'open';
   modules.supply.ensureStore(g, store);
-  Object.assign(store, { inventory: 50, weeklyDemand: 10, lastProfit: 100000 }, patch);
+  const { result, onHandUnits, ...fields } = patch;
+  Object.assign(store, { lastProfit: 100000 }, fields);
+  // the stock state is the supply engine's own record (UI3-10d): last week's result, and the lots on hand
+  g.supplyResultsByStoreID[store.id] = result || { stockoutLostDemand: 0, fulfilledUnits: 100 };
+  if (onHandUnits) g.inventoryByStoreID[store.id].materials.ramen_noodles.lots = [{ status: 'available', quantity: onHandUnits }];
   return store.id;
 };
 // a declared crisis, built the way tests/ui3-crisis-webkit-test.js builds one
@@ -152,8 +156,8 @@ const TASKS = [
   { id: 'finance_debt_due', setup: engine => { T.LOAN(engine, 0.05); }, tab: 'bank', native: true, ops: BANK_REPAY },
   { id: 'finance_high_interest', setup: engine => { T.LOAN(engine, 0.15); }, tab: 'bank', native: true, ops: BANK_REPAY },
   { id: 'finance_debt_heavy', setup: engine => { engine.g.companyDebt = 900000000; engine.g.companyCash = 8000000; }, tab: 'bank', native: true, ops: BANK_REPAY },
-  { id: 'supply_stockout', setup: engine => { T.RICH(engine); T.ADD_STORE(engine, ['在庫十分店', {}]); T.ADD_STORE(engine, ['欠品店', { inventory: 0 }]); }, tab: 'business', native: true, sheet: '[data-ui3-business-sheet]', sheetTitle: '欠品店', ops: SUPPLY_OPS },
-  { id: 'supply_overstock', setup: engine => { T.RICH(engine); T.ADD_STORE(engine, ['在庫十分店', {}]); T.ADD_STORE(engine, ['過剰在庫店', { inventory: 500, weeklyDemand: 10 }]); }, tab: 'business', native: true, sheet: '[data-ui3-business-sheet]', sheetTitle: '過剰在庫店', ops: SUPPLY_OPS },
+  { id: 'supply_stockout', setup: engine => { T.RICH(engine); T.ADD_STORE(engine, ['在庫十分店', {}]); T.ADD_STORE(engine, ['欠品店', { result: { stockoutLostDemand: 12, fulfilledUnits: 100 } }]); }, tab: 'business', native: true, sheet: '[data-ui3-business-sheet]', sheetTitle: '欠品店', ops: SUPPLY_OPS },
+  { id: 'supply_overstock', setup: engine => { T.RICH(engine); T.ADD_STORE(engine, ['在庫十分店', {}]); T.ADD_STORE(engine, ['過剰在庫店', { onHandUnits: 5000 }]); }, tab: 'business', native: true, sheet: '[data-ui3-business-sheet]', sheetTitle: '過剰在庫店', ops: SUPPLY_OPS },
   { id: 'store_loss', setup: engine => { T.RICH(engine); T.ADD_STORE(engine, ['黒字店', {}]); T.ADD_STORE(engine, ['赤字店', { lastProfit: -500000 }]); }, tab: 'business', native: true, sheet: '[data-ui3-business-sheet]', sheetTitle: '赤字店', ops: ['[data-action="store-price"]'] },
   { id: 'workforce_fatigue', setup: engine => { engine.g.overtimeRisk = 0.9; }, tab: 'office', native: true, ops: ['[data-action="workforce-invest"]', '[data-action="toggle-remote"]'] },
   { id: 'workforce_retention', setup: engine => { engine.g.keyPersonnel = [{ id: 'kp-t', name: 'テスト社員', roleID: 'sales', level: 2, salary: 6000000, loyalty: 50, motivation: 50, retentionRisk: 0.9, traitIDs: [] }]; engine.g.hasHeadOffice = true; }, tab: 'office', native: false, ops: ['[data-action="train-keyperson"]'], info: ['#screen'] },
@@ -291,6 +295,19 @@ async function main() {
         check(colour === Boolean(result && result.stockoutLostDemand > 0), `the stock-out text is red only when demand was lost (${JSON.stringify(result)})`);
         await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').first().click();
       }
+      // a week without a stock-out but with far more stock than a week's sales: the overstock text (same function the secretary uses)
+      await engineEval(page, (engine, id) => { engine.g.supplyResultsByStoreID[id] = { stockoutLostDemand: 0, fulfilledUnits: 100 }; engine.g.inventoryByStoreID[id].materials.ramen_noodles.lots = [{ status: 'available', quantity: 50000 }]; engine.emit?.(); }, ids.ramen);
+      await openStoreSheet(ids.ramen);
+      check((await page.locator('#modal-root [data-ui3-supply-card] .u-stat b').first().innerText()).startsWith('在庫が多め'), 'overstock is shown from the lots on hand and last week\'s sales');
+      await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').first().click();
+      await engineEval(page, (engine, id) => { engine.g.inventoryByStoreID[id].materials.ramen_noodles.lots = []; engine.g.supplyResultsByStoreID[id] = { stockoutLostDemand: 1234 }; engine.emit?.(); }, ids.ramen);
+      // the home "今週やること": no stock-out row while last week had none; the row appears the week after a stock-out
+      const rowCount = async () => { await goTo(page, 'home'); return page.locator('[data-ui3-dest="supply_stockout"]').count(); };
+      await engineEval(page, (engine, id) => { engine.g.supplyResultsByStoreID[id] = { stockoutLostDemand: 0, fulfilledUnits: 100 }; engine.emit?.(); }, ids.ramen);
+      check(await rowCount() === 0, 'an open store without a stock-out has no stock-out row on the v3 home');
+      await engineEval(page, (engine, id) => { engine.g.supplyResultsByStoreID[id] = { stockoutLostDemand: 7, fulfilledUnits: 100 }; engine.emit?.(); }, ids.ramen);
+      check(await rowCount() === 1, 'the week after a stock-out week the v3 home has the stock-out row');
+      await engineEval(page, (engine, id) => { engine.g.supplyResultsByStoreID[id] = { stockoutLostDemand: 1234 }; engine.emit?.(); }, ids.ramen);
       // reading the state never writes the game: opening the sheet leaves the result as it was
       const untouched = await engineEval(page, (engine, id) => JSON.stringify(engine.g.supplyResultsByStoreID[id] || null), ids.ramen);
       check(untouched === JSON.stringify({ stockoutLostDemand: 1234 }), 'opening the sheet leaves the supply result as it was');
