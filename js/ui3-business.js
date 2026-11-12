@@ -73,14 +73,12 @@ function showConfirm(parts){show(modules.ui3.confirmSheet(parts));}
 
 // ---- stock and sourcing (UI3-10c, README 10.10) ---------------------------------------------------------------
 // The store sheet's "在庫と仕入れ" section, for the stores the supply module covers (supply.isTargetBusinessID, open stores only, as the
-// current supply tab lists them). Read: the stock state (the same two expressions as js/executive-secretary.js generateTasks, so the home's
-// "在庫切れリスク" row and this section agree), the stock value and the supplier. Operations: the existing actions, with the current screen's
+// current supply tab lists them). Read: the stock state (last week's lost demand,
+// g.supplyResultsByStoreID[storeID].stockoutLostDemand), the stock value and the supplier. Operations: the existing actions, with the current screen's
 // data-id and values -- supply-policy (button value), supply-safety (button value 0-6), supply-emergency (a hidden checkbox, read as el.checked)
 // and supply-select-supplier (button value; a confirmation sheet first, because a change always costs the new contract fee and may cost the
 // current contract's termination fee -- engine selectSupplier). Nothing here writes engine state.
 const nf=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
-const stockoutOf=store=>nf(store.stockoutWeeks||store.stockoutRisk||store.inventoryShortage)>0||nf(store.inventory)<Math.max(1,nf(store.weeklyDemand))*.5;
-const overstockOf=store=>nf(store.inventory)>Math.max(20,nf(store.weeklyDemand)*6);
 const supplyModule=()=>modules.supply;
 const supplyTarget=store=>Boolean(store&&store.status==='open'&&supplyModule()?.isTargetBusinessID?.(store.businessID));
 const POLICY_LABELS=['lean','balanced','stable'];
@@ -90,7 +88,11 @@ function supplySection(store){
   const supply=supplyModule();
   const settings=g.supplySettingsByStoreID?.[store.id];
   const id=esc(store.id);
-  const state=stockoutOf(store)?['在庫切れの恐れ',' u-down']:overstockOf(store)?['在庫過多',' u-down']:['適正',''];
+  // the state is what last week's result says (g.supplyResultsByStoreID[storeID].stockoutLostDemand, the figure the current supply tab shows as
+  // 機会損失), not a guess: lost demand -> how much; none -> no stock-out; no result yet (the week has not closed) -> say so
+  const result=g.supplyResultsByStoreID?.[store.id];
+  const lost=result&&Number.isFinite(Number(result.stockoutLostDemand))?Number(result.stockoutLostDemand):null;
+  const state=lost===null?['まだ結果がありません','']:lost>0?[`先週、欠品で${Math.round(lost).toLocaleString('ja-JP')}食の機会損失`,' u-down']:['先週の欠品なし',''];
   if(!settings){
     return `<h2 class="u-h2">在庫と仕入れ</h2><section class="u-card" data-ui3-supply-card data-id="${id}"><div class="u-stats"><div class="u-stat"><span>在庫の状態</span><b class="${state[1].trim()}">${esc(state[0])}</b></div></div><div class="u-h2">仕入れの設定は、最初の週が進むと使えます。</div></section>`;
   }

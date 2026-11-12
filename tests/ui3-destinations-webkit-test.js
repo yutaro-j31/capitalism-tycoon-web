@@ -281,15 +281,19 @@ async function main() {
       check(await page.locator('#modal-root [data-ui3-supply-card]').count() === 0, 'a convenience store has no 在庫と仕入れ section');
       await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').first().click();
 
-      // the state is the secretary's expression: three stores, three states, and the secretary agrees with each
-      for (const [patch, expected, secretaryRow] of [[{ inventory: 0 }, '在庫切れの恐れ', 'supply_stockout'], [{ inventory: 500, weeklyDemand: 10 }, '在庫過多', 'supply_overstock'], [{ inventory: 50, weeklyDemand: 10 }, '適正', null]]) {
-        await engineEval(page, (engine, [id, values]) => { Object.assign(engine.g.stores.find(item => item.id === id), values); engine.emit?.(); }, [ids.ramen, patch]);
+      // the state is last week's result (supplyResultsByStoreID[storeID].stockoutLostDemand), read only: no result yet, a week with a stock-out,
+      // a week without one -- three different displays
+      for (const [result, expected] of [[null, 'まだ結果がありません'], [{ stockoutLostDemand: 12 }, '先週、欠品で12食の機会損失'], [{ stockoutLostDemand: 0 }, '先週の欠品なし'], [{ stockoutLostDemand: 1234 }, '先週、欠品で1,234食の機会損失']]) {
+        await engineEval(page, (engine, [id, value]) => { if (value === null) delete engine.g.supplyResultsByStoreID[id]; else engine.g.supplyResultsByStoreID[id] = value; engine.emit?.(); }, [ids.ramen, result]);
         await openStoreSheet(ids.ramen);
-        check(await page.locator('#modal-root [data-ui3-supply-card] .u-stat b').first().innerText() === expected, `the section says ${expected} for ${JSON.stringify(patch)}`);
-        const tasks = await engineEval(page, engine => globalThis.__capitalismTycoonModules.executiveSecretary.generateTasks(engine.g, { engine, companyValue: engine.companyValue() }).map(row => row.id).filter(id => id.startsWith('supply_') && id !== 'supply_x'));
-        check(secretaryRow ? tasks.includes(secretaryRow) : !tasks.some(id => id === 'supply_stockout' || id === 'supply_overstock'), `the secretary agrees (${expected}): ${JSON.stringify(tasks)}`);
+        check(await page.locator('#modal-root [data-ui3-supply-card] .u-stat b').first().innerText() === expected, `the section says "${expected}" for ${JSON.stringify(result)}`);
+        const colour = await page.locator('#modal-root [data-ui3-supply-card] .u-stat b').first().evaluate(node => node.classList.contains('u-down'));
+        check(colour === Boolean(result && result.stockoutLostDemand > 0), `the stock-out text is red only when demand was lost (${JSON.stringify(result)})`);
         await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').first().click();
       }
+      // reading the state never writes the game: opening the sheet leaves the result as it was
+      const untouched = await engineEval(page, (engine, id) => JSON.stringify(engine.g.supplyResultsByStoreID[id] || null), ids.ramen);
+      check(untouched === JSON.stringify({ stockoutLostDemand: 1234 }), 'opening the sheet leaves the supply result as it was');
 
       await openStoreSheet(ids.ramen);
       // policy, safety stock: the existing actions, with the current screen's data-id and values
