@@ -64,10 +64,36 @@ function render(ctx){
     .concat(favourites.map(stock=>stockRow(stock,`${stock.id} · お気に入り`))).join('');
   const list=rows?`<div class="u-list" data-ui3-market="holdings">${rows}</div>`
     :`<div class="u-h2" data-ui3-market="none">${accountLabel()}口座の保有とお気に入りはまだありません。「銘柄を探す」から選びます。</div>`;
+  const returns=shareholderSection(ctx);
   const more=row(' data-ui3-mkt="all"','銘柄を探す',`${market.length}銘柄`)
-    +row(' data-ui3-current="market"','ほかの詳細（現行の画面）','自社株の操作（分割・MBO・配当・自社株買い）、チャート、信用取引、資本配分など');
+    +row(' data-ui3-current="market"','ほかの詳細（現行の画面）','自社株の分割・MBO・防衛策・創業者株の売却、チャート、信用取引、資本配分など');
   const blocked=blockedOf(g)?`<button type="button" class="u-action warn" data-ui3-market="blocked" data-action="tab" data-tab="office"><i aria-hidden="true">⚠</i><span><b>${BLOCKED_TITLE}</b><small>本社の部門を設定する</small></span></button>`:'';
-  return seg+blocked+card+'<h2 class="u-h2">保有・お気に入り</h2>'+list+`<h2 class="u-h2">そのほか</h2><div class="u-list">${more}</div>`;
+  return seg+blocked+card+returns+'<h2 class="u-h2">保有・お気に入り</h2>'+list+`<h2 class="u-h2">そのほか</h2><div class="u-list">${more}</div>`;
+}
+
+// ---- shareholder returns (README 10.3, UI3-9b-2): only after the company is listed -------------------------
+// The numbers and the conditions are the current panel's (js/shareholder-returns.js render): the same capacity read, the same
+// "safe amount" limit, the buy-back button disabled when the safe amount is below one share. The dividend and the buy-back run through
+// the existing actions `set-dividend` and `buyback` (the amount sheet); nothing here writes engine state.
+const yenText=value=>(modules.engine?.yen||(amount=>`${Math.round(finite(amount)).toLocaleString('ja-JP')}円`))(value);
+function returnsFacts(g,engine){
+  const cap=engine.shareholderReturnCapacity(),log=modules.shareholderReturns?.readStateFor?.(engine)||{};
+  const shares=cap.outstandingShares,planned=finite(g.dividendPerShare)*shares;
+  const available=modules.engine.playerShareAcquisitionCapacity?.(g,0,true);
+  return {cap,shares,planned,log,treasuryBook:finite(g.finance?.balances?.treasuryStock),available,price:Math.max(1,finite(g.stockPrice))};
+}
+function shareholderSection({g,money,engine}){
+  if(!g.publicCompany||typeof engine.shareholderReturnCapacity!=='function')return '';
+  const f=returnsFacts(g,engine);
+  const stat=(label,value)=>`<div class="u-stat"><span>${esc(label)}</span><b class="u-money">${esc(value)}</b></div>`;
+  const buybackOff=f.cap.safeAmount<Math.max(1,finite(g.stockPrice));
+  return '<h2 class="u-h2">株主還元</h2><section class="u-card" data-ui3-market="returns"><div class="u-stats">'
+    +stat('安全還元可能額',money(f.cap.safeAmount))+stat('設定配当',`1株 ${yenText(g.dividendPerShare)}`)+stat('次回予定総額',money(f.planned))+'</div><div class="u-stats">'
+    +stat('直近実支払',money(finite(f.log.lastActualDividend)))+stat('自己株式',`${Math.floor(finite(g.treasuryBuybackShares)).toLocaleString('ja-JP')}株`)+stat('自己株式簿価',money(f.treasuryBook))+'</div></section>'
+    +`<div class="u-list" data-ui3-market="returns-actions">`
+    +row(' data-action="set-dividend" data-ui3-returns="dividend"','配当を設定',`現在 1株 ${yenText(g.dividendPerShare)}（四半期）。0円にすると無配になります`,'設定')
+    +row(` data-action="buyback" data-ui3-returns="buyback"${buybackOff?' disabled':''}`,'自社株買い',buybackOff?'安全還元可能額が1株の価格に足りません':`会社の現金から。上限は安全還元可能額 ${money(f.cap.safeAmount)}`,'実行')
+    +'</div>';
 }
 
 // ---- sheets ------------------------------------------------------------------------------------
@@ -119,6 +145,19 @@ function syncAccount(){
 function onClick(event){
   const target=event.target instanceof Element?event.target:null;
   if(!target||!context)return;
+  const returnsRow=target.closest('[data-ui3-returns]');
+  if(returnsRow&&!returnsRow.disabled){
+    const {g,money,engine}=context,f=returnsFacts(g,engine);
+    if(returnsRow.dataset.ui3Returns==='dividend'){
+      modules.ui3.setAmountContext({unit:'円',max:Math.max(0,Math.floor(finite(f.cap.maxDividendPerShare))),note:'1株あたり。0円にすると無配になります。',
+        preview:value=>[{label:'予定総額',value:money(value*f.shares),tone:value*f.shares>f.cap.safeAmount+.5?'down':undefined},{label:'安全還元可能額',value:money(f.cap.safeAmount)}]});
+    }else{
+      const cash=finite(g.companyCash);
+      modules.ui3.setAmountContext({unit:'円',max:Math.max(0,Math.floor(f.cap.safeAmount)),note:'会社の現金で自社株を買い戻します。',
+        preview:value=>{const qty=Math.min(finite(f.available),Math.floor(value/f.price)),cost=Math.ceil(qty*f.price);return [{label:'買い戻す株数（概算）',value:`${Math.max(0,qty).toLocaleString('ja-JP')}株`},{label:'実行後の会社現金（概算）',value:money(cash-cost),tone:cash-cost<0?'down':undefined}];}});
+    }
+    return;
+  }
   const trade=target.closest('[data-ui3-sync-account]');
   if(trade&&!target.closest('[disabled]')){
     // tell the amount sheet what the number means (README 5.7): shares of this stock, in this account
