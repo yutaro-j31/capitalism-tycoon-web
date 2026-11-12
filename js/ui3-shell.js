@@ -43,6 +43,17 @@ function readPreference(){
 }
 const enabled=readPreference();
 
+// The cash-crisis response sheet (README 10.2): registered once by js/ui3-crisis.js. Until it is registered the shell behaves as before
+// (the notice goes to the current home, which carries the recovery panel).
+let crisisSheet=null;
+function registerCrisisSheet(definition){
+  if(typeof definition?.open!=='function')throw new TypeError('UI v3 crisis sheet requires an open function.');
+  if(crisisSheet)throw new Error('UI v3 crisis sheet is already registered.');
+  crisisSheet=Object.freeze({open:definition.open});
+  return true;
+}
+const crisisSheetRegistered=()=>enabled&&crisisSheet!==null;
+
 function groupOf(screenID){return GROUPS.find(group=>group.screens.includes(screenID))||GROUPS[0];}
 function isAvailable(screenID,g){return screenID!=='pe-portfolio'||Boolean(g?.peFirm?.unlocked);}
 
@@ -71,7 +82,8 @@ function crisisStatus(g){
 const CURRENT_UI_RULES=Object.freeze({
   // The cash-crisis panel (js/player-crisis-ui.js) is injected into the current
   // home only, and is the only way to reach the recovery actions.
-  home:g=>crisisStatus(g)!=='stable',
+  // (Once the crisis sheet is registered, js/ui3-crisis.js carries the recovery actions and the v3 home stays; README 10.2.)
+  home:g=>!crisisSheet&&crisisStatus(g)!=='stable',
   // The recall-crisis section (respond-recall-crisis, "自主回収・補償") is drawn by the current business
   // screen only. Read straight from the state, not through modules.companyRecallCrisis.view(), which
   // normalises g (design decision, 2026-11-11).
@@ -125,6 +137,7 @@ function screenIndex(g){
 function crisisNotice(g){
   const status=crisisStatus(g);
   if(status==='stable')return '';
+  if(crisisSheet)return `<button type="button" class="u-action warn" data-ui3-crisis-open data-ui3-crisis="${status}"><i aria-hidden="true">⚠</i><span><b>${esc(CRISIS_LABELS[status])}</b><small>対応策を確認する</small></span></button>`;
   return `<button type="button" class="u-action warn" data-action="tab" data-tab="home" data-ui3-crisis="${status}"><i aria-hidden="true">⚠</i><span><b>${esc(CRISIS_LABELS[status])}</b><small>対応策を確認する</small></span></button>`;
 }
 function dock(){
@@ -388,6 +401,6 @@ modules.ui3=Object.freeze({
   isNativeActive:()=>nativeActive,
   registeredScreens:()=>[...screens.keys()],
   registeredSheets:()=>[...sheetRenderers.keys()],
-  registerScreen,registerSheet,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,setAmountContext,esc
+  registerScreen,registerSheet,registerCrisisSheet,crisisSheetRegistered,crisisStatus,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,setAmountContext,esc
 });
 })();

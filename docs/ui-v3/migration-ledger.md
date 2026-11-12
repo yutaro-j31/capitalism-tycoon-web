@@ -27,7 +27,6 @@ v1.0（UI3-11）の時点で残してよいものは、`README.md` 10.1 で決�
 
 | 画面 | 状態 | 現行UIで出る操作 | 仕組み |
 | --- | --- | --- | --- |
-| `home` | 資金繰りが「安定」以外 | `founder-capital`、`emergency-bridge`、`sponsor-injection`、`turnaround-fund`、資産売却、経費削減（`js/player-crisis-ui.js` のパネル）、再建計画の開始（`data-player-turnaround-action`、`js/player-turnaround-plan-ui.js`） | 枠の規則 `CURRENT_UI_RULES.home` |
 | `map` | 3Dの地図が使えない（WebGL・アセット・コンテキストの失敗） | 現行のCanvas2D地図とその操作一式（`city-retry`、一覧の `details`、現行のマーカーと詳細パネル） | 画面の登録の `useCurrentUI`（失敗を検知したら、その後は現行UI） |
 | `business` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="business"`）を押したとき（次の `tab` 操作まで） | 営業時間（`data-store-hours`）、メニュー構成（`store-menu-price` `reset-store-menu-price` `remove-store-menu` `add-store-menu`）、市場分析・顧客レビュー・競合分析・プロダクトの詳細・フランチャイズの一覧と、enhancer が差し込む欄（供給・人事・広告など） | 枠の `openCurrentUI` |
 | `business` | リコール危機が未対応（`activeRecallCrisis` が有効で `responded` が偽） | `respond-recall-crisis`（自主回収・補償）と、リコール危機の欄（`renderRecallCrisisSection()`） | 枠の規則 `CURRENT_UI_RULES.business` |
@@ -431,3 +430,22 @@ UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可�
 | 診断・再起動・不具合報告・保存領域・動作確認のツール（`data-release-diagnostics-action` ほか） | enhancer | 常時 | 現行UI（6.5）。残件 |
 
 未確認：会社売却の実行（確認シートまで）、JSONの書き出し・読み込みの実行（ファイルを扱うため。操作は現行と同じ `export-save` `import-save`）。
+
+### 資金繰り危機の対応（UI3-9b-1）
+
+洗い出し：UI3-9b-1の担当エージェント、2026-11-12。現行の `js/player-crisis-ui.js`（`handleClick`）と `js/player-turnaround-plan-ui.js` を読んで、操作と押せる条件を写した。エンジンの関数を直接呼ぶ（`js/app.js` の `action()` を通らない）ため、`node scripts/ui3-dump-screen-actions.js` では `data-action` に現れない。状態は、検査の準備で本物の危機（`playerCrisis.evaluate`）を作って確かめた。
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `data-player-crisis-action="founder-capital"`（`injectFounderCapital`） | 危機パネル | 資金繰りが「安定」以外 | 危機対応シートの「創業者資金を注入」→金額入力シート（既定の金額は現行と同じ式、上限は個人資金、見込みは注入後の会社現金・個人現金）。押せる条件は現行と同じ |
+| `emergency-bridge`（`requestEmergencyBridgeLoan`） | 同上 | 同上 | 「緊急融資を申請」→確認シート（予定額・利用可能枠）。押せないとき（枠なし・再申請まで）は理由を出す |
+| `sponsor-injection`（`requestSponsorInjection`、現行は `window.confirm`） | 同上 | 同上 | 「スポンサー出資を申請」→確認シート（出資額・持分・希薄化の注意） |
+| `turnaround-fund`（`acceptTurnaroundFund`、現行は `window.confirm`） | 同上 | 受け入れ可能なとき | 「（ファンド名）の出資を受け入れる」→確認シート（出資額・譲渡持分・期限・未達のときの追加の持分）。受け入れ済みは説明を出す |
+| `dispose-asset`（`executeCrisisDisposition`、現行は `window.confirm`） | 事業整理候補 | 候補があるとき（3件まで） | 行→確認シート（想定回収額） |
+| `reduce-cost`（`executeCrisisCostReduction`、現行は `window.confirm`） | 固定費削減候補 | 候補があるとき（3件まで） | 行→確認シート（週次の削減額・一時費用・実行後の現金・注意書き） |
+| `data-player-turnaround-action="start"`（`startTurnaroundPlan`）と `cancel`（`cancelTurnaroundPlan`） | 再建計画 | 危機の間・計画の進行中 | 行→確認シート（現金目標・負債目標は現行と同じ見積もり）。開始できないときは理由を出す。進行中は現金・負債の目標と中止の行 |
+| 直近の危機対応の履歴（3件） | 危機パネル | 履歴があるとき | シートの読み取りの一覧 |
+| 危機パネルの表示（会社現金・不足額・猶予期間・回復確認） | 危機パネル | 同上 | シートの数字4つ（現行と同じ読み取り） |
+
+入口：枠の札（どの画面からでも）と、ホームの「今週やること」の先頭の行（3件のうち1件）。シートを登録すると `CURRENT_UI_RULES.home` は効かなくなり、危機の間もホームは v3 のまま。
+未確認：スポンサー出資・事業再生ファンド・事業整理・固定費削減の実行（確認シートの見積もりがエンジンと一致することまで。創業者資金の注入・緊急融資・再建計画の開始は実行して現金・負債の動きを確かめた）。

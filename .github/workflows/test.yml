@@ -353,6 +353,7 @@ jobs:
           node --check tests/ui3-home-webkit-test.js
           node --check tests/ui3-business-webkit-test.js
           node --check tests/ui3-market-webkit-test.js
+          node --check tests/ui3-crisis-webkit-test.js
           node --check tests/ui3-rest-webkit-test.js
           node --check tests/ui3-invest-webkit-test.js
           node --check tests/ui3-amount-webkit-test.js
@@ -397,6 +398,9 @@ jobs:
       - name: Verify UI v3 market screen
         timeout-minutes: 5
         run: node tests/ui3-market-webkit-test.js
+      - name: Verify UI v3 cash-crisis response sheet
+        timeout-minutes: 5
+        run: node tests/ui3-crisis-webkit-test.js
       - name: Verify UI v3 strategy, overseas, media, rivals, missions and news screens
         timeout-minutes: 5
         run: node tests/ui3-rest-webkit-test.js
