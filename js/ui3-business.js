@@ -71,6 +71,93 @@ function render(ctx){
 function show(html){const root=modalRoot();if(root)root.innerHTML=html;}
 function showConfirm(parts){show(modules.ui3.confirmSheet(parts));}
 
+// ---- stock and sourcing (UI3-10c, README 10.10) ---------------------------------------------------------------
+// The store sheet's "在庫と仕入れ" section, for the stores the supply module covers (supply.isTargetBusinessID, open stores only, as the
+// current supply tab lists them). Read: the stock state (last week's lost demand,
+// g.supplyResultsByStoreID[storeID].stockoutLostDemand), the stock value and the supplier. Operations: the existing actions, with the current screen's
+// data-id and values -- supply-policy (button value), supply-safety (button value 0-6), supply-emergency (a hidden checkbox, read as el.checked)
+// and supply-select-supplier (button value; a confirmation sheet first, because a change always costs the new contract fee and may cost the
+// current contract's termination fee -- engine selectSupplier). Nothing here writes engine state.
+const nf=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const supplyModule=()=>modules.supply;
+const supplyTarget=store=>Boolean(store&&store.status==='open'&&supplyModule()?.isTargetBusinessID?.(store.businessID));
+const POLICY_LABELS=['lean','balanced','stable'];
+const activeContract=(g,storeID)=>(g.supplierContracts||[]).find(contract=>contract.storeID===storeID&&contract.active&&contract.status==='active')||null;
+function supplySection(store){
+  const {g,money}=context;
+  const supply=supplyModule();
+  const settings=g.supplySettingsByStoreID?.[store.id];
+  const id=esc(store.id);
+  // the state is what last week's result says (g.supplyResultsByStoreID[storeID].stockoutLostDemand, the figure the current supply tab shows as
+  // 機会損失), not a guess: lost demand -> how much; none -> no stock-out; no result yet (the week has not closed) -> say so
+  const result=g.supplyResultsByStoreID?.[store.id];
+  const lost=result&&Number.isFinite(Number(result.stockoutLostDemand))?Number(result.stockoutLostDemand):null;
+  const state=lost===null?['まだ結果がありません','']:lost>0?[`先週、欠品で${Math.round(lost).toLocaleString('ja-JP')}食の機会損失`,' u-down']:['先週の欠品なし',''];
+  if(!settings){
+    return `<h2 class="u-h2">在庫と仕入れ</h2><section class="u-card" data-ui3-supply-card data-id="${id}"><div class="u-stats"><div class="u-stat"><span>在庫の状態</span><b class="${state[1].trim()}">${esc(state[0])}</b></div></div><div class="u-h2">仕入れの設定は、最初の週が進むと使えます。</div></section>`;
+  }
+  const supplier=(supply.SUPPLIERS||[]).find(item=>item.id===settings.preferredSupplierID)||(supply.SUPPLIERS||[])[0]||{};
+  const inventory=g.inventoryByStoreID?.[store.id];
+  const value=Object.values(inventory?.materials||{}).reduce((sum,item)=>sum+(item.lots||[]).reduce((inner,lot)=>inner+nf(lot.quantity)*nf(lot.unitCost),0),0);
+  const policy=settings.autoPolicy||'balanced';
+  const weeks=nf(settings.safetyStockWeeks,1.2);
+  const policies=Object.values(supply.POLICIES||{});
+  const stats=`<div class="u-stats"><div class="u-stat"><span>在庫の状態</span><b class="${state[1].trim()}">${esc(state[0])}</b></div>`
+    +`<div class="u-stat"><span>仕入先</span><b>${esc(supplier.name||'—')}</b></div>`
+    +`<div class="u-stat"><span>在庫総額</span><b class="u-money">${esc(money(value))}</b></div></div>`;
+  const policyButtons=policies.map(item=>`<button type="button" data-action="supply-policy" data-id="${id}" value="${esc(item.id)}" aria-pressed="${item.id===policy}">${esc(item.name)}</button>`).join('');
+  const safetyChips=[0,1,2,3,4,5,6].map(number=>`<button type="button" class="u-chip" data-action="supply-safety" data-id="${id}" value="${number}" aria-pressed="${number===weeks}">${number}週</button>`).join('');
+  const emergencyOn=settings.emergencyProcurementEnabled!==false;
+  return `<h2 class="u-h2">在庫と仕入れ</h2><section class="u-card" data-ui3-supply-card data-id="${id}">${stats}`
+    +`<div class="u-h2">自動発注の方針</div><div class="u-seg" role="group" aria-label="自動発注の方針" data-ui3-supply-group="policy">${policyButtons}</div>`
+    +`<div class="u-h2">安全在庫の週数（いま${esc(weeks.toFixed(1))}週）</div><nav class="u-chips" aria-label="安全在庫の週数" data-ui3-supply-group="safety">${safetyChips}</nav>`
+    +`<div class="u-list">`
+    +row(` data-ui3-supply="emergency" data-id="${id}"`,'緊急仕入れ',emergencyOn?'いまは ON（押すと OFF）：欠品しそうなときに自動で緊急発注します':'いまは OFF（押すと ON）：欠品しても緊急発注しません',emergencyOn?'ON':'OFF')
+    +row(` data-ui3-supply="suppliers" data-id="${id}"`,'仕入先を変える',`いまは ${supplier.name||'—'}（契約料がかかります）`)
+    +`</div><input type="checkbox" hidden aria-hidden="true" tabindex="-1" data-action="supply-emergency" data-id="${id}"${emergencyOn?' checked':''}></section>`;
+}
+function supplierSheet(storeID){
+  const {g,money}=context;
+  const store=(g.stores||[]).find(item=>item.id===storeID);
+  if(!store||!supplyTarget(store))return;
+  const settings=g.supplySettingsByStoreID?.[storeID];
+  const current=settings?.preferredSupplierID;
+  const rows=(supplyModule().SUPPLIERS||[]).map(item=>row(` data-ui3-supply="supplier" data-id="${esc(storeID)}" data-supplier="${esc(item.id)}"${item.id===current?' disabled':''}`,item.name,`契約料 ${money(nf(item.contractFee))}・納期${nf(item.leadTimeWeeks)}週・品質${nf(item.quality)}・信頼性${Math.round(nf(item.reliability)*100)}%`,item.id===current?'現在':'›')).join('');
+  show(modules.ui3.sheet({eyebrow:'仕入先',title:store.name,subtitle:'変えると、新しい契約料（と、いまの契約の解約金）がかかります',
+    body:`<span hidden data-ui3-business-sheet></span><div class="u-list" data-ui3-supply="supplier-list">${rows}</div>`,
+    actions:`<button type="button" class="u-btn primary" data-ui3-supply="back" data-id="${esc(storeID)}">戻る</button>`}));
+}
+function confirmSupplier(storeID,supplierID){
+  const {g,money}=context;
+  const store=(g.stores||[]).find(item=>item.id===storeID);
+  const supplier=(supplyModule()?.SUPPLIERS||[]).find(item=>item.id===supplierID);
+  if(!store||!supplier||!supplyTarget(store))return;
+  const current=activeContract(g,storeID);
+  if(current&&current.supplierID===supplierID)return runSupplier(storeID,supplierID);   // the engine only records the choice: no fee
+  const fee=nf(supplier.contractFee),termination=current?nf(current.terminationFee):0,cash=nf(g.companyCash),after=cash-fee-termination;
+  const facts=[{label:'契約料',value:money(fee)}];
+  if(current)facts.push({label:'いまの契約の解約金',value:money(termination)});
+  facts.push({label:'実行後の会社現金',value:money(after),tone:after<0?'down':undefined});
+  show(modules.ui3.confirmSheet({title:`仕入先を${supplier.name}に変更`,subtitle:'会社の現金から払います。取り消せません。',facts,
+    note:after<0?'会社の現金が足りないため、実行しても変更できません。':'',
+    confirm:{label:'変更する',attributes:{'data-action':'supply-select-supplier','data-id':storeID,value:supplierID}}}));
+}
+// the existing action reads `el.value`: run it from a button that carries the value (the modal root's own delegated handler)
+function runSupplier(storeID,supplierID){
+  const root=modalRoot();
+  if(!root)return;
+  const probe=globalThis.document.createElement('button');
+  probe.type='button';probe.hidden=true;probe.dataset.action='supply-select-supplier';probe.dataset.id=storeID;probe.value=supplierID;
+  root.append(probe);
+  try{probe.click();}finally{probe.remove();}
+  scheduleStoreSheet(storeID);
+}
+let sheetTimer=0;
+function scheduleStoreSheet(storeID){
+  globalThis.clearTimeout(sheetTimer);
+  sheetTimer=globalThis.setTimeout(()=>{if(context&&(context.g.stores||[]).some(item=>item.id===storeID))storeSheet(storeID);},40);
+}
+
 function storeSheet(id){
   const {g,engine,money}=context;
   const store=(g.stores||[]).find(item=>item.id===id);
@@ -94,7 +181,8 @@ function storeSheet(id){
     +`<div class="u-stat"><span>今週の売上</span><b class="u-money">${esc(money(finite(store.lastSales)))}</b></div>`
     +`<div class="u-stat"><span>今週の利益</span><b class="u-money${direction(store.lastProfit)}">${esc(signed(store.lastProfit,money))}</b></div>`
     +`<div class="u-stat"><span>設備</span><b>${esc(equipment?`Lv${equipment.currentLevel}/${equipment.maxLevel}`:'—')}</b></div></div>`
-    +(rows.length?`<div class="u-list" data-ui3-business="store-actions">${rows.join('')}</div>`:'');
+    +(rows.length?`<div class="u-list" data-ui3-business="store-actions">${rows.join('')}</div>`:'')
+    +(supplyTarget(store)?supplySection(store):'');
   show(modules.ui3.sheet({eyebrow:business?.name||'',title:store.name,subtitle:statusLabel(store,g),body,
     actions:'<button type="button" class="u-btn primary" data-action="close-modal">閉じる</button>'}));
 }
@@ -184,6 +272,22 @@ function onClick(event){
   if(spend&&!spend.disabled)modules.ui3.setAmountContext({unit:'円',wallet:'company',direction:'spend'});
   const recruit=target.closest('[data-action="recruit-franchise"]');
   if(recruit&&!recruit.disabled)modules.ui3.setAmountContext({unit:'店',unitPrice:1000000,wallet:'company',direction:'spend'});   // engine.recruitFranchise: 100万円 per store
+  const supply=target.closest('[data-ui3-supply]');
+  if(supply&&!supply.disabled&&context){
+    const storeID=supply.dataset.id;
+    switch(supply.dataset.ui3Supply){
+      case 'suppliers':supplierSheet(storeID);break;
+      case 'supplier':confirmSupplier(storeID,supply.dataset.supplier);break;
+      case 'back':storeSheet(storeID);break;
+      case 'emergency':{const box=modalRoot()?.querySelector(`input[data-action="supply-emergency"][data-id="${storeID}"]`);if(box){box.click();scheduleStoreSheet(storeID);}break;}
+      default:break;
+    }
+    return;
+  }
+  // a policy / safety-stock button runs its existing action (the modal root's delegated handler); the sheet is drawn again afterwards
+  const setting=target.closest('#modal-root [data-action="supply-policy"],#modal-root [data-action="supply-safety"]');
+  if(setting)scheduleStoreSheet(setting.dataset.id);
+  if(target.closest('#modal-root [data-ui3-confirm][data-action="supply-select-supplier"]'))scheduleStoreSheet(target.closest('[data-action]').dataset.id);
   const control=target.closest('[data-ui3-biz]');
   if(!control||control.disabled||!context)return;
   const id=control.dataset.id,kind=control.dataset.kind;

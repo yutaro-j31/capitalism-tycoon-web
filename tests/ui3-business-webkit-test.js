@@ -196,7 +196,7 @@ async function main() {
     assert.deepEqual([storeSheet.small, storeSheet.primaries, storeSheet.bottom], [[], 1, device.viewport.height]);
     assert.ok(storeSheet.minFont >= 13 && storeSheet.height <= device.viewport.height * 0.92 + 1);
     assert.equal(await page.locator('#modal-root .u-sheet-head h1').innerText(), 'テスト1号店');
-    assert.deepEqual(await page.locator('#modal-root .u-stats .u-stat > span').allInnerTexts(), ['今週の売上', '今週の利益', '設備']);
+    assert.deepEqual(await page.locator('#modal-root .u-sheet-body > .u-stats .u-stat > span').allInnerTexts(), ['今週の売上', '今週の利益', '設備']);   // the first card; the 在庫と仕入れ section (UI3-10c) has its own
     const storeActions = await page.evaluate(() => [...document.querySelectorAll('#modal-root [data-ui3-business="store-actions"] .u-row')].map(node => node.dataset.ui3Biz || node.dataset.action));
     for (const expected of ['concept', 'equipment', 'store-price', 'close-store']) assert.ok(storeActions.includes(expected), `store sheet row: ${expected} in ${storeActions}`);
     assert.equal(await digest(page), beforeSheets, 'opening the store sheet changes nothing');

@@ -52,12 +52,12 @@ function actionItems({g,engine}){
     maPortfolio:modules.maPortfolioSummary?.build?.(g),ipoReady:!g.publicCompany&&engine.ipoMissingReasons().length===0
   });
   const task=row=>({kind:'task',warn:row.priority==='critical',icon:row.priority==='critical'?'⚠':'💡',title:row.title,detail:row.reason,
-    attributes:{'data-action':'secretary-jump','data-tab':row.targetTab,'data-focus':row.focus}});
+    attributes:{'data-action':'secretary-jump','data-tab':row.targetTab,'data-focus':row.focus,'data-ui3-dest':row.id}});
   const guide=founding.build(g);
   let guideItem=null;
   if(guide.displayMode==='guide'&&guide.current){
     guideItem={kind:'guide',warn:false,icon:'📘',title:`創業ガイド ${guide.current.order}/${guide.total}：${guide.current.title}`,detail:guide.current.description,
-      attributes:{'data-action':'founding-tutorial-jump','data-step':guide.current.id,'data-tab':guide.current.targetTab,'data-focus':guide.current.targetSelector}};
+      attributes:{'data-action':'founding-tutorial-jump','data-step':guide.current.id,'data-tab':guide.current.targetTab,'data-focus':guide.current.targetSelector,'data-ui3-dest':`guide:${guide.current.id}`}};
   }
   // After the guide, the current home's "成長ロードマップ" card is not an action here: the missions
   // entry below reaches the same screen (design decision, 2026-11-11).
@@ -66,6 +66,87 @@ function actionItems({g,engine}){
   // (The cash-crisis response sheet is opened by the shell's notice, which every v3 screen shows including this one; no slot here: README 10.2.)
   return [...critical,...(guideItem?[guideItem]:[]),...rest].slice(0,MAX_ACTIONS);
 }
+
+// ---- where a row of "今週やること" goes (UI3-10c, README 10.10; the full table is in migration-ledger.md) ----------------------------
+// A row only used to switch to the tab the secretary names (js/app.js secretary-jump / founding-tutorial-jump, unchanged), which left some rows
+// on a screen without the operation they ask for. Each row now carries data-ui3-dest (the secretary task id, or "guide:<step>") and this
+// resolver, which runs before the app's handler, sends the ones below somewhere the operation exists:
+//  - a store task opens the business screen's store sheet for the store the secretary means (the same expressions as executive-secretary.js);
+//  - crisis_active opens the crisis response sheet;
+//  - what v3 has no operation for opens the current screen directly (modules.ui3.openCurrentUI), on the tab that holds the operation, with
+//    the focus the secretary names;
+//  - every other row passes through to the app's own jump (the v3 screen it names has the operation).
+// Nothing here writes engine state.
+const nf=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const openStoresOf=g=>(g.stores||[]).filter(store=>store&&store.status==='open');
+const stockoutOf=store=>nf(store.stockoutWeeks||store.stockoutRisk||store.inventoryShortage)>0||nf(store.inventory)<Math.max(1,nf(store.weeklyDemand))*.5;
+const overstockOf=store=>nf(store.inventory)>Math.max(20,nf(store.weeklyDemand)*6);
+const lossStoreOf=g=>openStoresOf(g).filter(store=>nf(store.lastProfit)<0).sort((a,b)=>nf(a.lastProfit)-nf(b.lastProfit))[0];
+const supplyStoreOf=g=>openStoresOf(g).find(store=>modules.supply?.isTargetBusinessID?.(store.businessID));
+const DESTINATIONS={
+  supply_stockout:{store:g=>openStoresOf(g).find(stockoutOf),scroll:'[data-ui3-supply-card]'},
+  supply_overstock:{store:g=>openStoresOf(g).find(overstockOf),scroll:'[data-ui3-supply-card]'},
+  store_loss:{store:lossStoreOf},
+  'guide:unit_economics':{store:supplyStoreOf,scroll:'[data-ui3-supply-card]'},
+  'guide:first_improvement':{business:g=>(g.businesses||[]).find(business=>(g.stores||[]).some(store=>store.businessID===business.id&&store.status!=='closed'))},
+  // negative cash and the declared crisis go to the crisis response sheet; before the weekly check has declared the crisis the sheet cannot open,
+  // and the only lever left is the funding screen
+  finance_cash_negative:{crisis:true,fallbackTab:'bank'},
+  crisis_active:{crisis:true,fallbackTab:'bank'},
+  workforce_retention:{current:'office',officeTab:'keypeople'},
+  growth_product_ready:{current:'business'},
+  growth_ipo_ready:{current:'office',officeTab:'board'}
+};
+const destinationFor=id=>DESTINATIONS[id]||(String(id).startsWith('ma_')?{current:'ma'}:null);
+const goTab=screen=>{
+  const button=globalThis.document?.querySelector(`[data-ui3-all-screens] [data-action="tab"][data-tab="${screen}"]`);
+  if(!button)return false;
+  button.click();
+  return true;
+};
+function focusOn(selector){
+  const target=(selector&&globalThis.document.querySelector(selector))||globalThis.document.getElementById('screen');
+  if(!target)return;
+  target.setAttribute('tabindex',target.getAttribute('tabindex')||'-1');
+  target.scrollIntoView?.({block:'start'});
+  target.focus?.({preventScroll:true});
+}
+function resolveDestination(control){
+  const rule=destinationFor(control.dataset.ui3Dest);
+  const engine=modules.playerEngineBridge?.getEngine?.();
+  if(!rule||!engine?.g)return false;
+  const g=engine.g;
+  if(rule.crisis)return modules.ui3.openCrisisSheet()||(rule.fallbackTab?goTab(rule.fallbackTab):false);
+  if(rule.current){
+    if(!modules.ui3.openCurrentUI(rule.current))return false;
+    if(rule.officeTab)globalThis.document.querySelector(`[data-action="office-tab"][data-id="${rule.officeTab}"]`)?.click();
+    focusOn(control.dataset.focus);
+    return true;
+  }
+  if(rule.store){
+    const store=rule.store(g);
+    if(!store||!goTab('business'))return false;
+    const open=globalThis.document.querySelector(`[data-ui3-biz="store"][data-id="${store.id}"]`);
+    if(!open)return false;
+    open.click();
+    if(rule.scroll)globalThis.document.querySelector(rule.scroll)?.scrollIntoView?.({block:'start'});
+    return true;
+  }
+  if(rule.business){
+    const business=rule.business(g);
+    if(!business||!goTab('business'))return false;
+    const open=globalThis.document.querySelector(`[data-ui3-biz="business"][data-id="${business.id}"]`);
+    if(!open)return false;
+    open.click();
+    return true;
+  }
+  return false;
+}
+globalThis.document?.addEventListener('click',event=>{
+  const control=event.target instanceof Element?event.target.closest('[data-ui3-dest]'):null;
+  if(!control||control.disabled)return;
+  if(resolveDestination(control)){event.preventDefault();event.stopImmediatePropagation();}
+},true);
 
 function actionCard(item,esc){
   const attributes=Object.entries(item.attributes).map(([name,value])=>` ${name}="${esc(value)}"`).join('');
