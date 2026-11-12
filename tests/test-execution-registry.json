@@ -485,6 +485,8 @@
   },
   "tests/ui3-text-webkit-test.js": {
     "reason": "UI v3 text input sheet (docs/ui-v3 UI3-9b-4): real-browser proof that askText shows the current dialog without ?ui=3 and passes the typed text on, with ?ui=3 the seven askText callers open the v3 text sheet with the same title, label and initial value and the typed text reaches the same engine call, cancelling calls nothing, the initial value is escaped, a caller's allowEmpty / maxLength rules are enforced while the default accepts anything like the current dialog, and the sheet meets the tap-target, font and bottom-edge numbers; runs in the iPhone Acceptance Playthrough job.",
+  "tests/ui3-departments-webkit-test.js": {
+    "reason": "UI v3 office departments (docs/ui-v3 UI3-9b-3): real-browser proof that the current departments tab is unchanged without ?ui=3, every department is listed with its headcount and weekly cost or its set-up cost, setting up, hiring one person and closing go through the confirmation sheet and the company cash moves by exactly the shown amount (the hire cost is checked against the engine's text, the closing figures against departmentClosurePlan), set-up without a head office and hiring without capacity are disabled with the reason, cancelling changes nothing, setting up the investment department clears the market screen's company-account warning, and the current office screen stays reachable; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
   },
   "tests/ui3-rest-webkit-test.js": {
@@ -501,6 +503,10 @@
   },
   "tests/ui3-crisis-webkit-test.js": {
     "reason": "UI v3 cash-crisis response sheet (docs/ui-v3 UI3-9b-1): real-browser proof that the current crisis panel is unchanged without ?ui=3, the v3 home stays during a crisis and the notice and the first action slot open the sheet, every confirmation shows the engine's own quote, the founder's injection moves the personal and company cash by exactly the amount entered, the emergency loan moves cash and debt as quoted, cancelling changes nothing, actions the current panel disables are disabled with the reason, and one press calls the engine function once; runs in the iPhone Acceptance Playthrough job.",
+    "executedBy": ".github/workflows/test.yml"
+  },
+  "tests/ui3-returns-webkit-test.js": {
+    "reason": "UI v3 shareholder returns on the market screen (docs/ui-v3 UI3-9b-2): real-browser proof that the current panel is unchanged without ?ui=3, the section appears only after listing and shows the current panel's numbers, the dividend goes through the existing set-dividend action and the amount sheet (the value entered, zero included, with the engine's planned total previewed), the buy-back goes through the existing buyback action and the amount sheet (the company cash falls by exactly the cost of the shares bought, as previewed), the buy-back is disabled like the current button with the reason shown, and cancelling changes nothing; runs in the iPhone Acceptance Playthrough job.",
     "executedBy": ".github/workflows/test.yml"
   },
   "tests/ui3-amount-webkit-test.js": {

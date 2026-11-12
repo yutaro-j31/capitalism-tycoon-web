@@ -31,7 +31,7 @@ v1.0（UI3-11）の時点で残してよいものは、`README.md` 10.1 で決�
 | `business` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="business"`）を押したとき（次の `tab` 操作まで） | 営業時間（`data-store-hours`）、メニュー構成（`store-menu-price` `reset-store-menu-price` `remove-store-menu` `add-store-menu`）、市場分析・顧客レビュー・競合分析・プロダクトの詳細・フランチャイズの一覧と、enhancer が差し込む欄（供給・人事・広告など） | 枠の `openCurrentUI` |
 | `business` | リコール危機が未対応（`activeRecallCrisis` が有効で `responded` が偽） | `respond-recall-crisis`（自主回収・補償）と、リコール危機の欄（`renderRecallCrisisSection()`） | 枠の規則 `CURRENT_UI_RULES.business` |
 | `office` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="office"`）を押したとき（次の `tab` 操作まで） | 組織・2Dキャンパス・部門の設置と採用・CXO・重要社員・取締役会とIPO・指示と社内VC（`office-tab` の8タブの中の操作すべて）、支社の契約解除（`close-branch-office`）。仕様は設計担当が UI3-9b に含めて書く | 枠の `openCurrentUI` |
-| `market` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="market"`）を押したとき（次の `tab` 操作まで） | 自社株の操作（`stock-split` `stock-mbo` `founder-share-sale` `defense` `view-earnings` `set-dividend` `buyback`）、チャート（`stock-chart-range`）、信用取引の欄、資本配分の操作（`data-capital-allocation-*`）、業種の絞り込みと銘柄の詳細（`select-stock`） | 枠の `openCurrentUI` |
+| `market` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="market"`）を押したとき（次の `tab` 操作まで） | 自社株の操作（`stock-split` `stock-mbo` `founder-share-sale` `defense` `view-earnings`）、チャート（`stock-chart-range`）、信用取引の欄、資本配分の操作（`data-capital-allocation-*`）、業種の絞り込みと銘柄の詳細（`select-stock`） | 枠の `openCurrentUI` |
 | `report` | 利用者が「ほかの詳細（現行の画面）」（`data-ui3-current="report"`）を押したとき（次の `tab` 操作まで） | チャート（`#report-chart`）と表示する指標の選択（`data-bind="reportMetric"`）、会計用語メモ、13週の資金繰り予測（`bank` のシートでも読める） | 枠の `openCurrentUI` |
 | `venture` | 子会社のIPO、新規事業の分析、資本配分の実行、ベンチャー拡張の欄 | 子会社IPO（`ipo-subsidiary` と準備の各段階）、`data-new-business-analysis-action`、`data-group-capital-execution-action`、`renderVentureExpansion()` | 画面の行 `data-ui3-current="venture"`（利用者が押したとき。次の `tab` 操作まで） |
 | `ma` | 案件の交渉、統合の進め方、買収ポートフォリオの最優先操作 | `ma-start-dd` `ma-submit-offer` `ma-accept-counter` `ma-financing-*` `ma-board-*` `ma-close-deal` `ma-withdraw-deal`、`start-ma-pmi` `support-ma-pmi` `transport-rebuild`、`data-ma-portfolio-action` | 画面・案件のシートの行 `data-ui3-current="ma"` |
@@ -155,8 +155,11 @@ v1.0（UI3-11）の時点で残してよいものは、`README.md` 10.1 で決�
 | `workforce-invest`（福利厚生投資） | 「組織」タブ | 常時 | 「操作」の行（同じ操作。金額は v3 の金額入力シート） |
 | `toggle-remote`（リモートワーク ON/OFF） | 「組織」タブ | 常時 | 「操作」の行（同じ操作） |
 | `cancel-office`（本社契約解除） | 「本社」タブ | 本社があるとき | 「操作」の行（同じ操作。現行の確認ダイアログ） |
-| `office-tab`（組織・本社・2Dキャンパス・部門・CXO・重要社員・取締役会とIPO・指示と社内VC） | 8つのタブ | 常時 | 現行UI（6.5）。残件（v3 の画面は本社・社員数・固定費、設置済みの部門、在籍のCXOを読み取りで出す） |
-| 部門の設置と採用、CXOの任命、重要社員、取締役会、IPO、指示、社内VC、2Dキャンパスの操作 | 各タブの中 | 本社・部門があるとき | 現行UI（6.5）。残件 |
+| `office-tab`（組織・本社・2Dキャンパス・部門・CXO・重要社員・取締役会とIPO・指示と社内VC） | 8つのタブ | 常時 | 現行UI（6.5）。残件（v3 の画面は本社・社員数・固定費、全部門の一覧、在籍のCXOを出す。部門の設置・採用・閉鎖は UI3-9b-3 で v3 へ） |
+| `establish-department`（部門の設置） | 「部門」タブ | 常時（本社・店舗数・現金・定員の条件はエンジンが拒否） | 部門の行→シート→確認シート（UI3-9b-3。同じ操作。条件を満たさないときは押せず理由を出す） |
+| `hire-staff`（1名採用） | 「部門」タブ | 設置済みの部門 | 部門のシート→確認シート（同じ操作。採用費30万円） |
+| `close-department`（閉鎖） | 「部門」タブ | 設置済みの部門 | 部門のシート→確認シート。確認シートの実行は新しい操作 `close-department-confirmed`（`js/app.js` に1行。`engine.closeDepartment(id)` を呼ぶ。現行の確認ダイアログが二重に出ないようにするため） |
+| CXOの任命、重要社員、取締役会、IPO、指示、社内VC、2Dキャンパスの操作 | 各タブの中 | 本社・部門があるとき | 現行UI（6.5）。残件 |
 | `close-branch-office`（支社の解約） | 「本社」タブ | 支社があるとき | 現行UI（6.5）。残件 |
 
 未確認：「本社あり・部門あり」で各タブに出る操作の一覧（タブごとに内容が違い、dump では `office-tab` の切り替えを押していない）。「ほかの詳細」から現行UIに入れば、すべて残る。
@@ -176,7 +179,8 @@ v1.0（UI3-11）の時点で残してよいものは、`README.md` 10.1 で決�
 | `data-bind="stockSector"`（業種の絞り込み） | `renderMarket()` | 常時 | 「銘柄を探す」のシートの業種チップ |
 | `stock-chart-range`（13・26・52週・全期間） | 銘柄の詳細 | 銘柄を選んだとき | 現行UI（6.5）。残件 |
 | `stock-split`（2分割）、`stock-mbo`（MBO） | 銘柄の詳細／自社株の欄 | 上場後・条件を満たすとき | 現行UI（6.5）。残件 |
-| `founder-share-sale`、`defense`（3種）、`view-earnings`、`set-dividend`、`buyback` | 自社株の欄 | 上場後 | 現行UI（6.5）。残件 |
+| `founder-share-sale`、`defense`（3種）、`view-earnings` | 自社株の欄 | 上場後 | 現行UI（6.5）。残件 |
+| `set-dividend`、`buyback`（現行の「株主還元・資本配分」の欄） | `js/shareholder-returns.js` | 上場後 | **v3 の「株主還元」**（UI3-9b-2）：「配当を設定」「自社株買い」の行（同じ操作、金額は金額入力シート）。数字6つは現行の欄と同じ読み取り。自社株買いは、安全還元可能額が1株の価格に足りないとき押せず、理由を出す（現行と同じ条件） |
 | 資本配分の操作（`data-capital-allocation-*`） | enhancer（`js/capital-allocation-ui.js` ほか） | 上場後・条件を満たすとき | 現行UI（6.5）。残件 |
 | 信用取引の欄（`renderPersonalStockMargin()`） | `renderMarket()` | 条件を満たすとき | 現行UI（6.5）。残件 |
 
@@ -193,7 +197,7 @@ v1.0（UI3-11）の時点で残してよいものは、`README.md` 10.1 で決�
 | 加盟店募集数 | `recruit-franchise` | 店 | いいえ（画面側で 1 以上の整数に直す） |
 | プロダクト追加投資 | `product-action` | 円（会社） | いいえ。切り上げ、0 は資金不足として拒否 |
 | 四半期配当設定 | `set-dividend` | 円（1株あたり） | **はい。0（無配）も小数も有効**（`engine.setDividend` は `Math.max(0, 値)`） |
-| 自社株買い | `buyback` | 円（会社） | エンジンの判定に任せる（`js/shareholder-returns.js` の経路。この作業では読んでいない） |
+| 自社株買い | `buyback` | 円（会社） | エンジンの判定に任せる。UI3-9b-2 で `js/shareholder-returns.js` を読んだ：上限は安全還元可能額、買えるのは1株ずつ（`floor(金額/株価)` 株、費用は `ceilYen(株数×株価)`）。シートの見込みに買い戻す株数と実行後の会社現金（概算）を出す |
 | 創業者資本注入 | `contribute-founder-capital` | 円（個人→会社） | いいえ。整数に切り捨て、0 は注入にならない |
 | 創業者株主ローン | `founder-shareholder-loan` | 円（個人→会社） | いいえ。整数に切り捨て、0 はローンにならない |
 | 福利厚生投資 | `workforce-invest` | 円（会社） | エンジンの判定に任せる（現金不足のみ確認。0 は費用 0） |

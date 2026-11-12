@@ -693,6 +693,12 @@
         ]
       },
       {
+        "file": "js/ui3-office.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/ui3-overseas.js",
         "tokens": [
           "companyCash"
@@ -1399,6 +1405,12 @@
           "externalShareholderRatio",
           "founderShares",
           "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
+        "file": "js/ui3-market.js",
+        "tokens": [
           "treasuryBuybackShares"
         ]
       }
