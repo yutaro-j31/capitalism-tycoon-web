@@ -88,7 +88,7 @@ v1.0（UI3-11）の時点で残してよいものは、`README.md` 10.1 で決�
 | `open-store`（8個） | 一覧の `details`／ピンの詳細パネル | 空きテナントがあるとき | ピン／一覧 → 出店シート `出店する`（同じ操作、`#business-<ID>` の入力つき） |
 | `contract-office`（3個） | 一覧／ピンの詳細パネル | 本社が無いとき、オフィスの空きがあるとき | ピン／一覧 → オフィスのシート `契約する` |
 | `contract-branch-office` | 一覧（本社を設置済みのとき） | 本社あり | 同上のシート `支社として契約する` |
-| `buy-property-company` `buy-property-personal`（各6個） | 一覧／ピンの詳細パネル | 売出物件があるとき | ピン／一覧 → 不動産のシート `会社で購入` `個人で購入` |
+| `buy-property-company` `buy-property-personal`（各6個） | 一覧／ピンの詳細パネル | 売出物件があるとき | ピン／一覧 → 不動産のシート `会社で購入` `個人で購入` → **確認シート**（購入価格・実行後の現金。UI3-10b。実行は同じ操作） |
 | `negotiate-property-company` `negotiate-property-personal`（各6個） | 一覧 | 同上 | 不動産のシートの行 `会社で価格交渉` `個人で価格交渉` |
 | `sell-property` | 一覧 | 保有物件があるとき | 不動産のシートの行 `この物件を売却` |
 | `tab` → `business` / `office` / `rivals` | ピンの詳細パネル | 自社店舗／契約済みオフィス／競合のピンを選んだとき | 各シートの主ボタン（`店舗を見る` `本社・組織へ` `競合を見る`）。不動産は `tab` → `assets` |
@@ -299,7 +299,7 @@ UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可�
 | `tab` → `map`、`advance-week` | enhancer | 常時 | 下のタブ、枠の「進める」ボタン |
 | `asset-tab`（不動産・投信・債券・高級資産・スポーツ） | `renderAssets()` | 常時 | 不動産は画面本体。ほかのタブは現行UI（6.5）。残件 |
 | `sell-property`（売却額は評価額の97%） | 物件の行 | 物件を持つとき | 物件のシートの「売却する」→確認シート（売却額、実行後のその財布の現金）。同じ操作 |
-| `buy-property-company` / `buy-property-personal`、`negotiate-property-*` | マップの物件のシート | 常時 | 既存の入口（マップ。UI3-3）。この画面には「物件を買う（マップ）」の行 |
+| `buy-property-company` / `buy-property-personal`、`negotiate-property-*` | マップの物件のシート | 常時 | 既存の入口（マップ。UI3-3）。購入は確認シートを通る（UI3-10b）。この画面には「物件を買う（マップ）」の行 |
 | `build-property`（建物の種類は名前入力 `askText`） | 物件の行 | 会社の土地 | 現行UI（6.5）。残件（名前入力は UI3-9b-4 で v3 のシートになる） |
 | `buy-personal-investment` / `sell-personal-investment`、`buy-luxury` / `sell-luxury`、`buy-team-*` ほか（他のタブの操作） | `renderAssetTab()` | 各タブ | 現行UI（6.5）。残件 |
 | `founder-wealth-capture`（内訳を算定） | `renderFounderWealthBreakdown()` | 常時 | 現行UI（6.5）。残件 |
@@ -479,3 +479,10 @@ UI3-9a で `?ui=3` のときは iPhone 用の入力ダイアログ（利用可�
 | `add-directive` | CXO指示／指示内容／成長投資 | 指示予算の金額入力シート → `engine.addDirective` | 入力シート |
 | `start-campaign` | 部門施策／施策名／重点改善キャンペーン | 施策予算の金額入力シート → `engine.startCampaign` | 入力シート |
 | `create-pe` | PE案件組成／業界／テック | 投資額の金額入力シート → `engine.createPEDeal` | 入力シート |
+
+### UI3-10b の追加（全ボタンの検査で見つけたもの）
+
+| 現行の操作 | 出どころ | 出る状態 | v3での行き先 |
+| --- | --- | --- | --- |
+| `sell-property`（マップの物件のシートの「この物件を売却」） | マップの物件のシート | 保有物件 | 確認シート（売却額＝評価額の97%、実行後の現金）→ 同じ操作。以前は確認なしで売却されていた |
+| `founder-action`（自宅での行動6つ）の結果の表示 | 創業者の画面 | 常時 | 直近3件の「行動履歴」を読み取りで表示（以前は、地元イベントを押しても画面に何も出なかった） |

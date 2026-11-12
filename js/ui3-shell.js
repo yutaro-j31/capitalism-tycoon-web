@@ -541,6 +541,7 @@ modules.ui3=Object.freeze({
   enabled:()=>enabled,
   isNativeActive:()=>nativeActive,
   registeredScreens:()=>[...screens.keys()],
+  stateRuleScreens:()=>Object.keys(CURRENT_UI_RULES),   // read-only: the screens a game state can send to the current UI (README 10.1)
   registeredSheets:()=>[...sheetRenderers.keys()],
   registerScreen,registerSheet,registerCrisisSheet,crisisSheetRegistered,crisisStatus,registerSetup,registerGameOver,renderSetupInto,renderGameOverInto,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,textSheet,setAmountContext,esc
 });
