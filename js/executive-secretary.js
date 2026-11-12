@@ -22,10 +22,12 @@ function generateTasks(g,helpers={}){
   if(soon)rows.push(task('finance_debt_due','critical',`返済期限まであと${Math.max(0,soon.due)}週です`,'借入の次回返済または満期が近づいています。','現金不足時は延滞・信用低下・財務制限条項リスクが高まります。','bank','銀行','[data-screen="bank"],.screen'));
   if(loans.some(l=>nf(l.interestRate)>.12))rows.push(task('finance_high_interest','high','高金利借入があります','年率12%を超える借入が資金繰りを圧迫しています。','利益率が改善しても利息負担で成長投資が遅れます。','bank','銀行','[data-screen="bank"],.screen'));
   if(debt>companyValue*.55)rows.push(task('finance_debt_heavy','high','企業価値に対して負債が重いです','借入残高が企業価値の55%を超えています。','信用力低下や追加調達条件の悪化につながります。','bank','銀行','[data-screen="bank"],.screen'));
-  const stockout=openStores.find(s=>nf(s.stockoutWeeks||s.stockoutRisk||s.inventoryShortage)>0||nf(s.inventory)<Math.max(1,nf(s.weeklyDemand))*.5);
-  if(stockout)rows.push(task('supply_stockout','high','在庫切れリスクが高まっています',`${stockout.name||'店舗'}の在庫または供給指標が不足しています。`,'販売機会損失と顧客満足低下が発生します。','business','事業','[data-supply-store-card],.supply-store-card,.screen'));
-  const overstock=openStores.find(s=>nf(s.inventory)>Math.max(20,nf(s.weeklyDemand)*6));
-  if(overstock)rows.push(task('supply_overstock','medium','過剰在庫を確認してください',`${overstock.name||'店舗'}の在庫が需要に対して多くなっています。`,'廃棄・保管負担で利益率が悪化します。','business','事業','[data-supply-store-card],.supply-store-card,.screen'));
+  // the stock state of a store is decided in one place, supply.storeStockStatus (read only: last week's lost demand, and the weeks of stock on hand)
+  const stockStatus=s=>globalThis.__capitalismTycoonModules?.supply?.storeStockStatus?.(g,s.id)||{stockout:false,overstock:false,lostDemand:0,coverWeeks:0};
+  const stockout=openStores.find(s=>stockStatus(s).stockout);
+  if(stockout)rows.push(task('supply_stockout','high','在庫切れリスクが高まっています',`${stockout.name||'店舗'}で先週、欠品により${Math.round(stockStatus(stockout).lostDemand).toLocaleString('ja-JP')}食の機会損失が出ています。`,'販売機会損失と顧客満足低下が発生します。','business','事業','[data-supply-store-card],.supply-store-card,.screen'));
+  const overstock=openStores.find(s=>stockStatus(s).overstock);
+  if(overstock)rows.push(task('supply_overstock','medium','過剰在庫を確認してください',`${overstock.name||'店舗'}の在庫が先週の販売量の${stockStatus(overstock).coverWeeks.toFixed(1)}週分あります。`,'廃棄・保管負担で利益率が悪化します。','business','事業','[data-supply-store-card],.supply-store-card,.screen'));
   const lossStore=openStores.filter(s=>nf(s.lastProfit)<0).sort((a,b)=>nf(a.lastProfit)-nf(b.lastProfit))[0];
   if(lossStore)rows.push(task('store_loss','high','赤字店舗があります',`${lossStore.name||'店舗'}の直近利益が赤字です。`,'放置すると固定費負担が続き、閉店候補になります。','business','事業','.market-store-card,.screen'));
   if(nf(g?.overtimeRisk)>.65||nf(g?.employeeSatisfaction,100)<40)rows.push(task('workforce_fatigue','high','従業員疲労が危険水準です','残業リスクまたは社員満足度が悪化しています。','離職・生産性低下・店舗品質低下が発生します。','office','本社','[data-workforce-ui],.workforce-card,.screen'));

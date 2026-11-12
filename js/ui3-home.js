@@ -71,7 +71,7 @@ function actionItems({g,engine}){
 // A row only used to switch to the tab the secretary names (js/app.js secretary-jump / founding-tutorial-jump, unchanged), which left some rows
 // on a screen without the operation they ask for. Each row now carries data-ui3-dest (the secretary task id, or "guide:<step>") and this
 // resolver, which runs before the app's handler, sends the ones below somewhere the operation exists:
-//  - a store task opens the business screen's store sheet for the store the secretary means (the same expressions as executive-secretary.js);
+//  - a store task opens the business screen's store sheet for the store the secretary means (the same rules as executive-secretary.js: supply.storeStockStatus, lost profit);
 //  - crisis_active opens the crisis response sheet;
 //  - what v3 has no operation for opens the current screen directly (modules.ui3.openCurrentUI), on the tab that holds the operation, with
 //    the focus the secretary names;
@@ -79,13 +79,13 @@ function actionItems({g,engine}){
 // Nothing here writes engine state.
 const nf=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const openStoresOf=g=>(g.stores||[]).filter(store=>store&&store.status==='open');
-const stockoutOf=store=>nf(store.stockoutWeeks||store.stockoutRisk||store.inventoryShortage)>0||nf(store.inventory)<Math.max(1,nf(store.weeklyDemand))*.5;
-const overstockOf=store=>nf(store.inventory)>Math.max(20,nf(store.weeklyDemand)*6);
+// the stock state is decided in one place, supply.storeStockStatus (UI3-10d): last week's lost demand / weeks of stock on hand
+const stockStatusOf=(g,store)=>modules.supply?.storeStockStatus?.(g,store.id)||{stockout:false,overstock:false};
 const lossStoreOf=g=>openStoresOf(g).filter(store=>nf(store.lastProfit)<0).sort((a,b)=>nf(a.lastProfit)-nf(b.lastProfit))[0];
 const supplyStoreOf=g=>openStoresOf(g).find(store=>modules.supply?.isTargetBusinessID?.(store.businessID));
 const DESTINATIONS={
-  supply_stockout:{store:g=>openStoresOf(g).find(stockoutOf),scroll:'[data-ui3-supply-card]'},
-  supply_overstock:{store:g=>openStoresOf(g).find(overstockOf),scroll:'[data-ui3-supply-card]'},
+  supply_stockout:{store:g=>openStoresOf(g).find(store=>stockStatusOf(g,store).stockout),scroll:'[data-ui3-supply-card]'},
+  supply_overstock:{store:g=>openStoresOf(g).find(store=>stockStatusOf(g,store).overstock),scroll:'[data-ui3-supply-card]'},
   store_loss:{store:lossStoreOf},
   'guide:unit_economics':{store:supplyStoreOf,scroll:'[data-ui3-supply-card]'},
   'guide:first_improvement':{business:g=>(g.businesses||[]).find(business=>(g.stores||[]).some(store=>store.businessID===business.id&&store.status!=='closed'))},
