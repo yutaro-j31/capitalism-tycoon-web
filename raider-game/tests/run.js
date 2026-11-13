@@ -254,6 +254,39 @@ async function testPhase2(b) {
   await ctx.close();
 }
 
+// Phase 3: founding, regional expansion, listing, vertical integration.
+async function testPhase3(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(inv => {
+    const check = new Function('return (' + inv + ')()'); const A = window.__atlas, out = {};
+    A.newGame(5150, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = true; S.lost = true; S.player.cash += 3000;
+    const nw0 = A.netWorth('P'), f = A.foundCompany('tyo', 'tech', 30);
+    out.found = {priv: f.priv, owned: f.own.P === f.shares, ctrl: f.ctrl, nwDrop: nw0 - A.netWorth('P')};
+    let parent = S.cos.filter(x => !x.ctrl && !x.priv && x.ind === 'auto').sort((a, b) => a.price * a.shares - b.price * b.shares)[0];
+    A.execBuy('P', parent, parent.shares * .8); if (parent.ctrl !== 'P') A.execBuy('P', parent, parent.shares * .15);
+    const city = Object.entries({jp: 'tyo', am: 'nyc', emea: 'lon', ap: 'sin'}).find(([r]) => !parent.mk.startsWith(r))[1];
+    const sub = A.expandRegion(parent, city, .1);
+    out.expand = {priv: sub.priv, parentOwns: sub.own[parent.id] === sub.shares, ctrl: sub.ctrl, market: sub.mk !== parent.mk};
+    const steel = S.cos.filter(x => !x.ctrl && !x.priv && x.ind === 'steel').sort((a, b) => b.rev - a.rev)[0];
+    const vb0 = A.vertBonus(parent); A.execBuy('P', steel, steel.shares * .8); if (steel.ctrl !== 'P') A.execBuy('P', steel, steel.shares * .15);
+    out.vert = {before: vb0, after: A.vertBonus(parent), big: steel.rev >= parent.rev * .15};
+    out.buyPriv = A.execBuy('R1', f, f.shares * .1) === null;
+    for (let i = 0; i < 104; i++) { A.step(); S.inbox = []; }
+    const f2 = S.cos.find(x => x.id === f.id); out.alive = !!f2;
+    if (f2) { const raised = A.listCompany(f2); out.listed = {raised: raised > 0, priv: f2.priv}; }
+    out.bad = check();
+    return out;
+  }, INVARIANTS.toString());
+  ok('founding: an unlisted company fully owned by the player, costing about its capital', r.found.priv && r.found.owned && r.found.ctrl === 'P' && r.found.nwDrop > 0 && r.found.nwDrop < 30, JSON.stringify(r.found));
+  ok('expansion: an unlisted subsidiary in another region\'s market, owned by the parent', r.expand.priv && r.expand.parentOwns && r.expand.ctrl === 'P' && r.expand.market, JSON.stringify(r.expand));
+  ok('vertical integration: controlling a large supplier lowers costs', r.vert.after > r.vert.before || !r.vert.big, JSON.stringify(r.vert));
+  ok('unlisted shares cannot be bought on the market', r.buyPriv);
+  ok('a founded company can be listed later', !r.alive || (r.listed.raised && !r.listed.priv), JSON.stringify(r.listed || {}));
+  ok('invariants hold with unlisted companies', !r.bad.length, r.bad.slice(0, 3).join(' | '));
+  ok('no page errors in phase 3 tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 // Simple value bot used since the first version: buys cheap stocks, sells rich ones, milks controlled companies.
 async function balance(b) {
   const {p, ctx} = await page(b);
@@ -303,6 +336,7 @@ async function balance(b) {
     await testUI(b);
     await testMarkets(b);
     await testPhase2(b);
+    await testPhase3(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
