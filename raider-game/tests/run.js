@@ -39,6 +39,7 @@ const INVARIANTS = () => {
     const by = {}; for (const c of S.cos) { if (!c.mk) { bad.push(`${c.id} no market`); continue; } (by[c.mk] = by[c.mk] || []).push(c); }
     for (const key in by) { const sum = by[key].reduce((a, c) => a + c.sh, 0); if (!(sum <= 1 + 1e-9) || by[key].some(c => !(c.sh >= 0))) bad.push(`market ${key} share sum ${sum}`); if (!S.mk[key]) bad.push(`market ${key} missing`); }
   }
+  for (const p of S.props || []) { fin(p.v, p.id + '.v'); fin(p.mort, p.id + '.mort'); if (p.own && p.own !== 'P' && !S.rivals.some(r => r.id === p.own)) bad.push(p.id + ' bad owner'); if (!p.own && p.mort) bad.push(p.id + ' mortgage without owner'); }
   return bad;
 };
 
@@ -357,6 +358,68 @@ async function testPhase5(b) {
   await m.ctx.close(); await ctx.close();
 }
 
+// Phase 6: real estate, and rivals using proposals, proxy fights, LBOs and equity raises.
+async function testPhase6(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {};
+    A.newGame(8080, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = true; S.lost = true;
+    out.sameProps = JSON.stringify(A.genProps()) === JSON.stringify(S.props) && S.props.length >= 50;
+    // buying with a 50% loan: cash falls by the equity part, net worth only by the 3% fee
+    S.player.cash = 500; const pr = S.props.find(x => x.city === 'tyo'), nw0 = A.netWorth('P'), v = A.propVal(pr);
+    out.bought = A.buyProp('P', pr, .5); out.cashDrop = +(500 - S.player.cash).toFixed(4); out.expect = +(v * .53).toFixed(4); out.nwDrop = +(nw0 - A.netWorth('P')).toFixed(4); out.fee = +(v * .03).toFixed(4);
+    const c0 = S.player.cash; S.econ.rate = S.econ.rate; A.propStep(); out.rent = S.player.cash > c0;
+    const v1 = A.propVal(pr); S.econ.rate += 1; A.propStep(); out.rateHit = A.propVal(pr) < v1 * .98;
+    const ny = S.props.find(x => x.city === 'nyc'), vn = A.propVal(ny); S.econ.fx *= 1.2; out.fx = Math.abs(A.propVal(ny) / vn - 1.2) < 1e-9; S.econ.fx /= 1.2;
+    const c1 = S.player.cash, net = A.sellProp(pr); out.sold = !pr.own && Math.abs(S.player.cash - c1 - net) < 1e-9;
+    // rival proposal: the player votes against with a big stake and wins
+    const R = S.rivals[0], t = S.cos.filter(c => !c.ctrl && !c.priv).sort((a, b) => a.price * a.shares - b.price * b.shares)[3];
+    A.execBuy('R1', t, t.shares * .1); A.execBuy('P', t, t.shares * .35);
+    A.rivalPropose(R, t, 'div'); const it = S.inbox.find(i => i.kind === 'vote' && i.cid === t.id);
+    out.voteInbox = !!it; const pay0 = t.payout; if (it) A.castVote(it.id, -1);
+    for (let i = 0; i < 3; i++) { A.step(); S.inbox = S.inbox.filter(i => i.kind !== 'vote'); }
+    out.voteBlocked = !t.ract && t.payout <= pay0 + 1e-9;
+    // rival proxy fight against a board the player holds
+    const u = S.cos.filter(c => !c.ctrl && !c.priv && c !== t && !c.proxy).sort((a, b) => a.price * a.shares - b.price * b.shares)[5];
+    A.execBuy('R1', u, u.shares * .35); u.board = 'P'; u.boardEnd = S.week + 40; R.cash += 100;
+    A.rivalProxyStart(R, u); R.cash = 0; R.agg = 0; for (const h of S.cos) if (h.ctrl === 'R1') h.cash = 0; out.proxyInbox = S.inbox.some(i => i.kind === 'vote' && i.what === 'proxy' && i.cid === u.id);
+    for (let i = 0; i < 9 && u.proxy; i++) { A.step(); }
+    out.proxy = {board: u.board, ctrl: u.ctrl || null};
+    // LBO: a raider short of cash can still bid by borrowing against the target
+    const w = S.cos.filter(c => !c.ctrl && !c.priv && !c.proxy && c !== t && c !== u).sort((a, b) => a.price * a.shares - b.price * b.shares)[8];
+    w.debt = 0; R.cash = 0; for (const h of S.cos) if (h.ctrl === 'R1') h.cash = 0;
+    const bid = Math.max(w.price, A.fair(w)) * 1.45, need = bid * w.shares * .5; R.cash = need * .5; const bb = A.rivalBid(R, w, bid, .51); out.lbo = !!bb && bb[1] === true; out.lboInfo = JSON.stringify({bb: bb && [bb[0], bb[1], bb[2].cost], need, rc: R.cash, style: R.style});
+    // third-party allotment raises the rival's stake and dilutes the player
+    const x = S.cos.find(c => !c.priv && c.ctrl === null && c !== t && c !== u && c !== w);
+    A.execBuy('R1', x, x.shares * .52); A.execBuy('P', x, x.shares * .05); R.cash = 1e4;
+    const fr = x.own.R1 / x.shares, fp = x.own.P / x.shares; A.allot(x, 'R1', .15);
+    out.allot = {up: x.own.R1 / x.shares > fr, diluted: x.own.P / x.shares < fp, ctrl: x.ctrl};
+    return out;
+  });
+  ok('real estate: properties come from the city list alone (no RNG)', r.sameProps);
+  ok('real estate: a 50% loan purchase uses 53% of the price in cash and costs only the fee in net worth', r.bought && Math.abs(r.cashDrop - r.expect) < 1e-6 && Math.abs(r.nwDrop - r.fee) < 1e-6, JSON.stringify({c: r.cashDrop, e: r.expect, n: r.nwDrop, f: r.fee}));
+  ok('real estate: rent arrives weekly; a rate rise lowers values; overseas values move with the yen', r.rent && r.rateHit && r.fx, JSON.stringify({rent: r.rent, rate: r.rateHit, fx: r.fx}));
+  ok('real estate: selling pays the owner the price after costs and the loan', r.sold);
+  ok('rival proposals: the player gets a vote and a large "no" vote blocks it', r.voteInbox && r.voteBlocked, JSON.stringify({i: r.voteInbox, b: r.voteBlocked}));
+  ok('rival proxy fights: a 35% rival takes the board the player held', r.proxyInbox && r.proxy.board === 'R1', JSON.stringify(r.proxy));
+  ok('rival LBO: a raider short of cash bids with borrowed money', r.lbo, r.lboInfo);
+  ok('rival equity: a third-party allotment raises the rival stake and dilutes the player', r.allot.up && r.allot.diluted && r.allot.ctrl === 'R1', JSON.stringify(r.allot));
+  // long run: rivals use the new moves and nothing breaks
+  const l = await p.evaluate(inv => { const A = window.__atlas; A.newGame(8181, 'hard', 'T', 't', 'std', true); const S = A.S; S.won = true; S.lost = true; const seen = {}; for (let w = 0; w < 520; w++) { A.step(); S.inbox = []; for (const n of S.news) if (n.w === S.week) for (const k of ['株主提案', '委任状争奪戦', 'LBO', '第三者割当', '不動産取得']) if (n.t.includes(k)) seen[k] = (seen[k] || 0) + 1; } return {seen, bad: (0, eval)('(' + inv + ')')()}; }, INVARIANTS.toString());
+  ok('rivals use proposals, proxy fights and real estate over 10 years', l.seen['株主提案'] > 0 && l.seen['委任状争奪戦'] > 0 && l.seen['不動産取得'] > 0, JSON.stringify(l.seen));
+  ok('invariants hold over 10 hard years with the new moves', !l.bad.length, l.bad.slice(0, 5).join(', '));
+  // the property list in a city renders on iPhone without overflow
+  const m = await page(b, devices['iPhone 13']);
+  await m.p.evaluate(() => { const A = window.__atlas; A.newGame(8282, 'normal', 'T', 't', 'std', true); A.S.lost = true; A.S.player.cash = 300; A.buyProp('P', A.S.props.find(x => x.city === 'osa'), .5); document.querySelector('#modal').hidden = true; A.ui.city = 'tyo'; });
+  await m.p.click('[data-act=tab][data-v=market]');
+  const a = await m.p.evaluate(() => ({n: document.querySelectorAll('[data-act=pbuy]').length, o: document.documentElement.scrollWidth - innerWidth}));
+  await m.p.click('[data-act=tab][data-v=port]');
+  const b2 = await m.p.evaluate(() => ({sell: document.querySelectorAll('[data-act=psell]').length, o: document.documentElement.scrollWidth - innerWidth}));
+  ok('iPhone: city property list and holdings render without overflow', a.n > 0 && a.o <= 0 && b2.sell === 1 && b2.o <= 0, JSON.stringify({a, b2}));
+  ok('no page errors in phase 6 tests', !errs.length && !m.errs.length, errs.concat(m.errs).slice(0, 3).join(' | '));
+  await m.ctx.close(); await ctx.close();
+}
+
 // Simple value bot used since the first version: buys cheap stocks, sells rich ones, milks controlled companies.
 async function balance(b) {
   const {p, ctx} = await page(b);
@@ -409,6 +472,7 @@ async function balance(b) {
     await testPhase3(b);
     await testPhase4(b);
     await testPhase5(b);
+    await testPhase6(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
