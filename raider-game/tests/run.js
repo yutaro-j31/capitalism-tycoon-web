@@ -47,7 +47,8 @@ async function page(browser, opt) {
   const p = await ctx.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
-  p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
+  // External resources (web fonts) can fail to load from a local file; that is not a game error.
+  p.on('console', m => { if (m.type() === 'error' && !/fonts\.g|Failed to load resource|CORS/.test(m.text())) errs.push(m.text()); });
   await p.goto(URL);
   await p.waitForTimeout(300);
   return {p, ctx, errs};
@@ -287,6 +288,36 @@ async function testPhase3(b) {
   await ctx.close();
 }
 
+// Phase 4: raw materials, regional demand shocks, credit crises.
+async function testPhase4(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {};
+    A.newGame(6060, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = true; S.lost = true; S.player.cash += 3000;
+    const op = c => { const st = A.opState(c); return (st.D * st.s * (st.P * (1 + st.syn) - st.vc * st.raw) - st.fixed) * st.fx; };
+    const air = S.cos.find(c => c.ind === 'air'), en = S.cos.find(c => c.ind === 'energy');
+    const a0 = op(air), e0 = op(en); S.econ.raw = 1.5; out.raw = {airDown: op(air) < a0, energyUp: op(en) > e0}; S.econ.raw = 1;
+    // a controlled company forced into distress: crisis → inbox → resolved
+    const pick = () => S.cos.filter(x => !x.ctrl && !x.priv && x.ind !== 'air' && x.ind !== 'telecom').sort((a, b) => a.price * a.shares - b.price * b.shares);
+    const c = pick()[0]; A.execBuy('P', c, c.shares * .8); if (c.ctrl !== 'P') A.execBuy('P', c, c.shares * .15);
+    const d = pick()[0]; A.execBuy('P', d, d.shares * .8); if (d.ctrl !== 'P') A.execBuy('P', d, d.shares * .15);
+    for (const x of [c, d]) { x.debt = x.rev * 6; x.cash = 0; x.margin = x.base = -.05; x.ni = -1; }
+    A.crisisCheck();
+    out.crisis = {flag: !!c.crisis, inbox: S.inbox.some(i => i.kind === 'crisis' && i.cid === c.id)};
+    out.resolved = A.resolveCrisis(c, 'refi') && !c.crisis && c.pen && c.pen.add === 3;
+    S.inbox = S.inbox.filter(i => i.cid !== d.id);
+    for (let i = 0; i < 10; i++) { d.cash = 0; d.ni = Math.min(d.ni, -1); A.step(); S.inbox = S.inbox.filter(it => it.cid !== d.id); }
+    out.bankrupt = !S.cos.some(x => x.id === d.id);
+    return out;
+  });
+  ok('raw materials: a price spike hurts airlines and helps energy companies', r.raw.airDown && r.raw.energyUp, JSON.stringify(r.raw));
+  ok('credit crisis: a distressed controlled company raises a crisis in the inbox', r.crisis.flag && r.crisis.inbox, JSON.stringify(r.crisis));
+  ok('credit crisis: choosing a way out clears it (refinancing adds 3% for two years)', r.resolved);
+  ok('credit crisis: ignoring it for 8 weeks ends in bankruptcy', r.bankrupt);
+  ok('no page errors in phase 4 tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 // Simple value bot used since the first version: buys cheap stocks, sells rich ones, milks controlled companies.
 async function balance(b) {
   const {p, ctx} = await page(b);
@@ -337,6 +368,7 @@ async function balance(b) {
     await testMarkets(b);
     await testPhase2(b);
     await testPhase3(b);
+    await testPhase4(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
