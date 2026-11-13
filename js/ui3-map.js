@@ -202,8 +202,8 @@ function otherSheet(entity){
     actions=office.contracted||branch
       ?`${close}<button type="button" class="u-btn primary" data-action="tab" data-tab="office">本社・組織へ</button>`
       :context.g.hasHeadOffice
-        ?`${close}<button type="button" class="u-btn primary" data-action="contract-branch-office" data-id="${esc(entity.rawID)}">支社として契約する</button>`
-        :`${close}<button type="button" class="u-btn primary" data-action="contract-office" data-id="${esc(entity.rawID)}">契約する</button>`;
+        ?`${close}<button type="button" class="u-btn primary" data-ui3-map-contract="branch" data-id="${esc(entity.rawID)}">支社として契約する</button>`
+        :`${close}<button type="button" class="u-btn primary" data-ui3-map-contract="head" data-id="${esc(entity.rawID)}">契約する</button>`;
   }else if(kind==='realestate'){
     const property=entity.property||{};
     subtitle=property.owner==='company'?'自社保有':property.owner==='personal'?'個人保有':'売出中';
@@ -237,6 +237,31 @@ function confirmBuy(owner,id){
     facts:[{label:'購入価格',value:money(price)},{label:`実行後の${wallet}現金`,value:money(cash-price),tone:cash-price<0?'down':undefined}],
     note:cash<price?`${wallet}の現金が足りないため、実行しても購入できません。`:'',
     confirm:{label:'購入する',attributes:{'data-action':owner==='company'?'buy-property-company':'buy-property-personal','data-id':id}}});
+}
+// Contracting an office pays the deposit now (engine: ceilYen(deposit); the branch copy uses the same rounding) and the rent every week
+// after, so it goes through a confirmation sheet (README 6.6, UI3-12b). The weekly rent is set beside the company's latest weekly profit
+// (the home card's own number): a rent above it warns that every week will run at a loss. The warning never blocks.
+function confirmContract(kind,id){
+  const {g,money,engine}=context;
+  const office=(g.rentalOffices||[]).find(item=>item.id===id);
+  if(!office||office.contracted)return;
+  const deposit=Math.ceil(finite(office.deposit)),rent=finite(office.rent),cash=finite(g.companyCash);
+  let profit=null;
+  try{
+    const metric=modules.ceoDashboard?.weeklyImpact?.(g,{companyValue:engine.companyValue()})?.metrics?.find(row=>row.id==='profit');
+    if(metric&&Number.isFinite(Number(metric.value)))profit=Number(metric.value);
+  }catch(failure){profit=null;}
+  const loses=profit!==null&&rent>profit;
+  const notes=[];
+  if(cash<deposit)notes.push('会社の現金が足りないため、実行しても契約できません。');
+  if(loses)notes.push(`毎週の家賃が直近の週利益を上回ります。契約後は毎週赤字になる見込みです。`);
+  const reserve=modules.ui3.reserveNote(cash-deposit);
+  if(reserve)notes.push(reserve);
+  const root=modalRoot();
+  if(root)root.innerHTML=modules.ui3.confirmSheet({title:`${office.name}を${kind==='branch'?'支社として':'本社として'}契約`,subtitle:'保証金は今払います。家賃は毎週かかります。取り消せません。',
+    facts:[{label:'保証金',value:money(deposit)},{label:'毎週の家賃',value:money(rent)},{label:'直近の会社の週利益',value:profit===null?'—':money(profit),tone:profit!==null&&profit<0?'down':undefined},{label:'実行後の会社現金',value:money(cash-deposit),tone:cash-deposit<0?'down':undefined}],
+    note:notes.join(' '),
+    confirm:{label:'契約する',attributes:{'data-action':kind==='branch'?'contract-branch-office':'contract-office','data-id':id}}});
 }
 function confirmSell(id){
   const {g,money}=context;
@@ -299,6 +324,8 @@ function onClick(event){
   if(target.closest('#modal-root .u-scrim')&&performance.now()-state.openedAt<SETTLE_MS){event.stopPropagation();event.preventDefault();return;}
   const buy=target.closest('[data-ui3-map-buy]');
   if(buy){confirmBuy(buy.dataset.ui3MapBuy,buy.dataset.id);return;}
+  const contract=target.closest('[data-ui3-map-contract]');
+  if(contract){confirmContract(contract.dataset.ui3MapContract,contract.dataset.id);return;}
   const sell=target.closest('[data-ui3-map-sell]');
   if(sell){confirmSell(sell.dataset.id);return;}
   const business=target.closest('[data-ui3-map-business]');

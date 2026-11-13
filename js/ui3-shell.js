@@ -376,6 +376,13 @@ function parseAmount(text,unit){
   if(!Number.isFinite(value)||(whole&&value<1))return {value:null,error:whole?'1以上の整数を入力してください。':'0以上の数値を入力してください。'};
   return {value,error:''};
 }
+// A price is saved as whole yen (context.integer): the number is rounded to the nearest yen before anything uses it, so the
+// preview, the confirmation and the saved value are the same number; a value that rounds to less than 1 is refused with the reason.
+function roundAmount(parsed,context){
+  if(!context?.integer||parsed.value===null)return parsed;
+  const value=Math.round(parsed.value);
+  return value<1?{value:null,error:'1円以上の金額にしてください（円未満は四捨五入します）。'}:{value,error:''};
+}
 function walletCash(wallet){
   const g=modules.playerEngineBridge?.getEngine?.()?.g;
   if(!g)return null;
@@ -415,7 +422,11 @@ function refreshAmount(){
   const input=root?.querySelector('[data-ui3-amount-input]');
   if(!input||!amountPending)return;
   const {unit,context}=amountPending;
-  const {value,error}=parseAmount(input.value,unit);
+  const parsed=roundAmount(parseAmount(input.value,unit),context);
+  const {value}=parsed;
+  // a known minimum (the engine's own, e.g. the venture minimum ticket) is refused here with the reason, not left to the engine
+  const min=Number.isFinite(Number(context?.min))&&Number(context.min)>0?Number(context.min):null;
+  const error=parsed.error||(min!==null&&value!==null&&value<min?`最低額は${yenText(min)}です。これ未満では実行できません。`:'');
   root.querySelector('[data-ui3-amount-error]').textContent=error;
   const run=root.querySelector('[data-ui3-amount-run]');
   if(run)run.disabled=Boolean(error);
@@ -444,11 +455,42 @@ function runAmount(){
   const input=root?.querySelector('[data-ui3-amount-input]');
   const pending=amountPending;
   if(!input||!pending)return;
-  const {value,error}=parseAmount(input.value,pending.unit);
-  if(error){refreshAmount();return;}
+  const {value,error}=roundAmount(parseAmount(input.value,pending.unit),pending.context);
+  const min=Number.isFinite(Number(pending.context?.min))&&Number(pending.context.min)>0?Number(pending.context.min):null;
+  if(error||(min!==null&&value<min)){refreshAmount();return;}
   amountPending=null;
+  // an operation that moves money after the number is entered goes through a confirmation sheet first (README 6.6):
+  // the screen's context.confirm(value) returns {title,subtitle,facts,note,confirmLabel}; the run waits for its button
+  let parts=null;
+  if(typeof pending.context?.confirm==='function'){
+    try{parts=pending.context.confirm(value)||null;}catch(failure){parts=null;}
+  }
+  if(parts){
+    amountConfirm={submit:pending.submit,value};
+    root.innerHTML=confirmSheet({...parts,confirm:{label:parts.confirmLabel||'実行する',attributes:{'data-ui3-amount-confirm':''}}});
+    return;
+  }
   root.innerHTML='';
   pending.submit(value);
+}
+let amountConfirm=null;
+globalThis.document?.addEventListener('click',event=>{
+  const button=event.target instanceof Element?event.target.closest('[data-ui3-amount-confirm]'):null;
+  if(!button||!amountConfirm)return;
+  const {submit,value}=amountConfirm;
+  amountConfirm=null;
+  event.stopImmediatePropagation();
+  globalThis.document.getElementById('modal-root').innerHTML='';
+  submit(value);
+},true);
+// the cash the company must keep (the engine's own reserve threshold, the number the crisis notice shows); a confirmation
+// whose cash-after falls under it says so in one line (it never blocks)
+function reserveNote(cashAfter){
+  const g=modules.playerEngineBridge?.getEngine?.()?.g;
+  if(!g||!Number.isFinite(Number(cashAfter)))return '';
+  const threshold=Number(modules.playerCrisis?.snapshot?.(g)?.reserveThreshold);
+  if(!Number.isFinite(threshold)||threshold<=0||Number(cashAfter)>=threshold)return '';
+  return `実行後の会社現金が必要準備（${yenText(threshold)}）を下回ります。資金繰り注意になるおそれがあります。`;
 }
 globalThis.document?.addEventListener('input',event=>{if(event.target instanceof Element&&event.target.matches('[data-ui3-amount-input]'))refreshAmount();},true);
 globalThis.document?.addEventListener('keydown',event=>{
@@ -545,6 +587,6 @@ modules.ui3=Object.freeze({
   registeredScreens:()=>[...screens.keys()],
   stateRuleScreens:()=>Object.keys(CURRENT_UI_RULES),   // read-only: the screens a game state can send to the current UI (README 10.1)
   registeredSheets:()=>[...sheetRenderers.keys()],
-  registerScreen,registerSheet,registerCrisisSheet,crisisSheetRegistered,openCrisisSheet,crisisStatus,registerSetup,registerGameOver,renderSetupInto,renderGameOverInto,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,textSheet,setAmountContext,esc
+  registerScreen,registerSheet,registerCrisisSheet,reserveNote,crisisSheetRegistered,openCrisisSheet,crisisStatus,registerSetup,registerGameOver,renderSetupInto,renderGameOverInto,rendersNatively,usesCurrentUI,renderApp,renderSheet,leaveNative,sheet,confirmSheet,openCurrentUI,amountSheet,textSheet,setAmountContext,esc
 });
 })();

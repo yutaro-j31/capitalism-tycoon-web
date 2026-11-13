@@ -152,6 +152,7 @@ async function main() {
     await page.locator('[data-action="borrow-company"]').tap();
     await page.locator('#modal-root [data-ui3-amount-input]').fill('1000000');
     await page.locator('#modal-root [data-ui3-amount-run]').tap();
+    await page.locator('#modal-root [data-ui3-amount-confirm]').tap();   // UI3-12b: borrowing is confirmed once more after the amount
     await page.waitForFunction(debt => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.companyDebt === debt + 1000000, before.debt, { timeout: 10000 });
     const borrowed = await engineEval(page, engine => ({ debt: engine.g.companyDebt, cash: engine.g.companyCash }));
     assert.equal(borrowed.cash, before.cash + 1000000, 'the company received exactly the amount');
@@ -176,6 +177,7 @@ async function main() {
     assert.equal(await page.locator('#modal-root .u-sheet-head h1').innerText(), '個人借入');
     await page.locator('#modal-root [data-ui3-amount-input]').fill('100000');
     await page.locator('#modal-root [data-ui3-amount-run]').tap();
+    await page.locator('#modal-root [data-ui3-amount-confirm]').tap();   // UI3-12b: borrowing is confirmed once more after the amount
     await page.waitForFunction(debt => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.personalDebt === debt + 100000, personal.debt, { timeout: 10000 });
     assert.equal(await engineEval(page, engine => engine.g.personalCash), personal.cash + 100000);
     assert.equal(await engineEval(page, engine => engine.g.companyDebt), borrowed.debt - 400000, 'the company debt did not move');

@@ -263,12 +263,37 @@ function confirmFranchise(id){
     confirm:{label:'設置する',attributes:{'data-action':'start-franchise','data-id':id}}});
 }
 
+const PRICE_FAR_RATIO=3;   // a store price 3 times the current one (or a third of it) is confirmed with a warning
 function onClick(event){
   const target=event.target instanceof Element?event.target:null;
   if(!target)return;
   // amount dialogs that spend company money: say what the number is (README 5.7)
   const spend=target.closest('[data-action="business-invest"]');
-  if(spend&&!spend.disabled)modules.ui3.setAmountContext({unit:'円',wallet:'company',direction:'spend'});
+  if(spend&&!spend.disabled){
+    const {compactYen}=modules.engine,business=modules.playerEngineBridge.getEngine().business(spend.dataset.id);
+    modules.ui3.setAmountContext({unit:'円',wallet:'company',direction:'spend',
+      confirm:value=>{
+        const cash=Number(modules.playerEngineBridge.getEngine().g.companyCash),after=cash-value;
+        return {title:`${business?.name||'事業'}に${compactYen(value)}を投資`,subtitle:'会社の現金から払います。取り消せません。',
+          facts:[{label:'投資額',value:compactYen(value)},{label:'実行後の会社現金',value:compactYen(after),tone:after<0?'down':undefined}],
+          note:[after<0?'会社の現金が足りません。エンジンが実行を断ります。':'',modules.ui3.reserveNote(after)].filter(Boolean).join(' '),confirmLabel:'投資する'};
+      }});
+  }
+  const businessPrice=target.closest('[data-action="business-price"]');
+  if(businessPrice&&!businessPrice.disabled)modules.ui3.setAmountContext({unit:'円',integer:true,note:'円未満は四捨五入して保存します。'});
+  // a store's price is saved as whole yen (the sheet rounds and shows the rounded number); a price far from the current one is confirmed with a warning
+  const storePrice=target.closest('[data-action="store-price"]');
+  if(storePrice&&!storePrice.disabled){
+    const instance=modules.playerEngineBridge.getEngine(),plan=instance.getStorePricingPlan?.(storePrice.dataset.id),compact=modules.engine.compactYen;
+    const current=Number(plan?.effectivePrice)||0;
+    modules.ui3.setAmountContext({unit:'円',integer:true,note:current>0?`いまの販売価格 ${compact(current)}（円未満は四捨五入して保存します）`:'円未満は四捨五入して保存します。',
+      confirm:current>0?value=>{
+        const ratio=value/current,far=ratio>=PRICE_FAR_RATIO||ratio<=1/PRICE_FAR_RATIO;
+        return far?{title:'店舗価格を大きく変える',subtitle:`${compact(current)} → ${compact(value)}（${ratio>=1?`${ratio.toFixed(1)}倍`:`${(1/ratio).toFixed(1)}分の1`}）`,
+          facts:[{label:'いまの価格',value:compact(current)},{label:'新しい価格',value:compact(value),tone:'down'},{label:'全社価格',value:compact(Number(plan.businessPrice)||0)}],
+          note:'いまの価格の3倍以上、または3分の1以下です。客数が大きく変わる場合があります。取り消すには、もう一度価格を変えます。',confirmLabel:'この価格にする'}:null;
+      }:undefined});
+  }
   const recruit=target.closest('[data-action="recruit-franchise"]');
   if(recruit&&!recruit.disabled)modules.ui3.setAmountContext({unit:'店',unitPrice:1000000,wallet:'company',direction:'spend'});   // engine.recruitFranchise: 100万円 per store
   const supply=target.closest('[data-ui3-supply]');

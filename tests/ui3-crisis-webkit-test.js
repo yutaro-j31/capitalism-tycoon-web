@@ -192,7 +192,8 @@ async function main() {
     // Founder's injection: the amount sheet starts at the current panel's default; the cash moves by exactly the amount.
     await page.locator('[data-ui3-cr="founder"]').tap();
     await page.locator('#modal-root [data-ui3-amount-input]').waitFor({ state: 'visible', timeout: 10000 });
-    assert.equal(Number(await page.locator('#modal-root [data-ui3-amount-input]').inputValue()), quote.defaultAmount, 'the same default as the current panel');
+    // UI3-12b (play-test B12): the injection starts at min(1,000,000 yen, the personal cash), the founder-contribution default of js/app.js, not at the whole gap
+    assert.equal(Number(await page.locator('#modal-root [data-ui3-amount-input]').inputValue()), Math.min(1000000, Math.floor(await engineEval(page, engine => engine.g.personalCash))), 'the default is min(1,000,000 yen, personal cash)');
     const beforeCancel = await digest(page);
     await cancel(page);
     assert.equal(await digest(page), beforeCancel, 'cancelling changes nothing');
@@ -202,6 +203,10 @@ async function main() {
     await page.locator('#modal-root [data-ui3-amount-input]').waitFor({ state: 'visible', timeout: 10000 });
     const cashBefore = await engineEval(page, engine => ({ company: engine.g.companyCash, personal: engine.g.personalCash }));
     await enterAmount(page, 2000000);
+    // UI3-12b: the injection is confirmed once more; nothing has been called yet
+    await page.locator('#modal-root [data-ui3-amount-confirm]').waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal((await calls(page)).injectFounderCapital, 0, 'the injection waits for the confirmation');
+    await page.locator('#modal-root [data-ui3-amount-confirm]').tap();
     await page.waitForFunction(() => window.__calls.injectFounderCapital === 1, null, { timeout: 10000 });
     const cashAfter = await engineEval(page, engine => ({ company: engine.g.companyCash, personal: engine.g.personalCash }));
     assert.equal(cashAfter.company - cashBefore.company, 2000000, 'the company cash rose by exactly the amount entered');

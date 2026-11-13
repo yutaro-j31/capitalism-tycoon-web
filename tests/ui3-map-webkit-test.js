@@ -292,7 +292,18 @@ async function main() {
       await rows.first().tap();
       await page.locator('#modal-root .u-sheet [data-ui3-map-sheet]').waitFor({ state: 'attached', timeout: 10000 });
       reach[kind] = await page.evaluate(() => [...document.querySelectorAll('#modal-root .u-sheet [data-action]')].map(node => node.dataset.action));
-      assert.ok(reach[kind].includes(expected), `${kind}: ${reach[kind]}`);
+      // UI3-12b: the office contract button opens the confirmation sheet (it carries no action of its own); the confirmation carries the existing action
+      if (kind === 'office') {
+        assert.equal(await page.locator('#modal-root .u-sheet [data-ui3-map-contract="head"]').count(), 1, 'an uncontracted office offers the contract button');
+        assert.ok(!reach[kind].includes('contract-office'), 'the contract button does not sign by itself');
+        await page.locator('#modal-root .u-sheet [data-ui3-map-contract="head"]').tap();
+        await page.locator('#modal-root [data-ui3-confirm]').waitFor({ state: 'visible', timeout: 10000 });
+        assert.equal(await page.locator('#modal-root [data-ui3-confirm]').getAttribute('data-action'), expected, 'the confirmation runs the existing action');
+        await page.locator('#modal-root .u-sheet-foot [data-action="close-modal"]').tap();
+        await page.locator('[data-ui3-map-list]').tap();
+        await page.locator('#modal-root [data-ui3-map-pick]').first().tap();
+        await page.locator('#modal-root .u-sheet [data-ui3-map-sheet]').waitFor({ state: 'attached', timeout: 10000 });
+      } else assert.ok(reach[kind].includes(expected), `${kind}: ${reach[kind]}`);
       if (kind === 'realestate') {
         // UI3-10b: buying moves money for good, so it asks first. The sheet carries two buy buttons that open a confirmation sheet showing the
         // engine's price (ceilYen(price)) and the cash afterwards; cancelling changes nothing; confirming runs the existing action.
@@ -337,7 +348,8 @@ async function main() {
       await pick.tap();
       await page.locator('#modal-root .u-sheet [data-ui3-map-sheet]').waitFor({ state: 'attached', timeout: 10000 });
       const actions = await page.evaluate(() => [...document.querySelectorAll('#modal-root .u-sheet [data-action]')].map(node => node.dataset.action));
-      for (const action of expected) assert.ok(actions.includes(action), `${kind}: ${actions}`);
+      if (kind === 'office') assert.equal(await page.locator('#modal-root .u-sheet [data-ui3-map-contract="branch"]').count(), 1, 'a branch office goes through the confirmation sheet too');
+      else for (const action of expected) assert.ok(actions.includes(action), `${kind}: ${actions}`);
       if (kind === 'realestate') {
         // selling goes through a confirmation sheet too: ceil(value x 0.97), cancelling changes nothing, confirming sells at that amount
         assert.equal(await page.locator('#modal-root .u-sheet [data-ui3-map-sell]').count(), 1, 'an owned property offers selling');

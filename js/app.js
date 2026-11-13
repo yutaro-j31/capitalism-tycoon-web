@@ -912,6 +912,20 @@ function confirmPropertyNegotiation(id,owner){
   modal(`<h2>${esc(p.name)}の価格交渉（${ownerLabel}）</h2><p>掲示価格${yen(p.price)}より安く提示します。提示額が低いほど決裂しやすくなります。</p>${rows}<p class="hint">決裂すると${cooldown}週間はこの物件に再交渉できません（掲示価格での即時購入は引き続き可能です）。</p><div class="modal-actions">${btn('閉じる','close-modal',{kind:'ghost'})}</div>`);
 }
 
+// IPO estimate shown in the listing dialog. These are the same formulas as TycoonEngine.executeIPO (no randomness is involved): price =
+// max(100, company value x market multiple / shares out); the company raises ceilYen(price x 20% new shares x 0.955); the founder receives
+// ceilYen(price x shares sold x 0.955), the shares sold being clamped to 5-40% of the founder's shares. The real price is set at the moment of listing.
+function ipoEstimateText(market,sellShares){
+  const g=engine.g,value=engine.companyValue(),multiple=market==='東証プライム'?1.25:market==='東証スタンダード'?1.1:1;
+  const price=Math.max(100,value*multiple/g.sharesOut);
+  const floor=Math.max(1,Math.round(g.founderShares*.05)),ceil=Math.max(floor,Math.round(g.founderShares*.4));
+  const sell=Math.min(ceil,Math.max(floor,Math.floor(sellShares)||floor));
+  const newShares=Math.max(1,Math.round(g.sharesOut*.2));
+  const ceilYen=__modules.economicOperation.ceilYen,raise=ceilYen(price*newShares*.955),founder=ceilYen(price*sell*.955);
+  const y=n=>__modules.engine.compactYen(n);
+  return `見込み：会社の調達額 ${y(raise)}（新株${newShares.toLocaleString('ja-JP')}株）・創業者の受取額 ${y(founder)}（売出${sell.toLocaleString('ja-JP')}株、5〜40%の範囲に調整）。株価は上場時の会社価値で決まります。`;
+}
+
 // 4 weeks at a time, but never past the moment a funding crisis starts or worsens: the player needs the
 // week-end report and the response sheet (founder money, emergency loan ...) before the next week runs.
 // Only the existing playerCrisis.status is read; the number of weeks advanced is the only thing that changes.
@@ -942,7 +956,7 @@ function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
     case 'establish-department':engine.establishDepartment(id);break;case 'hire-staff':engine.hireDepartmentStaff(id,1);break;case 'close-department':confirmCloseDepartment(id);break;case 'close-department-confirmed':engine.closeDepartment(id);break;case 'refresh-executives':engine.refreshExecutives();break;case 'hire-workforce-candidate':engine.hireWorkforceCandidate(id);break;case 'start-workforce-training':engine.startWorkforceTraining(id,kind);break;case 'start-workforce-project':engine.startWorkforceProject(id);break;case 'workforce-project-status':engine.setWorkforceProjectStatus(id,kind);break;case 'workforce-project-priority':engine.changeWorkforceProjectPriority(id,Number(kind)||1);break;
     case 'hire-executive':{const c=engine.g.executiveMarket.find(x=>x.id===id);if(!c)break;modal(`<h2>${c.role} ${esc(c.name)}と交渉</h2>${moneyInput('salary',Math.round(c.desiredSalary||c.salary),'年俸')}${moneyInput('so',((c.desiredSO||.005)*100).toFixed(2),'SO（%）')}<div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="hire-ok">条件提示</button></div>`);$('#hire-ok').onclick=()=>{const salary=Number($('#salary').value.replace(/,/g,'')),so=Number($('#so').value)/100;closeModal();engine.hireExecutive(id,salary,so);};break;}
     case 'dismiss-executive':engine.dismissExecutive(id);break;case 'toggle-executive-delegation':engine.toggleExecutiveDelegation(id);break;case 'establish-board':engine.establishBoard();break;
-    case 'execute-ipo':modal(`<h2>IPO条件設定</h2><label class="field"><span>市場</span><select id="ipo-market"><option>東証グロース</option><option>東証スタンダード</option><option>東証プライム</option></select></label>${moneyInput('ipo-shares',Math.max(1,Math.round(engine.g.founderShares*.1)),'創業者売出株数')}<div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="ipo-ok">上場実行</button></div>`);$('#ipo-ok').onclick=()=>{const m=$('#ipo-market').value,s=Number($('#ipo-shares').value);closeModal();engine.executeIPO(m,s);};break;
+    case 'execute-ipo':modal(`<h2>IPO条件設定</h2><label class="field"><span>市場</span><select id="ipo-market"><option>東証グロース</option><option>東証スタンダード</option><option>東証プライム</option></select></label>${moneyInput('ipo-shares',Math.max(1,Math.round(engine.g.founderShares*.1)),'創業者売出株数')}<div class="u-h2" id="ipo-estimate" aria-live="polite"></div><div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="ipo-ok">上場実行</button></div>`);const refreshIpoEstimate=()=>{const box=$('#ipo-estimate');if(box)box.textContent=ipoEstimateText($('#ipo-market').value,Number($('#ipo-shares').value));};$('#ipo-market').onchange=refreshIpoEstimate;$('#ipo-shares').oninput=refreshIpoEstimate;refreshIpoEstimate();$('#ipo-ok').onclick=()=>{const m=$('#ipo-market').value,s=Number($('#ipo-shares').value);closeModal();engine.executeIPO(m,s);};break;
     case 'set-dividend':askMoney('四半期配当設定',engine.g.dividendPerShare||10,v=>engine.setDividend(v));break;case 'buyback':askMoney('自社株買い',10000000,v=>engine.buybackOwnShares(v));break;
     case 'accept-investor-offer':engine.acceptInvestorOffer(id);break;case 'decline-investor-offer':engine.declineInvestorOffer(id);break;
     case 'contribute-founder-capital':askMoney('創業者資本注入',Math.min(1_000_000,Math.max(0,Math.floor(engine.g.personalCash))),v=>engine.contributeFounderCapital(v));break;
