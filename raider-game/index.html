@@ -1,0 +1,1170 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Atlas Capital</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: world-map command deck (map left, operations panel right; stacked on phones). Single deliberate night-ocean look. */
+:root{
+  --sea:#0e3150; --sea-deep:#071a2c; --land:#c8b27a; --land-hi:#ead7a0;
+  --panel:#0f2438; --panel-2:#15314a; --line:#23435f; --ink:#e8eef2; --mute:#8fa8ba;
+  --gold:#f2b632; --up:#48c48c; --down:#f06a5d; --warn:#f2a03d;
+  --r1:#ff7f5c; --r2:#3cc8d1; --r3:#b994ff; --pub:#56708a;
+  --f-display:'Dela Gothic One','Hiragino Sans','Noto Sans JP',system-ui,sans-serif;
+  --f-body:'Noto Sans JP','Hiragino Sans','Yu Gothic',system-ui,sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--sea-deep);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+#app{display:flex;flex-direction:column;min-height:100%;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px;gap:10px}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.brand{font-family:var(--f-display);font-size:20px;letter-spacing:.04em;line-height:1;white-space:nowrap}
+.brand b{color:var(--gold);font-weight:400}
+.brand small{display:block;font-family:var(--f-body);font-size:10px;letter-spacing:.18em;color:var(--mute);margin-top:4px}
+.date{font-family:var(--f-mono);font-size:13px;color:var(--mute);white-space:nowrap}
+.stats{display:flex;flex-wrap:wrap;gap:6px 16px;flex:1;min-width:0}
+.stat{display:flex;flex-direction:column;min-width:74px}
+.stat span{font-size:10px;letter-spacing:.12em;color:var(--mute)}
+.stat b{font-family:var(--f-mono);font-size:15px;font-weight:600}
+.stat.nw b{color:var(--gold)}
+.speed{display:flex;gap:4px;align-items:center}
+.speed button{background:var(--sea-deep);border:1px solid var(--line);border-radius:9px;min-width:44px;height:38px;padding:0 10px;font-family:var(--f-mono);font-size:13px}
+.speed button.on{background:var(--gold);border-color:var(--gold);color:#1b1404;font-weight:600}
+.speed .step{font-family:var(--f-body);font-size:12px}
+.iconbtn{background:none;border:1px solid var(--line);border-radius:9px;height:38px;min-width:44px;padding:0 10px;font-size:12px}
+
+/* ticker */
+.ticker{overflow:hidden;border:1px solid var(--line);border-radius:10px;background:var(--panel);height:30px;position:relative}
+.tick-track{display:inline-flex;gap:26px;white-space:nowrap;padding:5px 0 0 100%;animation:tick 60s linear infinite;font-family:var(--f-mono);font-size:12px}
+.tick-track i{font-style:normal;color:var(--mute)}
+@keyframes tick{to{transform:translateX(-100%)}}
+
+/* main */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:10px;flex:1;min-height:0}
+.mapwrap{position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:radial-gradient(120% 90% at 40% 35%,var(--sea),var(--sea-deep));min-height:300px}
+#map{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;display:block}
+#map.drag{cursor:grabbing}
+.mapctl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.mapctl button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:rgba(15,36,56,.88);font-size:18px}
+.legend{position:absolute;left:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:4px 12px;background:rgba(7,26,44,.8);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:11px;max-width:calc(100% - 20px)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.maphint{position:absolute;left:10px;top:10px;font-size:11px;color:var(--mute);background:rgba(7,26,44,.7);border-radius:8px;padding:4px 8px;pointer-events:none}
+
+.panel{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;min-height:0;min-width:0}
+.tabs{display:flex;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs button{flex:1;background:none;border:0;border-bottom:3px solid transparent;padding:10px 6px 8px;min-height:44px;font-size:13px;color:var(--mute);white-space:nowrap;position:relative}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--gold);font-weight:700}
+.badge{display:inline-block;background:var(--down);color:#fff;font-size:10px;border-radius:9px;padding:0 6px;margin-left:4px;font-family:var(--f-mono)}
+.pbody{padding:12px;overflow:auto;flex:1;min-height:0}
+.pbody h3{font-size:12px;letter-spacing:.14em;color:var(--mute);margin:16px 0 8px;font-weight:500}
+.pbody h3:first-child{margin-top:0}
+
+/* lists */
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center}
+.chip{background:var(--sea-deep);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12px;min-height:32px}
+.chip.on{border-color:var(--gold);color:var(--gold)}
+.rows{display:flex;flex-direction:column;gap:2px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;text-align:left;background:none;border:0;border-radius:10px;padding:8px 8px;width:100%}
+.row:hover{background:var(--panel-2)}
+.row .nm{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.row .sub{font-size:11px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .rt{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px}
+.up{color:var(--up)} .down{color:var(--down)}
+.tag{font-size:10px;border-radius:6px;padding:1px 6px;font-weight:700;flex:none;letter-spacing:.04em}
+.tag.cheap{background:rgba(72,196,140,.16);color:var(--up)}
+.ctrl{font-size:10px;border-radius:6px;padding:1px 6px;flex:none;color:#10161c;font-weight:700}
+
+/* company detail */
+.back{background:none;border:0;color:var(--mute);padding:6px 0;min-height:36px;font-size:13px}
+.cohead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.cohead h2{font-family:var(--f-display);font-weight:400;font-size:19px;margin:2px 0 0;line-height:1.25;text-wrap:balance}
+.cohead .meta{font-size:11px;color:var(--mute);letter-spacing:.06em}
+.cohead .px{text-align:right;font-family:var(--f-mono);font-size:20px;font-weight:600;white-space:nowrap}
+.cohead .px small{display:block;font-size:12px;font-weight:400}
+canvas.chart{width:100%;height:120px;display:block;margin:10px 0 4px}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px;margin-top:6px}
+.kv div{display:flex;flex-direction:column;min-width:0}
+.kv span{font-size:10px;color:var(--mute);letter-spacing:.08em}
+.kv b{font-family:var(--f-mono);font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ownbar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--pub)}
+.ownbar i{display:block;height:100%}
+.ownlist{list-style:none;padding:0;margin:8px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:12px}
+.ownlist li{display:flex;align-items:center;gap:6px}
+.ownlist b{margin-left:auto;font-family:var(--f-mono);font-weight:600}
+.box{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:14px;background:rgba(7,26,44,.45)}
+.box h4{margin:0 0 8px;font-size:14px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.box h4 small{font-weight:400;color:var(--mute);font-size:11px}
+.box.ceo{border-color:rgba(242,182,50,.55)}
+.box p{margin:6px 0;font-size:12px;color:var(--mute)}
+.btnrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.btn{border:1px solid var(--line);background:var(--panel-2);border-radius:10px;min-height:44px;padding:0 14px;font-size:13px;font-weight:500}
+.btn.buy{background:var(--up);border-color:var(--up);color:#06261a;font-weight:700}
+.btn.sell{background:var(--down);border-color:var(--down);color:#2c0703;font-weight:700}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:#1b1404;font-weight:700}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.sm{min-height:36px;padding:0 10px;font-size:12px}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{border:1px solid var(--line);background:none;border-radius:8px;min-height:36px;padding:0 10px;font-size:12px;font-family:var(--f-mono)}
+.seg button.on{border-color:var(--gold);color:var(--gold);background:rgba(242,182,50,.08)}
+.field{display:flex;align-items:center;gap:8px;margin-top:6px}
+.field label{font-size:12px;color:var(--mute);white-space:nowrap}
+.field input,.field select{flex:1;min-width:0;background:var(--sea-deep);border:1px solid var(--line);border-radius:9px;color:var(--ink);height:40px;padding:0 10px;font-family:var(--f-mono);font-size:16px}
+.field select{font-family:var(--f-body);font-size:14px}
+.preview{font-size:12px;font-family:var(--f-mono);color:var(--ink);background:var(--sea-deep);border-radius:8px;padding:8px 10px;margin-top:8px;line-height:1.7}
+.preview em{font-style:normal;color:var(--mute);font-family:var(--f-body)}
+
+/* leaderboard / news */
+.board{display:flex;flex-direction:column;gap:6px}
+.lead{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding:10px;border-radius:12px;background:var(--panel-2)}
+.lead .rk{font-family:var(--f-display);font-size:18px;color:var(--mute);text-align:center}
+.lead .who{font-weight:700;display:flex;align-items:center;gap:6px;min-width:0}
+.lead .who small{font-weight:400;color:var(--mute);font-size:11px}
+.lead .val{font-family:var(--f-mono);text-align:right;font-weight:600}
+.lead .det{grid-column:2/4;font-size:11px;color:var(--mute)}
+.lead.me{outline:1px solid var(--gold)}
+.news{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.news li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.news .wk{font-family:var(--f-mono);font-size:11px;color:var(--mute);padding-top:2px;white-space:nowrap}
+.news .k-deal{border-left:3px solid var(--r2);padding-left:8px}
+.news .k-econ{border-left:3px solid var(--warn);padding-left:8px}
+.news .k-you{border-left:3px solid var(--gold);padding-left:8px}
+.news .k-warn{border-left:3px solid var(--down);padding-left:8px}
+.news .k-earn{border-left:3px solid var(--pub);padding-left:8px}
+.offer{border:1px solid var(--gold);border-radius:12px;padding:12px;margin-bottom:10px;background:rgba(242,182,50,.06)}
+.offer p{margin:0 0 4px}
+.empty{color:var(--mute);font-size:13px;padding:18px 4px;text-align:center}
+
+/* toasts + modal */
+#toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;z-index:40;width:min(440px,calc(100% - 32px));pointer-events:none}
+.toast{background:var(--panel-2);border:1px solid var(--gold);border-radius:12px;padding:10px 14px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.4);animation:tin .25s ease-out}
+.toast.bad{border-color:var(--down)}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}}
+.modal{position:fixed;inset:0;background:rgba(3,12,22,.72);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:18px;max-width:560px;width:100%;max-height:100%;overflow:auto;padding:22px}
+.sheet h1{font-family:var(--f-display);font-weight:400;font-size:30px;line-height:1.1;margin:0}
+.sheet h1 b{color:var(--gold);font-weight:400}
+.sheet .lede{color:var(--mute);margin:8px 0 14px}
+.sheet ol{padding-left:20px;margin:0 0 14px;font-size:13px;display:flex;flex-direction:column;gap:6px}
+.sheet .goal{background:var(--sea-deep);border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+
+@media (min-width:900px){
+  #app{height:100%}
+  .main{overflow:hidden}
+}
+@media (max-width:899px){
+  .main{grid-template-columns:minmax(0,1fr)}
+  .mapwrap{height:min(50vh,440px)}
+  .pbody{max-height:none;overflow:visible}
+  .top{gap:8px 12px}
+  .stats{order:3;flex-basis:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px}
+  .stat{min-width:0}
+  .stat span,.stat b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+@media (max-width:420px){
+  .kv{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .brand{font-size:17px}
+}
+@media (prefers-reduced-motion:reduce){
+  .tick-track{animation:none;padding-left:10px}
+  .toast{animation:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand"><b>ATLAS</b> CAPITAL<small>GLOBAL RAID SIMULATOR</small></div>
+    <div class="date" id="date"></div>
+    <div class="stats" id="stats"></div>
+    <div class="speed" id="speed">
+      <button data-act="speed" data-v="0" aria-label="一時停止">II</button>
+      <button data-act="speed" data-v="1" aria-label="標準速度">▶</button>
+      <button data-act="speed" data-v="2" aria-label="高速">▶▶</button>
+      <button data-act="speed" data-v="3" aria-label="最高速">▶▶▶</button>
+      <button class="step" data-act="step">+1週</button>
+      <button class="iconbtn" data-act="help" aria-label="遊び方">?</button>
+    </div>
+  </header>
+  <div class="ticker" aria-hidden="true"><div class="tick-track" id="ticker"></div></div>
+  <main class="main">
+    <section class="mapwrap" aria-label="世界市場マップ">
+      <canvas id="map"></canvas>
+      <div class="maphint">ドラッグで移動・ピンチ/ホイールで拡大・都市をタップ</div>
+      <div class="mapctl">
+        <button data-act="zoom" data-v="1.35" aria-label="拡大">＋</button>
+        <button data-act="zoom" data-v="0.74" aria-label="縮小">－</button>
+        <button data-act="zoomreset" aria-label="全体表示">⟲</button>
+      </div>
+      <div class="legend" id="legend"></div>
+    </section>
+    <aside class="panel">
+      <nav class="tabs" id="tabs"></nav>
+      <div class="pbody" id="pbody"></div>
+    </aside>
+  </main>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<div id="modal" class="modal" hidden></div>
+
+<script>
+'use strict';
+(() => {
+/* =====================================================================
+   ATLAS CAPITAL — an original stock-market raiding sim.
+   Engine: deterministic weekly simulation (seeded PRNG only).
+   Money unit: $ millions. Share unit: millions of shares.
+   ===================================================================== */
+const SAVE_KEY = 'atlas_capital_save_v1';
+const GOAL = 1000; // $1B net worth
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const $ = s => document.querySelector(s);
+
+/* ---------- static data (all fictional) ---------- */
+const IND = {
+  bank:   {n:'銀行',     pe:10, m:.18, g:.03, cyc:.8,  vol:.24, bk:1.8},
+  tech:   {n:'テック',   pe:26, m:.16, g:.11, cyc:1.2, vol:.45, bk:.6},
+  auto:   {n:'自動車',   pe:9,  m:.06, g:.03, cyc:1.6, vol:.32, bk:.9},
+  energy: {n:'エネルギー',pe:11, m:.10, g:.02, cyc:1.0, vol:.34, bk:1.3},
+  retail: {n:'小売',     pe:16, m:.045,g:.04, cyc:.9,  vol:.25, bk:.5},
+  pharma: {n:'製薬',     pe:20, m:.18, g:.06, cyc:.3,  vol:.28, bk:.8},
+  ship:   {n:'海運',     pe:8,  m:.09, g:.03, cyc:1.8, vol:.44, bk:1.4},
+  food:   {n:'食品',     pe:18, m:.08, g:.03, cyc:.3,  vol:.18, bk:.6},
+  realty: {n:'不動産',   pe:14, m:.22, g:.04, cyc:1.3, vol:.30, bk:2.2},
+  telecom:{n:'通信',     pe:13, m:.12, g:.02, cyc:.4,  vol:.20, bk:1.2},
+  steel:  {n:'鉄鋼',     pe:8,  m:.05, g:.02, cyc:1.7, vol:.38, bk:1.1},
+  air:    {n:'航空',     pe:10, m:.05, g:.04, cyc:1.9, vol:.42, bk:1.0},
+};
+const CITIES = [
+  ['nyc','ニューヨーク',-74,40.7],['tor','トロント',-79.4,43.7],['chi','シカゴ',-87.6,41.9],['sfo','サンフランシスコ',-122.4,37.8],
+  ['mex','メキシコシティ',-99.1,19.4],['sao','サンパウロ',-46.6,-23.5],['bue','ブエノスアイレス',-58.4,-34.6],
+  ['lon','ロンドン',-0.1,51.5],['par','パリ',2.35,48.85],['fra','フランクフルト',8.7,50.1],['zur','チューリッヒ',8.5,47.4],['sto','ストックホルム',18.1,59.3],
+  ['dxb','ドバイ',55.3,25.2],['los','ラゴス',3.4,6.5],['jnb','ヨハネスブルグ',28,-26.2],['bom','ムンバイ',72.9,19.1],
+  ['sin','シンガポール',103.8,1.35],['hkg','香港',114.2,22.3],['sha','上海',121.5,31.2],['sel','ソウル',127,37.6],['tyo','東京',139.7,35.7],['syd','シドニー',151.2,-33.9],
+].map(([id,n,lon,lat]) => ({id,n,lon,lat}));
+const CITY = Object.fromEntries(CITIES.map(c => [c.id, c]));
+const CO_DEF = [
+  ['Brightwater Bancorp','BWB','bank','nyc'],['Ninefold Systems','NFS','tech','nyc'],['Castleton Stores','CSL','retail','nyc'],
+  ['Lakeshore Steelworks','LKS','steel','chi'],['Prairie Table Foods','PTF','food','chi'],['Windgate Airways','WGA','air','chi'],
+  ['Fogline Software','FOG','tech','sfo'],['Helix Bayworks','HXB','pharma','sfo'],['Redwood Motorcars','RWM','auto','sfo'],
+  ['Northbank Financial','NBF','bank','tor'],['Maplestone Energy','MSE','energy','tor'],
+  ['Mesa Telecom','MST','telecom','mex'],['Plaza Grande Retail','PGR','retail','mex'],
+  ['Paulista Energia','PEN','energy','sao'],['Verdecampo Alimentos','VCA','food','sao'],['Río Plata Shipping','RPS','ship','bue'],
+  ['Thamesgate Capital','TGC','bank','lon'],['Albion Therapeutics','ALT','pharma','lon'],['Kestrel Telecom','KST','telecom','lon'],
+  ['Maison Lumière','MLU','retail','par'],['Aéro Céleste','AEC','air','par'],
+  ['Rheinwerk Motoren','RWK','auto','fra'],['Mainstadt Bank','MSB','bank','fra'],
+  ['Alpenhof Pharma','AHP','pharma','zur'],['Glacierline Assurance','GLA','bank','zur'],
+  ['Nordvik Shipping','NVS','ship','sto'],['Fjällsoft','FJS','tech','sto'],
+  ['Dune Petroleum','DUN','energy','dxb'],['Falcon Gulf Air','FGA','air','dxb'],['Oasis Towers Realty','OTR','realty','dxb'],
+  ['Delta Wave Telecom','DWT','telecom','los'],['Highveld Steel & Ore','HSO','steel','jnb'],
+  ['Saffron Infotech','SAF','tech','bom'],['Monsoon Pharma','MNP','pharma','bom'],
+  ['Strait Line Shipping','SLS','ship','sin'],['Lion Gate Realty','LGR','realty','sin'],
+  ['Victoria Ridge Holdings','VRH','realty','hkg'],['Pearl Estuary Bank','PEB','bank','hkg'],
+  ['Huangpu Motor Works','HMW','auto','sha'],['Eastern Bund Steel','EBS','steel','sha'],
+  ['Hanbit Electronics','HBE','tech','sel'],['Han Riverside Shipbuilding','HRS','ship','sel'],
+  ['Kirameki Motors','KRM','auto','tyo'],['Marunouchi Trust','MRT','bank','tyo'],['Hoshizora Foods','HSF','food','tyo'],
+  ['Harbourline Telecom','HLT','telecom','syd'],['Outback Ore & Energy','OOE','energy','syd'],
+];
+const IPO_POOL = [
+  ['Cobalt Ridge Mining','CRM','steel','jnb'],['Lumen Grid Labs','LGL','tech','sfo'],['Tidewater Logistics','TWL','ship','sin'],
+  ['Saint-Clair Biologics','SCB','pharma','par'],['Kaze Mobility','KZM','auto','tyo'],['Gulfstar Petrochem','GSP','energy','dxb'],
+  ['Ironbark Foods','IBF','food','syd'],['Quayside Realty','QSR','realty','lon'],['Ozone Airlines','OZA','air','sao'],
+  ['Cedar & Pine Bank','CPB','bank','tor'],['Monarch Telecom','MNT','telecom','bom'],['Nightjar Software','NJS','tech','sel'],
+  ['Copperline Retail','CPR','retail','chi'],['Baltic Hullworks','BHW','ship','sto'],['Sierra Madre Foods','SMF','food','mex'],
+];
+const RIVAL_DEF = [
+  {id:'R1', n:'ヴィクター・クレイン', tag:'強欲な乗っ取り屋', cash:75,  agg:.95, sell:1.30, prem:.30},
+  {id:'R2', n:'イゾルデ・ヴァンス',   tag:'冷徹な割安株ハンター', cash:95, agg:.65, sell:1.40, prem:.22},
+  {id:'R3', n:'天城 剛',             tag:'財閥系コングロマリット', cash:120, agg:.5,  sell:1.55, prem:.35},
+];
+const OWNC = {P:'var(--gold)', R1:'var(--r1)', R2:'var(--r2)', R3:'var(--r3)'};
+const OWNHEX = {P:'#f2b632', R1:'#ff7f5c', R2:'#3cc8d1', R3:'#b994ff', PUB:'#56708a'};
+
+/* ---------- deterministic PRNG (mulberry32, state in S.rs) ---------- */
+let S = null;
+function rnd(){ S.rs = (S.rs + 0x6D2B79F5) | 0; let t = S.rs; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+function gauss(){ let u = rnd(); if (u < 1e-12) u = 1e-12; return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283185307179586 * rnd()); }
+const pickIdx = n => Math.floor(rnd() * n) % n;
+
+/* ---------- names / formatting ---------- */
+const ownerName = k => k === 'P' ? 'あなた' : (S.rivals.find(r => r.id === k) || {n:'?'}).n;
+const fm = v => { const a = Math.abs(v), s = v < 0 ? '-' : ''; if (a >= 1000) return s + '$' + (a / 1000).toFixed(a >= 10000 ? 1 : 2) + 'B'; if (a >= 1) return s + '$' + a.toFixed(a >= 100 ? 0 : 1) + 'M'; return s + '$' + Math.round(a * 1000) + 'K'; };
+const fp = p => '$' + (p >= 100 ? p.toFixed(0) : p >= 10 ? p.toFixed(1) : p.toFixed(2));
+const pc = (x, d) => (x * 100).toFixed(d == null ? 1 : d) + '%';
+const spc = x => (x >= 0 ? '+' : '') + (x * 100).toFixed(1) + '%';
+const fsh = n => n >= 1 ? n.toFixed(n >= 100 ? 0 : 2) + 'M株' : Math.round(n * 1000) + 'K株';
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+function dateOf(w){ const d = new Date(Date.UTC(2027, 0, 4) + w * 7 * 86400000); return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`; }
+function shortDate(w){ const d = new Date(Date.UTC(2027, 0, 4) + w * 7 * 86400000); return `${String(d.getUTCFullYear()).slice(2)}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }
+
+/* ---------- company fundamentals ---------- */
+const coById = id => S.cos.find(c => c.id === id);
+const equity = c => c.cash + c.assets - c.debt;
+const opProfit = c => c.rev * c.margin;
+function niA(c){ const e = S.econ; return c.rev * c.margin - c.debt * (e.rate + 1.5) / 100 + c.cash * Math.max(0, e.rate - 1) / 200; }
+const held = c => { let s = 0; for (const k in c.own) s += c.own[k]; return s; };
+const floatOf = c => Math.max(0, c.shares - held(c));
+const mcap = c => c.price * c.shares;
+const frac = (c, k) => (c.own[k] || 0) / c.shares;
+function biggestBlock(c){ let m = 0; for (const k in c.own) m = Math.max(m, c.own[k] / c.shares); return m; }
+function fair(c){
+  const ind = IND[c.ind], e = S.econ, ni = niA(c), g = c.growth + c.boost;
+  const pe = ind.pe * clamp(1 + (g - ind.g) * 6, .5, 2.2) * e.sent * (e.indS[c.ind] || 1) * clamp(1 - (e.rate - 4) * .05, .65, 1.3);
+  let v = ni > 0 ? ni * pe : 0;
+  v = Math.max(v, equity(c) * .55);
+  v += Math.max(0, c.cash - c.debt) * .25;
+  const big = biggestBlock(c);
+  if (!c.ctrl && big > .2) v *= 1 + (big - .2) * .6; // takeover speculation
+  return Math.max(v / c.shares, .05);
+}
+const maxDebt = c => Math.max(0, opProfit(c) * 3.5);
+
+function makeCompany(def){
+  const [name, tk, ind, city] = def, I = IND[ind];
+  const rev = Math.exp(Math.log(70) + (Math.log(16000) - Math.log(70)) * Math.pow(rnd(), 1.35));
+  const assets = rev * I.bk * (.6 + rnd() * .8);
+  const c = {
+    id: 'C' + (S.nextId++), name, tk, ind, city, rev,
+    base: I.m * (.6 + rnd() * .8), margin: 0, growth: I.g + gauss() * .02, boost: 0,
+    cash: rev * (.05 + rnd() * .2), assets, debt: assets * (.1 + rnd() * .45),
+    payout: [.2, .3, .4, .5][pickIdx(4)], shares: 1, price: 1, hist: [], own: {}, ctrl: null, disc: {}, pill: false, ni: 0, mood: 0,
+  };
+  c.margin = c.base;
+  const total = fair(c); // with shares=1 this is equity value
+  c.shares = total / (8 + rnd() * 110);
+  c.price = fair(c) * (.88 + rnd() * .24);
+  c.ni = niA(c);
+  c.hist = [c.price];
+  return c;
+}
+
+/* ---------- new game ---------- */
+function newGame(seed){
+  S = {
+    v: 1, seed, rs: (seed ^ 0x5bd1e995) | 0, week: 0, nextId: 1,
+    econ: {gdp: 2.6, rate: 4.0, sent: 1.0, indS: Object.fromEntries(Object.keys(IND).map(k => [k, 1]))},
+    player: {cash: 30, loan: 0, cost: {}, divs: 0},
+    rivals: RIVAL_DEF.map(r => ({id: r.id, n: r.n, tag: r.tag, cash: r.cash, agg: r.agg, sell: r.sell, prem: r.prem})),
+    cos: [], news: [], inbox: [], ipo: 0, idx: 1000, idxHist: [1000],
+    nwHist: {P: [], R1: [], R2: [], R3: []}, won: false, lost: false, inboxSeq: 1,
+  };
+  for (const d of CO_DEF) S.cos.push(makeCompany(d));
+  for (let i = 0; i < 8; i++) for (const c of S.cos) priceStep(c); // warm up history
+  for (const c of S.cos) c.hist = c.hist.slice(-8);
+  recordNW();
+  news('アトラス証券取引所へようこそ。元手$30Mで世界の企業を買い集め、純資産$1Bを目指せ。', 'you');
+}
+
+/* ---------- money flows ---------- */
+function credit(k, amt){ if (k === 'P') { S.player.cash += amt; } else { const r = S.rivals.find(x => x.id === k); if (r) r.cash += amt; } }
+function payDividend(c, amt){ if (amt <= 0) return; for (const k in c.own) { const a = amt * c.own[k] / c.shares; credit(k, a); if (k === 'P') S.player.divs += a; } }
+function holdingsValue(k){ let v = 0; for (const c of S.cos) v += (c.own[k] || 0) * c.price; return v; }
+function netWorth(k){ if (k === 'P') return S.player.cash + holdingsValue('P') - S.player.loan; const r = S.rivals.find(x => x.id === k); return r.cash + holdingsValue(k); }
+function buyingPower(){ const hv = holdingsValue('P'); return Math.max(0, S.player.cash + Math.max(0, hv + S.player.cash - 2 * S.player.loan)); }
+function playerPay(cost){ // spend cash, borrow the rest on margin
+  const p = S.player; if (p.cash >= cost) { p.cash -= cost; return; }
+  p.loan += cost - p.cash; p.cash = 0;
+}
+
+/* ---------- trading ---------- */
+function quoteBuy(c, n){ const fl = floatOf(c); n = Math.min(n, fl); if (n <= 1e-7) return null; const np = c.price * (1 + 1.1 * n / Math.max(fl, c.shares * .05)); return {n, avg: (c.price + np) / 2, np}; }
+function quoteSell(c, n){ if (n <= 1e-7) return null; const np = c.price / (1 + .9 * n / c.shares); return {n, avg: (c.price + np) / 2, np}; }
+function sharesForMoney(c, money){ // solve n*avg*(1+fee)=money
+  let n = money / c.price;
+  for (let i = 0; i < 6; i++) { const q = quoteBuy(c, n); if (!q) return 0; n = money / (q.avg * 1.0025); }
+  return Math.min(n, floatOf(c));
+}
+function snapshotFracs(c){ const o = {}; for (const k in c.own) o[k] = c.own[k] / c.shares; return o; }
+function execBuy(k, c, n){
+  const q = quoteBuy(c, n); if (!q) return null;
+  const before = snapshotFracs(c), cost = q.avg * q.n * 1.0025;
+  if (k === 'P') { playerPay(cost); S.player.cost[c.id] = (S.player.cost[c.id] || 0) + cost; }
+  else S.rivals.find(r => r.id === k).cash -= cost;
+  c.own[k] = (c.own[k] || 0) + q.n; c.price = q.np;
+  afterOwn(c, before);
+  return {n: q.n, cost};
+}
+function execSell(k, c, n){
+  n = Math.min(n, c.own[k] || 0); const q = quoteSell(c, n); if (!q) return null;
+  const before = snapshotFracs(c), proceeds = q.avg * q.n * .9975;
+  if (k === 'P') { const basis = S.player.cost[c.id] || 0; S.player.cost[c.id] = basis * (1 - q.n / c.own.P); S.player.cash += proceeds; }
+  else S.rivals.find(r => r.id === k).cash += proceeds;
+  c.own[k] -= q.n; if (c.own[k] < 1e-7) { delete c.own[k]; if (k === 'P') delete S.player.cost[c.id]; }
+  c.price = q.np;
+  afterOwn(c, before);
+  return {n: q.n, proceeds};
+}
+function transferShares(from, to, c, n, price){ // block trade between holders
+  n = Math.min(n, c.own[from] || 0); if (n <= 1e-7) return 0;
+  const before = snapshotFracs(c), amt = n * price;
+  if (from === 'P') { const basis = S.player.cost[c.id] || 0; S.player.cost[c.id] = basis * (1 - n / c.own.P); }
+  credit(from, amt);
+  if (to === 'P') { playerPay(amt); S.player.cost[c.id] = (S.player.cost[c.id] || 0) + amt; } else S.rivals.find(r => r.id === to).cash -= amt;
+  c.own[from] -= n; if (c.own[from] < 1e-7) { delete c.own[from]; if (from === 'P') delete S.player.cost[c.id]; }
+  c.own[to] = (c.own[to] || 0) + n;
+  afterOwn(c, before);
+  return amt;
+}
+const THRESH = [.05, .10, .20, .33];
+function afterOwn(c, before){
+  for (const k in c.own) {
+    const f = c.own[k] / c.shares, b = before[k] || 0;
+    for (const t of THRESH) if (f >= t && b < t && !(c.disc[k] >= t)) {
+      c.disc[k] = t;
+      news(`【大量保有】${ownerName(k)}が${c.name}株を${pc(f, 1)}保有`, k === 'P' ? 'you' : 'deal', c.city);
+    }
+    if (f >= .3 && b < .3 && !c.pill && !c.ctrl) maybePill(c, k);
+  }
+  updCtrl(c);
+}
+function updCtrl(c){
+  const prev = c.ctrl; c.ctrl = null;
+  for (const k in c.own) if (c.own[k] > c.shares * .5) c.ctrl = k;
+  if (prev !== c.ctrl) {
+    if (c.ctrl) {
+      news(`【経営権取得】${ownerName(c.ctrl)}が${c.name}を支配下に（${pc(frac(c, c.ctrl), 1)}）`, c.ctrl === 'P' ? 'you' : 'deal', c.city);
+      if (c.ctrl === 'P') toast(`${c.name}の経営権を取得！ CEOとして配当・自社株買い・買収が可能に`);
+      else if (prev === 'P') toast(`${c.name}の経営権を失いました`, true);
+    } else if (prev) news(`${ownerName(prev)}が${c.name}の過半数を割り込む`, prev === 'P' ? 'you' : 'deal', c.city);
+  }
+}
+function maybePill(c, k){
+  if (rnd() < .35) {
+    const add = c.shares * .2, px = c.price * .9;
+    c.shares += add; c.cash += add * px; c.price *= .93; c.pill = true;
+    news(`【買収防衛】${c.name}経営陣が新株20%を発行し${ownerName(k)}の持分を希薄化`, k === 'P' ? 'warn' : 'deal', c.city);
+    if (k === 'P') toast(`${c.name}が防衛策を発動。持分が希薄化しました`, true);
+  }
+}
+
+/* ---------- tender offer ---------- */
+function tenderQuote(k, c, prem, target){
+  const price = c.price * (1 + prem);
+  const want = target * c.shares - (c.own[k] || 0); if (want <= 1e-6) return null;
+  const fv = fair(c), ref = Math.max(c.price, fv * .9), p = price / ref;
+  const accept = clamp((p - 1.05) / .35, 0, 1);
+  let got = Math.min(want, floatOf(c) * accept);
+  const blocks = [];
+  for (const o in c.own) {
+    if (o === k || got >= want - 1e-9) continue;
+    if (o === 'P') continue; // the player always decides personally (inbox)
+    const need = c.ctrl === o ? 1.5 : 1.28;
+    if (price >= fv * need) { const n = Math.min(c.own[o], want - got); blocks.push([o, n]); got += n; }
+  }
+  return {price, want, fromPublic: Math.min(want, floatOf(c) * accept), blocks, total: got, cost: got * price, accept, after: ((c.own[k] || 0) + got) / c.shares};
+}
+function execTender(k, c, prem, target){
+  const q = tenderQuote(k, c, prem, target); if (!q || q.total <= 1e-7) return null;
+  const before = snapshotFracs(c);
+  const pubCost = q.fromPublic * q.price;
+  if (k === 'P') { playerPay(pubCost); S.player.cost[c.id] = (S.player.cost[c.id] || 0) + pubCost; }
+  else S.rivals.find(r => r.id === k).cash -= pubCost;
+  c.own[k] = (c.own[k] || 0) + q.fromPublic;
+  for (const [o, n] of q.blocks) transferShares(o, k, c, n, q.price);
+  c.price *= 1 + prem * (q.after > .5 ? .35 : .2); // premium only partly sticks; it decays toward fair value
+  afterOwn(c, before);
+  news(`【TOB】${ownerName(k)}が${c.name}に${spc(prem)}のプレミアムで公開買付け → ${pc(q.after, 1)}を確保`, k === 'P' ? 'you' : 'deal', c.city);
+  fxArc(k, c.city, c.city);
+  if (k !== 'P' && (c.own.P || 0) > 1e-6) addInbox({kind: 'tender', from: k, cid: c.id, price: q.price, exp: S.week + 3});
+  return q;
+}
+
+/* ---------- CEO actions (controller only) ---------- */
+function specialDividend(c, amt){ amt = Math.min(amt, c.cash); if (amt <= 0) return 0; c.cash -= amt; payDividend(c, amt); c.price = Math.max(.05, c.price - amt / c.shares * .9); return amt; }
+function buyback(c, money){
+  money = Math.min(money, c.cash); const n = sharesForMoney(c, money); const q = quoteBuy(c, n); if (!q) return null;
+  const before = snapshotFracs(c), cost = q.avg * q.n * 1.0025;
+  c.cash -= cost; c.shares -= q.n; c.price = q.np; afterOwn(c, before);
+  return {n: q.n, cost};
+}
+function borrow(c, amt){ amt = Math.min(amt, Math.max(0, maxDebt(c) - c.debt)); if (amt <= 0) return 0; c.debt += amt; c.cash += amt; return amt; }
+function repay(c, amt){ amt = Math.min(amt, c.cash, c.debt); if (amt <= 0) return 0; c.debt -= amt; c.cash -= amt; return amt; }
+function invest(c, amt){ amt = Math.min(amt, c.cash); if (amt <= 0) return 0; c.cash -= amt; c.assets += amt * .6; c.boost = Math.min(.15, c.boost + amt / c.rev * .3); return amt; }
+function mergeQuote(A, B, prem){
+  const price = B.price * (1 + prem), cost = price * B.shares;
+  const ok = B.ctrl ? (B.ctrl === A.ctrl ? prem >= 0 : prem >= .35) : prem >= .2;
+  const debtNeed = Math.max(0, cost - A.cash);
+  const combOp = opProfit(A) + opProfit(B), newDebt = A.debt + B.debt + debtNeed;
+  const fin = combOp > 0 && newDebt <= combOp * 3.5;
+  return {price, cost, ok, fin, debtNeed, reason: !ok ? (B.ctrl ? '支配株主が拒否（+35%以上必要）' : '取締役会が拒否（+20%以上必要）') : !fin ? '資金不足（合併後の負債が営業利益の3.5倍超）' : ''};
+}
+function execMerge(A, B, prem){
+  const q = mergeQuote(A, B, prem); if (!q.ok || !q.fin) return null;
+  for (const k in B.own) { credit(k, B.own[k] * q.price); if (k === 'P') delete S.player.cost[B.id]; }
+  const wA = A.rev, wB = B.rev;
+  A.margin = (A.margin * wA + B.margin * wB) / (wA + wB); A.base = (A.base * wA + B.base * wB) / (wA + wB);
+  A.growth = (A.growth * wA + B.growth * wB) / (wA + wB);
+  A.rev += B.rev; A.assets += B.assets; A.debt += B.debt; A.cash += B.cash - q.cost;
+  if (A.cash < 0) { A.debt += -A.cash; A.cash = 0; }
+  S.cos = S.cos.filter(c => c !== B);
+  S.inbox = S.inbox.filter(i => i.cid !== B.id);
+  if (ui.sel === B.id) ui.sel = A.id;
+  news(`【合併】${A.name}が${B.name}を${fm(q.cost)}で買収・吸収（${spc(prem)}プレミアム）`, A.ctrl === 'P' ? 'you' : 'deal', A.city);
+  fxArc(A.ctrl, A.city, B.city);
+  return q;
+}
+
+/* ---------- inbox ---------- */
+function addInbox(item){ item.id = S.inboxSeq++; S.inbox.push(item); ui.inboxFlash = true; if (ui.speed > 0) { ui.speed = 0; } toast('受信箱に新しい提案が届きました（時間を停止しました）'); }
+function resolveInbox(id, accept){
+  const it = S.inbox.find(i => i.id === id); if (!it) return;
+  S.inbox = S.inbox.filter(i => i !== it);
+  if (!accept) { news(`提案を拒否しました`, 'you'); return; }
+  const c = coById(it.cid); if (!c || !(c.own.P > 0)) return;
+  if (it.kind === 'tender') {
+    const r = S.rivals.find(x => x.id === it.from), n = c.own.P;
+    const afford = Math.min(n, Math.max(0, r.cash) / it.price);
+    if (afford <= 1e-6) { toast(`${r.n}に買取資金がありません`, true); return; }
+    transferShares('P', it.from, c, afford, it.price);
+    news(`${c.name}株${fsh(afford)}を${r.n}に${fp(it.price)}で売却（TOB応募）`, 'you', c.city);
+  } else if (it.kind === 'greenmail') {
+    const n = c.own.P, amt = n * it.price, before = snapshotFracs(c);
+    c.cash -= amt; if (c.cash < 0) { c.debt += -c.cash; c.cash = 0; }
+    S.player.cash += amt; delete S.player.cost[c.id];
+    delete c.own.P; c.shares -= n; afterOwn(c, before);
+    news(`【グリーンメール】${c.name}があなたの持分を${fm(amt)}で買い戻し`, 'you', c.city);
+  }
+  saveSoon();
+}
+
+/* ---------- weekly simulation ---------- */
+function econStep(){
+  const e = S.econ;
+  e.gdp = clamp(e.gdp + (2.5 - e.gdp) * .02 + gauss() * .18, -5, 8);
+  const tr = 1.5 + Math.max(0, e.gdp) * .9;
+  e.rate = clamp(e.rate + (tr - e.rate) * .03 + gauss() * .03, .25, 12);
+  e.sent = clamp(e.sent + (1 - e.sent) * .03 + (e.gdp - 2.5) * .002 + gauss() * .015, .55, 1.6);
+  for (const k in e.indS) e.indS[k] = clamp(e.indS[k] + (1 - e.indS[k]) * .04 + gauss() * .02, .6, 1.6);
+}
+function priceStep(c){
+  // persistent crowd mood: prices can stay away from fair value for months
+  c.mood = (c.mood || 0) * .965 + gauss() * .035;
+  const f = fair(c) * Math.exp(c.mood);
+  c.price = Math.max(.05, c.price * Math.exp(.06 * Math.log(f / c.price) + gauss() * IND[c.ind].vol / 7.21));
+  c.hist.push(c.price); if (c.hist.length > 156) c.hist.shift();
+}
+function coStep(c){
+  const I = IND[c.ind], e = S.econ;
+  const g = c.growth + c.boost + I.cyc * (e.gdp - 2.5) / 100;
+  c.rev *= 1 + g / 52 + gauss() * .004;
+  c.boost *= .985;
+  const ni = niA(c), w = ni / 52, div = ni > 0 ? w * c.payout : 0;
+  c.ni = ni;
+  c.cash += w - div; payDividend(c, div);
+  const capex = c.assets * Math.max(0, g) / 52; c.cash -= capex; c.assets += capex;
+  if (c.cash < 0) { c.debt += -c.cash; c.cash = 0; }
+  priceStep(c);
+}
+function quarter(){
+  for (const c of S.cos) {
+    c.margin = clamp(c.margin + (c.base - c.margin) * .25 + gauss() * c.base * .12, -.1, .45);
+    c.growth = c.growth + (IND[c.ind].g - c.growth) * .15 + gauss() * .012;
+  }
+  const movers = S.cos.slice().sort((a, b) => Math.abs(b.ni) - Math.abs(a.ni)).slice(0, 2);
+  for (const c of movers) news(`${c.name} 決算：年換算純利益 ${fm(c.ni)}・売上 ${fm(c.rev)}`, 'earn', c.city);
+  const loss = S.cos.filter(c => c.ni < 0);
+  if (loss.length) news(`赤字企業 ${loss.length}社：${loss.slice(0, 3).map(c => c.name).join('、')}${loss.length > 3 ? ' ほか' : ''}`, 'earn');
+}
+const EVENTS = [
+  ['原油価格が急騰。エネルギー株に買い、航空・海運は逆風', e => { e.indS.energy *= 1.25; e.indS.air *= .8; e.indS.ship *= .92; }],
+  ['AIブーム到来、テック株に資金流入', e => { e.indS.tech *= 1.25; e.sent *= 1.03; }],
+  ['金融不安が拡大。銀行株が急落し景気見通しが悪化', e => { e.sent *= .85; e.indS.bank *= .75; e.gdp -= 1.5; }],
+  ['中央銀行が0.75%の利上げを決定', e => { e.rate += .75; e.sent *= .96; }],
+  ['中央銀行が0.75%の利下げ、株式市場は好感', e => { e.rate = Math.max(.25, e.rate - .75); e.sent *= 1.05; }],
+  ['世界景気に回復の兆し。消費・設備投資が上向く', e => { e.gdp += 1.2; e.sent *= 1.06; }],
+  ['コンテナ運賃が高騰、海運株が上昇', e => { e.indS.ship *= 1.3; }],
+  ['新薬の承認が相次ぎ製薬株が人気化', e => { e.indS.pharma *= 1.2; }],
+  ['主要都市で不動産価格が下落、不動産株に売り', e => { e.indS.realty *= .78; e.indS.bank *= .93; }],
+  ['自動車の電動化需要で自動車株が見直し買い', e => { e.indS.auto *= 1.2; e.indS.steel *= 1.08; }],
+  ['旅行需要が爆発、航空株が急伸', e => { e.indS.air *= 1.3; }],
+  ['世界同時株安。投資家心理が急速に冷え込む', e => { e.sent *= .82; }],
+];
+function events(){
+  const e = S.econ;
+  if (rnd() < .035) {
+    const [t, fn] = EVENTS[pickIdx(EVENTS.length)]; fn(e);
+    e.sent = clamp(e.sent, .55, 1.6); e.gdp = clamp(e.gdp, -5, 8);
+    for (const k in e.indS) e.indS[k] = clamp(e.indS[k], .6, 1.6);
+    news('【経済】' + t, 'econ');
+  }
+  if (rnd() < .03 && S.cos.length) {
+    const c = S.cos[pickIdx(S.cos.length)];
+    if (rnd() < .5) { c.margin -= c.base * .35; c.price *= .86; news(`【不祥事】${c.name}で会計問題が発覚、株価急落`, 'warn', c.city); }
+    else { c.growth += .04; c.price *= 1.1; news(`【躍進】${c.name}が大型契約を獲得、成長期待が高まる`, 'earn', c.city); }
+  }
+}
+function rivalsAct(){
+  for (const r of S.rivals) {
+    // milk controlled companies
+    for (const c of S.cos) if (c.ctrl === r.id) {
+      if (c.cash > mcap(c) * .15 && rnd() < .1) { const a = specialDividend(c, c.cash * .6); news(`${r.n}支配下の${c.name}が特別配当${fm(a)}を実施`, 'deal', c.city); }
+      if (c.payout < .5 && rnd() < .05) c.payout = .6;
+      if (rnd() < .015) {
+        const tgts = S.cos.filter(b => b !== c && !b.ctrl && mcap(b) < mcap(c) * .8);
+        if (tgts.length) { const b = tgts[pickIdx(tgts.length)]; const q = mergeQuote(c, b, r.prem); if (q.ok && q.fin) execMerge(c, b, r.prem); }
+      }
+    }
+    // take profits on overvalued, non-controlled stakes
+    for (const c of S.cos) if ((c.own[r.id] || 0) > 0 && c.ctrl !== r.id && c.price > fair(c) * r.sell && rnd() < .3) execSell(r.id, c, c.own[r.id] * .4);
+    // accumulate
+    const nw = netWorth(r.id);
+    if (r.cash > 2 && rnd() < r.agg * .8) {
+      let best = null, bs = 0;
+      for (const c of S.cos) {
+        if (c.ctrl && c.ctrl !== r.id) continue;
+        if (c.ctrl === r.id && frac(c, r.id) > .7) continue;
+        const aff = mcap(c) < nw * 2.5 ? 1 : .25;
+        const s = (fair(c) / c.price) * (1 + 3 * frac(c, r.id)) * aff * (.7 + rnd() * .6);
+        if (s > bs) { bs = s; best = c; }
+      }
+      if (best && bs > 1.0) {
+        const spend = Math.min(r.cash * .5, mcap(best) * .06);
+        if (spend > .5) execBuy(r.id, best, sharesForMoney(best, spend));
+      }
+    }
+    // tender for control
+    for (const c of S.cos) {
+      if (c.ctrl || frac(c, r.id) < .28 || rnd() > .2) continue;
+      const q = tenderQuote(r.id, c, r.prem, .51);
+      if (q && q.cost <= r.cash && q.after > .5) { execTender(r.id, c, r.prem, .51); break; }
+    }
+  }
+}
+function playerWeekly(){
+  const p = S.player, e = S.econ;
+  if (p.loan > 0) {
+    const int = p.loan * (e.rate + 2) / 100 / 52;
+    if (p.cash >= int) p.cash -= int; else { p.loan += int - p.cash; p.cash = 0; }
+  }
+  const hv = holdingsValue('P');
+  if (p.loan > 0 && p.loan > hv * .7 + p.cash) {
+    news('【追証】証拠金維持率を割り込み、保有株が強制売却されました', 'warn');
+    toast('追証発生！保有株が強制売却されました', true);
+    const list = S.cos.filter(c => c.own.P > 0).sort((a, b) => b.own.P * b.price - a.own.P * a.price);
+    for (const c of list) {
+      if (p.loan <= holdingsValue('P') * .55 + p.cash) break;
+      execSell('P', c, c.own.P * .5);
+      const pay = Math.min(p.cash, p.loan); p.cash -= pay; p.loan -= pay;
+    }
+  }
+}
+function greenmail(){
+  for (const c of S.cos) {
+    const f = frac(c, 'P');
+    if (c.ctrl || f < .08 || f > .5) continue;
+    if (S.inbox.some(i => i.cid === c.id)) continue;
+    if (rnd() < .025 * (f / .1)) addInbox({kind: 'greenmail', cid: c.id, price: c.price * (1.15 + rnd() * .2), exp: S.week + 4});
+  }
+}
+function maybeIPO(){
+  if (S.week % 17 === 0 && S.cos.length < 50 && S.ipo < IPO_POOL.length) {
+    const c = makeCompany(IPO_POOL[S.ipo++]); S.cos.push(c);
+    news(`【新規上場】${c.name}（${IND[c.ind].n}・${CITY[c.city].n}）が上場。時価総額${fm(mcap(c))}`, 'earn', c.city);
+  }
+}
+function bankruptcies(){
+  for (const c of S.cos.slice()) {
+    if (equity(c) < -.25 * c.assets && c.ni < 0) {
+      news(`【経営破綻】${c.name}が破綻、株式は無価値に`, 'warn', c.city);
+      if (c.own.P) { toast(`${c.name}が破綻。保有株は無価値になりました`, true); delete S.player.cost[c.id]; }
+      S.cos = S.cos.filter(x => x !== c); S.inbox = S.inbox.filter(i => i.cid !== c.id);
+      if (ui.sel === c.id) ui.sel = null;
+    }
+  }
+}
+function recordNW(){
+  for (const k of ['P', 'R1', 'R2', 'R3']) { const h = S.nwHist[k]; h.push(netWorth(k)); if (h.length > 260) h.shift(); }
+}
+function step(){
+  S.week++;
+  econStep();
+  let r = 0, n = 0;
+  for (const c of S.cos) { const p0 = c.price; coStep(c); r += c.price / p0 - 1; n++; }
+  S.idx *= 1 + (n ? r / n : 0); S.idxHist.push(S.idx); if (S.idxHist.length > 156) S.idxHist.shift();
+  if (S.week % 13 === 0) quarter();
+  rivalsAct(); playerWeekly(); greenmail(); events(); maybeIPO(); bankruptcies();
+  S.inbox = S.inbox.filter(i => { if (i.exp < S.week) { news('提案の期限が切れました', 'you'); return false; } return true; });
+  if (S.week % 52 === 0) news(`【年次】${S.week / 52}年目終了。あなたの純資産は${fm(netWorth('P'))}、受取配当累計${fm(S.player.divs)}`, 'you');
+  recordNW();
+  checkEnd();
+}
+function checkEnd(){
+  const nw = netWorth('P');
+  if (!S.won && nw >= GOAL) { S.won = true; ui.speed = 0; showEnd(true); }
+  if (!S.lost && nw < 0) { S.lost = true; ui.speed = 0; showEnd(false); }
+}
+
+/* ---------- news & fx (fx is UI-only, never touches the PRNG) ---------- */
+function news(t, k, city){ S.news.unshift({w: S.week, t, k, city: city || null}); if (S.news.length > 150) S.news.length = 150; if (city) fxPulse(city, k === 'you' ? '#f2b632' : k === 'warn' ? '#f06a5d' : '#e8eef2'); }
+const fx = [];
+function fxPulse(city, col){ fx.push({type: 'pulse', city, col, t0: performance.now()}); }
+function fxArc(owner, a, b){ fx.push({type: 'arc', a, b, col: OWNHEX[owner] || '#e8eef2', t0: performance.now()}); }
+
+/* ---------- save / load ---------- */
+let saveTimer = 0;
+function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+function saveSoon(){ clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); }
+function loadSave(){ try { const s = localStorage.getItem(SAVE_KEY); if (!s) return null; const o = JSON.parse(s); return o && o.v === 1 && Array.isArray(o.cos) ? o : null; } catch (e) { return null; } }
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+const ui = {tab: 'market', sel: null, city: null, sort: 'cap', speed: 0, amt: 5, tPrem: .3, tTarget: .51, mPrem: .25, mTarget: '', inboxFlash: false, ceoAmt: .25};
+function toast(msg, bad){ const el = document.createElement('div'); el.className = 'toast' + (bad ? ' bad' : ''); el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), 3800); while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove(); }
+
+function renderTop(){
+  const p = S.player, nw = netWorth('P');
+  const rank = 1 + S.rivals.filter(r => netWorth(r.id) > nw).length;
+  $('#date').textContent = dateOf(S.week);
+  $('#stats').innerHTML = [
+    ['現金', fm(p.cash)], ['信用借入', fm(p.loan)], ['買付余力', fm(buyingPower())],
+    ['純資産', fm(nw), 'nw'], ['順位', rank + '位 / 4'], ['ATLAS指数', S.idx.toFixed(0)],
+  ].map(([l, v, c]) => `<div class="stat ${c || ''}"><span>${l}</span><b>${v}</b></div>`).join('');
+  document.querySelectorAll('#speed [data-act=speed]').forEach(b => b.classList.toggle('on', +b.dataset.v === ui.speed));
+}
+function renderTicker(){
+  const list = S.cos.slice().sort((a, b) => mcap(b) - mcap(a)).slice(0, 18);
+  $('#ticker').innerHTML = `<span>ATLAS <i>${S.idx.toFixed(0)}</i></span><span>金利 <i>${S.econ.rate.toFixed(2)}%</i></span><span>GDP <i>${S.econ.gdp.toFixed(1)}%</i></span>` +
+    list.map(c => { const ch = chg(c); return `<span>${c.tk} ${fp(c.price)} <b class="${ch >= 0 ? 'up' : 'down'}">${spc(ch)}</b></span>`; }).join('');
+}
+const chg = (c, n = 1) => c.hist.length > n ? c.price / c.hist[c.hist.length - 1 - n] - 1 : 0;
+function renderLegend(){
+  $('#legend').innerHTML = `<span><i class="dot" style="background:${OWNC.P}"></i>あなた</span>` + S.rivals.map(r => `<span><i class="dot" style="background:${OWNC[r.id]}"></i>${esc(r.n)}</span>`).join('') + `<span><i class="dot" style="background:var(--pub)"></i>独立系</span>`;
+}
+function renderTabs(){
+  const n = S.inbox.length;
+  const T = [['market', '市場'], ['port', '保有'], ['rivals', 'ライバル'], ['news', 'ニュース'], ['inbox', '受信箱' + (n ? `<span class="badge">${n}</span>` : '')]];
+  $('#tabs').innerHTML = T.map(([k, l]) => `<button data-act="tab" data-v="${k}" class="${ui.tab === k ? 'on' : ''}">${l}</button>`).join('');
+}
+const ctrlChip = c => c.ctrl ? `<span class="ctrl" style="background:${OWNC[c.ctrl]}">${c.ctrl === 'P' ? '支配' : ownerName(c.ctrl).slice(0, 4)}</span>` : '';
+function coRow(c, right){
+  const ch = chg(c), cheap = fair(c) / c.price > 1.2;
+  return `<button class="row" data-act="sel" data-id="${c.id}">
+    <div class="nm">${esc(c.name)} ${ctrlChip(c)}${cheap ? '<span class="tag cheap">割安</span>' : ''}</div>
+    <div class="rt">${fp(c.price)} <span class="${ch >= 0 ? 'up' : 'down'}">${spc(ch)}</span></div>
+    <div class="sub">${c.tk} · ${IND[c.ind].n} · ${CITY[c.city].n}</div>
+    <div class="rt sub">${right || '時価 ' + fm(mcap(c))}</div></button>`;
+}
+function renderMarket(){
+  if (ui.sel && coById(ui.sel)) return renderCompany(coById(ui.sel));
+  ui.sel = null;
+  let list = S.cos.slice();
+  if (ui.city) list = list.filter(c => c.city === ui.city);
+  const sorters = {cap: (a, b) => mcap(b) - mcap(a), chg: (a, b) => chg(b, 4) - chg(a, 4), cheap: (a, b) => fair(b) / b.price - fair(a) / a.price, small: (a, b) => mcap(a) - mcap(b)};
+  list.sort(sorters[ui.sort]);
+  const S_ = [['cap', '時価総額'], ['small', '小型順'], ['cheap', '割安度'], ['chg', '4週騰落']];
+  return `<div class="filters">${ui.city ? `<button class="chip on" data-act="city" data-v="">📍 ${CITY[ui.city].n} ✕</button>` : ''}${S_.map(([k, l]) => `<button class="chip ${ui.sort === k ? 'on' : ''}" data-act="sort" data-v="${k}">${l}</button>`).join('')}</div>
+  <div class="rows">${list.map(c => coRow(c)).join('') || '<div class="empty">この都市に上場企業はありません</div>'}</div>`;
+}
+function renderCompany(c){
+  const f = fair(c), ch = chg(c), eps = c.ni / c.shares, per = eps > 0 ? c.price / eps : 0, pbr = equity(c) > 0 ? mcap(c) / equity(c) : 0;
+  const divY = c.ni > 0 ? c.ni * c.payout / mcap(c) : 0;
+  const segs = Object.keys(c.own).sort().map(k => `<i style="width:${frac(c, k) * 100}%;background:${OWNC[k]}"></i>`).join('');
+  const owners = Object.keys(c.own).sort((a, b) => c.own[b] - c.own[a]).map(k => `<li><i class="dot" style="background:${OWNC[k]}"></i>${esc(ownerName(k))}<b>${pc(frac(c, k))}</b></li>`).join('') + `<li><i class="dot" style="background:var(--pub)"></i>市場（浮動株）<b>${pc(floatOf(c) / c.shares)}</b></li>`;
+  const mine = c.own.P || 0, myVal = mine * c.price, basis = S.player.cost[c.id] || 0;
+  // trade preview
+  const n = sharesForMoney(c, ui.amt), qb = quoteBuy(c, n);
+  const bp = buyingPower();
+  const tradeBox = `<section class="box"><h4>株式売買 <small>手数料0.25%・大口は株価を動かします</small></h4>
+    <div class="field"><label for="amt">買付金額 $M</label><input id="amt" type="number" inputmode="decimal" min="0" step="1" value="${+ui.amt.toFixed(2)}" data-act-input="amt"></div>
+    <div class="seg" style="margin-top:6px">${[1, 5, 20, 50].map(v => `<button data-act="amt" data-v="${v}">$${v}M</button>`).join('')}<button data-act="amt" data-v="max">余力全額</button></div>
+    <div class="preview">${qb ? `約 ${fsh(qb.n)} · 平均 ${fp(qb.avg)} → 株価 ${fp(qb.np)}<br>取得後の持分 ${pc((mine + qb.n) / c.shares)}${ui.amt > S.player.cash ? `<br><em>不足分 ${fm(ui.amt - S.player.cash)} は信用借入（金利 ${(S.econ.rate + 2).toFixed(1)}%）</em>` : ''}` : '<em>市場に買える浮動株がありません</em>'}</div>
+    <div class="btnrow"><button class="btn buy" data-act="buy" ${!qb || ui.amt > bp + 1e-9 || ui.amt <= 0 ? 'disabled' : ''}>買う</button>
+    ${mine > 0 ? [.25, .5, 1].map(x => `<button class="btn sell sm" data-act="sell" data-v="${x}">${x === 1 ? '全株' : x * 100 + '%'}売る</button>`).join('') : ''}</div>
+    ${mine > 0 ? `<p>保有 ${fsh(mine)}（${fm(myVal)}）· 取得原価 ${fm(basis)} · 損益 <span class="${myVal >= basis ? 'up' : 'down'}">${fm(myVal - basis)}</span></p>` : ''}</section>`;
+  // tender
+  let tenderBox = '';
+  if (c.ctrl !== 'P') {
+    const tq = tenderQuote('P', c, ui.tPrem, ui.tTarget);
+    const can = tq && tq.total > 1e-6 && tq.cost <= bp + 1e-9;
+    tenderBox = `<section class="box"><h4>公開買付け（TOB） <small>プレミアムが高いほど応募が集まる</small></h4>
+      <div class="seg">${[.15, .25, .35, .5].map(v => `<button class="${Math.abs(ui.tPrem - v) < 1e-9 ? 'on' : ''}" data-act="tprem" data-v="${v}">+${v * 100}%</button>`).join('')}</div>
+      <div class="seg" style="margin-top:6px">${[[.51, '過半数 51%'], [.67, '特別決議 67%'], [1, '全株 100%']].map(([v, l]) => `<button class="${ui.tTarget === v ? 'on' : ''}" data-act="ttarget" data-v="${v}">${l}</button>`).join('')}</div>
+      <div class="preview">${tq ? `買付価格 ${fp(tq.price)} · 応募見込 ${fsh(tq.total)}<br>費用 ${fm(tq.cost)} · 取得後 ${pc(tq.after)}${tq.after > .5 ? ' <span class="up">→ 経営権</span>' : ''}${c.ctrl ? `<br><em>${esc(ownerName(c.ctrl))}は公正価値の1.5倍以上でのみ応募</em>` : ''}` : '<em>すでに目標の持分を保有しています</em>'}</div>
+      <div class="btnrow"><button class="btn gold" data-act="tender" ${can ? '' : 'disabled'}>TOBを開始</button></div></section>`;
+  }
+  // CEO
+  let ceoBox = '';
+  if (c.ctrl === 'P') {
+    const others = S.cos.filter(b => b !== c).sort((a, b) => mcap(a) - mcap(b));
+    if (!others.some(b => b.id === ui.mTarget)) ui.mTarget = others.length ? others[0].id : '';
+    const B = coById(ui.mTarget), mq = B ? mergeQuote(c, B, ui.mPrem) : null;
+    const pick = ui.ceoAmt, amt = c.cash * pick, room = Math.max(0, maxDebt(c) - c.debt);
+    ceoBox = `<section class="box ceo"><h4>CEO室 <small>あなたが支配する会社の経営判断</small></h4>
+      <p>配当性向（年間純利益のうち株主に配る割合。配当はあなたの現金に入る）</p>
+      <div class="seg">${[0, .3, .6, .9].map(v => `<button class="${Math.abs(c.payout - v) < 1e-9 ? 'on' : ''}" data-act="payout" data-v="${v}">${v * 100}%</button>`).join('')}</div>
+      <p>会社の現金 ${fm(c.cash)} · 負債 ${fm(c.debt)} · 追加借入枠 ${fm(room)}。使う割合：</p>
+      <div class="seg">${[.1, .25, .5, 1].map(v => `<button class="${pick === v ? 'on' : ''}" data-act="ceoamt" data-v="${v}">${v * 100}%</button>`).join('')}</div>
+      <div class="btnrow">
+        <button class="btn sm" data-act="sdiv" ${amt > .01 ? '' : 'disabled'}>特別配当 ${fm(amt)}</button>
+        <button class="btn sm" data-act="buyback" ${amt > .01 && floatOf(c) > 1e-6 ? '' : 'disabled'}>自社株買い ${fm(amt)}</button>
+        <button class="btn sm" data-act="invest" ${amt > .01 ? '' : 'disabled'}>設備投資 ${fm(amt)}</button>
+        <button class="btn sm" data-act="repay" ${amt > .01 && c.debt > .01 ? '' : 'disabled'}>返済 ${fm(Math.min(amt, c.debt))}</button>
+        <button class="btn sm" data-act="borrow" ${room > .01 ? '' : 'disabled'}>借入 ${fm(room * pick)}</button>
+      </div>
+      <p style="margin-top:12px">合併買収：この会社の資金で他社を丸ごと買い取り吸収します。対象の株主（あなた含む）には現金が支払われます。</p>
+      <div class="field"><label for="mt">対象</label><select id="mt" data-act-input="mtarget">${others.map(b => `<option value="${b.id}" ${b.id === ui.mTarget ? 'selected' : ''}>${esc(b.name)}（${fm(mcap(b))}${b.ctrl ? '・' + esc(ownerName(b.ctrl)) : ''}）</option>`).join('')}</select></div>
+      <div class="seg" style="margin-top:6px">${[0, .2, .35, .5].map(v => `<button class="${Math.abs(ui.mPrem - v) < 1e-9 ? 'on' : ''}" data-act="mprem" data-v="${v}">+${v * 100}%</button>`).join('')}</div>
+      ${mq ? `<div class="preview">買収総額 ${fm(mq.cost)}（1株 ${fp(mq.price)}）<br>うち新規借入 ${fm(mq.debtNeed)}${(B.own.P || 0) > 0 ? `<br>あなたの${esc(B.name)}株への支払 ${fm(B.own.P * mq.price)}` : ''}${mq.reason ? `<br><span class="down">${mq.reason}</span>` : ''}</div>` : ''}
+      <div class="btnrow"><button class="btn gold" data-act="merge" ${mq && mq.ok && mq.fin ? '' : 'disabled'}>合併を実行</button></div></section>`;
+  }
+  return `<button class="back" data-act="back">← 企業一覧</button>
+  <div class="cohead"><div><div class="meta">${c.tk} · ${IND[c.ind].n} · ${CITY[c.city].n}</div><h2>${esc(c.name)}</h2></div>
+  <div class="px">${fp(c.price)}<small class="${ch >= 0 ? 'up' : 'down'}">${spc(ch)} 週</small></div></div>
+  <canvas class="chart" id="coChart"></canvas>
+  <div class="kv">
+    <div><span>時価総額</span><b>${fm(mcap(c))}</b></div><div><span>理論株価</span><b class="${f > c.price ? 'up' : 'down'}">${fp(f)}</b></div><div><span>PER</span><b>${per ? per.toFixed(1) + '倍' : '赤字'}</b></div>
+    <div><span>売上（年）</span><b>${fm(c.rev)}</b></div><div><span>純利益（年）</span><b class="${c.ni >= 0 ? '' : 'down'}">${fm(c.ni)}</b></div><div><span>PBR</span><b>${pbr ? pbr.toFixed(2) + '倍' : '—'}</b></div>
+    <div><span>現金</span><b>${fm(c.cash)}</b></div><div><span>負債</span><b>${fm(c.debt)}</b></div><div><span>配当利回り</span><b>${pc(divY)}</b></div>
+    <div><span>成長率</span><b>${pc(c.growth + c.boost)}</b></div><div><span>利益率</span><b>${pc(c.margin)}</b></div><div><span>発行済株式</span><b>${fsh(c.shares)}</b></div>
+  </div>
+  <h3>株主構成</h3><div class="ownbar">${segs}</div><ul class="ownlist">${owners}</ul>
+  ${ceoBox}${tradeBox}${tenderBox}`;
+}
+function renderPort(){
+  const p = S.player, hv = holdingsValue('P'), list = S.cos.filter(c => c.own.P > 0).sort((a, b) => b.own.P * b.price - a.own.P * a.price);
+  const ratio = hv > 0 ? p.loan / hv : 0;
+  return `<h3>口座</h3>
+  <div class="kv"><div><span>現金</span><b>${fm(p.cash)}</b></div><div><span>株式評価額</span><b>${fm(hv)}</b></div><div><span>信用借入</span><b class="${ratio > .55 ? 'down' : ''}">${fm(p.loan)}</b></div>
+  <div><span>借入/評価額</span><b class="${ratio > .55 ? 'down' : ''}">${pc(ratio)}</b></div><div><span>追証ライン</span><b>70%</b></div><div><span>受取配当累計</span><b>${fm(p.divs)}</b></div></div>
+  ${p.loan > 0 ? `<div class="btnrow">${[5, 25].map(v => `<button class="btn sm" data-act="repayloan" data-v="${v}" ${p.cash > .01 ? '' : 'disabled'}>${fm(v)}返済</button>`).join('')}<button class="btn sm" data-act="repayloan" data-v="all" ${p.cash > .01 ? '' : 'disabled'}>可能な限り返済</button></div>` : ''}
+  <h3>保有銘柄 ${list.length}</h3>
+  <div class="rows">${list.map(c => { const v = c.own.P * c.price, b = S.player.cost[c.id] || 0; return coRow(c, `${pc(frac(c, 'P'))} · ${fm(v)} <span class="${v >= b ? 'up' : 'down'}">${fm(v - b)}</span>`); }).join('') || '<div class="empty">まだ株を持っていません。「市場」タブで「割安」タグの小型株から始めるのがおすすめです。</div>'}</div>`;
+}
+function renderRivals(){
+  const all = [{id: 'P', n: 'あなた', tag: 'アトラス・キャピタル'}].concat(S.rivals).map(r => ({...r, nw: netWorth(r.id), ctl: S.cos.filter(c => c.ctrl === r.id), cash: r.id === 'P' ? S.player.cash : r.cash})).sort((a, b) => b.nw - a.nw);
+  return `<h3>純資産ランキング</h3><div class="board">${all.map((r, i) => `<div class="lead ${r.id === 'P' ? 'me' : ''}"><div class="rk">${i + 1}</div>
+    <div class="who"><i class="dot" style="background:${OWNC[r.id]}"></i>${esc(r.n)} <small>${esc(r.tag)}</small></div><div class="val">${fm(r.nw)}</div>
+    <div class="det">現金 ${fm(r.cash)} · 支配企業 ${r.ctl.length}社${r.ctl.length ? '（' + r.ctl.slice(0, 3).map(c => esc(c.name)).join('、') + (r.ctl.length > 3 ? ' ほか' : '') + '）' : ''}</div></div>`).join('')}</div>
+  <h3>純資産の推移</h3><canvas class="chart" id="nwChart" style="height:160px"></canvas>
+  <h3>マクロ経済</h3><div class="kv"><div><span>GDP成長率</span><b>${S.econ.gdp.toFixed(1)}%</b></div><div><span>政策金利</span><b>${S.econ.rate.toFixed(2)}%</b></div><div><span>市場心理</span><b class="${S.econ.sent >= 1 ? 'up' : 'down'}">${(S.econ.sent * 100).toFixed(0)}</b></div></div>`;
+}
+function renderNews(){
+  return `<ul class="news">${S.news.map(n => `<li><span class="wk">${shortDate(n.w)}</span><span class="k-${n.k}">${esc(n.t)}</span></li>`).join('')}</ul>`;
+}
+function renderInbox(){
+  if (!S.inbox.length) return '<div class="empty">提案はありません。<br>他社株を8%以上持つとグリーンメール（高値買戻し）の提案が来ることがあります。</div>';
+  return S.inbox.map(it => {
+    const c = coById(it.cid); if (!c) return '';
+    const n = c.own.P || 0, amt = n * it.price, prem = it.price / c.price - 1;
+    const head = it.kind === 'tender' ? `${esc(ownerName(it.from))}が${esc(c.name)}にTOBを実施中。あなたの保有株を買い取ると提示しています。` : `${esc(c.name)}の経営陣が、あなたの持分を高値で買い戻したいと申し出ています（グリーンメール）。`;
+    return `<div class="offer"><p><b>${it.kind === 'tender' ? 'TOB応募の打診' : '持分買戻しの提案'}</b></p><p>${head}</p>
+      <div class="preview">1株 ${fp(it.price)}（現在値比 <span class="${prem >= 0 ? 'up' : 'down'}">${spc(prem)}</span>）× ${fsh(n)} = ${fm(amt)}<br><em>期限 ${shortDate(it.exp)}</em></div>
+      <div class="btnrow"><button class="btn buy" data-act="inbox" data-id="${it.id}" data-v="1">応じる</button><button class="btn" data-act="inbox" data-id="${it.id}" data-v="0">断る</button><button class="btn sm" data-act="sel" data-id="${c.id}">企業を見る</button></div></div>`;
+  }).join('');
+}
+function renderPanel(force){
+  const ae = document.activeElement;
+  if (!force && ae && ae.closest && ae.closest('#pbody') && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT')) return; // don't wipe typing
+  const body = $('#pbody'), top = body.scrollTop;
+  const R = {market: renderMarket, port: renderPort, rivals: renderRivals, news: renderNews, inbox: renderInbox};
+  body.innerHTML = R[ui.tab]();
+  body.scrollTop = top;
+  const cc = $('#coChart'); if (cc && ui.sel) { const c = coById(ui.sel); if (c) drawChart(cc, [{d: c.hist, col: chg(c, Math.min(52, c.hist.length - 1)) >= 0 ? '#48c48c' : '#f06a5d'}], fp); }
+  const nc = $('#nwChart'); if (nc) drawChart(nc, ['P', 'R1', 'R2', 'R3'].map(k => ({d: S.nwHist[k], col: OWNHEX[k], w: k === 'P' ? 2.4 : 1.5})), fm);
+}
+function renderAll(force){ renderTop(); renderTabs(); renderPanel(force); mapDirty = true; }
+
+/* ---------- small line chart ---------- */
+function drawChart(cv, series, fmt){
+  const dpr = Math.min(2, window.devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight;
+  if (!W || !H) return;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  let lo = Infinity, hi = -Infinity, len = 0;
+  for (const s of series) for (const v of s.d) { lo = Math.min(lo, v); hi = Math.max(hi, v); len = Math.max(len, s.d.length); }
+  if (!isFinite(lo) || len < 2) return;
+  if (hi - lo < 1e-9) { hi += 1; lo -= 1; }
+  const pad = (hi - lo) * .08; lo -= pad; hi += pad;
+  const L = 4, R = 58, T = 6, B = 6, py = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo)), px = i => L + (W - L - R) * i / (len - 1);
+  x.font = '10px JetBrains Mono, monospace'; x.fillStyle = '#8fa8ba'; x.strokeStyle = 'rgba(143,168,186,.14)'; x.lineWidth = 1;
+  for (let i = 0; i <= 3; i++) { const v = lo + (hi - lo) * i / 3, y = py(v); x.beginPath(); x.moveTo(L, y); x.lineTo(W - R, y); x.stroke(); x.fillText(fmt(v), W - R + 6, y + 3); }
+  for (const s of series) {
+    const off = len - s.d.length; if (s.d.length < 2) continue;
+    x.beginPath(); s.d.forEach((v, i) => { const X = px(i + off), Y = py(v); i ? x.lineTo(X, Y) : x.moveTo(X, Y); });
+    x.strokeStyle = s.col; x.lineWidth = s.w || 2; x.lineJoin = 'round'; x.stroke();
+    if (series.length === 1) { x.lineTo(px(len - 1), H - B); x.lineTo(px(off), H - B); x.closePath(); x.globalAlpha = .12; x.fillStyle = s.col; x.fill(); x.globalAlpha = 1; }
+    const ex = px(len - 1), ey = py(s.d[s.d.length - 1]); x.beginPath(); x.arc(ex, ey, 3, 0, 7); x.fillStyle = s.col; x.fill();
+  }
+}
+
+/* =====================================================================
+   World map (Canvas 2D dot-matrix, original coarse outlines)
+   ===================================================================== */
+const POLYS = [
+ [-168,66,-162,70,-156,71.3,-140,69.6,-128,70,-115,68.5,-95,69,-90,68.5,-86,67,-88,64,-94,61,-94,58.7,-90,57,-85,55.2,-82,52.5,-79.5,51.5,-79,55,-77,58,-78,62.5,-74,62.3,-70,61,-65,60,-62,57,-56,52,-60,48,-65,49,-64,45,-70,43,-70,41.5,-74,40.5,-76,38,-76,35,-81,31,-80.5,27,-80.4,25.2,-81.5,25.5,-82.6,28,-84,30,-89,30,-94,29.5,-97.3,27.5,-97.5,24,-97.5,21,-96,19,-94,18.2,-91,18.8,-90.5,21,-87,21.5,-88,16,-84,15.5,-83.5,11,-81.5,9,-79.5,9.3,-77.5,8,-78,7.2,-80,7.5,-83,8.2,-86,11,-88,13.3,-92,14.5,-95,16,-98,16.2,-102,18,-105.5,20.5,-105,22.5,-109,25.5,-112.5,29.5,-114.7,31.5,-114,30,-111,25,-109.5,23,-112,25,-114,28,-115.5,30,-117,32.5,-118.5,34,-120.6,34.6,-122.5,37.5,-124,40.5,-124.3,43,-124,46.5,-124.7,48.4,-123,49,-127,50.5,-130,54,-133,57,-137,58.5,-140,59.8,-146,60.8,-151,59.5,-154,57.5,-158,56.5,-162,55,-158,58,-162,60,-165,62,-164,64.5],
+ [-90,72,-78,73.5,-68,70.5,-62,66.5,-65,62.5,-72,63,-78,64.5,-82,67.5,-88,70],
+ [-125,72,-118,76.5,-100,79,-85,80,-70,82.5,-62,82,-75,78,-90,76,-98,74,-110,73,-118,69,-102,68.5,-100,71],
+ [-73,78,-60,82,-35,83.5,-20,82,-18,77,-22,72,-25,69,-32,68,-40,65,-43,60,-48,61,-52,65,-54,68,-56,72,-66,76],
+ [-24,65.5,-22,66.4,-16,66.5,-13.5,65,-18,63.5,-22,63.8],
+ [-77.5,8,-75,11,-72,12,-71.5,10.5,-68,10.5,-63,10.7,-60.5,8.5,-57,6,-52,5,-50,1.5,-48.5,-1,-44,-2.5,-40,-3,-35.2,-5.5,-34.8,-7.5,-35.5,-10,-37.5,-12.5,-39,-15,-39.5,-19,-41,-22,-44,-23,-48,-26,-48.6,-28.5,-51,-31,-53,-34,-56,-35,-57.5,-38,-62,-39,-65,-41,-64,-43,-67.5,-46,-66,-48,-68.5,-50.5,-68.5,-52.5,-70,-55,-73,-53,-75,-49,-74,-44,-73.5,-40,-73.5,-37,-71.6,-33,-71.3,-30,-70.5,-25,-70.2,-20,-71.5,-17.5,-75.5,-15,-77,-12,-79.5,-7.5,-81.2,-5.5,-80.5,-3,-80,-1,-80.5,1,-78.8,2,-77.5,4,-77.4,7],
+ [-9.5,37,-9,43,-1.5,43.5,-1.5,46.5,-4.5,48,-1.5,49.5,2,51,4.5,53,8.5,54,8.5,57,10.5,57.7,10.5,54.5,13,54.5,18,54.8,21,55.5,21,57,24,57.5,24,59.4,29.5,60,22.5,60.2,21,61,21.5,63.5,25,65,21.5,65.5,17.5,62.5,18.5,60,16,56.5,13,55.5,11,59,5.5,58.5,5,61.5,8,63.5,13,66.5,15.5,68.5,21,70,28,71,33,69.5,41,67,44,68.5,53,68.5,60,69.5,69,73,73,72,80,73.5,88,75.5,100,77.5,106,77,113,73.5,128,72.5,140,72.5,150,71.5,160,70,170,70,180,69,180,65,178,64.5,173,61,170,60,163,59,162,56,156.5,51,156,57,160,61.5,155,59.5,143,59.5,137,54.5,141,52,140,48,135,43.5,132,43,129.5,41,129.5,36,126.5,34.5,126,37.5,125,39.5,121.5,39,122,40.5,118,39,119,37,122.5,37,120,34.5,121.5,32,122,29,119.5,25.5,116.5,23,113,22.3,110,21,108.5,21.6,106.5,20,105.7,18.5,108.5,15,109.3,12,107,10.5,105,8.6,104.8,10.5,103,10.6,100.5,13,99.2,10,100.3,8,101,6.5,103.4,4.2,104.2,1.4,103.4,1.3,101,2.7,100.3,5,98.3,8,98.6,11,97.6,16.5,94.3,16.2,94,19,92,21,90,22,86.5,21,85,19.5,80.3,15.5,80.2,13,79.8,10.3,77.5,8.1,76.3,9.8,74.7,13.5,72.8,19,72.6,21.5,70,21,68.8,23.5,66.5,25.4,61.5,25.2,57.3,25.8,56.4,27,54.5,26.5,51.5,27.9,50,30,48,30,48.5,28.5,50.2,26,51.6,24.3,54,24.1,56.3,24.8,56.5,26.3,57.8,23.5,59.8,22.5,57.8,19,55,17,52.2,15.6,48.7,14,45,12.8,43.4,12.7,42.7,15.5,41,19,39,21.5,37,25,35,28,34.3,28,32.7,30,32.3,31.3,34.6,31.5,35.6,34,36,36.7,34,36.4,30.5,36.3,28,36.7,26.5,38.5,26.5,40,29,41,31.5,41.2,35,42,38.5,40.9,41.5,41.5,39.5,44.5,38,46.8,35,45,33.5,44.5,32.5,45.5,30.5,46.5,29,44.8,28,43,28,41.5,26,40.8,24,40.7,22.8,40.5,23.8,38,22.5,36.5,21.2,37.8,19.5,41.8,16,43.5,13.7,45.5,12.3,45,13.5,43.6,16,41.5,18.5,40.2,16.5,38.5,15.7,38,15.6,40,12,41.8,10.5,43,8.8,44.4,6.5,43.1,3.2,43.2,3.2,42,0.8,41,-0.3,39.3,0,38.7,-0.8,37.6,-2.1,36.7,-5.6,36,-6.4,36.8,-7.4,37.2,-8.9,37],
+ [-17,21,-16.5,24,-14.5,26,-13,27.8,-9.8,30,-9.5,32.5,-6.8,34,-5.9,35.8,-2,35.1,1,36.5,5,36.8,10,37.3,11,36.8,10.2,34,11.5,33,15.3,32.2,19,30.3,20,32,23,32.6,25,31.7,29,30.9,32.3,31.3,32.6,29.9,33.8,27,35.5,24,37.2,21,38.6,18,39.7,15.5,41.6,13.5,43.3,11.8,44.5,10.4,51,11.8,51.2,10.4,50,8,48,4.5,46,2,43,-0.5,40.5,-2.5,39.2,-5,39.5,-8,40.5,-10.5,40.6,-15,37,-17.8,35.3,-22,35.5,-24,32.8,-26,32.5,-28.5,31,-29.9,28,-32.8,25.6,-34,22,-34.2,20,-34.8,18.4,-34,18,-32,17,-29,15.2,-27,14.5,-22.5,11.8,-17.2,12.3,-13,13.6,-10.5,12.2,-6,11.8,-4.5,9.5,-2,9.8,2,9.5,4,8.5,4.6,6,4.3,4.5,6.3,2,6.3,-1,5,-4,5.2,-7.5,4.4,-9.5,5.5,-12.5,7.5,-13.3,9.5,-15,11,-16.7,12.5,-17.2,14.7,-16.5,16.2,-16,19],
+ [49.3,-12,50.5,-15.5,49.5,-17,47,-25,45,-25.5,43.5,-22,44.4,-17,46.5,-15.7,48.8,-12.5],
+ [-5.7,50,1.5,51.2,1.7,52.7,0,53.5,-1.5,55,-2,56,-1.8,57.6,-3.3,58.6,-5,58.6,-6.2,57,-5.5,55.5,-4.8,54.8,-3,54,-3.3,53.3,-4.6,52.8,-4.2,51.6,-5.3,51.7],
+ [-6,52,-6,53.9,-7.5,55.2,-10,54.2,-10.3,51.8,-8,51.5],
+ [130,31,131.5,31.5,132,33.8,135,33.5,136.8,34.3,139.7,35,140.8,35.7,141,38,142,40,141.5,41.4,140,41.2,140,40,139.8,38,138.5,37.5,136.8,37.2,136,35.6,133,35.5,130.9,34.3,129.7,33.2],
+ [140,41.5,141.5,42.5,143.3,42,145.5,43.3,144,44,141.8,45.4,141.3,43.3,140,42.6],
+ [120.1,23,121,25.2,122,25,121,22],
+ [79.8,8,80,9.8,81.9,7.3,81,6],
+ [95.3,5.6,98,4,100.5,1,104,-2,106,-5.8,104.5,-5.7,101,-2.5,98.5,1.5],
+ [105.2,-6.8,108,-6.3,111,-6.5,114.5,-7.7,114.4,-8.7,110,-8.1,106,-7.4],
+ [109,1.5,111,1.6,115,5,117,7,119,5,118,1,116.5,-1.5,116,-3.8,114.5,-4,111,-3,110,-1.5],
+ [119.5,-5.5,120,0,121,1.3,124.5,1.2,123,-.8,121.5,-1,121,-2.5,122,-4.8,120.5,-5.6],
+ [131,-1.3,134,-.8,138,-1.6,142,-3,146,-5.5,148,-8,150.5,-10.5,147,-10,143,-9,141,-9.2,138,-8.3,137.5,-5,133,-4,132,-2.5],
+ [120,18.5,122.3,18.5,122,16,124,13,126,9,126,6.5,123.5,7.5,122,7,121.5,9,121.8,12,120.5,14.5,119.8,16.3],
+ [113.5,-22,114,-26,115,-30,115,-34,118,-35,121.8,-33.8,124,-33,126,-32.2,131,-31.5,134.2,-32.8,136,-34.8,137.8,-33,138,-35,140,-38,144,-38.3,146,-39,148,-37.8,150,-37.4,151.2,-33.9,153,-31,153.6,-28,153,-25,150.8,-22.5,149,-20.5,146.3,-18.8,145.4,-15,143.5,-14,142.5,-10.7,141.6,-12.6,141.5,-15.5,140.5,-17.5,139,-17.2,136,-15.5,135.5,-12.3,136.8,-12,133,-11.3,131,-12.2,130,-13,129.5,-15,127.8,-14.3,125,-15,123,-16.5,121.5,-19,119,-20,116.7,-20.6],
+ [144.6,-40.7,148.3,-40.9,148,-43.2,146,-43.6],
+ [172.7,-34.5,174.5,-36,176,-37.6,178.5,-37.7,177,-39.5,175,-41.5,174.6,-39.8,173.8,-39.2,174.6,-38,174,-36.5],
+ [172.7,-40.5,174.3,-41.5,173,-43.5,171,-44.6,169,-46.6,166.5,-46,167,-45,170.5,-43,172,-41.5],
+ [-85,21.8,-82,23.2,-77,22,-74.2,20.2,-77.5,19.8,-80,21.6],
+ [-74.5,18.4,-72.8,19.9,-70,19.7,-68.4,18.6,-71,18,-74.3,18],
+ [-59.3,47.6,-56,51.6,-53.5,49.4,-52.7,47.5,-55,46.8],
+];
+const LAT_TOP = 76, LAT_BOT = -52, GRID = 1.6;
+const LAND = (() => {
+  const boxes = POLYS.map(p => { let a = 999, b = -999, c = 999, d = -999; for (let i = 0; i < p.length; i += 2) { a = Math.min(a, p[i]); b = Math.max(b, p[i]); c = Math.min(c, p[i + 1]); d = Math.max(d, p[i + 1]); } return [a, b, c, d]; });
+  const inPoly = (p, x, y) => { let ins = false; for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) { const xi = p[i], yi = p[i + 1], xj = p[j], yj = p[j + 1]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; } return ins; };
+  const out = [];
+  for (let lat = LAT_TOP; lat >= LAT_BOT; lat -= GRID) for (let lon = -180 + GRID / 2; lon < 180; lon += GRID) {
+    for (let k = 0; k < POLYS.length; k++) { const b = boxes[k]; if (lon < b[0] || lon > b[1] || lat < b[2] || lat > b[3]) continue; if (inPoly(POLYS[k], lon, lat)) { out.push(lon, lat); break; } }
+  }
+  return new Float32Array(out);
+})();
+
+const mapCv = $('#map'), mctx = mapCv.getContext('2d');
+const view = {cx: 20, cy: 22, s: 0, W: 0, H: 0, dpr: 1};
+let mapDirty = true;
+function minScale(){ return Math.max(view.W / 360, view.H / (LAT_TOP - LAT_BOT)); }
+function fitView(){ view.s = minScale() * (view.W < 600 ? 1.35 : 1.05); view.cx = view.W < 600 ? 10 : 25; view.cy = 22; clampView(); }
+function clampView(){
+  view.s = clamp(view.s, minScale(), minScale() * 7);
+  const hw = view.W / 2 / view.s, hh = view.H / 2 / view.s;
+  view.cx = clamp(view.cx, -180 + hw, 180 - hw); view.cy = clamp(view.cy, LAT_BOT + hh, LAT_TOP - hh);
+  mapDirty = true;
+}
+const proj = (lon, lat) => [view.W / 2 + (lon - view.cx) * view.s, view.H / 2 - (lat - view.cy) * view.s];
+function resizeMap(){
+  const r = mapCv.getBoundingClientRect(); const first = !view.W;
+  view.dpr = Math.min(2, window.devicePixelRatio || 1); view.W = r.width; view.H = r.height;
+  mapCv.width = Math.round(r.width * view.dpr); mapCv.height = Math.round(r.height * view.dpr);
+  if (first || !view.s) fitView(); else clampView();
+}
+function cityStats(){
+  const m = {};
+  for (const c of S.cos) {
+    const o = m[c.city] || (m[c.city] = {cap: 0, own: {}, n: 0, mine: false});
+    const cap = mcap(c); o.cap += cap; o.n++;
+    if (c.ctrl) o.own[c.ctrl] = (o.own[c.ctrl] || 0) + cap;
+    if (c.own.P) o.mine = true;
+  }
+  return m;
+}
+function drawMap(now){
+  const x = mctx, W = view.W, H = view.H;
+  x.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  x.clearRect(0, 0, W, H);
+  // graticule
+  x.strokeStyle = 'rgba(143,168,186,.08)'; x.lineWidth = 1; x.beginPath();
+  for (let lon = -180; lon <= 180; lon += 30) { const [px] = proj(lon, 0); x.moveTo(px, 0); x.lineTo(px, H); }
+  for (let lat = -30; lat <= 60; lat += 30) { const [, py] = proj(0, lat); x.moveTo(0, py); x.lineTo(W, py); }
+  x.stroke();
+  x.strokeStyle = 'rgba(242,182,50,.10)'; x.beginPath(); const [, eq] = proj(0, 0); x.moveTo(0, eq); x.lineTo(W, eq); x.stroke();
+  // land dots
+  const ds = Math.max(1.3, GRID * view.s * .56), half = ds / 2;
+  x.fillStyle = '#c8b27a'; x.globalAlpha = .55; x.beginPath();
+  for (let i = 0; i < LAND.length; i += 2) { const px = W / 2 + (LAND[i] - view.cx) * view.s, py = H / 2 - (LAND[i + 1] - view.cy) * view.s; if (px < -ds || px > W + ds || py < -ds || py > H + ds) continue; x.rect(px - half, py - half, ds, ds); }
+  x.fill(); x.globalAlpha = 1;
+  // arcs
+  for (const f of fx) if (f.type === 'arc') {
+    const t = (now - f.t0) / 3200; if (t > 1) continue;
+    const A = CITY[f.a], B = CITY[f.b]; if (!A || !B) continue;
+    const [ax, ay] = proj(A.lon, A.lat), [bx, by] = proj(B.lon, B.lat);
+    const mx = (ax + bx) / 2, my = (ay + by) / 2 - Math.max(30, Math.hypot(bx - ax, by - ay) * .35);
+    x.globalAlpha = 1 - t; x.strokeStyle = f.col; x.lineWidth = 2.2; x.setLineDash([6, 5]); x.lineDashOffset = -now / 30;
+    x.beginPath(); x.moveTo(ax, ay); x.quadraticCurveTo(mx, my, bx, by); x.stroke(); x.setLineDash([]); x.globalAlpha = 1;
+  }
+  // cities
+  const st = cityStats(), z = view.s / minScale(), sel = ui.sel ? coById(ui.sel) : null;
+  const labels = [];
+  for (const city of CITIES) {
+    const o = st[city.id]; const [px, py] = proj(city.lon, city.lat);
+    if (px < -40 || px > W + 40 || py < -40 || py > H + 40) continue;
+    const cap = o ? o.cap : 0, r = clamp(4 + Math.sqrt(cap) / 9, 5, 17) * clamp(.75 + z * .12, .8, 1.5);
+    city._px = px; city._py = py; city._r = r;
+    // base disc
+    x.beginPath(); x.arc(px, py, r, 0, 7); x.fillStyle = 'rgba(7,26,44,.9)'; x.fill();
+    // ownership ring (share of city market cap controlled by each player)
+    let a0 = -Math.PI / 2;
+    if (o && cap > 0) for (const k of ['P', 'R1', 'R2', 'R3']) {
+      const v = o.own[k] || 0; if (!v) continue; const a1 = a0 + v / cap * Math.PI * 2;
+      x.beginPath(); x.arc(px, py, r, a0, a1); x.strokeStyle = OWNHEX[k]; x.lineWidth = 4; x.stroke(); a0 = a1;
+    }
+    x.beginPath(); x.arc(px, py, r, a0, Math.PI * 1.5); x.strokeStyle = 'rgba(143,168,186,.55)'; x.lineWidth = 2; x.stroke();
+    x.beginPath(); x.arc(px, py, Math.max(2, r * .38), 0, 7); x.fillStyle = o && o.mine ? '#f2b632' : '#e8eef2'; x.fill();
+    const hi = ui.city === city.id || (sel && sel.city === city.id);
+    if (hi) { x.beginPath(); x.arc(px, py, r + 6, 0, 7); x.strokeStyle = '#f2b632'; x.lineWidth = 2; x.stroke(); }
+    if (z > 1.6 || hi || cap > 9000) labels.push([city.n + (o ? ` ${o.n}` : ''), px, py + r + 13, hi]);
+  }
+  x.font = '600 11px "Noto Sans JP", sans-serif'; x.textAlign = 'center';
+  for (const [t, px, py, hi] of labels) { x.lineWidth = 3; x.strokeStyle = 'rgba(7,26,44,.9)'; x.strokeText(t, px, py); x.fillStyle = hi ? '#f2b632' : '#e8eef2'; x.fillText(t, px, py); }
+  // pulses
+  for (const f of fx) if (f.type === 'pulse') {
+    const t = (now - f.t0) / 1400; if (t > 1) continue; const c = CITY[f.city]; if (!c) continue;
+    const [px, py] = proj(c.lon, c.lat); x.beginPath(); x.arc(px, py, 8 + t * 34, 0, 7); x.strokeStyle = f.col; x.globalAlpha = 1 - t; x.lineWidth = 2; x.stroke(); x.globalAlpha = 1;
+  }
+  for (let i = fx.length - 1; i >= 0; i--) if (now - fx[i].t0 > 3300) fx.splice(i, 1);
+}
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function frame(now){
+  if (reduceMotion) fx.length = 0;
+  if (mapDirty || fx.length) { drawMap(now); mapDirty = false; }
+  requestAnimationFrame(frame);
+}
+// pointer: drag pan, pinch zoom, tap select
+const ptrs = new Map(); let drag = null, pinch = null;
+mapCv.addEventListener('pointerdown', e => { mapCv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, {x: e.offsetX, y: e.offsetY}); if (ptrs.size === 1) drag = {x: e.offsetX, y: e.offsetY, cx: view.cx, cy: view.cy, moved: false}; else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = {d: Math.hypot(a.x - b.x, a.y - b.y), s: view.s}; drag = null; } });
+mapCv.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, {x: e.offsetX, y: e.offsetY});
+  if (pinch && ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); zoomAt(pinch.s * d / pinch.d / view.s, (a.x + b.x) / 2, (a.y + b.y) / 2); return; }
+  if (drag) { const dx = e.offsetX - drag.x, dy = e.offsetY - drag.y; if (Math.hypot(dx, dy) > 8) { drag.moved = true; mapCv.classList.add('drag'); } if (drag.moved) { view.cx = drag.cx - dx / view.s; view.cy = drag.cy + dy / view.s; clampView(); } }
+});
+function endPtr(e){
+  if (drag && !drag.moved && ptrs.size === 1) tapMap(e.offsetX, e.offsetY);
+  ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) { drag = null; mapCv.classList.remove('drag'); }
+}
+mapCv.addEventListener('pointerup', endPtr); mapCv.addEventListener('pointercancel', e => { ptrs.delete(e.pointerId); drag = null; pinch = null; });
+mapCv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * .0015), e.offsetX, e.offsetY); }, {passive: false});
+function zoomAt(f, px, py){
+  const lon = view.cx + (px - view.W / 2) / view.s, lat = view.cy - (py - view.H / 2) / view.s;
+  view.s *= f; clampView();
+  view.cx = lon - (px - view.W / 2) / view.s; view.cy = lat + (py - view.H / 2) / view.s; clampView();
+}
+function tapMap(px, py){
+  let best = null, bd = 1e9;
+  for (const c of CITIES) { if (c._px == null) continue; const d = Math.hypot(c._px - px, c._py - py); if (d < c._r + 16 && d < bd) { bd = d; best = c; } }
+  if (best) { ui.city = best.id; ui.sel = null; ui.tab = 'market'; renderAll(true); if (window.innerWidth < 900) $('.panel').scrollIntoView({behavior: reduceMotion ? 'auto' : 'smooth', block: 'start'}); }
+}
+
+/* =====================================================================
+   input handling
+   ===================================================================== */
+function act(a, el){
+  const v = el.dataset.v, c = ui.sel ? coById(ui.sel) : null;
+  switch (a) {
+    case 'speed': ui.speed = +v; break;
+    case 'step': ui.speed = 0; if (!modalOpen()) { step(); save(); } break;
+    case 'help': showHelp(); return;
+    case 'tab': ui.tab = v; if (v !== 'market') ui.sel = ui.sel; break;
+    case 'zoom': zoomAt(+v, view.W / 2, view.H / 2); return;
+    case 'zoomreset': fitView(); return;
+    case 'sel': ui.sel = el.dataset.id; ui.tab = 'market'; $('#pbody').scrollTop = 0; break;
+    case 'back': ui.sel = null; break;
+    case 'city': ui.city = v || null; break;
+    case 'sort': ui.sort = v; break;
+    case 'amt': ui.amt = v === 'max' ? Math.floor(buyingPower() * 100) / 100 : +v; break;
+    case 'buy': if (c) { const n = sharesForMoney(c, ui.amt); if (ui.amt <= buyingPower() + 1e-9) { const r = execBuy('P', c, n); if (r) toast(`${c.name} ${fsh(r.n)}を${fm(r.cost)}で購入`); } } break;
+    case 'sell': if (c && c.own.P) { const r = execSell('P', c, c.own.P * +v); if (r) toast(`${c.name} ${fsh(r.n)}を${fm(r.proceeds)}で売却`); } break;
+    case 'tprem': ui.tPrem = +v; break;
+    case 'ttarget': ui.tTarget = +v; break;
+    case 'tender': if (c) { const q = tenderQuote('P', c, ui.tPrem, ui.tTarget); if (q && q.cost <= buyingPower() + 1e-9) { execTender('P', c, ui.tPrem, ui.tTarget); toast(`TOB完了：${c.name}の持分 ${pc(frac(c, 'P'))}`); } } break;
+    case 'payout': if (c && c.ctrl === 'P') { c.payout = +v; news(`${c.name}の配当性向を${pc(+v, 0)}に変更`, 'you', c.city); } break;
+    case 'ceoamt': ui.ceoAmt = +v; break;
+    case 'sdiv': if (c && c.ctrl === 'P') { const mine = frac(c, 'P'), a = specialDividend(c, c.cash * ui.ceoAmt); news(`${c.name}が特別配当${fm(a)}を実施（あなたの受取 ${fm(a * mine)}）`, 'you', c.city); toast(`特別配当：${fm(a * mine)}があなたの口座へ`); } break;
+    case 'buyback': if (c && c.ctrl === 'P') { const r = buyback(c, c.cash * ui.ceoAmt); if (r) { news(`${c.name}が自社株${fsh(r.n)}を消却。あなたの持分は${pc(frac(c, 'P'))}に`, 'you', c.city); } } break;
+    case 'invest': if (c && c.ctrl === 'P') { const a = invest(c, c.cash * ui.ceoAmt); news(`${c.name}が${fm(a)}の設備投資。成長率が上昇`, 'you', c.city); } break;
+    case 'repay': if (c && c.ctrl === 'P') repay(c, c.cash * ui.ceoAmt); break;
+    case 'borrow': if (c && c.ctrl === 'P') { const a = borrow(c, Math.max(0, maxDebt(c) - c.debt) * ui.ceoAmt); if (a) news(`${c.name}が${fm(a)}を借入`, 'you', c.city); } break;
+    case 'mprem': ui.mPrem = +v; break;
+    case 'merge': if (c && c.ctrl === 'P') { const B = coById(ui.mTarget); if (B) { const q = execMerge(c, B, ui.mPrem); if (q) toast(`${B.name}を吸収合併しました`); } } break;
+    case 'repayloan': { const p = S.player, a = v === 'all' ? Math.min(p.cash, p.loan) : Math.min(+v, p.cash, p.loan); p.cash -= a; p.loan -= a; break; }
+    case 'inbox': resolveInbox(+el.dataset.id, v === '1'); break;
+    case 'newgame': startNew(); return;
+    case 'continue': closeModal(); return;
+    case 'close': closeModal(); return;
+  }
+  checkEnd(); saveSoon(); renderAll(true);
+  if (a === 'step' || a === 'speed') renderTicker();
+}
+document.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (!el || el.disabled) return; act(el.dataset.act, el); });
+document.addEventListener('input', e => {
+  const el = e.target, k = el.dataset && el.dataset.actInput; if (!k) return;
+  if (k === 'amt') { ui.amt = Math.max(0, +el.value || 0); }
+  if (k === 'mtarget') { ui.mTarget = el.value; el.blur(); }
+  renderPanel(k === 'mtarget');
+  if (k === 'amt') { const i = $('#amt'); if (i && document.activeElement !== i) { /* re-rendered */ } }
+});
+document.addEventListener('change', e => { if (e.target.id === 'amt') { renderPanel(true); } });
+
+/* ---------- modal ---------- */
+const modalOpen = () => !$('#modal').hidden;
+function openModal(html){ const m = $('#modal'); m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`; m.hidden = false; ui.speed = 0; renderTop(); }
+function closeModal(){ $('#modal').hidden = true; }
+const HOWTO = `<ol>
+  <li><b>株を買う：</b>「市場」タブで企業を選び、売買パネルで購入。<span style="color:var(--up)">割安</span>タグは株価が理論株価を20%以上下回る銘柄です。</li>
+  <li><b>信用取引：</b>現金を超える買付は自動で借入（評価額の約2倍まで）。借入が株式評価額の70%を超えると追証で強制売却。</li>
+  <li><b>経営権を握る：</b>持分が50%を超えるとその会社を支配。TOB（公開買付け）でプレミアムを乗せて一気に買い集められます。</li>
+  <li><b>CEOとして稼ぐ：</b>支配企業の現金を特別配当で吸い上げ、自社株買いで持分を高め、他社を合併買収して帝国を拡大。</li>
+  <li><b>ライバルに注意：</b>3人の乗っ取り屋も同じ市場で株を買い漁ります。TOBの打診やグリーンメールの提案は「受信箱」に届きます。</li>
+</ol>`;
+function showStart(){
+  const has = !!loadSave();
+  openModal(`<h1><b>ATLAS</b><br>CAPITAL</h1><p class="lede">世界22都市・47社の株式市場で、買い占め・TOB・合併を駆使して巨大コングロマリットを築く投資シミュレーション。</p>
+  <div class="goal">元手 <b class="num">$30M</b> → 目標 純資産 <b class="num" style="color:var(--gold)">$1B</b>。3人のライバルより先に到達せよ。</div>
+  ${HOWTO}
+  <div class="btnrow">${has ? '<button class="btn gold" data-act="continue">続きから</button>' : ''}<button class="btn ${has ? '' : 'gold'}" data-act="newgame">新しく始める</button></div>`);
+}
+function showHelp(){ openModal(`<h1 style="font-size:22px">遊び方</h1><p class="lede">${dateOf(S.week)}・純資産 ${fm(netWorth('P'))}</p>${HOWTO}<div class="btnrow"><button class="btn gold" data-act="close">ゲームに戻る</button><button class="btn" data-act="newgame">最初からやり直す</button></div>`); }
+function showEnd(win){
+  const yrs = (S.week / 52).toFixed(1);
+  openModal(win
+    ? `<h1>目標達成</h1><p class="lede">${yrs}年で純資産 ${fm(netWorth('P'))} に到達。支配企業 ${S.cos.filter(c => c.ctrl === 'P').length}社。世界市場はあなたの手の中です。</p><div class="btnrow"><button class="btn gold" data-act="close">このまま続ける</button><button class="btn" data-act="newgame">新しいゲーム</button></div>`
+    : `<h1>破産</h1><p class="lede">借入が資産を上回り、口座は清算されました（${yrs}年目）。</p><div class="btnrow"><button class="btn gold" data-act="newgame">もう一度挑戦</button><button class="btn" data-act="close">盤面を眺める</button></div>`);
+}
+function startNew(){
+  // Seed from a counter in storage so each new game differs, without Math.random/Date in the sim.
+  let n = 1; try { n = (+localStorage.getItem(SAVE_KEY + '_n') || 0) + 1; localStorage.setItem(SAVE_KEY + '_n', String(n)); } catch (e) { /* ignore */ }
+  newGame((0x2545F491 * n + 7) | 0);
+  ui.sel = null; ui.city = null; ui.tab = 'market'; ui.speed = 1;
+  closeModal(); save(); renderLegend(); renderTicker(); renderAll(true);
+}
+
+/* ---------- main loop (UI timing only) ---------- */
+const SPEED_MS = [0, 1100, 450, 160];
+let last = 0;
+setInterval(() => {
+  if (!S || ui.speed === 0 || modalOpen()) return;
+  const now = performance.now(); if (now - last < SPEED_MS[ui.speed]) return; last = now;
+  step(); renderTop(); renderTabs(); renderPanel(false); mapDirty = true;
+  if (S.week % 4 === 0) { renderTicker(); save(); }
+}, 50);
+window.addEventListener('resize', () => { resizeMap(); });
+if (window.ResizeObserver) new ResizeObserver(() => resizeMap()).observe($('.mapwrap'));
+
+/* ---------- boot ---------- */
+function boot(){
+  const saved = loadSave();
+  if (saved) S = saved; else newGame(0x1A7A5C);
+  resizeMap(); renderLegend(); renderTicker(); renderAll(true);
+  requestAnimationFrame(frame);
+  showStart();
+}
+window.__atlas = {get S(){ return S; }, step, newGame, netWorth, fair, execBuy, execTender, execMerge, ui};
+boot();
+})();
+</script>
+</body>
+</html>
