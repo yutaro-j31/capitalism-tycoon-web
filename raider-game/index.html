@@ -2015,7 +2015,7 @@ function renderTicker(){
 const chg = (c, n = 1) => c.hist.length > n ? c.price / c.hist[c.hist.length - 1 - n] - 1 : 0;
 const ownCol = k => OWNC[bossOf(k)] || '#8fa8ba';
 function renderLegend(){
-  const h = `<span><i class="dot" style="background:${OWNC.P}"></i>${esc(S.company)}</span>` + S.rivals.map(r => `<span><i class="dot" style="background:${OWNC[r.id]}"></i>${esc(r.n)}</span>`).join('') + `<span><i class="dot" style="background:var(--pub)"></i>独立系</span>` + ((S.props || []).some(p => p.own === 'P') ? `<span><svg class="home" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 6 6 1.5 11 6V11H1Z" fill="#f2b632"/></svg>あなたの不動産</span>` : '');
+  const h = `<span><i class="dot" style="background:${OWNC.P}"></i>${esc(S.company)}</span>` + S.rivals.map(r => `<span><i class="dot" style="background:${OWNC[r.id]}"></i>${esc(r.n)}</span>`).join('') + `<span><i class="dot" style="background:var(--pub)"></i>独立系</span>` + ((S.props || []).some(p => p.own === 'P') ? `<span><svg class="home" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 6 6 1.5 11 6V11H1Z" fill="#f2b632"/></svg>あなたの不動産</span>` : '') + ((S.props || []).some(p => p.own && p.own !== 'P') ? `<span><svg class="home" viewBox="0 0 22 12" style="width:20px" aria-hidden="true">${['R1', 'R2', 'R3'].filter(k => S.props.some(p => p.own === k)).map((k, i) => `<path d="M${4 + i * 7} 2 ${8 + i * 7} 6 ${4 + i * 7} 10 ${i * 7} 6Z" fill="${OWNHEX[k]}"/>`).join('')}</svg>ライバルの不動産</span>` : '');
   if (h !== ui.legendH) { ui.legendH = h; $('#legend').innerHTML = h; }
 }
 function renderTabs(){
@@ -2050,7 +2050,7 @@ function propRow(p){
 function cityProps(city){
   const list = S.props.filter(p => p.city === city); if (!list.length) return '';
   if (!has('realty')) return lockNote('realty', `${CITY[city].n}の不動産`);
-  return `<section class="box"><h4>${CITY[city].n}の不動産 <small>${list.length}件</small></h4>${list.map(propRow).join('')}</section>`;
+  return `<section class="box" id="cprops"><h4>${CITY[city].n}の不動産 <small>${list.length}件</small></h4>${list.map(propRow).join('')}</section>`;
 }
 function realtySection(){
   if (!has('realty')) return '';
@@ -2622,6 +2622,7 @@ function cityStats(){
   }
   return m;
 }
+const propHits = []; // screen positions of property markers drawn this frame: [x, y, city]
 function drawMap(now){
   const x = mctx, W = view.W, H = view.H;
   x.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
@@ -2656,8 +2657,9 @@ function drawMap(now){
   x.stroke(); x.setLineDash([]);
   // cities
   const st = cityStats(), z = view.s / minScale(), sel = ui.sel ? coById(ui.sel) : null;
-  const labels = [], homes = [], myProps = {};
-  for (const p of S.props || []) if (p.own === 'P') myProps[p.city] = (myProps[p.city] || 0) + 1;
+  const labels = [], homes = [], rivalMarks = [], myProps = {}, rivProps = {};
+  for (const p of S.props || []) if (p.own === 'P') myProps[p.city] = (myProps[p.city] || 0) + 1; else if (p.own) (rivProps[p.city] = rivProps[p.city] || new Set()).add(p.own);
+  propHits.length = 0;
   for (const city of CITIES) {
     const o = st[city.id]; const [px, py] = proj(city.lon, city.lat);
     if (px < -40 || px > W + 40 || py < -40 || py > H + 40) continue;
@@ -2676,8 +2678,14 @@ function drawMap(now){
     const hi = ui.city === city.id || (sel && sel.city === city.id);
     if (hi) { x.beginPath(); x.arc(px, py, r + 6, 0, 7); x.strokeStyle = '#f2b632'; x.lineWidth = 2; x.stroke(); }
     if (z > 1.6 || hi || cap > 9000) labels.push([city.n + (o ? ` ${o.n}` : ''), px, py + r + 13, hi]);
-    if (myProps[city.id]) homes.push([px + r * .8, py - r * .8, myProps[city.id]]);
+    if (myProps[city.id]) { homes.push([px + r * .8, py - r * .8, myProps[city.id]]); propHits.push([px + r * .8, py - r * .8, city.id]); }
+    if (rivProps[city.id]) { const ks = ['R1', 'R2', 'R3'].filter(k => rivProps[city.id].has(k)); ks.forEach((k, i) => rivalMarks.push([px + r * .75 + i * 7, py + r * .8, k])); propHits.push([px + r * .75 + (ks.length - 1) * 3.5, py + r * .8, city.id]); }
   }
+  x.font = '600 11px "Noto Sans JP", sans-serif'; x.textAlign = 'center';
+  for (const [t, px, py, hi] of labels) { x.lineWidth = 3; x.strokeStyle = 'rgba(7,26,44,.9)'; x.strokeText(t, px, py); x.fillStyle = hi ? '#f2b632' : '#e8eef2'; x.fillText(t, px, py); }
+  // property markers go on top of the labels so they are never hidden
+  // rival real estate: a small diamond in each rival's colour on the city's lower right
+  for (const [dx, dy, k] of rivalMarks) { x.beginPath(); x.moveTo(dx, dy - 4.5); x.lineTo(dx + 4.5, dy); x.lineTo(dx, dy + 4.5); x.lineTo(dx - 4.5, dy); x.closePath(); x.lineWidth = 2.5; x.strokeStyle = 'rgba(7,26,44,.95)'; x.stroke(); x.fillStyle = OWNHEX[k]; x.fill(); }
   // the player's real estate: a small gold house on the city's upper right (count when more than one)
   for (const [hx, hy, n] of homes) {
     const w = 11, h = 9;
@@ -2687,8 +2695,6 @@ function drawMap(now){
     x.fillStyle = 'rgba(7,26,44,.95)'; x.fillRect(hx - 1.5, hy + 1, 3, 4);
     if (n > 1) { x.font = '700 10px "JetBrains Mono", monospace'; x.textAlign = 'left'; x.lineWidth = 3; x.strokeText('×' + n, hx + w / 2 + 2, hy + 4); x.fillStyle = '#f2b632'; x.fillText('×' + n, hx + w / 2 + 2, hy + 4); }
   }
-  x.font = '600 11px "Noto Sans JP", sans-serif'; x.textAlign = 'center';
-  for (const [t, px, py, hi] of labels) { x.lineWidth = 3; x.strokeStyle = 'rgba(7,26,44,.9)'; x.strokeText(t, px, py); x.fillStyle = hi ? '#f2b632' : '#e8eef2'; x.fillText(t, px, py); }
   // pulses
   for (const f of fx) if (f.type === 'pulse') {
     const t = Math.max(0, (now - f.t0) / 1400); if (t > 1) continue; const c = CITY[f.city]; if (!c) continue;
@@ -2722,6 +2728,9 @@ function zoomAt(f, px, py){
   view.cx = lon - (px - view.W / 2) / view.s; view.cy = lat + (py - view.H / 2) / view.s; clampView();
 }
 function tapMap(px, py){
+  // a property marker wins over its city when the tap lands closer to the marker (22px radius: a 44px touch target)
+  let ph = null, pd = 23; for (const [hx, hy, city] of propHits) { const d = Math.hypot(hx - px, hy - py); if (d < pd) { pd = d; ph = city; } }
+  if (ph) { const C = CITY[ph]; if (Math.hypot(C._px - px, C._py - py) >= pd) { ui.city = ph; ui.sel = null; ui.tab = 'market'; renderAll(true); const el = $('#cprops'); if (el) el.scrollIntoView({behavior: reduceMotion ? 'auto' : 'smooth', block: 'start'}); return; } }
   let best = null, bd = 1e9;
   for (const c of CITIES) { if (c._px == null) continue; const d = Math.hypot(c._px - px, c._py - py); if (d < c._r + 16 && d < bd) { bd = d; best = c; } }
   if (best) { ui.city = best.id; ui.sel = null; ui.tab = 'market'; renderAll(true); if (window.innerWidth < 900) $('.panel').scrollIntoView({behavior: reduceMotion ? 'auto' : 'smooth', block: 'start'}); }
@@ -2949,7 +2958,7 @@ function boot(){
   showStart();
   if (ui.restored) toast('セーブデータが壊れていたため、バックアップから復元しました', true);
 }
-window.__atlas = {get S(){ return S; }, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, hire, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
+window.__atlas = {get S(){ return S; }, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, hire, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
 boot();
 })();
 </script>

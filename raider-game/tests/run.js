@@ -417,6 +417,13 @@ async function testPhase6(b) {
   const b2 = await m.p.evaluate(() => ({sell: document.querySelectorAll('[data-act=psell]').length, o: document.documentElement.scrollWidth - innerWidth}));
   const lg = await m.p.evaluate(() => document.querySelector('#legend').textContent.includes('あなたの不動産'));
   ok('map legend shows the player\'s real estate once a property is owned', lg);
+  // tapping a property marker on the map opens that city's property list; rival properties get their own marks
+  await m.p.evaluate(() => { const A = window.__atlas, S = A.S; S.rivals[0].cash += 500; A.buyProp('R1', S.props.find(x => x.city === 'osa' && !x.own), .5); A.ui.city = null; scrollTo(0, 0); });
+  await m.p.click('[data-act=zoomjp]'); await m.p.waitForTimeout(500);
+  const hit = await m.p.evaluate(() => { const h = window.__atlas.propHits.find(x => x[2] === 'osa'), r = document.querySelector('#map').getBoundingClientRect(); return h && {x: r.left + h[0], y: r.top + h[1], vis: h[0] > 0 && h[0] < r.width && h[1] > 0 && h[1] < r.height, n: window.__atlas.propHits.length}; });
+  let tapped = null;
+  if (hit && hit.vis) { await m.p.touchscreen.tap(hit.x, hit.y); await m.p.waitForTimeout(700); tapped = await m.p.evaluate(() => ({city: window.__atlas.ui.city, list: !!document.querySelector('#cprops'), legend: document.querySelector('#legend').textContent.includes('ライバルの不動産')})); }
+  ok('map: tapping a property marker opens that city\'s property list', tapped && tapped.city === 'osa' && tapped.list && tapped.legend, JSON.stringify({hit, tapped}));
   ok('iPhone: city property list and holdings render without overflow', a.n > 0 && a.o <= 0 && b2.sell === 1 && b2.o <= 0, JSON.stringify({a, b2}));
   ok('no page errors in phase 6 tests', !errs.length && !m.errs.length, errs.concat(m.errs).slice(0, 3).join(' | '));
   await m.ctx.close(); await ctx.close();
