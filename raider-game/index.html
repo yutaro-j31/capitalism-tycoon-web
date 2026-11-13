@@ -442,7 +442,6 @@ const synergy = c => IND[c.ind].m * clamp((indShare(c) - .12) * .8, 0, .25); // 
 const PRICE = {'-1': {n: '低価格'}, '0': {n: '標準'}, '1': {n: '高価格'}};
 const priceStepOf = c => clamp(c.base * .5, .02, .08); // a price move a company can afford: half its structural margin, 2–8%
 const levelFor = (c, ps) => 1 + (ps || 0) * priceStepOf(c);
-const EL = {bank: 2, tech: 1.5, auto: 2.5, energy: 2, retail: 4, pharma: 1.2, ship: 3, food: 3, realty: 2, telecom: 2.5, steel: 3, air: 3.5}; // how strongly share reacts to price
 const PHI = {bank: .3, tech: .3, auto: .35, energy: .4, retail: .25, pharma: .3, ship: .45, food: .25, realty: .4, telecom: .45, steel: .4, air: .45}; // fixed share of total costs
 const OTHERS0 = .35; // share held by small firms when a market is first created
 const SHARE_SPEED = .06; // weekly step toward the target share
@@ -454,7 +453,11 @@ const REGION_OF = Object.fromEntries(Object.entries(REGION).flatMap(([k, r]) => 
 const mkKey = c => REGION_OF[c.city] + '|' + c.ind;
 const mkName = key => { const [r, ind] = key.split('|'); return `${REGION[r].n}の${IND[ind].n}市場`; };
 const plev = c => levelFor(c, c.ps);
-const elOf = c => EL[c.ind] * (c.ctrl === 'P' && hasR('op2') ? .6 : 1);
+// Price sensitivity is set so that the standard price is where operating profit peaks: a company sitting on a fat
+// per-unit margin or a big share would otherwise always gain by raising its price. Raising the price pays only with a
+// strong brand (advertising) or loyal customers (research op2); cutting it buys share at the cost of profit.
+const cmStd = c => Math.max(.08, 1 - vcOf(c)); // contribution per unit of volume at the standard price
+const elOf = c => clamp(1 / (cmStd(c) * Math.max(.15, 1 - (c.sh || 0))), 1.2, 10) * (1.25 - .5 * brandOf(c)) * (c.ctrl === 'P' && hasR('op2') ? .75 : 1);
 const brandF = c => Math.exp(1.2 * (brandOf(c) - .5));
 const priceF = (c, ps) => Math.pow(levelFor(c, ps == null ? c.ps : ps), -elOf(c));
 const appeal = (c, ps) => (c.w || 0) * brandF(c) * priceF(c, ps);
@@ -1060,7 +1063,7 @@ function delegateStep(c){ // the hired CEO runs day-to-day decisions within the 
     if (b < .5 && c.cash > c.rev * .03) { advertise(c, c.rev * .015); acts.push('広告'); }
     c.payout = .4;
   } else {
-    if ((c.ps || 0) !== 1) { c.ps = 1; acts.push('値上げ'); }
+    const ps = pricePreview(c, 1).op > pricePreview(c, 0).op ? 1 : 0; if ((c.ps || 0) !== ps) { c.ps = ps; acts.push(ps ? '値上げ' : '価格を標準に'); } // only raises prices when the brand can carry it
     c.payout = .8;
     if (c.cash > c.rev * .08) { specialDividend(c, c.cash * .5); acts.push('特別配当'); }
   }
@@ -1296,7 +1299,7 @@ const RES_COST = [2, 6, 15, 35]; // 億円 of research points per tier
 const RES = {
   fin: {n: '金融', items: [['fin1', '信用枠拡大', '信用取引で評価額の2.5倍まで買える（通常2倍）'], ['fin2', '低利調達', '信用借入と支配企業の借入金利 −0.5%'], ['fin3', '貸株ネットワーク', '空売りの貸株料 年3% → 1.5%、借りられる株が発行済の15% → 25%'], ['fin4', 'デリバティブ部門', 'オプションの手数料 5% → 2%、追証ラインに5%の余裕（リスク管理）']]},
   ma:  {n: '買収', items: [['ma1', '買付エージェント', 'TOBの応募が集まりやすくなる'], ['ma2', '防衛策の研究', '相手の買収防衛策の発動率 −40%'], ['ma3', '交渉術', '相対取引で相手の言い値 −8%'], ['ma4', '根回し', 'ホワイトナイトの出現率 −50%、あなたのTOBへのライバルの対抗TOB −30%']]},
-  op:  {n: '経営', items: [['op1', 'マーケティング研究所', '支配企業の広告効率 +50%'], ['op2', 'ロイヤル顧客', '支配企業の顧客の価格感応度 −40%（値上げしても客が離れにくい。高価格にしたときの増益がおよそ倍に）'], ['op3', '生産技術', '支配企業の設備投資の効果 +30%'], ['op4', 'M&Aアドバイザリー', '支配企業の事業売却額 +25%']]},
+  op:  {n: '経営', items: [['op1', 'マーケティング研究所', '支配企業の広告効率 +50%'], ['op2', 'ロイヤル顧客', '支配企業の顧客の価格感応度 −25%（値上げしても客が離れにくく、高価格で増益になる）'], ['op3', '生産技術', '支配企業の設備投資の効果 +30%'], ['op4', 'M&Aアドバイザリー', '支配企業の事業売却額 +25%']]},
   in:  {n: '情報', items: [['in1', 'アナリスト網', '各社に「社内予想」（ブレのない利益予想）を表示'], ['in2', '情報筋', '噂に信頼度が表示される'], ['in3', 'ライバル監視', 'ライバルが買い集め中の銘柄が分かる'], ['in4', 'コンプライアンス体制', 'インサイダー取引の摘発率と課徴金がそれぞれ半分']]},
 };
 const RES_RATE = [0, .0005, .001, .002]; // weekly research budget as a share of the holding company's net assets
@@ -2108,7 +2111,7 @@ function marketCard(c){
   const M = S.mk[c.mk]; if (!M) return '';
   const list = S.cos.filter(x => x.mk === c.mk).sort((a, b) => b.sh - a.sh), so = Math.max(0, 1 - list.reduce((a, x) => a + x.sh, 0));
   return `<h3>${mkName(c.mk)}</h3>
-  <div class="kv"><div><span>市場規模（年）</span><b>${fm(M.D)}</b></div><div><span>市場の伸び</span><b>${spc(IND[c.ind].g + IND[c.ind].cyc * (S.econ.gdp - 2.5) / 100)}</b></div><div><span>価格への反応</span><b>${EL[c.ind] >= 3 ? '強い' : EL[c.ind] >= 2 ? '普通' : '弱い'}</b></div></div>
+  <div class="kv"><div><span>市場規模（年）</span><b>${fm(M.D)}</b></div><div><span>市場の伸び</span><b>${spc(IND[c.ind].g + IND[c.ind].cyc * (S.econ.gdp - 2.5) / 100)}</b></div><div><span>価格への反応</span><b>${elOf(c) >= 5 ? '強い' : elOf(c) >= 3 ? '普通' : '弱い'}</b></div></div>
   <div class="mshare">${list.map(x => `<div class="${x === c ? 'me' : ''}"><span>${x.ctrl ? `<i class="dot" style="background:${OWNC[x.ctrl]}"></i>` : ''}${esc(x.name)}</span><i class="bar"><b style="width:${x.sh * 100}%"></b></i><span class="num">${pc(x.sh)}</span><small>${PRICE[x.ps || 0].n}・ブランド${(brandOf(x) * 100).toFixed(0)}</small></div>`).join('')}
   <div><span>その他の中小企業</span><i class="bar"><b style="width:${so * 100}%;background:var(--pub)"></b></i><span class="num">${pc(so)}</span><small></small></div></div>`;
 }
@@ -2254,7 +2257,7 @@ function priceBox(c){
   return `<section class="box"><h4>価格と広告 <small>利益率を取るか、成長とシェアを取るか</small></h4>
     <p class="lbl">価格戦略</p>
     <div class="seg">${[-1, 0, 1].map(v => { const pv = pricePreview(c, v); return `<button class="${ps === v ? 'on' : ''}" data-act="pstrat" data-v="${v}">${PRICE[v].n}（${v ? spc(levelFor(c, v) - 1) : '±0%'}）<br><small>シェア ${pc(pv.t)}・営業利益 ${fm(pv.op)}</small></button>`; }).join('')}</div>
-    <p>数字は市場が落ち着いた後の目安です（今のシェア ${pc(c.sh)}）。値動きの幅は会社の利益率に合わせて決まります（この会社は±${pc(priceStepOf(c))}）。シェアは毎週少しずつ動きます。${IND[c.ind].n}は価格への反応が${EL[c.ind] >= 3 ? '強い' : EL[c.ind] >= 2 ? '普通の' : '弱い'}業種です。値下げで奪ったシェアは、同じ市場の競合と中小企業から来ます。</p>
+    <p>数字は市場が落ち着いた後の目安です（今のシェア ${pc(c.sh)}）。値動きの幅は会社の利益率に合わせて決まります（この会社は±${pc(priceStepOf(c))}）。シェアは毎週少しずつ動きます。ふつうは標準価格で営業利益が最も大きくなります。値上げで増益になるのは、広告でブランドを高めた（目安70以上）か、研究「ロイヤル顧客」がある場合です。値下げは利益を削ってシェアを買う手で、奪ったシェアは同じ市場の競合と中小企業から来ます。</p>
     ${cut.length ? `<p class="down">同じ市場で値下げ中：${cut.map(x => esc(x.name)).join('、')}</p>` : ''}
     <p class="lbl">広告キャンペーン（ブランド ${(b * 100).toFixed(0)} / 100）</p><i class="bar"><b style="width:${b * 100}%"></b></i>
     <div class="btnrow">${ads.map(([f, a]) => `<button class="btn sm" data-act="advert" data-v="${f}" ${a <= c.cash && a > .001 ? '' : 'disabled'}>売上の${pc(f, 0)}（${fm(a)}）→ +${((1 - b) * clamp(f * 3, 0, .35) * 100).toFixed(0)}</button>`).join('')}</div>

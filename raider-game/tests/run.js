@@ -193,7 +193,7 @@ async function testMarkets(b) {
       for (const c of S.cos) {
         const t = [-1, 0, 1].map(ps => A.mkTargets(c.mk, {id: c.id, ps})[c.id]), m = [-1, 0, 1].map(ps => A.pricePreview(c, ps).m);
         out.shareOrder.n++; if (!(t[0] > t[1] && t[1] > t[2])) out.shareOrder.bad++;
-        out.marginOrder.n++; if (!(m[2] > m[1] && m[1] > m[0])) out.marginOrder.bad++;
+        const o = [-1, 0, 1].map(ps => A.pricePreview(c, ps).op); out.marginOrder.n++; if (!(o[1] >= o[0] - 1e-9 && o[1] >= o[2] - 1e-9)) out.marginOrder.bad++;
       }
     }
     for (const sd of seeds) { // a rival in the same market cuts its price: our share should fall
@@ -217,8 +217,8 @@ async function testMarkets(b) {
   console.log(`MARKET price roles (3y, relative to start): revenue low ${lo[0].toFixed(2)} / std ${st[0].toFixed(2)} / high ${hi[0].toFixed(2)}; share ${lo[1].toFixed(2)} / ${st[1].toFixed(2)} / ${hi[1].toFixed(2)}; cash ${lo[2].toFixed(2)} / ${st[2].toFixed(2)} / ${hi[2].toFixed(2)}`);
   ok('price mechanism: for every company, equilibrium share low > standard > high', r.shareOrder.bad === 0 && r.shareOrder.n > 0, `${r.shareOrder.n - r.shareOrder.bad}/${r.shareOrder.n}`);
   console.log(`MARKET companies lost during the 3 years: low ${lo[3] || 0} / std ${st[3] || 0} / high ${hi[3] || 0}`);
-  // Not every company: with heavy fixed costs, a higher price can lower the margin because lost volume spreads fixed costs thinner (operating leverage).
-  ok('price mechanism: operating margin high > standard > low for most companies (≥85%)', r.marginOrder.n > 0 && r.marginOrder.bad <= r.marginOrder.n * .15, `${r.marginOrder.n - r.marginOrder.bad}/${r.marginOrder.n}`);
+  // Standard is where operating profit peaks at a normal brand without research (a few strong or weak brands may differ).
+  ok('price mechanism: standard earns at least as much as high or low for most companies (≥90%)', r.marginOrder.n > 0 && r.marginOrder.bad <= r.marginOrder.n * .1, `${r.marginOrder.n - r.marginOrder.bad}/${r.marginOrder.n}`);
   console.log('MARKET (info only — separate runs diverge, so this is noisy)');
   ok('a rival price cut takes share from the same market', r.cutHurts === r.cutTried && r.cutTried > 0, `${r.cutHurts}/${r.cutTried}`);
   ok('profit attribution adds up to the change in operating profit', r.attrN > 0 && r.attrErr < 1e-6, `${r.attrN} companies, max error ${r.attrErr}`);
@@ -237,7 +237,7 @@ async function testPhase2(b) {
     A.execBuy('P', c, c.shares * .8); if (c.ctrl !== 'P') A.execBuy('P', c, c.shares * .15);
     out.ctrl = c.ctrl === 'P';
     const f0 = c.fixed; A.restructure(c, 'cost'); out.costCut = c.fixed / f0;
-    A.hire(c, 0); c.deleg = 'cash';
+    A.hire(c, 0); c.deleg = 'cash'; c.brand = .95; S.research.done.op2 = 1; // a strong brand and loyal customers make a price rise pay
     for (let i = 0; i < 12; i++) { A.step(); S.inbox = []; }
     out.cashPolicy = {payout: c.payout, ps: c.ps, log: (c.mlog || []).length};
     const counts = {raider: 0, turnaround: 0, keiretsu: 0, defend: 0};
@@ -448,7 +448,7 @@ async function testResearch(b) {
   });
   ok('research: an item finished in week 0 still takes effect', r.week0);
   ok('research: the derivatives desk widens the margin-call line by 5 points', Math.abs(r.call[1] - r.call[0] - .05) < 1e-9, JSON.stringify(r.call));
-  ok('research: loyal customers make going premium pay more', r.op2.ctrl === 'P' && r.op2.g1 > r.op2.g0 && r.op2.g0 > 0, JSON.stringify(r.op2));
+  ok('research: loyal customers turn a losing price rise into a profitable one', r.op2.ctrl === 'P' && r.op2.g0 < 0 && r.op2.g1 > 0, JSON.stringify(r.op2));
   ok('research: the budget stops once everything is paid for', r.spent === 35 && r.pts === 35 && r.left === 0, JSON.stringify({spent: r.spent, pts: r.pts, left: r.left}));
   ok('no page errors in research tests', !errs.length, errs.slice(0, 3).join(' | '));
   await ctx.close();
