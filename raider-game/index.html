@@ -229,7 +229,7 @@ canvas.chart{width:100%;height:120px;display:block;margin:10px 0 4px}
    Money unit: $ millions. Share unit: millions of shares.
    ===================================================================== */
 const SAVE_KEY = 'atlas_capital_save_v1';
-const GOAL = 1000; // 10億ドル (internal unit: $ millions)
+const GOAL = 1000; // 1,000億円 (internal money unit: 1億円)
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const $ = s => document.querySelector(s);
 
@@ -302,15 +302,15 @@ const pickIdx = n => Math.floor(rnd() * n) % n;
 /* ---------- names / formatting ---------- */
 const ownerName = k => k === 'P' ? 'あなた' : (S.rivals.find(r => r.id === k) || {n:'?'}).n;
 const grp = n => Math.round(n).toLocaleString('ja-JP');
-// money is held in $ millions internally; shown in Japanese units (万ドル / 億ドル / 兆ドル)
+// Money unit inside the engine = 1億円. Share unit = 1,000,000 shares, so a price of 1.0 = 100円/株.
 const fm = v => {
   const a = Math.abs(v), s = v < 0 ? '-' : '';
-  if (a >= 1e6) return s + (a / 1e6).toFixed(2) + '兆ドル';
-  if (a >= 100) { const o = a / 100; return s + (o >= 100 ? grp(o) : o.toFixed(o >= 10 ? 1 : 2)) + '億ドル'; }
-  if (a >= .005) return s + grp(a * 100) + '万ドル';
-  return s + grp(a * 1e6) + 'ドル';
+  if (a >= 1e4) return s + (a / 1e4).toFixed(a >= 1e5 ? 1 : 2) + '兆円';
+  if (a >= 1) return s + (a >= 100 ? grp(a) : String(+a.toFixed(a >= 10 ? 1 : 2))) + '億円';
+  if (a >= 5e-5) return s + grp(a * 1e4) + '万円';
+  return s + grp(a * 1e8) + '円';
 };
-const fp = p => (p >= 1000 ? grp(p) : p >= 100 ? p.toFixed(0) : p >= 10 ? p.toFixed(1) : p.toFixed(2)) + 'ドル';
+const fp = p => { const y = p * 100; return (y >= 10 ? grp(y) : y.toFixed(1)) + '円'; };
 const pc = (x, d) => (x * 100).toFixed(d == null ? 1 : d) + '%';
 const spc = x => { const t = (x * 100).toFixed(1); return (t === '-0.0' ? '+0.0' : (x >= 0 ? '+' : '') + t) + '%'; };
 const fsh = n => n >= 100 ? (n / 100).toFixed(2) + '億株' : n >= .005 ? grp(n * 100) + '万株' : grp(n * 1e6) + '株';
@@ -373,7 +373,7 @@ function newGame(seed){
   for (let i = 0; i < 8; i++) for (const c of S.cos) priceStep(c); // warm up history
   for (const c of S.cos) c.hist = c.hist.slice(-8);
   recordNW();
-  news('アトラス証券取引所へようこそ。元手3,000万ドルで世界の企業を買い集め、純資産10億ドルを目指せ。', 'you');
+  news('アトラス証券取引所へようこそ。元手30億円で世界の企業を買い集め、純資産1,000億円を目指せ。', 'you');
 }
 
 /* ---------- money flows ---------- */
@@ -828,7 +828,7 @@ function renderCompany(c){
   const n = sharesForMoney(c, ui.amt), qb = quoteBuy(c, n);
   const bp = buyingPower();
   const tradeBox = `<section class="box"><h4>株式売買 <small>手数料0.25%・大口は株価を動かします</small></h4>
-    <div class="field"><label for="amt">買付金額（万ドル）</label><input id="amt" type="number" inputmode="numeric" min="0" step="10" value="${Math.round(ui.amt * 100)}" data-act-input="amt"></div>
+    <div class="field"><label for="amt">買付金額（億円）</label><input id="amt" type="number" inputmode="decimal" min="0" step="0.5" value="${+ui.amt.toFixed(2)}" data-act-input="amt"></div>
     <div class="seg" style="margin-top:6px">${[1, 5, 20, 50].map(v => `<button data-act="amt" data-v="${v}">${fm(v)}</button>`).join('')}<button data-act="amt" data-v="max">余力全額</button></div>
     <div class="preview">${qb ? `約 ${fsh(qb.n)} · 平均 ${fp(qb.avg)} → 株価 ${fp(qb.np)}<br>取得後の持分 ${pc((mine + qb.n) / c.shares)}${ui.amt > S.player.cash ? `<br><em>不足分 ${fm(ui.amt - S.player.cash)} は信用借入（金利 ${(S.econ.rate + 2).toFixed(1)}%）</em>` : ''}${sp ? '<br><em>空売り中の銘柄は、買い戻してから購入できます</em>' : ''}` : '<em>市場に買える浮動株がありません</em>'}</div>
     <div class="btnrow"><button class="btn buy" data-act="buy" ${!qb || sp || ui.amt > bp + 1e-9 || ui.amt <= 0 ? 'disabled' : ''}>買う</button>
@@ -1172,7 +1172,7 @@ function act(a, el){
 document.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (!el || el.disabled) return; act(el.dataset.act, el); });
 document.addEventListener('input', e => {
   const el = e.target, k = el.dataset && el.dataset.actInput; if (!k) return;
-  if (k === 'amt') { ui.amt = Math.max(0, (+el.value || 0) / 100); }
+  if (k === 'amt') { ui.amt = Math.max(0, +el.value || 0); }
   if (k === 'mtarget') { ui.mTarget = el.value; el.blur(); }
   renderPanel(k === 'mtarget');
   if (k === 'amt') { const i = $('#amt'); if (i && document.activeElement !== i) { /* re-rendered */ } }
@@ -1194,7 +1194,7 @@ const HOWTO = `<ol>
 function showStart(){
   const has = !!loadSave();
   openModal(`<h1><b>ATLAS</b><br>CAPITAL</h1><p class="lede">世界22都市・47社の株式市場で、買い占め・TOB・合併を駆使して巨大コングロマリットを築く投資シミュレーション。</p>
-  <div class="goal">元手 <b class="num">3,000万ドル</b> → 目標 純資産 <b class="num" style="color:var(--gold)">10億ドル</b>。3人のライバルより先に到達せよ。</div>
+  <div class="goal">元手 <b class="num">30億円</b> → 目標 純資産 <b class="num" style="color:var(--gold)">1,000億円</b>。3人のライバルより先に到達せよ。</div>
   ${HOWTO}
   <div class="btnrow">${has ? '<button class="btn gold" data-act="continue">続きから</button>' : ''}<button class="btn ${has ? '' : 'gold'}" data-act="newgame">新しく始める</button></div>`);
 }
