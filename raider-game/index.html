@@ -34,7 +34,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .brand{font-family:var(--f-display);font-size:20px;letter-spacing:.04em;line-height:1;white-space:nowrap}
 .brand b{color:var(--gold);font-weight:400}
 .brand small{display:block;font-family:var(--f-body);font-size:10px;letter-spacing:.18em;color:var(--mute);margin-top:4px}
-.date{font-family:var(--f-mono);font-size:13px;color:var(--mute);white-space:nowrap}
+.date{display:flex;flex-direction:column;font-size:11px;color:var(--mute);line-height:1.35;min-width:0}
+.date b{font-size:14px;color:var(--ink);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:16em}
+.date span:last-child{font-family:var(--f-mono)}
+.field input.txt{font-family:var(--f-body)}
+.field.name label{min-width:4em}
 .stats{display:flex;flex-wrap:wrap;gap:6px 16px;flex:1;min-width:0}
 .stat{display:flex;flex-direction:column;min-width:74px}
 .stat span{font-size:10px;letter-spacing:.12em;color:var(--mute)}
@@ -316,7 +320,8 @@ function gauss(){ let u = rnd(); if (u < 1e-12) u = 1e-12; return Math.sqrt(-2 *
 const pickIdx = n => Math.floor(rnd() * n) % n;
 
 /* ---------- names / formatting ---------- */
-const ownerName = k => k === 'P' ? 'あなた' : (S.rivals.find(r => r.id === k) || {n:'?'}).n;
+const DEF_CO = 'アトラス・キャピタル', DEF_PN = 'あなた';
+const ownerName = k => k === 'P' ? S.company : (S.rivals.find(r => r.id === k) || {n:'?'}).n;
 const grp = n => Math.round(n).toLocaleString('ja-JP');
 // Money unit inside the engine = 1億円. Share unit = 1,000,000 shares, so a price of 1.0 = 100円/株.
 const fm = v => {
@@ -376,10 +381,11 @@ function makeCompany(def){
 }
 
 /* ---------- new game ---------- */
-function newGame(seed, diff){
+function newGame(seed, diff, company, pname){
   const D = DIFF[diff] || DIFF.normal;
   S = {
-    v: 1, seed, diff: DIFF[diff] ? diff : 'normal', rs: (seed ^ 0x5bd1e995) | 0, week: 0, nextId: 1,
+    v: 1, seed, diff: DIFF[diff] ? diff : 'normal',
+    company: (company || '').trim().slice(0, 20) || DEF_CO, pname: (pname || '').trim().slice(0, 16) || DEF_PN, rs: (seed ^ 0x5bd1e995) | 0, week: 0, nextId: 1,
     econ: {gdp: 2.6, rate: 4.0, sent: 1.0, indS: Object.fromEntries(Object.keys(IND).map(k => [k, 1]))},
     player: {cash: D.cash, loan: 0, cost: {}, divs: 0, shorts: {}},
     rivals: RIVAL_DEF.map(r => ({id: r.id, n: r.n, tag: r.tag, cash: r.cash * D.rc, agg: Math.min(1, r.agg * D.ra), sell: r.sell, prem: r.prem})),
@@ -390,7 +396,7 @@ function newGame(seed, diff){
   for (let i = 0; i < 8; i++) for (const c of S.cos) priceStep(c); // warm up history
   for (const c of S.cos) c.hist = c.hist.slice(-8);
   recordNW();
-  news(`アトラス証券取引所へようこそ（難易度：${D.n}）。元手${fm(D.cash)}で世界の企業を買い集め、純資産1,000億円を目指せ。`, 'you');
+  news(`${S.company}設立（社長：${S.pname}・難易度：${D.n}）。アトラス証券取引所へようこそ。元手${fm(D.cash)}で世界の企業を買い集め、純資産1,000億円を目指せ。`, 'you');
 }
 
 /* ---------- money flows ---------- */
@@ -784,18 +790,18 @@ function fxArc(owner, a, b){ fx.push({type: 'arc', a, b, col: OWNHEX[owner] || '
 let saveTimer = 0;
 function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
 function saveSoon(){ clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); }
-function loadSave(){ try { const s = localStorage.getItem(SAVE_KEY); if (!s) return null; const o = JSON.parse(s); if (!(o && o.v === 1 && Array.isArray(o.cos))) return null; o.player.shorts = o.player.shorts || {}; if (!DIFF[o.diff]) o.diff = 'normal'; return o; } catch (e) { return null; } }
+function loadSave(){ try { const s = localStorage.getItem(SAVE_KEY); if (!s) return null; const o = JSON.parse(s); if (!(o && o.v === 1 && Array.isArray(o.cos))) return null; o.player.shorts = o.player.shorts || {}; if (!DIFF[o.diff]) o.diff = 'normal'; o.company = o.company || DEF_CO; o.pname = o.pname || DEF_PN; return o; } catch (e) { return null; } }
 
 /* =====================================================================
    UI
    ===================================================================== */
-const ui = {region: 'all', diff: 'normal', tab: 'market', sel: null, city: null, sort: 'cap', speed: 0, amt: 5, tPrem: .3, tTarget: .51, mPrem: .25, mTarget: '', inboxFlash: false, ceoAmt: .25, samt: 5};
+const ui = {cname: DEF_CO, pname: '', region: 'all', diff: 'normal', tab: 'market', sel: null, city: null, sort: 'cap', speed: 0, amt: 5, tPrem: .3, tTarget: .51, mPrem: .25, mTarget: '', inboxFlash: false, ceoAmt: .25, samt: 5};
 function toast(msg, bad){ const el = document.createElement('div'); el.className = 'toast' + (bad ? ' bad' : ''); el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), 3800); while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove(); }
 
 function renderTop(){
   const p = S.player, nw = netWorth('P');
   const rank = 1 + S.rivals.filter(r => netWorth(r.id) > nw).length;
-  $('#date').textContent = dateOf(S.week) + ' · ' + DIFF[S.diff].n;
+  $('#date').innerHTML = `<b>${esc(S.company)}</b><span>社長 ${esc(S.pname)} · ${DIFF[S.diff].n}</span><span>${dateOf(S.week)}</span>`;
   $('#stats').innerHTML = [
     ['現金', fm(p.cash)], ['信用借入', fm(p.loan)], ['空売り残高', fm(shortLiab())], ['買付余力', fm(buyingPower())],
     ['純資産', fm(nw), 'nw'], ['順位', rank + '位 / 4'],
@@ -809,7 +815,7 @@ function renderTicker(){
 }
 const chg = (c, n = 1) => c.hist.length > n ? c.price / c.hist[c.hist.length - 1 - n] - 1 : 0;
 function renderLegend(){
-  $('#legend').innerHTML = `<span><i class="dot" style="background:${OWNC.P}"></i>あなた</span>` + S.rivals.map(r => `<span><i class="dot" style="background:${OWNC[r.id]}"></i>${esc(r.n)}</span>`).join('') + `<span><i class="dot" style="background:var(--pub)"></i>独立系</span>`;
+  $('#legend').innerHTML = `<span><i class="dot" style="background:${OWNC.P}"></i>${esc(S.company)}</span>` + S.rivals.map(r => `<span><i class="dot" style="background:${OWNC[r.id]}"></i>${esc(r.n)}</span>`).join('') + `<span><i class="dot" style="background:var(--pub)"></i>独立系</span>`;
 }
 function renderTabs(){
   const n = S.inbox.length;
@@ -930,7 +936,7 @@ function renderPort(){
   ${shorts.length ? `<h3>空売り ${shorts.length}</h3><div class="rows">${shorts.map(c => { const sp = p.shorts[c.id], v = sp.n * c.price; return coRow(c, `${fsh(sp.n)} · <span class="${sp.basis >= v ? 'up' : 'down'}">${fm(sp.basis - v)}</span>`); }).join('')}</div>` : ''}`;
 }
 function renderRivals(){
-  const all = [{id: 'P', n: 'あなた', tag: 'アトラス・キャピタル'}].concat(S.rivals).map(r => ({...r, nw: netWorth(r.id), ctl: S.cos.filter(c => c.ctrl === r.id), cash: r.id === 'P' ? S.player.cash : r.cash})).sort((a, b) => b.nw - a.nw);
+  const all = [{id: 'P', n: S.pname, tag: S.company}].concat(S.rivals).map(r => ({...r, nw: netWorth(r.id), ctl: S.cos.filter(c => c.ctrl === r.id), cash: r.id === 'P' ? S.player.cash : r.cash})).sort((a, b) => b.nw - a.nw);
   return `<h3>純資産ランキング</h3><div class="board">${all.map((r, i) => `<div class="lead ${r.id === 'P' ? 'me' : ''}"><div class="rk">${i + 1}</div>
     <div class="who"><i class="dot" style="background:${OWNC[r.id]}"></i>${esc(r.n)} <small>${esc(r.tag)}</small></div><div class="val">${fm(r.nw)}</div>
     <div class="det">現金 ${fm(r.cash)} · 支配企業 ${r.ctl.length}社${r.ctl.length ? '（' + r.ctl.slice(0, 3).map(c => esc(c.name)).join('、') + (r.ctl.length > 3 ? ' ほか' : '') + '）' : ''}</div></div>`).join('')}</div>
@@ -1203,6 +1209,7 @@ function act(a, el){
 document.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (!el || el.disabled) return; act(el.dataset.act, el); });
 document.addEventListener('input', e => {
   const el = e.target, k = el.dataset && el.dataset.actInput; if (!k) return;
+  if (k === 'cname' || k === 'pname') { ui[k] = el.value; return; }
   if (k === 'amt') { ui.amt = Math.max(0, +el.value || 0); }
   if (k === 'mtarget') { ui.mTarget = el.value; el.blur(); }
   renderPanel(k === 'mtarget');
@@ -1225,10 +1232,13 @@ const HOWTO = `<ol>
 function showStart(fresh){
   const has = !fresh && !!loadSave(), D = DIFF[ui.diff];
   openModal(`<h1><b>ATLAS</b><br>CAPITAL</h1><p class="lede">日本と世界の${CITIES.length}都市・${CO_DEF.length}社の株式市場で、買い占め・TOB・合併を駆使して巨大コングロマリットを築く投資シミュレーション。</p>
+  <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:0 0 8px;font-weight:500">新しいゲームの設定</h3>
+  <div class="field name"><label for="cname">会社名</label><input id="cname" class="txt" type="text" maxlength="20" autocomplete="off" placeholder="${DEF_CO}" value="${esc(ui.cname)}" data-act-input="cname"></div>
+  <div class="field name" style="margin-bottom:12px"><label for="pname">社長名</label><input id="pname" class="txt" type="text" maxlength="16" autocomplete="off" placeholder="${DEF_PN}" value="${esc(ui.pname)}" data-act-input="pname"></div>
   <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:0 0 8px;font-weight:500">難易度</h3>
   <div class="seg" role="radiogroup" aria-label="難易度">${Object.keys(DIFF).map(k => `<button role="radio" aria-checked="${ui.diff === k}" class="${ui.diff === k ? 'on' : ''}" data-act="diff" data-v="${k}" data-fresh="${fresh ? 1 : ''}" style="font-family:var(--f-body);font-size:14px;min-height:44px;flex:1">${DIFF[k].n}</button>`).join('')}</div>
   <div class="goal" style="margin-top:8px">${D.desc}<br>目標：純資産 <b class="num" style="color:var(--gold)">1,000億円</b>。3人のライバルより先に到達せよ。</div>
-  <div class="btnrow">${has ? `<button class="btn gold" data-act="continue">続きから（${DIFF[S.diff].n}）</button>` : ''}<button class="btn ${has ? '' : 'gold'}" data-act="newgame">「${D.n}」で新しく始める</button></div>
+  <div class="btnrow">${has ? `<button class="btn gold" data-act="continue">続きから（${esc(S.company)}・${DIFF[S.diff].n}）</button>` : ''}<button class="btn ${has ? '' : 'gold'}" data-act="newgame">「${D.n}」で新しく始める</button></div>
   <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:18px 0 8px;font-weight:500">遊び方</h3>${HOWTO}`);
 }
 function showHelp(){ openModal(`<h1 style="font-size:22px">遊び方</h1><p class="lede">${dateOf(S.week)}・純資産 ${fm(netWorth('P'))}</p>${HOWTO}<div class="btnrow"><button class="btn gold" data-act="close">ゲームに戻る</button><button class="btn" data-act="restart">最初からやり直す</button></div>`); }
@@ -1241,7 +1251,7 @@ function showEnd(win){
 function startNew(){
   // Seed from a counter in storage so each new game differs, without Math.random/Date in the sim.
   let n = 1; try { n = (+localStorage.getItem(SAVE_KEY + '_n') || 0) + 1; localStorage.setItem(SAVE_KEY + '_n', String(n)); } catch (e) { /* ignore */ }
-  newGame((0x2545F491 * n + 7) | 0, ui.diff);
+  newGame((0x2545F491 * n + 7) | 0, ui.diff, ui.cname, ui.pname);
   ui.sel = null; ui.city = null; ui.tab = 'market'; ui.speed = 1;
   closeModal(); save(); renderLegend(); renderTicker(); renderAll(true);
 }
@@ -1261,7 +1271,7 @@ if (window.ResizeObserver) new ResizeObserver(() => resizeMap()).observe($('.map
 /* ---------- boot ---------- */
 function boot(){
   const saved = loadSave();
-  if (saved) { S = saved; ui.diff = S.diff; } else newGame(0x1A7A5C, 'normal');
+  if (saved) { S = saved; ui.diff = S.diff; ui.cname = S.company; ui.pname = S.pname === DEF_PN ? '' : S.pname; } else newGame(0x1A7A5C, 'normal');
   resizeMap(); renderLegend(); renderTicker(); renderAll(true);
   requestAnimationFrame(frame);
   showStart();
