@@ -53,7 +53,7 @@ function confirmRespond(id,kind){
   if(!c||!r||blockedReason(g,c,kind))return;
   const cost=r.cost(c,g),cash=finite(g.companyCash);
   show(modules.ui3.confirmSheet({title:`${c.name}：${r.label}`,subtitle:'会社の現金から払います。取り消せません。',
-    facts:[{label:'費用',value:money(cost)},{label:'実行後の会社現金',value:money(cash-cost),tone:cash-cost<0?'down':undefined}],note:r.note,
+    facts:[{label:'費用',value:money(cost)},{label:'実行後の会社現金',value:money(cash-cost),tone:cash-cost<0?'down':undefined}],note:[r.note,modules.ui3.reserveNote(cash-cost)].filter(Boolean).join(' '),
     confirm:{label:'実行する',attributes:{'data-action':'respond-rival','data-id':id,'data-kind':kind}}}));
 }
 function productSheet(id){
@@ -73,7 +73,7 @@ function confirmCounter(id,kind){
   if(!o||finite(g.companyCash)<finite(o.cost))return;
   const cash=finite(g.companyCash);
   show(modules.ui3.confirmSheet({title:o.label,subtitle:'会社の現金から払います。取り消せません。',
-    facts:[{label:'費用',value:money(finite(o.cost))},{label:'実行後の会社現金',value:money(cash-finite(o.cost))}],note:o.detail,
+    facts:[{label:'費用',value:money(finite(o.cost))},{label:'実行後の会社現金',value:money(cash-finite(o.cost)),tone:cash-finite(o.cost)<0?'down':undefined}],note:[o.detail,modules.ui3.reserveNote(cash-finite(o.cost))].filter(Boolean).join(' '),
     confirm:{label:'実行する',attributes:{'data-action':'counter-competitor-product','data-id':id,'data-kind':kind}}}));
 }
 function onClick(event){

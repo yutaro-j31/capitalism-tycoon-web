@@ -133,7 +133,18 @@ globalThis.document?.addEventListener('click',event=>{
 // welfare investment spends company money: say what the number is (README 5.7)
 globalThis.document?.addEventListener('click',event=>{
   const control=event.target instanceof Element?event.target.closest('[data-action="workforce-invest"]'):null;
-  if(control&&!control.disabled)modules.ui3.setAmountContext({unit:'円',wallet:'company',direction:'spend'});
+  if(!control||control.disabled)return;
+  const money=value=>modules.engine.compactYen(value);
+  modules.ui3.setAmountContext({unit:'円',wallet:'company',direction:'spend',
+    // the cost is paid at once and cannot be taken back, so the number is confirmed once more (README 6.6)
+    confirm:value=>{
+      const g=modules.playerEngineBridge.getEngine().g,after=Number(g.companyCash)-value;
+      // the engine's own effect (js/app.js 'workforce-invest'): satisfaction + log10(1+v/100000)*2 (up to 100), benefit level + v/10,000,000
+      const satisfaction=Math.max(0,Math.min(100,Number(g.employeeSatisfaction)+Math.log10(1+value/100000)*2)-Number(g.employeeSatisfaction));
+      return {title:'福利厚生に投資',subtitle:'会社の現金から払います。取り消せません。',
+        facts:[{label:'投資額',value:money(value)},{label:'実行後の会社現金',value:money(after),tone:after<0?'down':undefined},{label:'従業員満足度（見込み）',value:`+${satisfaction.toFixed(1)}`,tone:'up'}],
+        note:[after<0?'会社の現金が足りません。エンジンが実行を断ります。':'',modules.ui3.reserveNote(after)].filter(Boolean).join(' ')};
+    }});
 },true);
 
 modules.ui3.registerScreen('office',{render});

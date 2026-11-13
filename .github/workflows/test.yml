@@ -356,6 +356,7 @@ jobs:
           node --check tests/ui3-returns-webkit-test.js
           node --check tests/ui3-crisis-webkit-test.js
           node --check tests/ui3-12a-webkit-test.js
+          node --check tests/ui3-12b-webkit-test.js
           node --check tests/ui3-rest-webkit-test.js
           node --check tests/ui3-text-webkit-test.js
           node --check tests/ui3-reachability-webkit-test.js
@@ -414,6 +415,9 @@ jobs:
       - name: Verify UI v3 4-week advance stops at a crisis and the map waits for its module
         timeout-minutes: 5
         run: node tests/ui3-12a-webkit-test.js
+      - name: Verify UI v3 confirmations and number checks for money-moving operations
+        timeout-minutes: 5
+        run: node tests/ui3-12b-webkit-test.js
       - name: Verify UI v3 strategy, overseas, media, rivals, missions and news screens
         timeout-minutes: 5
         run: node tests/ui3-rest-webkit-test.js

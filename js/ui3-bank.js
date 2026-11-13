@@ -70,7 +70,11 @@ function describeAmount(kind){
   if(kind==='borrow'){
     return {unit:'円',wallet,direction:'receive',max:f.capacity,
       note:`借入余力 ${money(f.capacity)}（金利 ${percent(f.rate)}）`,
-      preview:value=>[{label:'借入後の残高',value:money(f.debt+value)},{label:'残りの借入余力',value:money(Math.max(0,f.capacity-value)),tone:value>f.capacity?'down':undefined}]};
+      preview:value=>[{label:'借入後の残高',value:money(f.debt+value)},{label:'残りの借入余力',value:money(Math.max(0,f.capacity-value)),tone:value>f.capacity?'down':undefined}],
+      // borrowing moves money, so the amount is confirmed once more (README 6.6): what comes in, the debt and the cash after
+      confirm:value=>({title:`${f.name}で${money(value)}を借りる`,subtitle:`金利 ${percent(f.rate)}。借りた分は負債になり、取り消せません。`,
+        facts:[{label:'借入額',value:money(value)},{label:'借入後の残高',value:money(f.debt+value)},{label:`実行後の${f.name}の現金`,value:money(f.cash+value),tone:'up'},{label:'残りの借入余力',value:money(Math.max(0,f.capacity-value))}],
+        note:value>f.capacity?'借入余力を超えています。エンジンが実行を断る場合があります。':'',confirmLabel:'借りる'})};
   }
   const repayable=Math.max(0,Math.min(f.debt,f.cash));
   return {unit:'円',wallet,direction:'spend',max:repayable,

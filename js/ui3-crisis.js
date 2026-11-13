@@ -141,7 +141,12 @@ function ask(kind,type,id){
   const personal=finite(g.personalCash),company=finite(g.companyCash);
   if(kind==='founder'){
     ui3.setAmountContext({unit:'円',wallet:'personal',direction:'spend',max:Math.max(0,Math.floor(finite(options.founderAvailable))),note:'個人資金を会社の資本へ振り替えます。',
-      preview:value=>[{label:'注入後の会社現金',value:money(company+value)},{label:'注入後の個人現金',value:money(personal-value),tone:personal-value<0?'down':undefined}]});
+      preview:value=>[{label:'注入後の会社現金',value:money(company+value)},{label:'注入後の個人現金',value:money(personal-value),tone:personal-value<0?'down':undefined}],
+      // the money moves after the number is entered, so it is confirmed once more (README 6.6): both wallets afterwards
+      confirm:value=>({title:`創業者資金${money(value)}を注入`,subtitle:'個人資金を会社の資本へ振り替えます。利益や負債は発生しません。取り消せません。',
+        facts:[{label:'注入額',value:money(value)},{label:'実行後の会社現金',value:money(company+value),tone:'up'},{label:'実行後の個人現金',value:money(personal-value),tone:personal-value<0?'down':undefined}],
+        note:personal-value<0?'個人の現金が足りません。エンジンが実行を断ります。':'',confirmLabel:'注入する'})});
+    // the default is the shortfall (the same as the current crisis panel), capped by the personal cash: what a crisis needs is the shortfall
     ui3.amountSheet({title:'創業者資金を注入',initial:c.founderAmount,submit:value=>{instance.injectFounderCapital(Number(value));}});
   }else if(kind==='bridge'){
     confirmCost({title:'緊急融資を申請',subtitle:'既存の与信枠の範囲で、必要準備額までの短期資金を借ります。',

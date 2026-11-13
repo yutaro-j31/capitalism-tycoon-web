@@ -1262,6 +1262,7 @@
         "tokens": [
           "externalShareholderRatio",
           "founderShares",
+          "sharesOut",
           "treasuryBuybackShares"
         ]
       },

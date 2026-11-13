@@ -183,6 +183,7 @@ async function main() {
     await page.locator('#modal-root [data-ui3-amount-input]').waitFor({ state: 'visible', timeout: 10000 });
     assert.ok(await page.locator('#modal-root .u-sheet').innerText().then(text => /会社/.test(text)), 'the amount sheet names the company wallet');
     await enterAmount(page, target.minTicket);
+    await page.locator('#modal-root [data-ui3-amount-confirm]').tap();   // UI3-12b: the investment is confirmed once more after the amount
     await page.waitForFunction(id => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.startups.find(s => s.id === id).ownedCompany > 0, target.id, { timeout: 10000 });
     const invested = await engineEval(page, (engine, id) => ({ cash: engine.g.companyCash, personal: engine.g.personalCash, owned: engine.g.startups.find(s => s.id === id).ownedCompany, personalOwned: engine.g.startups.find(s => s.id === id).ownedPersonal }), target.id);
     assert.equal(invested.cash, companyBefore - target.minTicket, 'the company cash paid exactly the amount entered');

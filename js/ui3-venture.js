@@ -146,7 +146,19 @@ function onClick(event){
   if(invest&&!invest.disabled){
     // tell the amount sheet what the number means (README 5.7): yen out of this wallet
     const owner=invest.dataset.owner,s=(context.g.startups||[]).find(item=>item.id===invest.dataset.id);
-    if(s)modules.ui3.setAmountContext({unit:'円',wallet:owner,direction:'spend',max:Math.max(0,Math.floor(cashOf(context.g,owner)))});
+    if(s){
+      const {money}=context,walletName=owner==='company'?'会社':'個人';
+      modules.ui3.setAmountContext({unit:'円',wallet:owner,direction:'spend',max:Math.max(0,Math.floor(cashOf(context.g,owner))),
+        // the engine's minimum ticket (investStartup refuses less); the sheet shows it and keeps the run button off below it
+        min:finite(s.minTicket)>0?finite(s.minTicket):undefined,
+        note:finite(s.minTicket)>0?`最低額 ${money(s.minTicket)}`:undefined,
+        confirm:value=>{
+          const cash=cashOf(context.g,owner),after=cash-value;
+          return {title:`${s.name}に${money(value)}を投資`,subtitle:`${walletName}の現金から払います。取り消せません。`,
+            facts:[{label:'投資額',value:money(value)},{label:`実行後の${walletName}現金`,value:money(after),tone:after<0?'down':undefined}],
+            note:[after<0?`${walletName}の現金が足りません。エンジンが実行を断ります。`:'',owner==='company'?modules.ui3.reserveNote(after):''].filter(Boolean).join(' '),confirmLabel:'投資する'};
+        }});
+    }
     return;
   }
   const followOn=target.closest('[data-ui3-vc-follow]');
