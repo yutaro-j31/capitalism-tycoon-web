@@ -290,6 +290,11 @@ const RIVAL_DEF = [
   {id:'R2', n:'イゾルデ・ヴァンス',   tag:'冷徹な割安株ハンター', cash:95, agg:.65, sell:1.40, prem:.22},
   {id:'R3', n:'天城 剛',             tag:'財閥系コングロマリット', cash:120, agg:.5,  sell:1.55, prem:.35},
 ];
+const DIFF = {
+  easy:   {n:'やさしい',   cash:50, rc:.7,  ra:.6,  pill:.2,  call:.8, gm:1.4, desc:'元手50億円。ライバルは控えめで、買収防衛策も少なめ。追証は評価額の80%から。'},
+  normal: {n:'ふつう',     cash:30, rc:1,   ra:1,   pill:.35, call:.7, gm:1,   desc:'元手30億円。標準のバランス。追証は評価額の70%から。'},
+  hard:   {n:'むずかしい', cash:20, rc:1.4, ra:1.3, pill:.55, call:.6, gm:.6,  desc:'元手20億円。ライバルは資金も多く強気で、防衛策が頻発。追証は評価額の60%から。'},
+};
 const OWNC = {P:'var(--gold)', R1:'var(--r1)', R2:'var(--r2)', R3:'var(--r3)'};
 const OWNHEX = {P:'#f2b632', R1:'#ff7f5c', R2:'#3cc8d1', R3:'#b994ff', PUB:'#56708a'};
 
@@ -360,12 +365,13 @@ function makeCompany(def){
 }
 
 /* ---------- new game ---------- */
-function newGame(seed){
+function newGame(seed, diff){
+  const D = DIFF[diff] || DIFF.normal;
   S = {
-    v: 1, seed, rs: (seed ^ 0x5bd1e995) | 0, week: 0, nextId: 1,
+    v: 1, seed, diff: DIFF[diff] ? diff : 'normal', rs: (seed ^ 0x5bd1e995) | 0, week: 0, nextId: 1,
     econ: {gdp: 2.6, rate: 4.0, sent: 1.0, indS: Object.fromEntries(Object.keys(IND).map(k => [k, 1]))},
-    player: {cash: 30, loan: 0, cost: {}, divs: 0, shorts: {}},
-    rivals: RIVAL_DEF.map(r => ({id: r.id, n: r.n, tag: r.tag, cash: r.cash, agg: r.agg, sell: r.sell, prem: r.prem})),
+    player: {cash: D.cash, loan: 0, cost: {}, divs: 0, shorts: {}},
+    rivals: RIVAL_DEF.map(r => ({id: r.id, n: r.n, tag: r.tag, cash: r.cash * D.rc, agg: Math.min(1, r.agg * D.ra), sell: r.sell, prem: r.prem})),
     cos: [], news: [], inbox: [], ipo: 0, idx: 1000, idxHist: [1000],
     nwHist: {P: [], R1: [], R2: [], R3: []}, won: false, lost: false, inboxSeq: 1,
   };
@@ -373,7 +379,7 @@ function newGame(seed){
   for (let i = 0; i < 8; i++) for (const c of S.cos) priceStep(c); // warm up history
   for (const c of S.cos) c.hist = c.hist.slice(-8);
   recordNW();
-  news('アトラス証券取引所へようこそ。元手30億円で世界の企業を買い集め、純資産1,000億円を目指せ。', 'you');
+  news(`アトラス証券取引所へようこそ（難易度：${D.n}）。元手${fm(D.cash)}で世界の企業を買い集め、純資産1,000億円を目指せ。`, 'you');
 }
 
 /* ---------- money flows ---------- */
@@ -475,7 +481,7 @@ function updCtrl(c){
   }
 }
 function maybePill(c, k){
-  if (rnd() < .35) {
+  if (rnd() < DIFF[S.diff].pill) {
     const add = c.shares * .2, px = c.price * .9;
     c.shares += add; c.cash += add * px; c.price *= .93; c.pill = true;
     news(`【買収防衛】${c.name}経営陣が新株20%を発行し${ownerName(k)}の持分を希薄化`, k === 'P' ? 'warn' : 'deal', c.city);
@@ -697,7 +703,7 @@ function playerWeekly(){
     }
   }
   const hv = holdingsValue('P');
-  if (p.loan > 0 && p.loan > hv * .7 + p.cash) {
+  if (p.loan > 0 && p.loan > hv * DIFF[S.diff].call + p.cash) {
     news('【追証】証拠金維持率を割り込み、保有株が強制売却されました', 'warn');
     toast('追証発生！保有株が強制売却されました', true);
     const list = S.cos.filter(c => c.own.P > 0).sort((a, b) => b.own.P * b.price - a.own.P * a.price);
@@ -713,7 +719,7 @@ function greenmail(){
     const f = frac(c, 'P');
     if (c.ctrl || f < .08 || f > .5) continue;
     if (S.inbox.some(i => i.cid === c.id)) continue;
-    if (rnd() < .025 * (f / .1)) addInbox({kind: 'greenmail', cid: c.id, price: c.price * (1.15 + rnd() * .2), exp: S.week + 4});
+    if (rnd() < .025 * DIFF[S.diff].gm * (f / .1)) addInbox({kind: 'greenmail', cid: c.id, price: c.price * (1.15 + rnd() * .2), exp: S.week + 4});
   }
 }
 function maybeIPO(){
@@ -766,18 +772,18 @@ function fxArc(owner, a, b){ fx.push({type: 'arc', a, b, col: OWNHEX[owner] || '
 let saveTimer = 0;
 function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
 function saveSoon(){ clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); }
-function loadSave(){ try { const s = localStorage.getItem(SAVE_KEY); if (!s) return null; const o = JSON.parse(s); if (!(o && o.v === 1 && Array.isArray(o.cos))) return null; o.player.shorts = o.player.shorts || {}; return o; } catch (e) { return null; } }
+function loadSave(){ try { const s = localStorage.getItem(SAVE_KEY); if (!s) return null; const o = JSON.parse(s); if (!(o && o.v === 1 && Array.isArray(o.cos))) return null; o.player.shorts = o.player.shorts || {}; if (!DIFF[o.diff]) o.diff = 'normal'; return o; } catch (e) { return null; } }
 
 /* =====================================================================
    UI
    ===================================================================== */
-const ui = {tab: 'market', sel: null, city: null, sort: 'cap', speed: 0, amt: 5, tPrem: .3, tTarget: .51, mPrem: .25, mTarget: '', inboxFlash: false, ceoAmt: .25, samt: 5};
+const ui = {diff: 'normal', tab: 'market', sel: null, city: null, sort: 'cap', speed: 0, amt: 5, tPrem: .3, tTarget: .51, mPrem: .25, mTarget: '', inboxFlash: false, ceoAmt: .25, samt: 5};
 function toast(msg, bad){ const el = document.createElement('div'); el.className = 'toast' + (bad ? ' bad' : ''); el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), 3800); while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove(); }
 
 function renderTop(){
   const p = S.player, nw = netWorth('P');
   const rank = 1 + S.rivals.filter(r => netWorth(r.id) > nw).length;
-  $('#date').textContent = dateOf(S.week);
+  $('#date').textContent = dateOf(S.week) + ' · ' + DIFF[S.diff].n;
   $('#stats').innerHTML = [
     ['現金', fm(p.cash)], ['信用借入', fm(p.loan)], ['空売り残高', fm(shortLiab())], ['買付余力', fm(buyingPower())],
     ['純資産', fm(nw), 'nw'], ['順位', rank + '位 / 4'],
@@ -1163,6 +1169,8 @@ function act(a, el){
     case 'repayloan': { const p = S.player, a = v === 'all' ? Math.min(p.cash, p.loan) : Math.min(+v, p.cash, p.loan); p.cash -= a; p.loan -= a; break; }
     case 'inbox': resolveInbox(+el.dataset.id, v === '1'); break;
     case 'newgame': startNew(); return;
+    case 'restart': showStart(true); return;
+    case 'diff': ui.diff = v; showStart(!!el.dataset.fresh); return;
     case 'continue': closeModal(); return;
     case 'close': closeModal(); return;
   }
@@ -1185,30 +1193,32 @@ function openModal(html){ const m = $('#modal'); m.innerHTML = `<div class="shee
 function closeModal(){ $('#modal').hidden = true; }
 const HOWTO = `<ol>
   <li><b>株を買う：</b>「市場」タブで企業を選び、売買パネルで購入。<span style="color:var(--up)">割安</span>タグは株価が理論株価を20%以上下回る銘柄です。</li>
-  <li><b>信用取引：</b>現金を超える買付は自動で借入（評価額の約2倍まで）。借入が株式評価額の70%を超えると追証で強制売却。</li>
+  <li><b>信用取引：</b>現金を超える買付は自動で借入（評価額の約2倍まで）。借入が株式評価額の一定割合（難易度で60〜80%）を超えると追証で強制売却。</li>
   <li><b>経営権を握る：</b>持分が50%を超えるとその会社を支配。TOB（公開買付け）でプレミアムを乗せて一気に買い集められます。</li>
   <li><b>CEOとして稼ぐ：</b>支配企業の現金を特別配当で吸い上げ、自社株買いで持分を高め、他社を合併買収して帝国を拡大。</li>
   <li><b>空売り：</b>下がりそうな銘柄は株を借りて売り、安くなってから買い戻せば差額が利益。ただし株価が上がると損失に上限はありません。</li>
   <li><b>ライバルに注意：</b>3人の乗っ取り屋も同じ市場で株を買い漁ります。TOBの打診やグリーンメールの提案は「受信箱」に届きます。</li>
 </ol>`;
-function showStart(){
-  const has = !!loadSave();
+function showStart(fresh){
+  const has = !fresh && !!loadSave(), D = DIFF[ui.diff];
   openModal(`<h1><b>ATLAS</b><br>CAPITAL</h1><p class="lede">世界22都市・47社の株式市場で、買い占め・TOB・合併を駆使して巨大コングロマリットを築く投資シミュレーション。</p>
-  <div class="goal">元手 <b class="num">30億円</b> → 目標 純資産 <b class="num" style="color:var(--gold)">1,000億円</b>。3人のライバルより先に到達せよ。</div>
-  ${HOWTO}
-  <div class="btnrow">${has ? '<button class="btn gold" data-act="continue">続きから</button>' : ''}<button class="btn ${has ? '' : 'gold'}" data-act="newgame">新しく始める</button></div>`);
+  <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:0 0 8px;font-weight:500">難易度</h3>
+  <div class="seg" role="radiogroup" aria-label="難易度">${Object.keys(DIFF).map(k => `<button role="radio" aria-checked="${ui.diff === k}" class="${ui.diff === k ? 'on' : ''}" data-act="diff" data-v="${k}" data-fresh="${fresh ? 1 : ''}" style="font-family:var(--f-body);font-size:14px;min-height:44px;flex:1">${DIFF[k].n}</button>`).join('')}</div>
+  <div class="goal" style="margin-top:8px">${D.desc}<br>目標：純資産 <b class="num" style="color:var(--gold)">1,000億円</b>。3人のライバルより先に到達せよ。</div>
+  <div class="btnrow">${has ? `<button class="btn gold" data-act="continue">続きから（${DIFF[S.diff].n}）</button>` : ''}<button class="btn ${has ? '' : 'gold'}" data-act="newgame">「${D.n}」で新しく始める</button></div>
+  <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:18px 0 8px;font-weight:500">遊び方</h3>${HOWTO}`);
 }
-function showHelp(){ openModal(`<h1 style="font-size:22px">遊び方</h1><p class="lede">${dateOf(S.week)}・純資産 ${fm(netWorth('P'))}</p>${HOWTO}<div class="btnrow"><button class="btn gold" data-act="close">ゲームに戻る</button><button class="btn" data-act="newgame">最初からやり直す</button></div>`); }
+function showHelp(){ openModal(`<h1 style="font-size:22px">遊び方</h1><p class="lede">${dateOf(S.week)}・純資産 ${fm(netWorth('P'))}</p>${HOWTO}<div class="btnrow"><button class="btn gold" data-act="close">ゲームに戻る</button><button class="btn" data-act="restart">最初からやり直す</button></div>`); }
 function showEnd(win){
   const yrs = (S.week / 52).toFixed(1);
   openModal(win
-    ? `<h1>目標達成</h1><p class="lede">${yrs}年で純資産 ${fm(netWorth('P'))} に到達。支配企業 ${S.cos.filter(c => c.ctrl === 'P').length}社。世界市場はあなたの手の中です。</p><div class="btnrow"><button class="btn gold" data-act="close">このまま続ける</button><button class="btn" data-act="newgame">新しいゲーム</button></div>`
-    : `<h1>破産</h1><p class="lede">借入が資産を上回り、口座は清算されました（${yrs}年目）。</p><div class="btnrow"><button class="btn gold" data-act="newgame">もう一度挑戦</button><button class="btn" data-act="close">盤面を眺める</button></div>`);
+    ? `<h1>目標達成</h1><p class="lede">${yrs}年で純資産 ${fm(netWorth('P'))} に到達。支配企業 ${S.cos.filter(c => c.ctrl === 'P').length}社。世界市場はあなたの手の中です。</p><div class="btnrow"><button class="btn gold" data-act="close">このまま続ける</button><button class="btn" data-act="restart">新しいゲーム</button></div>`
+    : `<h1>破産</h1><p class="lede">借入が資産を上回り、口座は清算されました（${yrs}年目）。</p><div class="btnrow"><button class="btn gold" data-act="restart">もう一度挑戦</button><button class="btn" data-act="close">盤面を眺める</button></div>`);
 }
 function startNew(){
   // Seed from a counter in storage so each new game differs, without Math.random/Date in the sim.
   let n = 1; try { n = (+localStorage.getItem(SAVE_KEY + '_n') || 0) + 1; localStorage.setItem(SAVE_KEY + '_n', String(n)); } catch (e) { /* ignore */ }
-  newGame((0x2545F491 * n + 7) | 0);
+  newGame((0x2545F491 * n + 7) | 0, ui.diff);
   ui.sel = null; ui.city = null; ui.tab = 'market'; ui.speed = 1;
   closeModal(); save(); renderLegend(); renderTicker(); renderAll(true);
 }
@@ -1228,7 +1238,7 @@ if (window.ResizeObserver) new ResizeObserver(() => resizeMap()).observe($('.map
 /* ---------- boot ---------- */
 function boot(){
   const saved = loadSave();
-  if (saved) S = saved; else newGame(0x1A7A5C);
+  if (saved) { S = saved; ui.diff = S.diff; } else newGame(0x1A7A5C, 'normal');
   resizeMap(); renderLegend(); renderTicker(); renderAll(true);
   requestAnimationFrame(frame);
   showStart();
