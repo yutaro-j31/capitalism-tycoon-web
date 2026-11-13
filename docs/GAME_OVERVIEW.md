@@ -26,7 +26,7 @@ See `docs/FOUNDING_ROUTE_REBALANCE_DESIGN.md` for the route-rebalancing design h
 
 ## 2. Ending conditions
 
-`js/completion.js`'s `ENDING_DEFS` (lines 34-41) defines six endings, each with its own
+`js/completion.js`'s `ENDING_DEFS` constant defines six endings, each with its own
 `check(g,e)` condition: `listed_founder` (IPO), `conglomerate` (5+ subsidiaries),
 `global_tycoon` (company value ≥¥1兆), `capital_king` (personal net worth ≥¥1兆),
 `philanthropist` (foundation reputation ≥80 and endowment ≥¥10億), `serial_founder` (3+
@@ -174,8 +174,8 @@ The production map (`CLAUDE.md` §4) is Canvas 2D city + local sprites + DOM mar
 pannable world — Phase 2 is the only production renderer; do not reintroduce the old DOM/SVG
 map.
 
-`js/` currently holds 203 modules. Canonical CI runs across shards A-L
-(`tests/run-all-shards.json` assigns B-K explicitly; unassigned tests fall into shard A) — see
+`js/` holds 245 modules as of 2026-11 (all 245 are loaded by `index.html`). Canonical CI runs across shards A-L
+(`tests/run-all-shards.json` assigns B-L explicitly; unassigned tests fall into shard A) — see
 `tests/run-all.js` for the full registered test list rather than a count here, since it changes
 with every PR that adds tests.
 

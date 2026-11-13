@@ -4,6 +4,8 @@
 
 ## 現状
 
+> 計画開始時点（2026-07-14）の記述。現在は `js/` に分割済み（`index.html` が読み込むのは245本、2026-11時点）。分割の記録は本ファイル後半の「Phase 0 module file split update」を参照。
+
 - `index.html` に HTML、CSS、マスターデータ、エンジン、拡張エンジン、UI、イベントリスナーが全て含まれる。
 - モジュール風に `__modules` と即時関数で分かれているが、物理ファイルは1つ。
 - `TycoonEngine.prototype` を `installExpansion`, `installCompletion`, `installParity` が後付け拡張している。

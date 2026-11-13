@@ -2,7 +2,7 @@
 
 CI2（Coffee Inc 2）風の見た目・UXを目指すUIリスキンの計画・進捗を記録するファイル。
 ChatGPT/Codex等、Claude Code以外のツールで作業を引き継ぐ場合もこのファイルを参照する。
-方針そのものはCLAUDE.mdの「UIリスキン（D UI shell拡張）の方針」節を参照。
+方針そのものはCLAUDE.md §3「D UI shell and browser runtime」を参照。
 
 ## 背景
 

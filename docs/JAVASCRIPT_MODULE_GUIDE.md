@@ -114,4 +114,4 @@ Loaded after data.js and before supply.js. It registers __capitalismTycoonModule
 
 ## Phase 5A 競合企業 AI
 
-saveVersion 8 では、ラーメン（`businessID === 'ramen'`）のみ `js/competitor.js` の決定論的な競合状態を利用する。既存 `competitors` は削除せず、v7→v8 で `competitorStates[]`、`competitorActions[]`、`competitorMarketResultsByPresenceID`、`competitorMarketResultsByCompetitorID` と採番フィールドを追加する。対象外業種は従来の静的競合処理を維持する。
+saveVersion 9 でも（この競合状態は v7→v8 で導入し、v9 でも維持。v8→v9 は `competitorMigrationV9Applied`・`competitorLifecycleSchemaVersion` などを足すだけで対象業種は変わらない）、ラーメン（`businessID === 'ramen'`）のみ `js/competitor.js` の決定論的な競合状態を利用する。既存 `competitors` は削除せず、v7→v8 で `competitorStates[]`、`competitorActions[]`、`competitorMarketResultsByPresenceID`、`competitorMarketResultsByCompetitorID` と採番フィールドを追加する。対象外業種は従来の静的競合処理を維持する。

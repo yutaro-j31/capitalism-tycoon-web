@@ -1,6 +1,7 @@
 # 現行セーブスキーマ調査
 
 監査日: 2026-07-14
+最終更新: 2026-08-26
 前提: 現在の保存キーは変更しない。
 
 ## localStorage 保存キー
@@ -158,8 +159,8 @@
 
 ## Phase 0 save migration update (2026-07-14)
 
-- 現在の明示的スキーマ版は `saveVersion: 3`。
-- `saveVersion` 未設定のセーブは `unversioned legacy` として扱い、`unversioned -> v1 -> v2 -> v3` の順で変換する。
+- 現在の明示的スキーマ版は `saveVersion: 9`（`js/save-v9.js`）。本節は2026-07-14時点（当時の版は `3`）の記述で、その後 v4〜v9 が下の各節のとおり追加された。
+- `saveVersion` 未設定のセーブは `unversioned legacy` として扱い、`unversioned -> v1 -> v2 -> v3 -> … -> v8 -> v9` の順で変換する（v1〜v8 は `js/engine.js` の `migrateSave`、v8→v9 は `js/save-v9.js`）。
 - `SAVE_KEY` は引き続き `capitalism_tycoon_web_v1`。
 - 復元は `migrateSave()` が担当し、トップレベルの `mergeDefaults()` 後に `deepNormalizeState()` で主要配列の要素内部を補完する。
 - 対象配列には `stores`, `businesses`, `properties`, `tenants`, `rentalOffices`, `market`, `startups`, `executiveMarket`, `competitors`, `subsidiaries`, `acquisitionTargets`, `maSubsidiaries`, `goodwillRecords`, `productVentures`, `personalInvestments`, `luxuryAssets`, `sportsTeams`, `peDeals`, `angelInvestments`, `personalRealEstateHoldings`, `branchOffices`, `keyPersonnel`, `competitorStates` などを含む。
@@ -189,7 +190,7 @@ Adds workforceTeams, workforceCandidates, workforceTrainings, workforceProjects,
 
 ## Phase 5A 競合企業 AI
 
-saveVersion 8 では、ラーメン（`businessID === 'ramen'`）のみ `js/competitor.js` の決定論的な競合状態を利用する。既存 `competitors` は削除せず、v7→v8 で `competitorStates[]`、`competitorActions[]`、`competitorMarketResultsByPresenceID`、`competitorMarketResultsByCompetitorID` と採番フィールドを追加する。対象外業種は従来の静的競合処理を維持する。
+saveVersion 9 でも（この競合状態は v7→v8 で導入し、v9 でも維持。v8→v9 は `competitorMigrationV9Applied`・`competitorLifecycleSchemaVersion` などを足すだけで対象業種は変わらない）、ラーメン（`businessID === 'ramen'`）のみ `js/competitor.js` の決定論的な競合状態を利用する。既存 `competitors` は削除せず、v7→v8 で `competitorStates[]`、`competitorActions[]`、`competitorMarketResultsByPresenceID`、`competitorMarketResultsByCompetitorID` と採番フィールドを追加する。対象外業種は従来の静的競合処理を維持する。
 
 ## saveVersion 9
 

@@ -15,8 +15,8 @@ For code-changing work, refresh repository state and treat current `origin/main`
 Do **not** read every project document for every task. Use progressive disclosure:
 
 - gameplay, progression, businesses, balance: relevant sections of `CLAUDE.md`, `docs/feature-requests.md`, and `docs/gameplay-systems-roadmap.md`
-- UI v3 redesign work (new screens behind `?ui=3`): `docs/ui-v3/README.md` is the Owner-approved (2026-11-10) single source of truth; follow its task list, prerequisites and acceptance numbers.
-- D UI or map work: relevant UI/map sections of `CLAUDE.md`, `docs/ui-redesign-roadmap.md`, and the current map implementation/tests; use `docs/map-phase2-production-integration-audit.md` when historical production-integration detail is needed
+- UI v3 (new UI) screens, behind `?ui=3`: `docs/ui-v3/README.md` is the Owner-approved (2026-11-10) single source of truth; follow its task list, prerequisites and acceptance numbers.
+- Fixes to existing screens of the current UI (D UI): `docs/ui-redesign-roadmap.md` plus the D UI sections of `CLAUDE.md`. Map work: the map sections of `CLAUDE.md` and the current map implementation/tests; use `docs/map-phase2-production-integration-audit.md` when historical production-integration detail is needed
 - save, determinism, accounting, company/personal ownership: the corresponding sections of `CLAUDE.md` plus the affected save/accounting tests and implementation
 - CI/workflow work: the affected workflow, its contract tests, recent runs/logs, and the CI/runtime pitfalls in `CLAUDE.md`; read `package.json` only when scripts/dependencies are relevant
 - docs-only work: read the documents being changed and any directly referenced source of truth; runtime test suites are not automatically required

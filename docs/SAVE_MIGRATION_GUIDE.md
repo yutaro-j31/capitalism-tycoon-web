@@ -2,9 +2,9 @@
 
 ## 現在の saveVersion
 
-現在の明示的セーブスキーマ版は `3`。保存キー `capitalism_tycoon_web_v1` は変更しない。
+現在の明示的セーブスキーマ版は `9`（`js/save-v9.js`。v3〜v8 を経て v9 に至る経緯は以降の各節）。保存キー `capitalism_tycoon_web_v1` は変更しない。
 
-`saveVersion: 3` は、`saveVersion: 2` のエンティティ補完に加えて、株価履歴を `{ week, price }` 配列へ正規化するバージョンである。
+（v3 時点の記述）`saveVersion: 3` は、`saveVersion: 2` のエンティティ補完に加えて、株価履歴を `{ week, price }` 配列へ正規化するバージョンである。
 
 ## 未バージョンセーブの扱い
 
@@ -122,4 +122,4 @@ Existing departmentStaff is converted deterministically into workforceTeams, the
 
 ## Phase 5A 競合企業 AI
 
-saveVersion 8 では、ラーメン（`businessID === 'ramen'`）のみ `js/competitor.js` の決定論的な競合状態を利用する。既存 `competitors` は削除せず、v7→v8 で `competitorStates[]`、`competitorActions[]`、`competitorMarketResultsByPresenceID`、`competitorMarketResultsByCompetitorID` と採番フィールドを追加する。対象外業種は従来の静的競合処理を維持する。
+saveVersion 9 でも（この競合状態は v7→v8 で導入し、v9 でも維持。v8→v9 は `competitorMigrationV9Applied`・`competitorLifecycleSchemaVersion` などを足すだけで対象業種は変わらない）、ラーメン（`businessID === 'ramen'`）のみ `js/competitor.js` の決定論的な競合状態を利用する。既存 `competitors` は削除せず、v7→v8 で `competitorStates[]`、`competitorActions[]`、`competitorMarketResultsByPresenceID`、`competitorMarketResultsByCompetitorID` と採番フィールドを追加する。対象外業種は従来の静的競合処理を維持する。
