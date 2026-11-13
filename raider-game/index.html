@@ -86,6 +86,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .up{color:var(--up)} .down{color:var(--down)}
 .tag{font-size:10px;border-radius:6px;padding:1px 6px;font-weight:700;flex:none;letter-spacing:.04em}
 .tag.cheap{background:rgba(72,196,140,.16);color:var(--up)}
+.row .jp{font-size:10px;border:1px solid var(--down);color:var(--down);border-radius:4px;padding:0 4px;margin-right:6px}
 .ctrl{font-size:10px;border-radius:6px;padding:1px 6px;flex:none;color:#10161c;font-weight:700}
 
 /* company detail */
@@ -168,6 +169,7 @@ canvas.chart{width:100%;height:120px;display:block;margin:10px 0 4px}
 @media (max-width:899px){
   .main{grid-template-columns:minmax(0,1fr)}
   .mapwrap{height:min(50vh,440px)}
+  .legend{font-size:10px;padding:4px 8px;gap:2px 8px;left:6px;bottom:6px;max-width:calc(100% - 12px)}
   .pbody{max-height:none;overflow:visible}
   .top{gap:8px 12px}
   .stats{order:3;flex-basis:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px}
@@ -207,7 +209,8 @@ canvas.chart{width:100%;height:120px;display:block;margin:10px 0 4px}
       <div class="mapctl">
         <button data-act="zoom" data-v="1.35" aria-label="拡大">＋</button>
         <button data-act="zoom" data-v="0.74" aria-label="縮小">－</button>
-        <button data-act="zoomreset" aria-label="全体表示">⟲</button>
+        <button data-act="zoomreset" aria-label="世界全体を表示">⟲</button>
+        <button data-act="zoomjp" aria-label="日本を拡大" style="font-size:13px">日本</button>
       </div>
       <div class="legend" id="legend"></div>
     </section>
@@ -253,8 +256,10 @@ const CITIES = [
   ['mex','メキシコシティ',-99.1,19.4],['sao','サンパウロ',-46.6,-23.5],['bue','ブエノスアイレス',-58.4,-34.6],
   ['lon','ロンドン',-0.1,51.5],['par','パリ',2.35,48.85],['fra','フランクフルト',8.7,50.1],['zur','チューリッヒ',8.5,47.4],['sto','ストックホルム',18.1,59.3],
   ['dxb','ドバイ',55.3,25.2],['los','ラゴス',3.4,6.5],['jnb','ヨハネスブルグ',28,-26.2],['bom','ムンバイ',72.9,19.1],
-  ['sin','シンガポール',103.8,1.35],['hkg','香港',114.2,22.3],['sha','上海',121.5,31.2],['sel','ソウル',127,37.6],['tyo','東京',139.7,35.7],['syd','シドニー',151.2,-33.9],
-].map(([id,n,lon,lat]) => ({id,n,lon,lat}));
+  ['sin','シンガポール',103.8,1.35],['hkg','香港',114.2,22.3],['sha','上海',121.5,31.2],['sel','ソウル',127,37.6],['syd','シドニー',151.2,-33.9],
+  ['tyo','東京',139.7,35.7,1],['osa','大阪',135.5,34.7,1],['ngo','名古屋',136.9,35.2,1],['fuk','福岡',130.4,33.6,1],['spk','札幌',141.35,43.06,1],
+].map(([id,n,lon,lat,jp]) => ({id,n,lon,lat,jp:!!jp}));
+const isJP = c => CITY[c.city].jp;
 const CITY = Object.fromEntries(CITIES.map(c => [c.id, c]));
 const CO_DEF = [
   ['Brightwater Bancorp','BWB','bank','nyc'],['Ninefold Systems','NFS','tech','nyc'],['Castleton Stores','CSL','retail','nyc'],
@@ -275,12 +280,18 @@ const CO_DEF = [
   ['Victoria Ridge Holdings','VRH','realty','hkg'],['Pearl Estuary Bank','PEB','bank','hkg'],
   ['Huangpu Motor Works','HMW','auto','sha'],['Eastern Bund Steel','EBS','steel','sha'],
   ['Hanbit Electronics','HBE','tech','sel'],['Han Riverside Shipbuilding','HRS','ship','sel'],
-  ['Kirameki Motors','KRM','auto','tyo'],['Marunouchi Trust','MRT','bank','tyo'],['Hoshizora Foods','HSF','food','tyo'],
   ['Harbourline Telecom','HLT','telecom','syd'],['Outback Ore & Energy','OOE','energy','syd'],
+  // 日本企業（すべて架空）
+  ['東都中央銀行','J101','bank','tyo'],['キラメキ自動車','J102','auto','tyo'],['星空フーズ','J103','food','tyo'],
+  ['ヒバリシステムズ','J104','tech','tyo'],['湾岸テレコム','J105','telecom','tyo'],['みはらし百貨店','J106','retail','tyo'],
+  ['なにわ鉄鋼','J201','steel','osa'],['水都製薬','J202','pharma','osa'],['中之島地所','J203','realty','osa'],
+  ['金鯱モーターズ','J211','auto','ngo'],['伊勢湾汽船','J212','ship','ngo'],
+  ['玄海エアライン','J221','air','fuk'],['那珂川フーズ','J222','food','fuk'],
+  ['北斗エナジー','J231','energy','spk'],['しらかば銀行','J232','bank','spk'],
 ];
 const IPO_POOL = [
   ['Cobalt Ridge Mining','CRM','steel','jnb'],['Lumen Grid Labs','LGL','tech','sfo'],['Tidewater Logistics','TWL','ship','sin'],
-  ['Saint-Clair Biologics','SCB','pharma','par'],['Kaze Mobility','KZM','auto','tyo'],['Gulfstar Petrochem','GSP','energy','dxb'],
+  ['Saint-Clair Biologics','SCB','pharma','par'],['風見モビリティ','J301','auto','ngo'],['桜坂ロボティクス','J302','tech','tyo'],['瀬戸内マリン','J303','ship','osa'],['Gulfstar Petrochem','GSP','energy','dxb'],
   ['Ironbark Foods','IBF','food','syd'],['Quayside Realty','QSR','realty','lon'],['Ozone Airlines','OZA','air','sao'],
   ['Cedar & Pine Bank','CPB','bank','tor'],['Monarch Telecom','MNT','telecom','bom'],['Nightjar Software','NJS','tech','sel'],
   ['Copperline Retail','CPR','retail','chi'],['Baltic Hullworks','BHW','ship','sto'],['Sierra Madre Foods','SMF','food','mex'],
@@ -288,7 +299,7 @@ const IPO_POOL = [
 const RIVAL_DEF = [
   {id:'R1', n:'ヴィクター・クレイン', tag:'強欲な乗っ取り屋', cash:75,  agg:.95, sell:1.30, prem:.30},
   {id:'R2', n:'イゾルデ・ヴァンス',   tag:'冷徹な割安株ハンター', cash:95, agg:.65, sell:1.40, prem:.22},
-  {id:'R3', n:'天城 剛',             tag:'財閥系コングロマリット', cash:120, agg:.5,  sell:1.55, prem:.35},
+  {id:'R3', n:'天城 剛',             tag:'日本株好きの財閥系', cash:120, agg:.5,  sell:1.55, prem:.35},
 ];
 const DIFF = {
   easy:   {n:'やさしい',   cash:50, rc:.7,  ra:.6,  pill:.2,  call:.8, gm:1.4, desc:'元手50億円。ライバルは控えめで、買収防衛策も少なめ。追証は評価額の80%から。'},
@@ -668,7 +679,8 @@ function rivalsAct(){
         if (c.ctrl && c.ctrl !== r.id) continue;
         if (c.ctrl === r.id && frac(c, r.id) > .7) continue;
         const aff = mcap(c) < nw * 2.5 ? 1 : .25;
-        const s = (fair(c) / c.price) * (1 + 3 * frac(c, r.id)) * aff * (.7 + rnd() * .6);
+        const home = r.id === 'R3' && isJP(c) ? 1.3 : 1; // 天城 prefers Japanese companies
+        const s = (fair(c) / c.price) * (1 + 3 * frac(c, r.id)) * aff * home * (.7 + rnd() * .6);
         if (s > bs) { bs = s; best = c; }
       }
       if (best && bs > 1.0) {
@@ -777,7 +789,7 @@ function loadSave(){ try { const s = localStorage.getItem(SAVE_KEY); if (!s) ret
 /* =====================================================================
    UI
    ===================================================================== */
-const ui = {diff: 'normal', tab: 'market', sel: null, city: null, sort: 'cap', speed: 0, amt: 5, tPrem: .3, tTarget: .51, mPrem: .25, mTarget: '', inboxFlash: false, ceoAmt: .25, samt: 5};
+const ui = {region: 'all', diff: 'normal', tab: 'market', sel: null, city: null, sort: 'cap', speed: 0, amt: 5, tPrem: .3, tTarget: .51, mPrem: .25, mTarget: '', inboxFlash: false, ceoAmt: .25, samt: 5};
 function toast(msg, bad){ const el = document.createElement('div'); el.className = 'toast' + (bad ? ' bad' : ''); el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), 3800); while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove(); }
 
 function renderTop(){
@@ -810,7 +822,7 @@ function coRow(c, right){
   return `<button class="row" data-act="sel" data-id="${c.id}">
     <div class="nm">${esc(c.name)} ${ctrlChip(c)}${cheap ? '<span class="tag cheap">割安</span>' : ''}</div>
     <div class="rt">${fp(c.price)} <span class="${ch >= 0 ? 'up' : 'down'}">${spc(ch)}</span></div>
-    <div class="sub">${c.tk} · ${IND[c.ind].n} · ${CITY[c.city].n}</div>
+    <div class="sub">${isJP(c) ? '<span class="jp">日本</span>' : ''}${c.tk} · ${IND[c.ind].n} · ${CITY[c.city].n}</div>
     <div class="rt sub">${right || '時価 ' + fm(mcap(c))}</div></button>`;
 }
 function renderMarket(){
@@ -818,10 +830,13 @@ function renderMarket(){
   ui.sel = null;
   let list = S.cos.slice();
   if (ui.city) list = list.filter(c => c.city === ui.city);
+  else if (ui.region !== 'all') list = list.filter(c => (ui.region === 'jp') === isJP(c));
   const sorters = {cap: (a, b) => mcap(b) - mcap(a), chg: (a, b) => chg(b, 4) - chg(a, 4), cheap: (a, b) => fair(b) / b.price - fair(a) / a.price, small: (a, b) => mcap(a) - mcap(b)};
   list.sort(sorters[ui.sort]);
   const S_ = [['cap', '時価総額'], ['small', '小型順'], ['cheap', '割安度'], ['chg', '4週騰落']];
-  return `<div class="filters">${ui.city ? `<button class="chip on" data-act="city" data-v="">📍 ${CITY[ui.city].n} ✕</button>` : ''}${S_.map(([k, l]) => `<button class="chip ${ui.sort === k ? 'on' : ''}" data-act="sort" data-v="${k}">${l}</button>`).join('')}</div>
+  const nJ = S.cos.filter(isJP).length, RG = [['all', `すべて ${S.cos.length}`], ['jp', `日本企業 ${nJ}`], ['world', `海外企業 ${S.cos.length - nJ}`]];
+  return `<div class="filters" role="group" aria-label="地域">${RG.map(([k, l]) => `<button class="chip ${!ui.city && ui.region === k ? 'on' : ''}" data-act="region" data-v="${k}">${l}</button>`).join('')}</div>
+  <div class="filters">${ui.city ? `<button class="chip on" data-act="city" data-v="">📍 ${CITY[ui.city].n} ✕</button>` : ''}${S_.map(([k, l]) => `<button class="chip ${ui.sort === k ? 'on' : ''}" data-act="sort" data-v="${k}">${l}</button>`).join('')}</div>
   <div class="rows">${list.map(c => coRow(c)).join('') || '<div class="empty">この都市に上場企業はありません</div>'}</div>`;
 }
 function renderCompany(c){
@@ -891,7 +906,7 @@ function renderCompany(c){
       ${sp ? `<p>空売り中 ${fsh(sp.n)} · 売り平均 ${fp(sp.basis / sp.n)} · 買い戻し額 ${fm(sp.n * c.price)} · 損益 <span class="${sp.basis >= sp.n * c.price ? 'up' : 'down'}">${fm(sp.basis - sp.n * c.price)}</span></p>` : ''}</section>`;
   }
   return `<button class="back" data-act="back">← 企業一覧</button>
-  <div class="cohead"><div><div class="meta">${c.tk} · ${IND[c.ind].n} · ${CITY[c.city].n}</div><h2>${esc(c.name)}</h2></div>
+  <div class="cohead"><div><div class="meta">${c.tk} · ${IND[c.ind].n} · ${CITY[c.city].n} · ${isJP(c) ? '日本企業' : '海外企業'}</div><h2>${esc(c.name)}</h2></div>
   <div class="px">${fp(c.price)}<small class="${ch >= 0 ? 'up' : 'down'}">${spc(ch)} 週</small></div></div>
   <canvas class="chart" id="coChart"></canvas>
   <div class="kv">
@@ -989,8 +1004,10 @@ const POLYS = [
  [49.3,-12,50.5,-15.5,49.5,-17,47,-25,45,-25.5,43.5,-22,44.4,-17,46.5,-15.7,48.8,-12.5],
  [-5.7,50,1.5,51.2,1.7,52.7,0,53.5,-1.5,55,-2,56,-1.8,57.6,-3.3,58.6,-5,58.6,-6.2,57,-5.5,55.5,-4.8,54.8,-3,54,-3.3,53.3,-4.6,52.8,-4.2,51.6,-5.3,51.7],
  [-6,52,-6,53.9,-7.5,55.2,-10,54.2,-10.3,51.8,-8,51.5],
- [130,31,131.5,31.5,132,33.8,135,33.5,136.8,34.3,139.7,35,140.8,35.7,141,38,142,40,141.5,41.4,140,41.2,140,40,139.8,38,138.5,37.5,136.8,37.2,136,35.6,133,35.5,130.9,34.3,129.7,33.2],
- [140,41.5,141.5,42.5,143.3,42,145.5,43.3,144,44,141.8,45.4,141.3,43.3,140,42.6],
+ [130.9,34.3,131.6,34.7,132.6,35.5,133.6,35.5,134.5,35.6,135.3,35.6,135.9,35.7,136.1,36.2,136.7,36.9,137,37.4,137.3,36.8,138.3,37.2,138.9,37.8,139.4,38.2,139.8,38.9,140,39.8,139.9,40.6,140.3,41.2,141.2,41.2,141.45,41.4,141.5,40.5,142,39.6,141.9,38.9,141.5,38.4,141,38.2,140.95,37,140.6,36.3,140.85,35.7,140.4,35.2,139.9,34.9,139.8,35.4,139.65,35.15,139.15,35.25,138.85,34.6,138.75,35.1,138.2,34.6,137.2,34.6,136.85,35.05,136.5,34.6,136.9,34.3,136.3,33.9,135.8,33.45,135.1,33.9,135.2,34.3,135.45,34.6,134.6,34.75,133.9,34.5,133,34.35,132.4,34.3,131.8,33.95,131,33.95],
+ [129.8,33.5,130.3,33.6,130.9,33.9,131.6,33.6,131.9,33,131.8,32.4,131.4,31.4,130.7,31,130.2,31.3,130.2,32.1,129.8,32.6,129.6,33.2],
+ [132,33.35,132.9,34.05,133.6,34.25,134.3,34.25,134.65,34,134.7,33.8,134.18,33.25,133.6,33.5,133,32.75,132.5,33],
+ [140.1,41.45,139.85,42.6,140.5,43.2,141.3,43.2,141.6,43.8,141.7,44.4,141.9,45,141.95,45.5,142.6,45,143.6,44.2,144.3,43.95,145.3,44.3,145.1,43.6,145.8,43.4,145.3,43,144.3,42.95,143.25,41.92,142.4,42.3,141.6,42.6,141,42.35,140.5,42.55,140.25,42.2,141.1,41.8,140.5,41.6],
  [120.1,23,121,25.2,122,25,121,22],
  [79.8,8,80,9.8,81.9,7.3,81,6],
  [95.3,5.6,98,4,100.5,1,104,-2,106,-5.8,104.5,-5.7,101,-2.5,98.5,1.5],
@@ -1007,15 +1024,17 @@ const POLYS = [
  [-74.5,18.4,-72.8,19.9,-70,19.7,-68.4,18.6,-71,18,-74.3,18],
  [-59.3,47.6,-56,51.6,-53.5,49.4,-52.7,47.5,-55,46.8],
 ];
-const LAT_TOP = 76, LAT_BOT = -52, GRID = 1.6;
-const LAND = (() => {
+const LAT_TOP = 76, LAT_BOT = -52, GRID = 1.6, FINE = .4;
+const JP_BOX = [128.4, 146.8, 30, 46.4]; // drawn on a finer grid so Japan reads well when zoomed
+const inJPBox = (lon, lat) => lon >= JP_BOX[0] && lon <= JP_BOX[1] && lat >= JP_BOX[2] && lat <= JP_BOX[3];
+const [LAND, LAND_JP] = (() => {
   const boxes = POLYS.map(p => { let a = 999, b = -999, c = 999, d = -999; for (let i = 0; i < p.length; i += 2) { a = Math.min(a, p[i]); b = Math.max(b, p[i]); c = Math.min(c, p[i + 1]); d = Math.max(d, p[i + 1]); } return [a, b, c, d]; });
   const inPoly = (p, x, y) => { let ins = false; for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) { const xi = p[i], yi = p[i + 1], xj = p[j], yj = p[j + 1]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; } return ins; };
-  const out = [];
-  for (let lat = LAT_TOP; lat >= LAT_BOT; lat -= GRID) for (let lon = -180 + GRID / 2; lon < 180; lon += GRID) {
-    for (let k = 0; k < POLYS.length; k++) { const b = boxes[k]; if (lon < b[0] || lon > b[1] || lat < b[2] || lat > b[3]) continue; if (inPoly(POLYS[k], lon, lat)) { out.push(lon, lat); break; } }
-  }
-  return new Float32Array(out);
+  const isLand = (lon, lat) => { for (let k = 0; k < POLYS.length; k++) { const b = boxes[k]; if (lon < b[0] || lon > b[1] || lat < b[2] || lat > b[3]) continue; if (inPoly(POLYS[k], lon, lat)) return true; } return false; };
+  const out = [], fine = [];
+  for (let lat = LAT_TOP; lat >= LAT_BOT; lat -= GRID) for (let lon = -180 + GRID / 2; lon < 180; lon += GRID) if (!inJPBox(lon, lat) && isLand(lon, lat)) out.push(lon, lat);
+  for (let lat = JP_BOX[3] - FINE / 2; lat >= JP_BOX[2]; lat -= FINE) for (let lon = JP_BOX[0] + FINE / 2; lon <= JP_BOX[1]; lon += FINE) if (isLand(lon, lat)) fine.push(lon, lat);
+  return [new Float32Array(out), new Float32Array(fine)];
 })();
 
 const mapCv = $('#map'), mctx = mapCv.getContext('2d');
@@ -1024,7 +1043,7 @@ let mapDirty = true;
 function minScale(){ return Math.max(view.W / 360, view.H / (LAT_TOP - LAT_BOT)); }
 function fitView(){ view.s = minScale() * (view.W < 600 ? 1.35 : 1.05); view.cx = view.W < 600 ? 10 : 25; view.cy = 22; clampView(); }
 function clampView(){
-  view.s = clamp(view.s, minScale(), minScale() * 7);
+  view.s = clamp(view.s, minScale(), minScale() * 12);
   const hw = view.W / 2 / view.s, hh = view.H / 2 / view.s;
   view.cx = clamp(view.cx, -180 + hw, 180 - hw); view.cy = clamp(view.cy, LAT_BOT + hh, LAT_TOP - hh);
   mapDirty = true;
@@ -1060,6 +1079,8 @@ function drawMap(now){
   const ds = Math.max(1.3, GRID * view.s * .56), half = ds / 2;
   x.fillStyle = '#c8b27a'; x.globalAlpha = .55; x.beginPath();
   for (let i = 0; i < LAND.length; i += 2) { const px = W / 2 + (LAND[i] - view.cx) * view.s, py = H / 2 - (LAND[i + 1] - view.cy) * view.s; if (px < -ds || px > W + ds || py < -ds || py > H + ds) continue; x.rect(px - half, py - half, ds, ds); }
+  const fs = Math.max(1, FINE * view.s * .62), fh = fs / 2;
+  for (let i = 0; i < LAND_JP.length; i += 2) { const px = W / 2 + (LAND_JP[i] - view.cx) * view.s, py = H / 2 - (LAND_JP[i + 1] - view.cy) * view.s; if (px < -fs || px > W + fs || py < -fs || py > H + fs) continue; x.rect(px - fh, py - fh, fs, fs); }
   x.fill(); x.globalAlpha = 1;
   // arcs
   for (const f of fx) if (f.type === 'arc') {
@@ -1076,7 +1097,7 @@ function drawMap(now){
   for (const city of CITIES) {
     const o = st[city.id]; const [px, py] = proj(city.lon, city.lat);
     if (px < -40 || px > W + 40 || py < -40 || py > H + 40) continue;
-    const cap = o ? o.cap : 0, r = clamp(4 + Math.sqrt(cap) / 9, 5, 17) * clamp(.75 + z * .12, .8, 1.5);
+    const cap = o ? o.cap : 0, r = clamp(4 + Math.sqrt(cap) / 9, 5, 17) * clamp(.75 + z * .08, .8, 1.15) * (city.jp && z > 3 ? .8 : 1);
     city._px = px; city._py = py; city._r = r;
     // base disc
     x.beginPath(); x.arc(px, py, r, 0, 7); x.fillStyle = 'rgba(7,26,44,.9)'; x.fill();
@@ -1147,6 +1168,8 @@ function act(a, el){
     case 'sel': ui.sel = el.dataset.id; ui.tab = 'market'; $('#pbody').scrollTop = 0; break;
     case 'back': ui.sel = null; break;
     case 'city': ui.city = v || null; break;
+    case 'region': ui.region = v; ui.city = null; break;
+    case 'zoomjp': { const leg = $('#legend').offsetHeight + 16, use = view.H - leg; view.s = Math.min(view.W / 17, use / 15.5); view.cx = 136.8; view.cy = 38.3 - leg / 2 / view.s; clampView(); } clampView(); return;
     case 'sort': ui.sort = v; break;
     case 'amt': ui.amt = v === 'max' ? Math.floor(buyingPower() * 100) / 100 : +v; break;
     case 'buy': if (c) { const n = sharesForMoney(c, ui.amt); if (ui.amt <= buyingPower() + 1e-9) { const r = execBuy('P', c, n); if (r) toast(`${c.name} ${fsh(r.n)}を${fm(r.cost)}で購入`); } } break;
@@ -1201,7 +1224,7 @@ const HOWTO = `<ol>
 </ol>`;
 function showStart(fresh){
   const has = !fresh && !!loadSave(), D = DIFF[ui.diff];
-  openModal(`<h1><b>ATLAS</b><br>CAPITAL</h1><p class="lede">世界22都市・47社の株式市場で、買い占め・TOB・合併を駆使して巨大コングロマリットを築く投資シミュレーション。</p>
+  openModal(`<h1><b>ATLAS</b><br>CAPITAL</h1><p class="lede">日本と世界の${CITIES.length}都市・${CO_DEF.length}社の株式市場で、買い占め・TOB・合併を駆使して巨大コングロマリットを築く投資シミュレーション。</p>
   <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:0 0 8px;font-weight:500">難易度</h3>
   <div class="seg" role="radiogroup" aria-label="難易度">${Object.keys(DIFF).map(k => `<button role="radio" aria-checked="${ui.diff === k}" class="${ui.diff === k ? 'on' : ''}" data-act="diff" data-v="${k}" data-fresh="${fresh ? 1 : ''}" style="font-family:var(--f-body);font-size:14px;min-height:44px;flex:1">${DIFF[k].n}</button>`).join('')}</div>
   <div class="goal" style="margin-top:8px">${D.desc}<br>目標：純資産 <b class="num" style="color:var(--gold)">1,000億円</b>。3人のライバルより先に到達せよ。</div>
