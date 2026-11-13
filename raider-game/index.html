@@ -372,9 +372,9 @@ const IPO_POOL = [
   ['Copperline Retail','CPR','retail','chi'],['Baltic Hullworks','BHW','ship','sto'],['Sierra Madre Foods','SMF','food','mex'],
 ];
 const RIVAL_DEF = [
-  {id:'R1', n:'ヴィクター・クレイン', tag:'強欲な乗っ取り屋', cash:75,  agg:.95, sell:1.30, prem:.30},
-  {id:'R2', n:'イゾルデ・ヴァンス',   tag:'冷徹な割安株ハンター', cash:95, agg:.65, sell:1.40, prem:.22},
-  {id:'R3', n:'天城 剛',             tag:'日本株好きの財閥系', cash:120, agg:.5,  sell:1.55, prem:.35},
+  {id:'R1', n:'ヴィクター・クレイン', tag:'強欲な乗っ取り屋', cash:75,  agg:.95, sell:1.30, prem:.30, style:'raider'},
+  {id:'R2', n:'イゾルデ・ヴァンス',   tag:'冷徹な割安株ハンター', cash:95, agg:.65, sell:1.40, prem:.22, style:'turnaround'},
+  {id:'R3', n:'天城 剛',             tag:'日本株好きの財閥系', cash:120, agg:.5,  sell:1.55, prem:.35, style:'keiretsu'},
 ];
 const DIFF = {
   easy:   {n:'やさしい',   cash:50, rc:.7,  ra:.6,  pill:.2,  call:.8, gm:1.4, rbuy:1, rtob:1, rcnt:1, desc:'元手50億円。ライバルは控えめで、買収防衛策も少なめ。追証は評価額の80%から。'},
@@ -585,7 +585,7 @@ function newGame(seed, diff, company, pname, scen, allU){
     stage: 1, allUnlocked: !!allU, research: {pts: 0, budget: 0, done: {}},
     player: {cash: D.cash, loan: 0, cost: {}, divs: 0, shorts: {}, opts: [], ban: {}, rep: .5, outside: 0},
     tips: [], optSeq: 1, reports: [],
-    rivals: RIVAL_DEF.map(r => ({id: r.id, n: r.n, tag: r.tag, cash: r.cash * D.rc, agg: Math.min(1, r.agg * D.ra), sell: r.sell, prem: r.prem})),
+    rivals: RIVAL_DEF.map(r => ({id: r.id, n: r.n, tag: r.tag, cash: r.cash * D.rc, agg: Math.min(1, r.agg * D.ra), sell: r.sell, prem: r.prem, style: r.style})),
     cos: [], news: [], inbox: [], tobs: [], tobSeq: 1, ipo: 0, idx: 1000, idxHist: [1000],
     nwHist: {P: [], R1: [], R2: [], R3: []}, won: false, lost: false, inboxSeq: 1,
     scen: SCEN[scen] ? scen : 'std', pres: {cash: 0, salary: 0, assets: [], earned: 0, seq: 1},
@@ -724,6 +724,7 @@ function recomputeCtrl(){ // group control: every stake held by a person or by c
   for (const c of S.cos) if (prev[c.id] !== c.ctrl) ctrlNews(c, prev[c.id]);
 }
 function ctrlNews(c, prev){
+  c.ctrlW = S.week; if (prev === 'P' || c.ctrl !== 'P') { c.deleg = null; }
   if (c.ctrl) {
     news(`【経営権取得】${ownerName(c.ctrl)}が${c.name}を支配下に（グループ持分${pc(gfrac(c, c.ctrl), 1)}）`, c.ctrl === 'P' ? 'you' : 'deal', c.city);
     if (c.ctrl === 'P') toast(`${c.name}の経営権を取得！ CEOとして配当・自社株買い・買収・他社株の取得が可能に`);
@@ -831,6 +832,77 @@ function buyback(c, money){
 }
 function borrow(c, amt){ amt = Math.min(amt, Math.max(0, maxDebt(c) - c.debt)); if (amt <= 0) return 0; c.debt += amt; c.cash += amt; return amt; }
 function repay(c, amt){ amt = Math.min(amt, c.cash, c.debt); if (amt <= 0) return 0; c.debt -= amt; c.cash -= amt; return amt; }
+/* ---------- restructuring (Phase 2) ---------- */
+const RESTR = {
+  cost: {n: 'コスト削減', d: '固定費 −15%。退職金など削減額の半年分を一度に支払い、ブランドが少し下がる'},
+  mgmt: {n: '経営陣の刷新', d: '売上の1%を払い、半年かけて利益率を押し上げる。3割は空振り'},
+  shrink: {n: '事業縮小', d: '販売量の10%を手放し、固定費を15%削る。売上の2%の費用'},
+  debt: {n: '債務の株式化', d: '借金の25%を債権者への新株（株価の8割）に替える。株主は希薄化'},
+};
+function restructure(c, k, ai){
+  if ((c.rsW || 0) > S.week && !ai) return null;
+  c.rsW = S.week + 26;
+  if (k === 'cost') { const cut = fixedOf(c) * .15; c.fixed -= cut; c.cash -= cut * .5; c.brand = Math.max(0, brandOf(c) - .04); }
+  else if (k === 'mgmt') { c.cash -= c.rev * .01; c.reform = {until: S.week + 26, add: rnd() < .7 ? Math.max(c.base, .03) * .25 / 26 : 0}; }
+  else if (k === 'shrink') { const v = c.rev * .1; mkToOthers(c, v / plev(c)); c.rev -= v; c.fixed *= .85; c.cash -= c.rev * .02; c.reorgQ = true; mkRefresh(); }
+  else if (k === 'debt') { const x = c.debt * .25, px = c.price * .8, n = x / px, before = snapshotFracs(c); c.debt -= x; c.price = (c.price * c.shares + x) / (c.shares + n) * .97; c.shares += n; afterOwn(c, before); }
+  if (c.cash < 0) { c.debt += -c.cash; c.cash = 0; }
+  return true;
+}
+function reformStep(c){
+  if (!c.reform) return;
+  c.base += c.reform.add; c.margin += c.reform.add;
+  if (c.reform.until <= S.week) { if (c.ctrl === 'P') news(c.reform.add > 0 ? `【再建】${c.name}の経営陣刷新が成果、利益率が改善` : `【再建】${c.name}の経営陣刷新は空振りに終わった`, c.reform.add > 0 ? 'you' : 'warn', c.city); delete c.reform; }
+}
+
+/* ---------- executives & delegation (Phase 2) ---------- */
+const MGR_NAMES = ['佐伯 真理', '黒田 恭介', 'エマ・ロウ', 'ラファエル・ソウザ', '李 文静', 'ニコ・ハンセン', '早川 葵', 'アミット・ラオ', 'ソフィア・ベルナール', '朴 智勲', 'オリバー・グラント', '森 拓海'];
+const POLICY = {grow: {n: '成長重視', d: '値下げと広告でシェアを取り、研究開発に投資。配当は少なめ'}, bal: {n: 'バランス', d: '標準価格。ブランドが落ちたら広告、格付けが悪化したら返済'}, cash: {n: '現金回収', d: '値上げして広告を止め、配当と特別配当で現金を回収'}};
+function hashStr(str){ let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function candidates(c){ // pure: three CEO candidates for this company, refreshed each quarter
+  const q = Math.floor(S.week / 13);
+  return [0, 1, 2].map(i => { const h = hashStr(c.id + ':' + q + ':' + i), skill = 40 + h % 51; return {n: MGR_NAMES[(h >>> 8) % MGR_NAMES.length], skill, sal: c.rev * (.002 + skill / 100 * .004)}; });
+}
+function hire(c, i){
+  const m = candidates(c)[i]; if (!m) return null;
+  if (c.mgr) fire(c);
+  c.mgr = m; c.fixed += m.sal; c.base += IND[c.ind].m * m.skill / 1500; c.margin += IND[c.ind].m * m.skill / 1500; c.mlog = [];
+  return m;
+}
+function fire(c){
+  const m = c.mgr; if (!m) return;
+  c.fixed -= m.sal; c.base -= IND[c.ind].m * m.skill / 1500; c.margin -= IND[c.ind].m * m.skill / 1500; c.cash -= m.sal; if (c.cash < 0) { c.debt += -c.cash; c.cash = 0; }
+  c.mgr = null; c.deleg = null;
+}
+function delegateStep(c){ // the hired CEO runs day-to-day decisions within the player's policy; never M&A, sales, equity or big borrowing
+  if (c.ctrl !== 'P' || !c.mgr || !c.deleg || S.week % 4) return;
+  if (rnd() < (100 - c.mgr.skill) / 250) return; // a weaker CEO sometimes lets a month slip
+  const acts = [], rt = rating(c)[0], b = brandOf(c);
+  if (c.deleg === 'grow') {
+    const ps = c.sh < .35 ? -1 : 0; if ((c.ps || 0) !== ps) { c.ps = ps; acts.push(`価格を${PRICE[ps].n}に`); }
+    if (b < .6 && c.cash > c.rev * .03) { advertise(c, c.rev * .02); acts.push('広告'); }
+    if (c.cash > c.rev * .06) { rdInvest(c, c.rev * .02); acts.push('研究開発'); }
+    c.payout = .2;
+  } else if (c.deleg === 'bal') {
+    if (c.ps) { c.ps = 0; acts.push('価格を標準に'); }
+    if (b < .5 && c.cash > c.rev * .03) { advertise(c, c.rev * .015); acts.push('広告'); }
+    c.payout = .4;
+  } else {
+    if ((c.ps || 0) !== 1) { c.ps = 1; acts.push('値上げ'); }
+    c.payout = .8;
+    if (c.cash > c.rev * .08) { specialDividend(c, c.cash * .5); acts.push('特別配当'); }
+  }
+  if (['BB', 'B', 'CCC'].includes(rt) && c.cash > 1) { repay(c, c.cash * .5); acts.push('借金返済'); }
+  if (acts.length) { c.mlog = [`${shortDate(S.week)}：${acts.join('・')}`].concat(c.mlog || []).slice(0, 4); if (S.week % 13 === 0) news(`【委任】${c.name}のCEO ${c.mgr.n}：${acts.join('・')}（方針：${POLICY[c.deleg].n}）`, 'you', c.city); }
+}
+function rdInvest(c, amt){ amt = Math.min(amt, c.cash); if (amt <= 0) return 0; c.cash -= amt; (c.rd = c.rd || []).push({w: S.week + 13, gain: Math.min(.15, amt / c.rev * 1.5)}); return amt; }
+function rdStep(c){ // R&D pays off after a quarter as stronger products (appeal)
+  if (!c.rd || !c.rd.length) return;
+  const due = c.rd.filter(x => x.w <= S.week); if (!due.length) return;
+  c.rd = c.rd.filter(x => x.w > S.week);
+  for (const x of due) c.w *= 1 + x.gain;
+  if (c.ctrl === 'P') news(`【研究開発】${c.name}の新製品が完成、商品力が向上`, 'you', c.city);
+}
 function invest(c, amt){ amt = Math.min(amt, c.cash); if (amt <= 0) return 0; c.cash -= amt; c.assets += amt * .6; c.boost = Math.min(.15, c.boost + amt / c.rev * .3 * (c.ctrl === 'P' && hasR('op3') ? 1.3 : 1)); return amt; }
 function mergeQuote(A, B, prem, friendly){
   const price = B.price * (1 + prem), cost = price * B.shares;
@@ -1409,18 +1481,33 @@ function whiteKnights(){ // target boards invite a friendly acquirer against the
     fxArc(best.ctrl || 'PUB', best.city, c.city);
   }
 }
+const STYLE = {raider: {n: '資産回収型', d: '高レバレッジで買い、特別配当と事業売却で現金を回収して2年ほどで売り抜ける'}, turnaround: {n: '再建型', d: '利益率の低い割安企業を買って立て直し、評価が戻ったら売る'}, keiretsu: {n: '系列型', d: '仕入れ先・販売先を傘下に集め、日本企業を長期保有する'}};
+// upstream industries each industry buys from (vertical integration, Phase 3)
+const SUPPLY = {auto: ['steel'], air: ['energy'], ship: ['steel', 'energy'], retail: ['food', 'ship'], food: ['ship'], tech: ['telecom'], telecom: ['tech'], pharma: ['ship'], steel: ['energy'], energy: ['ship'], realty: ['bank'], bank: []};
+const linked = (a, b) => (SUPPLY[a] || []).includes(b) || (SUPPLY[b] || []).includes(a);
+function rivalManage(r, c){ // how each rival runs a company it controls
+  const why = t => `（${r.n}・${STYLE[r.style].n}：${t}）`, held = S.week - (c.ctrlW || 0), om = opMargin(c), I = IND[c.ind];
+  if (rnd() < .04 && c.cash > c.rev * .05) advertise(c, c.rev * .03);
+  if (r.style === 'raider') {
+    c.payout = Math.max(c.payout, .6);
+    if (c.cash > mcap(c) * .1 && rnd() < .12) { const a = specialDividend(c, c.cash * .7); news(`${c.name}が特別配当${fm(a)}${why('現金を回収')}`, 'deal', c.city); }
+    if (om < I.m * .5 && rnd() < .04) { sellDivision(c, .15, true); news(`${c.name}が不採算事業を売却${why('赤字部門を切り離す')}`, 'deal', c.city); }
+    if (held > 104 && c.price > fair(c) * 1.1 && rnd() < .03) { execSell(r.id, c, (c.own[r.id] || 0) * .3); news(`${r.n}が${c.name}株の一部を売却${why('投資を回収して次へ')}`, 'deal', c.city); }
+  } else if (r.style === 'turnaround') {
+    c.payout = .3;
+    if (om < I.m * .7 && !c.reform && (c.rsW || 0) <= S.week && rnd() < .08) { const k = om < I.m * .3 ? 'cost' : 'mgmt'; restructure(c, k, true); news(`${c.name}が${RESTR[k].n}を実施${why('収益力を立て直す')}`, 'deal', c.city); }
+    if (held > 78 && om > I.m && c.price > fair(c) * 1.15 && rnd() < .04) { execSell(r.id, c, (c.own[r.id] || 0) * .4); news(`${r.n}が${c.name}株を売却${why('再建が実り評価が戻った')}`, 'deal', c.city); }
+  } else {
+    c.payout = .4;
+  }
+  if (rnd() < .025) {
+    const prem = Math.max(r.prem, .2), tgts = S.cos.filter(b => b !== c && !b.priv && (!b.ctrl || b.ctrl === r.id) && !activeTob(b) && mcap(b) < mcap(c) * .8 && (r.style !== 'keiretsu' || linked(b.ind, c.ind) || b.ind === c.ind) && mergeQuote(c, b, prem).go);
+    if (tgts.length) execMerge(c, tgts[pickIdx(tgts.length)], prem);
+  }
+}
 function rivalsAct(){
   for (const r of S.rivals) {
-    // milk controlled companies
-    for (const c of S.cos) if (c.ctrl === r.id) {
-      if (rnd() < .04 && c.cash > c.rev * .05) advertise(c, c.rev * .03);
-      if (c.cash > mcap(c) * .15 && rnd() < .1) { const a = specialDividend(c, c.cash * .6); news(`${r.n}支配下の${c.name}が特別配当${fm(a)}を実施`, 'deal', c.city); }
-      if (c.payout < .5 && rnd() < .05) c.payout = .6;
-      if (rnd() < .025) {
-        const prem = Math.max(r.prem, .2), tgts = S.cos.filter(b => b !== c && (!b.ctrl || b.ctrl === r.id) && !activeTob(b) && mcap(b) < mcap(c) * .8 && mergeQuote(c, b, prem).go);
-        if (tgts.length) execMerge(c, tgts[pickIdx(tgts.length)], prem);
-      }
-    }
+    for (const c of S.cos) if (c.ctrl === r.id && !c.priv) rivalManage(r, c);
     // take profits on overvalued, non-controlled stakes
     for (const c of S.cos) if ((c.own[r.id] || 0) > 0 && c.ctrl !== r.id && !activeTob(c) && c.price > fair(c) * r.sell && rnd() < .3) execSell(r.id, c, c.own[r.id] * .4);
     // accumulate
@@ -1432,13 +1519,17 @@ function rivalsAct(){
         if (c.ctrl && c.ctrl !== r.id) continue;
         if (c.ctrl === r.id && gfrac(c, r.id) > .7) continue;
         const aff = mcap(c) < nw * 2.5 ? 1 : .25;
-        const home = r.id === 'R3' && isJP(c) ? 1.3 : 1; // 天城 prefers Japanese companies
-        const s = (fair(c) / c.price) * (1 + 3 * gfrac(c, r.id)) * aff * home * (.7 + rnd() * .6);
+        if (c.priv) continue;
+        const home = r.style === 'keiretsu' ? (isJP(c) ? 1.3 : 1) * (S.cos.some(x => x.ctrl === r.id && linked(x.ind, c.ind)) ? 1.4 : 1) : 1; // 天城: Japanese and supply-chain targets
+        const fix = r.style === 'turnaround' && opMargin(c) < IND[c.ind].m * .7 ? 1.3 : 1; // イゾルデ: fixable low-margin firms
+        const contest = gfrac(c, r.id) >= .1 && gfrac(c, 'P') >= .1 ? 1.5 : 1; // defend stakes the player is chasing
+        const s = (fair(c) / c.price) * (1 + 3 * gfrac(c, r.id)) * aff * home * fix * contest * (.7 + rnd() * .6);
         if (s > bs) { bs = s; best = c; }
       }
       if (best && bs > 1.0) {
         const spend = Math.min(r.cash * Math.min(.8, .5 * D.rbuy), mcap(best) * .06 * D.rbuy);
-        if (spend > .5) { const who = rivalBuyer(r, best, spend); execBuy(who, best, sharesForMoney(best, who === r.id ? spend : Math.min(spend, coById(who).cash))); }
+        if (spend > .5) { const who = rivalBuyer(r, best, spend); execBuy(who, best, sharesForMoney(best, who === r.id ? spend : Math.min(spend, coById(who).cash)));
+          if (gfrac(best, 'P') >= .1 && (best.defW || 0) <= S.week) { best.defW = S.week + 8; news(`${r.n}が${best.name}株を買い増し（あなたの買い集めに対抗）`, 'warn', best.city); } }
       }
     }
     // ask the player to sell a block in a company the rival is building up
@@ -1451,7 +1542,8 @@ function rivalsAct(){
       if (t.boss === r.id || (t.raises[r.id] || 0) >= 3) continue;
       const c = coById(t.cid); if (!c || c.ctrl === r.id) continue;
       const stake = gfrac(c, r.id), knight = !c.ctrl && t.boss === 'P';
-      if (rnd() > Math.min(.9, (stake >= .1 ? .6 : knight ? r.agg * .35 : r.agg * .12) * D.rcnt)) continue;
+      const homeGuard = r.style === 'keiretsu' && isJP(c) && t.boss === 'P' ? 1.6 : 1; // 天城 defends Japanese companies
+      if (rnd() > Math.min(.9, (stake >= .1 ? .6 : knight ? r.agg * .35 : r.agg * .12) * D.rcnt * homeGuard)) continue;
       const price = t.price * (1.08 + rnd() * .07);
       if (price > fair(c) * 1.8) continue;
       const [bk, bf] = bestBidder(r, c), q = tenderQuote(bk, c, price, .51, t.ref);
@@ -1535,6 +1627,7 @@ function step(){
   refreshPV();
   econStep();
   mkStep();
+  for (const c of S.cos) { reformStep(c); rdStep(c); delegateStep(c); }
   let r = 0, n = 0;
   for (const c of S.cos) { const p0 = c.price; coStep(c); r += c.price / p0 - 1; n++; }
   S.idx *= 1 + (n ? r / n : 0); S.idxHist.push(S.idx); if (S.idxHist.length > 156) S.idxHist.shift();
@@ -1572,7 +1665,7 @@ function backupSave(){ try { const cur = localStorage.getItem(SAVE_KEY); if (cur
 function validSave(o){ return !!(o && o.v === 1 && Array.isArray(o.cos) && o.cos.length && o.player && typeof o.player.cash === 'number' && typeof o.week === 'number' && typeof o.rs === 'number' && o.econ && Array.isArray(o.rivals)); }
 function migrate(o){ // brings any older v1 save up to the current shape without discarding data
   if (!validSave(o)) return null;
-  o.player.shorts = o.player.shorts || {}; if (!DIFF[o.diff]) o.diff = 'normal'; o.company = o.company || DEF_CO; o.pname = o.pname || DEF_PN; o.tobs = o.tobs || []; o.tobSeq = o.tobSeq || 1; o.tips = o.tips || []; o.reports = o.reports || []; o.optSeq = o.optSeq || 1; if (o.stage == null) { o.stage = 4; o.allUnlocked = true; } o.research = o.research || {pts: 0, budget: 0, done: {}}; o.scen = SCEN[o.scen] ? o.scen : 'std'; o.pres = o.pres || {cash: 0, salary: 0, assets: [], earned: 0, seq: 1}; o.missions = o.missions || []; o.misSeq = o.misSeq || 1; o.ach = o.ach || {}; o.stats = Object.assign({tobWins: 0, warWins: 0, lbo: 0, proxyWins: 0, actWins: 0, shortWins: 0, missionsDone: 0}, o.stats || {}); Object.assign(o.player, {opts: o.player.opts || [], ban: o.player.ban || {}, rep: o.player.rep == null ? .5 : o.player.rep, outside: o.player.outside || 0}); if (!o.econ.fx) { o.econ.fx = FX0; o.econ.fxBand = 15; o.econ.fxHist = [FX0]; }
+  o.player.shorts = o.player.shorts || {}; if (!DIFF[o.diff]) o.diff = 'normal'; o.company = o.company || DEF_CO; o.pname = o.pname || DEF_PN; o.tobs = o.tobs || []; o.tobSeq = o.tobSeq || 1; o.tips = o.tips || []; o.reports = o.reports || []; o.optSeq = o.optSeq || 1; if (o.stage == null) { o.stage = 4; o.allUnlocked = true; } o.research = o.research || {pts: 0, budget: 0, done: {}}; for (const r of o.rivals) if (!r.style) r.style = (RIVAL_DEF.find(d => d.id === r.id) || {style: 'raider'}).style; o.scen = SCEN[o.scen] ? o.scen : 'std'; o.pres = o.pres || {cash: 0, salary: 0, assets: [], earned: 0, seq: 1}; o.missions = o.missions || []; o.misSeq = o.misSeq || 1; o.ach = o.ach || {}; o.stats = Object.assign({tobWins: 0, warWins: 0, lbo: 0, proxyWins: 0, actWins: 0, shortWins: 0, missionsDone: 0}, o.stats || {}); Object.assign(o.player, {opts: o.player.opts || [], ban: o.player.ban || {}, rep: o.player.rep == null ? .5 : o.player.rep, outside: o.player.outside || 0}); if (!o.econ.fx) { o.econ.fx = FX0; o.econ.fxBand = 15; o.econ.fxHist = [FX0]; }
   return o;
 }
 function parseSave(text){ try { return migrate(JSON.parse(text)); } catch (e) { return null; } }
@@ -1822,6 +1915,25 @@ function priceBox(c){
     <div class="btnrow">${ads.map(([f, a]) => `<button class="btn sm" data-act="advert" data-v="${f}" ${a <= c.cash && a > .001 ? '' : 'disabled'}>売上の${pc(f, 0)}（${fm(a)}）→ +${((1 - b) * clamp(f * 3, 0, .35) * 100).toFixed(0)}</button>`).join('')}</div>
     <p>ブランドが高いほど客に選ばれやすくなり、シェアが上がります。広告をやめると少しずつ薄れます。費用は会社の現金から出ます。</p></section>`;
 }
+function mgrBox(c){
+  if (!c.mgr) return `<section class="box"><h4>経営陣 <small>CEOを雇うと日常の経営を任せられる</small></h4>
+    <p>候補（四半期ごとに入れ替わります）。能力が高いほど利益率が上がり、任せたときの判断ミスが減ります。報酬は会社の固定費になります。</p>
+    <div class="rows">${candidates(c).map((m, i) => `<div class="orow"><span>${esc(m.n)}・能力 ${m.skill}</span><span class="num">年 ${fm(m.sal)} <button class="btn sm" data-act="hire" data-v="${i}">採用</button></span></div>`).join('')}</div></section>`;
+  return `<section class="box ceo"><h4>経営陣 <small>CEO ${esc(c.mgr.n)}・能力 ${c.mgr.skill}・年 ${fm(c.mgr.sal)}</small></h4>
+    <p class="lbl">委任の方針</p>
+    <div class="seg">${[['', '任せない'], ...Object.entries(POLICY).map(([k, v]) => [k, v.n])].map(([k, l]) => `<button class="${(c.deleg || '') === k ? 'on' : ''}" data-act="deleg" data-v="${k}">${l}</button>`).join('')}</div>
+    <p>${c.deleg ? POLICY[c.deleg].d + '。4週ごとに判断します。' : '任せない場合、CEOは利益率の改善だけを担います。'}合併・事業売却・増資・大型借入・会社の売却は、方針に関わらずあなたの判断が必要です。</p>
+    ${(c.mlog || []).length ? `<div class="preview">${c.mlog.map(esc).join('<br>')}</div>` : ''}
+    <div class="btnrow"><button class="btn sm" data-act="fire">解任（退職金 ${fm(c.mgr.sal)}）</button></div></section>`;
+}
+function restrBox(c){
+  const cool = (c.rsW || 0) > S.week, om = opMargin(c), weak = om < IND[c.ind].m * .7;
+  return `<section class="box ${weak ? 'war' : ''}"><h4>再建 <small>${weak ? '利益率が業種平均を大きく下回っています' : '必要なときの立て直し策'}</small></h4>
+    <div class="rows">${Object.entries(RESTR).map(([k, r]) => `<div class="orow"><span><b>${r.n}</b><br><small>${r.d}</small></span><span><button class="btn sm" data-act="restr" data-v="${k}" ${cool || (k === 'debt' && c.debt < 1) ? 'disabled' : ''}>実行</button></span></div>`).join('')}</div>
+    ${c.reform ? `<p>経営陣の刷新が進行中（${shortDate(c.reform.until)}まで）。</p>` : ''}${cool ? `<p>次の再建策は${shortDate(c.rsW)}以降。</p>` : ''}
+    <div class="btnrow"><button class="btn sm" data-act="rdinv" ${c.cash > c.rev * .02 ? '' : 'disabled'}>研究開発に投資（売上の2%・${fm(c.rev * .02)}）</button></div>
+    <p>研究開発は四半期後に新製品として効き、市場での商品力（シェア）が上がります。${(c.rd || []).length ? `開発中 ${c.rd.length}件。` : ''}</p></section>`;
+}
 function coCeo(c){
   const others = S.cos.filter(b => b !== c).sort((a, b) => mcap(a) - mcap(b));
   if (!others.some(b => b.id === ui.mTarget)) ui.mTarget = others.length ? others[0].id : '';
@@ -1840,6 +1952,8 @@ function coCeo(c){
         <button class="btn sm" data-act="repay" ${amt > .01 && c.debt > .01 ? '' : 'disabled'}>返済 ${fm(Math.min(amt, c.debt))}</button>
       </div></section>
     ${priceBox(c)}
+    ${mgrBox(c)}
+    ${restrBox(c)}
     <section class="box"><h4>資金調達 <small>社債と増資</small></h4>
       <p>社債の金利は格付けで決まります。借金が営業利益に比べて重いほど格付けが下がり、会社全体の利払いが増えます。</p>
       <div class="preview">追加発行枠 ${fm(room)} · 発行後の格付け ${rtAfter[0]}（金利 ${(S.econ.rate + rtAfter[2]).toFixed(1)}%）</div>
@@ -1981,6 +2095,7 @@ function renderRivals(){
   const who = whoOwns();
   return `<h3>純資産ランキング</h3><div class="board">${all.map((r, i) => `<div class="lead ${r.id === 'P' ? 'me' : ''}"><div class="rk">${i + 1}</div>
     <div class="who"><i class="dot" style="background:${OWNC[r.id]}"></i>${esc(r.n)} <small>${esc(r.tag)}</small></div><div class="val">${fm(r.nw)}</div>
+    ${r.style ? `<div class="det">${STYLE[r.style].n}：${STYLE[r.style].d}${(() => { const t = S.cos.filter(c => !c.ctrl && gfrac(c, r.id) >= .03).sort((a, b) => gfrac(b, r.id) - gfrac(a, r.id)).slice(0, 2); return t.length ? `。買い集め中：${t.map(c => `${esc(c.name)} ${pc(gfrac(c, r.id), 0)}`).join('、')}` : ''; })()}</div>` : ''}
     <div class="det">現金 ${fm(r.cash)} · 支配企業 ${r.ctl.length}社${r.ctl.length ? '（' + r.ctl.slice(0, 3).map(c => esc(c.name)).join('、') + (r.ctl.length > 3 ? ' ほか' : '') + '）' : ''}</div></div>`).join('')}</div>
   <h3>純資産の推移</h3><canvas class="chart" id="nwChart" style="height:160px"></canvas>
   ${hasR('in3') ? radar() : ''}
@@ -2263,6 +2378,11 @@ function act(a, el){
     case 'research': if (doResearch(v)) toast(`研究完了：${resInfo(v).item[1]}`); break;
     case 'allu': ui.allU = v === '1'; showStart(!!el.dataset.fresh); return;
     case 'unlockgo': closeModal(); ui.tab = v; ui.sel = null; break;
+    case 'hire': if (c && isCEO(c)) { const m = hire(c, +v); if (m) toast(`${m.n}を${c.name}のCEOに採用`); } break;
+    case 'fire': if (c && isCEO(c)) { fire(c); toast('CEOを解任しました'); } break;
+    case 'deleg': if (c && isCEO(c) && c.mgr) { c.deleg = v || null; toast(v ? `${c.name}の経営を「${POLICY[v].n}」で任せました` : '委任をやめました'); } break;
+    case 'restr': if (c && isCEO(c)) { if (restructure(c, v)) { news(`【再建】${c.name}が${RESTR[v].n}を実施`, 'you', c.city); toast(`${RESTR[v].n}を実施しました`); } } break;
+    case 'rdinv': if (c && isCEO(c)) { const a = rdInvest(c, c.rev * .02); if (a) toast(`${fm(a)}を研究開発に投資。四半期後に効果が出ます`); } break;
     case 'pstrat': if (c && isCEO(c)) { c.ps = +v; news(`${c.name}の価格戦略を「${PRICE[+v].n}」に変更`, 'you', c.city); } break;
     case 'advert': if (c && isCEO(c)) { const g = advertise(c, c.rev * +v); if (g) toast(`${c.name}の広告キャンペーン：ブランド +${(g * 100).toFixed(0)}`); } break;
     case 'negq': ui.negQ = +v; break;
@@ -2417,7 +2537,7 @@ function boot(){
   showStart();
   if (ui.restored) toast('セーブデータが壊れていたため、バックアップから復元しました', true);
 }
-window.__atlas = {get S(){ return S; }, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
+window.__atlas = {get S(){ return S; }, hire, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
 boot();
 })();
 </script>

@@ -225,6 +225,35 @@ async function testMarkets(b) {
   await ctx.close();
 }
 
+// Phase 2: rival styles, restructuring, executives and delegation.
+async function testPhase2(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(quick => {
+    const A = window.__atlas, out = {};
+    A.newGame(777, 'normal', 'T', 't', 'std', true); let S = A.S; S.won = true; S.lost = true; S.player.cash += 2000;
+    const c = S.cos.filter(x => !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom').sort((a, b) => a.price * a.shares - b.price * b.shares)[0];
+    A.execBuy('P', c, c.shares * .8); if (c.ctrl !== 'P') A.execBuy('P', c, c.shares * .15);
+    out.ctrl = c.ctrl === 'P';
+    const f0 = c.fixed; A.restructure(c, 'cost'); out.costCut = c.fixed / f0;
+    A.hire(c, 0); c.deleg = 'cash';
+    for (let i = 0; i < 12; i++) { A.step(); S.inbox = []; }
+    out.cashPolicy = {payout: c.payout, ps: c.ps, log: (c.mlog || []).length};
+    const counts = {raider: 0, turnaround: 0, keiretsu: 0, defend: 0};
+    for (const sd of quick ? [3] : [3, 9, 27]) {
+      A.newGame(sd * 4099, 'hard', 'T', 't', 'std', true); S = A.S;
+      for (let i = 0; i < 520; i++) { A.step(); S.inbox = []; for (const n of S.news) { if (n.w !== S.week) break; if (n.t.includes('資産回収型')) counts.raider++; if (n.t.includes('再建型')) counts.turnaround++; if (n.t.includes('系列型')) counts.keiretsu++; if (n.t.includes('買い集めに対抗')) counts.defend++; } }
+    }
+    out.counts = counts;
+    return out;
+  }, QUICK);
+  ok('restructuring: cost cut lowers fixed costs by 15%', Math.abs(r.costCut - .85) < 1e-9, r.costCut);
+  ok('delegation: a CEO on the cash policy raises prices and payout', r.ctrl && r.cashPolicy.payout === .8 && r.cashPolicy.ps === 1, JSON.stringify(r.cashPolicy));
+  console.log('PHASE2 style-specific rival actions over 10 years: ' + JSON.stringify(r.counts));
+  ok('rival styles: the asset-stripper and the turnaround investor each act in character', r.counts.raider > 0 && r.counts.turnaround > 0, '');
+  ok('no page errors in phase 2 tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 // Simple value bot used since the first version: buys cheap stocks, sells rich ones, milks controlled companies.
 async function balance(b) {
   const {p, ctx} = await page(b);
@@ -273,6 +302,7 @@ async function balance(b) {
     await testSaveSafety(b);
     await testUI(b);
     await testMarkets(b);
+    await testPhase2(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
