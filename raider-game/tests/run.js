@@ -27,7 +27,7 @@ const INVARIANTS = () => {
     if (!(c.shares > 0)) bad.push(`${c.id} shares<=0`);
     let held = 0; for (const k in c.own) { if (!(c.own[k] >= 0)) bad.push(`${c.id} own ${k}<0`); held += c.own[k]; }
     if (held > c.shares * (1 + 1e-6)) bad.push(`${c.id} over-held`);
-    const t = {}; for (const k in c.own) { const b = k[0] === 'C' ? (S.cos.find(x => x.id === k) || {}).ctrl : k; if (b) t[b] = (t[b] || 0) + c.own[k]; }
+    const t = {}; for (const k in c.own) { const b = k[0] === 'C' ? (S.cos.find(x => x.id === k) || {}).ctrl : /^F\d+$/.test(k) ? 'P' : k; if (b) t[b] = (t[b] || 0) + c.own[k]; }
     let nc = null; for (const b in t) if (t[b] > c.shares * .5) nc = b;
     if ((nc || null) !== (c.ctrl || null)) bad.push(`${c.id} ctrl mismatch`);
   }
@@ -383,7 +383,7 @@ async function testPhase6(b) {
     const u = S.cos.filter(c => !c.ctrl && !c.priv && c !== t && !c.proxy).sort((a, b) => a.price * a.shares - b.price * b.shares)[5];
     A.execBuy('R1', u, u.shares * .35); u.board = 'P'; u.boardEnd = S.week + 40; R.cash += 100;
     A.rivalProxyStart(R, u); R.cash = 0; R.agg = 0; for (const h of S.cos) if (h.ctrl === 'R1') h.cash = 0; out.proxyInbox = S.inbox.some(i => i.kind === 'vote' && i.what === 'proxy' && i.cid === u.id);
-    for (let i = 0; i < 9 && u.proxy; i++) { A.step(); }
+    for (let i = 0; i < 9 && u.proxy; i++) { u.mood = -.5; A.step(); } // an undervalued company: shareholders lean towards the challenger
     out.proxy = {board: u.board, ctrl: u.ctrl || null};
     // LBO: a raider short of cash can still bid by borrowing against the target
     const w = S.cos.filter(c => !c.ctrl && !c.priv && !c.proxy && c !== t && c !== u).sort((a, b) => a.price * a.shares - b.price * b.shares)[8];
@@ -454,6 +454,85 @@ async function testResearch(b) {
   await ctx.close();
 }
 
+// PE: deals, due diligence, auctions, LBO, value creation, exits, take-private and funds (LP money kept apart).
+async function testPE(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(6161, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 600;
+    const gen = () => { let d = null; for (let i = 0; i < 50 && !d; i++) d = A.peDealGen(); return d; };
+    // due diligence: costs money and reveals the real margin; a found problem comes off the price
+    const d1 = gen(); d1.risk = {k: 'debt', cost: d1.rev * .1, w: 10}; const ask0 = A.dealAsk(d1), c0 = S.player.cash;
+    A.peDD(d1); out.ddPaid = S.player.cash < c0; for (let i = 0; i < 4; i++) { A.step(); S.inbox = []; } out.ddDone = d1.dd === 2; out.ddCheaper = A.dealAsk(d1) < ask0;
+    // a deal nobody else wants: a 10% lowball wins; the J-curve shows right after buying
+    const d = gen(); d.n = 0; d.ai = 0; d.exp = S.week + 20; d.risk = null;
+    const nw0 = A.netWorth('P'), cash0 = S.player.cash, q = A.peQuote(d, A.dealAsk(d) * .9, .5, 'P');
+    out.bid = A.peBid(d, -.1, .5, false, 'P'); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; }
+    const c = S.cos.find(x => x.pe && x.name === d.name); out.won = !!c && c.ctrl === 'P' && c.priv && c.own.P === c.shares;
+    out.lbo = c && c.debt >= d.debt + q.acq - 1e-6;
+    { const e = gen(); e.n = 0; e.ai = 0; e.exp = S.week + 20; e.risk = null; const qe = A.peQuote(e, A.dealAsk(e), .5, 'P'); A.peBid(e, 0, .5, false, 'P'); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; }
+      const ce = S.cos.find(x => x.pe && x.name === e.name); out.jcurve = ce ? (qe.out - ce.own.P * ce.price) / qe.out : null; } // bought at the asking price: the mark sits below the cheque
+    // an outbid player loses
+    const d2 = gen(); d2.n = 2; d2.ai = A.dealAsk(d2) * 1.3; d2.exp = S.week + 20; A.peBid(d2, 0, 0, false, 'P'); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; } out.lost = !S.cos.some(x => x.name === d2.name && x.pe);
+    // skipping due diligence: the hidden problem shows up later
+    const d3 = gen(); d3.n = 0; d3.ai = 0; d3.exp = S.week + 20; d3.risk = {k: 'suit', cost: 3, w: 2}; A.peBid(d3, 0, 0, false, 'P'); for (let i = 0; i < 6; i++) { A.step(); S.inbox = []; }
+    out.surprise = S.news.some(n => n.t.includes('買収後の誤算'));
+    // recap: debt up, cash back to the owner, recorded as a distribution
+    if (c) { const before = A.peStats(c).ret, cash1 = S.player.cash; c.debt = 0; const a = A.peRecap(c); out.recap = a > 0 && S.player.cash > cash1 && A.peStats(c).ret > before; }
+    // exit through a sale process: bids arrive in the inbox; selling writes the track record
+    if (c) { A.peExitStart(c); for (let i = 0; i < 6; i++) A.step(); const it = S.inbox.find(i => i.kind === 'peexit' && i.cid === c.id); out.exitBids = it ? it.bids.length : 0;
+      if (it) { const cash2 = S.player.cash; A.peSell(c, it.bids[it.bids.length - 1]); out.sold = !S.cos.includes(c) && S.player.cash > cash2 && S.pe.track.length >= 1 && S.pe.track[0].moic > 0; } }
+    // take a controlled listed company private
+    const L = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[4]; S.player.cash += 3000; A.execBuy('P', L, L.shares * .55);
+    const tp = L.ctrl === 'P' && A.peTakePrivate(L, 0); out.privatized = !!tp && L.priv && L.own.P === L.shares && !!L.pe;
+    // funds: LP money never counts as the player's
+    S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+    S.player.cash = 2000; const f = A.fundRaise('buyout', .05); for (let i = 0; i < 13; i++) { A.step(); S.inbox = []; }
+    out.fund = {closed: !f.raising, size: f.lp + f.gp, gp: f.gp};
+    const nwA = A.netWorth('P'); out.lpNotMine = Math.abs(nwA - A.netWorth('P')) < 1e-9; // closing a fund adds no net worth
+    const d4 = gen(); d4.n = 0; d4.ai = 0; d4.exp = S.week + 20; d4.risk = null; const q4 = A.peQuote(d4, A.dealAsk(d4) * .9, .5, f.id);
+    const pc0 = S.player.cash, lp0 = f.calledLP; A.peBid(d4, -.1, .5, false, f.id); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; }
+    const fc = S.cos.find(x => x.pe && x.name === d4.name);
+    out.fundBuy = {owned: !!fc && fc.own[f.id] === fc.shares && fc.ctrl === 'P', lpPaid: f.calledLP - lp0 > q4.out * .9, nav: A.fundNAV(f) > 0};
+    // waterfall: a big distribution pays capital back, then the preferred return, then 20% carry to the GP
+    const PI = f.calledLP + f.calledGP, c3 = S.player.cash; A.fundDistribute(f, PI * 2); const st = A.fundStats(f);
+    out.carry = {carry: +f.carry.toFixed(4), expect: +(.2 * PI).toFixed(4), playerGot: +(S.player.cash - c3).toFixed(4), gpShare: +(f.carry + (PI * 2 - f.carry) * f.gp / (f.lp + f.gp)).toFixed(4), dpi: st.dpi};
+    out.irr = A.irr([[0, -100], [52, 0], [104, 0], [156, 286]], 0, 156);
+    return out;
+  });
+  ok('PE: due diligence costs money, takes 4 weeks and takes a found problem off the price', r.ddPaid && r.ddDone && r.ddCheaper, JSON.stringify({p: r.ddPaid, d: r.ddDone, c: r.ddCheaper}));
+  ok('PE: an uncontested 10% lowball wins; the company is unlisted, wholly owned and carries the LBO debt', r.bid && r.won && r.lbo, JSON.stringify({bid: r.bid, won: r.won, lbo: r.lbo}));
+  ok('PE: J-curve — fees and the illiquidity discount cost 5–30% of the cheque at once', r.jcurve > .05 && r.jcurve < .3, String(r.jcurve));
+  ok('PE: a higher rival bid wins the auction', r.lost);
+  ok('PE: skipping due diligence lets a hidden problem surface after the deal', r.surprise);
+  ok('PE: a dividend recap pays the owner and counts as a distribution', r.recap);
+  ok('PE: a sale process brings bids; selling closes the investment into the track record', r.exitBids > 0 && r.sold, JSON.stringify({n: r.exitBids, sold: r.sold}));
+  ok('PE: taking a controlled listed company private buys out every outside holder', r.privatized);
+  ok('PE fund: LP commitments close and are not counted as the player\'s net worth', r.fund.closed && r.fund.size > 0 && r.lpNotMine, JSON.stringify(r.fund));
+  ok('PE fund: a fund deal is owned by the fund, controlled by the player and paid mostly by LPs', r.fundBuy.owned && r.fundBuy.lpPaid && r.fundBuy.nav, JSON.stringify(r.fundBuy));
+  ok('PE fund: waterfall pays 20% carry once LPs have capital back plus 8%', Math.abs(r.carry.carry - r.carry.expect) < 1e-6 && Math.abs(r.carry.playerGot - r.carry.gpShare) < 1e-6, JSON.stringify(r.carry));
+  ok('IRR: 100 → 286 over three years is about 41.9% a year', Math.abs(r.irr - .419) < .002, String(r.irr));
+  // long run with a PE-playing bot: nothing breaks
+  const l = await p.evaluate(inv => { const A = window.__atlas; A.newGame(6262, 'hard', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 300; let bought = 0, sold = 0;
+    for (let w = 0; w < 520; w++) { A.step();
+      for (const it of S.inbox.filter(i => i.kind === 'peexit')) { const c = S.cos.find(x => x.id === it.cid); if (c && A.peSell(c, it.bids[0])) sold++; }
+      S.inbox = [];
+      if (w % 3 === 0) { const d = S.pe.deals.find(x => !x.bid && x.dd === 0); if (d) A.peDD(d); const e = S.pe.deals.find(x => !x.bid && x.dd === 2); if (e && A.peBid(e, .05, .5, false, 'P')) bought++; }
+      for (const c of S.cos) if (c.pe && !c.pe.closed && c.priv && c.ctrl === 'P' && (S.week - c.pe.w0) > 150 && !c.pe.sale) A.peExitStart(c);
+    }
+    return {bought, sold, track: S.pe.track.length, bad: (0, eval)('(' + inv + ')')(), nw: A.netWorth('P')}; }, INVARIANTS.toString());
+  console.log('PE bot over 10 hard years: ' + JSON.stringify({bought: l.bought, sold: l.sold, track: l.track, nw: Math.round(l.nw)}));
+  ok('PE: invariants hold over 10 years of buying and selling', !l.bad.length && Number.isFinite(l.nw) && l.bought > 0, l.bad.slice(0, 5).join(', '));
+  // the PE tab on a phone
+  const m = await page(b, devices['iPhone 13']);
+  await m.p.evaluate(() => { const A = window.__atlas; A.newGame(6363, 'normal', 'T', 't', 'std', true); A.S.lost = true; for (let i = 0; i < 40 && A.S.pe.deals.length < 2; i++) A.peDealGen(); document.querySelector('#modal').hidden = true; });
+  await m.p.click('[data-act=tab][data-v=pe]');
+  await m.p.click('.deal-h[data-act=peopen]');
+  const u = await m.p.evaluate(() => ({deals: document.querySelectorAll('.deal').length, bidBtn: !!document.querySelector('[data-act=pebid]'), o: document.documentElement.scrollWidth - innerWidth}));
+  ok('iPhone: the PE tab lists deals, opens one with bid controls and does not overflow', u.deals >= 2 && u.bidBtn && u.o <= 0, JSON.stringify(u));
+  ok('no page errors in PE tests', !errs.length && !m.errs.length, errs.concat(m.errs).slice(0, 3).join(' | '));
+  await m.ctx.close(); await ctx.close();
+}
+
 // Simple value bot used since the first version: buys cheap stocks, sells rich ones, milks controlled companies.
 async function balance(b) {
   const {p, ctx} = await page(b);
@@ -508,6 +587,7 @@ async function balance(b) {
     await testPhase5(b);
     await testPhase6(b);
     await testResearch(b);
+    await testPE(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
