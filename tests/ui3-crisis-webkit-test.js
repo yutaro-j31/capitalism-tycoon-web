@@ -192,8 +192,7 @@ async function main() {
     // Founder's injection: the amount sheet starts at the current panel's default; the cash moves by exactly the amount.
     await page.locator('[data-ui3-cr="founder"]').tap();
     await page.locator('#modal-root [data-ui3-amount-input]').waitFor({ state: 'visible', timeout: 10000 });
-    // UI3-12b (play-test B12): the injection starts at min(1,000,000 yen, the personal cash), the founder-contribution default of js/app.js, not at the whole gap
-    assert.equal(Number(await page.locator('#modal-root [data-ui3-amount-input]').inputValue()), Math.min(1000000, Math.floor(await engineEval(page, engine => engine.g.personalCash))), 'the default is min(1,000,000 yen, personal cash)');
+    assert.equal(Number(await page.locator('#modal-root [data-ui3-amount-input]').inputValue()), quote.defaultAmount, 'the same default as the current panel');
     const beforeCancel = await digest(page);
     await cancel(page);
     assert.equal(await digest(page), beforeCancel, 'cancelling changes nothing');

@@ -146,8 +146,8 @@ function ask(kind,type,id){
       confirm:value=>({title:`創業者資金${money(value)}を注入`,subtitle:'個人資金を会社の資本へ振り替えます。利益や負債は発生しません。取り消せません。',
         facts:[{label:'注入額',value:money(value)},{label:'実行後の会社現金',value:money(company+value),tone:'up'},{label:'実行後の個人現金',value:money(personal-value),tone:personal-value<0?'down':undefined}],
         note:personal-value<0?'個人の現金が足りません。エンジンが実行を断ります。':'',confirmLabel:'注入する'})});
-    // the default is the same as the current screen's founder contribution (js/app.js): 1,000,000 yen or the personal cash if that is less
-    ui3.amountSheet({title:'創業者資金を注入',initial:Math.min(1000000,Math.max(0,Math.floor(personal))),submit:value=>{instance.injectFounderCapital(Number(value));}});
+    // the default is the shortfall (the same as the current crisis panel), capped by the personal cash: what a crisis needs is the shortfall
+    ui3.amountSheet({title:'創業者資金を注入',initial:c.founderAmount,submit:value=>{instance.injectFounderCapital(Number(value));}});
   }else if(kind==='bridge'){
     confirmCost({title:'緊急融資を申請',subtitle:'既存の与信枠の範囲で、必要準備額までの短期資金を借ります。',
       facts:[{label:'予定額',value:money(options.bridgeAmount),tone:'up'},{label:'利用可能枠',value:money(options.availableCredit)}],note:c.bridgeSub,

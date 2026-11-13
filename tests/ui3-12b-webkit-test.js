@@ -190,16 +190,19 @@ async function main() {
     await goTo(page, 'home');
     await page.locator('[data-ui3-crisis-open]').first().tap();
     await page.locator('#modal-root [data-ui3-cr="founder"]').tap();
-    assert.equal(await page.locator('#modal-root [data-ui3-amount-input]').inputValue(), '1000000', 'the injection starts at 1,000,000 yen (the current screen\'s default)');
+    // in a crisis the default is the shortfall (the current crisis panel's default), capped by the personal cash
+    const expectedDefault = await engineEval(page, engine => { const panel = globalThis.__capitalismTycoonModules.playerCrisisUI.render(engine.g, engine); return Number((panel.match(/id="player-crisis-founder-amount"[^>]*value="(\d+)"/) || [])[1]); });
+    assert.equal(Number(await page.locator('#modal-root [data-ui3-amount-input]').inputValue()), expectedDefault, 'the injection starts at the shortfall, like the current crisis panel');
+    assert.ok(expectedDefault <= 50000000, 'and never above the personal cash');
     const inj = await snapshot(page);
     await page.locator('#modal-root [data-ui3-amount-run]').tap();
     await page.locator('#modal-root [data-ui3-amount-confirm]').waitFor({ state: 'visible', timeout: 10000 });
     rows = await facts(page);
-    assert.deepEqual(rows, [['注入額', await yen(page, 1000000)], ['実行後の会社現金', await yen(page, inj.company + 1000000)], ['実行後の個人現金', await yen(page, inj.personal - 1000000)]], "the injection's confirmation shows both wallets afterwards");
+    assert.deepEqual(rows, [['注入額', await yen(page, expectedDefault)], ['実行後の会社現金', await yen(page, inj.company + expectedDefault)], ['実行後の個人現金', await yen(page, inj.personal - expectedDefault)]], "the injection's confirmation shows both wallets afterwards");
     assert.deepEqual(await snapshot(page), inj, 'nothing moved before the confirmation');
     await page.locator('#modal-root [data-ui3-amount-confirm]').tap();
-    await page.waitForFunction(cash => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.companyCash === cash, inj.company + 1000000, { timeout: 10000 });
-    assert.equal((await snapshot(page)).personal, inj.personal - 1000000, 'the personal cash fell by exactly the amount');
+    await page.waitForFunction(cash => globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine().g.companyCash === cash, inj.company + expectedDefault, { timeout: 10000 });
+    assert.equal((await snapshot(page)).personal, inj.personal - expectedDefault, 'the personal cash fell by exactly the amount');
 
     assert.deepEqual(pageErrors, [], 'no page errors');
     await context.close();
