@@ -150,6 +150,10 @@ i.pn b.pos{left:50%;background:var(--up)}
 i.pn b.neg{right:50%;background:var(--down)}
 .rtable.cm>div{grid-template-columns:.8fr 1fr 1.6fr .6fr}
 .tag.priv{border:1px solid var(--mute);color:var(--mute);background:none}
+.tasks{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--down);border-radius:10px;padding:6px 10px;background:rgba(240,106,93,.08);font-size:12px}
+.tasks b{color:var(--down);font-weight:700;margin-right:4px}
+.task{background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:4px 10px;min-height:32px;font-size:12px}
+.task.bad{border-color:var(--down);color:var(--down)}
 .subtabs{display:flex;gap:4px;margin:12px 0 4px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .subtabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:8px 10px;min-height:40px;font-size:13px;white-space:nowrap}
 .subtabs button.on{color:var(--ink);border-bottom-color:var(--gold);font-weight:700}
@@ -278,6 +282,7 @@ canvas.chart{width:100%;height:120px;display:block;margin:10px 0 4px}
     </div>
   </header>
   <div class="ticker" aria-hidden="true"><div class="tick-track" id="ticker"></div></div>
+  <div class="tasks" id="tasks" hidden></div>
   <main class="main">
     <section class="mapwrap" aria-label="世界市場マップ">
       <canvas id="map"></canvas>
@@ -502,17 +507,19 @@ function mkTargets(key, override){ // pure: target shares in a market, optionall
   const tot = M.ow + a.reduce((x, y) => x + y, 0);
   return Object.fromEntries(list.map((c, i) => [c.id, a[i] / tot]));
 }
+// high-growth industries mature: growth above 5% fades by 7% a year (tech 11% → about 7% after 15 years)
+const indG = ind => { const g = IND[ind].g; return g > .05 ? .05 + (g - .05) * Math.pow(.93, S.week / 52) : g; };
 function mkStep(){
   const e = S.econ, by = mkMembers();
   for (const key of Object.keys(by).sort()) {
     const M = S.mk[key], list = by[key], I = IND[list[0].ind];
-    M.D *= 1 + (I.g + I.cyc * (e.gdp - 2.5) / 100) / 52 + gauss() * .004;
+    M.D *= 1 + (indG(list[0].ind) + I.cyc * (e.gdp - 2.5) / 100) / 52 + gauss() * .004;
     const tgt = mkTargets(key);
     let sum = 0;
     for (const c of list) {
       c.tsh = tgt[c.id]; c.sh += (c.tsh - c.sh) * SHARE_SPEED; sum += c.sh;
-      c.w *= 1 + (c.growth + c.boost - I.g) / 52; // product strength drifts with the company's own growth edge
-      c.fixed *= 1 + I.g / 52;
+      c.w *= 1 + (c.growth + c.boost - indG(c.ind)) / 52; // product strength drifts with the company's own growth edge
+      c.fixed *= 1 + indG(c.ind) / 52;
     }
     for (const c of list) { c.vol = M.D * c.sh; c.rev = c.vol * plev(c); }
     M.ov = Math.max(0, M.D * (1 - sum)); M.ovRef = M.ov;
@@ -605,7 +612,7 @@ function newGame(seed, diff, company, pname, scen, allU){
     cos: [], news: [], inbox: [], tobs: [], tobSeq: 1, ipo: 0, idx: 1000, idxHist: [1000],
     nwHist: {P: [], R1: [], R2: [], R3: []}, won: false, lost: false, inboxSeq: 1,
     scen: SCEN[scen] ? scen : 'std', pres: {cash: 0, salary: 0, assets: [], earned: 0, seq: 1},
-    missions: [], misSeq: 1, ach: {}, stats: {tobWins: 0, warWins: 0, lbo: 0, proxyWins: 0, actWins: 0, shortWins: 0, missionsDone: 0},
+    missions: [], misSeq: 1, ach: {}, tut: {}, goalIdx: 0, stats: {tobWins: 0, warWins: 0, lbo: 0, proxyWins: 0, actWins: 0, shortWins: 0, missionsDone: 0},
   };
   for (const d of CO_DEF) S.cos.push(makeCompany(d));
   applyScenario();
@@ -1218,9 +1225,28 @@ const ACH = [
   ['mis5', '有言実行', 'ミッションを5つ達成', () => S.stats.missionsDone >= 5],
 ];
 function checkAch(){
-  checkStage();
+  checkStage(); stepCheck();
   for (const [id, n, d, fn] of ACH) if (S.ach[id] == null && fn()) { S.ach[id] = S.week; news(`【実績解除】${n}：${d}`, 'you'); toast(`実績解除：${n}`); }
 }
+
+/* ---------- beginner milestones (Phase 5) ---------- */
+const STEPS = [
+  ['buy', '初めて株を買う', '「市場」で企業を選び「売買」から購入', 1, () => S.cos.some(c => (c.own.P || 0) > 0) || ctrlP().length > 0],
+  ['big', '5%以上を持つ大株主になる', '同じ会社の株を買い増す', 2, () => S.cos.some(c => gfrac(c, 'P') >= .05)],
+  ['tob', 'TOBを出す', '「買収・提案」から公開買付けを開始', 3, () => S.tobs.some(t => t.boss === 'P') || S.stats.tobWins > 0],
+  ['ctrl', '会社の経営権を握る', 'グループ持分を50%超に', 5, () => ctrlP().length > 0],
+  ['run', '経営判断をする', '支配企業の「経営」で価格・広告・CEO・再建のどれかを使う', 3, () => ctrlP().some(c => c.ps || c.adW != null || c.mgr || c.rsW)],
+  ['vert', '垂直統合を実現する', '仕入れ先の業種の会社もグループで支配する', 10, () => ctrlP().some(c => vertLinks(c).length > 0)],
+];
+function stepCheck(){
+  S.tut = S.tut || {};
+  if (S.tut._m) { delete S.tut._m; for (const [id, , , , fn] of STEPS) if (fn()) S.tut[id] = S.week; return; } // older saves: record silently, no rewards
+  for (const [id, n, , reward, fn] of STEPS) if (S.tut[id] == null && fn()) { S.tut[id] = S.week; S.player.cash += reward; news(`【はじめの一歩】「${n}」を達成。報酬${fm(reward)}`, 'you'); toast(`はじめの一歩：${n}（報酬 ${fm(reward)}）`); }
+}
+
+/* ---------- endless goals after the first win (Phase 5) ---------- */
+const GOALS = [[1000, '1,000億円'], [3000, '3,000億円'], [10000, '1兆円'], [30000, '3兆円'], [100000, '10兆円']];
+const nextGoal = () => GOALS[Math.min(S.goalIdx || 0, GOALS.length - 1)];
 
 /* ---------- (3) MBO events & delisting ---------- */
 function delist(c, price, why){
@@ -1495,7 +1521,7 @@ function quarter(){
   for (const c of S.cos) { attribute(c); competitorsReact(c); }
   for (const c of S.cos) {
     c.margin = clamp(c.margin + (c.base - c.margin) * .25 + gauss() * c.base * .12, -.1, .45);
-    c.growth = c.growth + (IND[c.ind].g - c.growth) * .15 + gauss() * .012;
+    c.growth = c.growth + (indG(c.ind) - c.growth) * .15 + gauss() * .012;
     const act = niA(c);
     if (c.est != null) { // earnings surprise against the analyst consensus
       const sur = (act - c.est) / Math.max(Math.abs(c.est), c.rev * .01);
@@ -1743,7 +1769,8 @@ function step(){
 function checkEnd(){
   const nw = netWorth('P');
   if (!S.won && !S.rivalWon) { const r = S.rivals.find(x => netWorth(x.id) >= GOAL); if (r) { S.rivalWon = r.id; news(`【ライバル到達】${r.n}が純資産1,000億円に先着。逆転するには支配企業を奪い返せ`, 'warn'); toast(`${r.n}が先に1,000億円へ到達しました`, true); } }
-  if (!S.won && nw >= GOAL) { S.won = true; ui.speed = 0; showEnd(true); }
+  if (!S.won && nw >= GOAL) { S.won = true; S.goalIdx = 1; ui.speed = 0; showEnd(true); }
+  else if (S.won && (S.goalIdx || 1) < GOALS.length && nw >= GOALS[S.goalIdx || 1][0]) { const g = GOALS[S.goalIdx || 1]; S.goalIdx = (S.goalIdx || 1) + 1; news(`【新記録】純資産${g[1]}に到達`, 'you'); toast(`純資産${g[1]}を達成！${S.goalIdx < GOALS.length ? `次の目標は${GOALS[S.goalIdx][1]}` : '全目標を制覇'}`); }
   if (!S.lost && nw < 0) { S.lost = true; ui.speed = 0; showEnd(false); }
 }
 
@@ -1766,7 +1793,7 @@ function backupSave(){ try { const cur = localStorage.getItem(SAVE_KEY); if (cur
 function validSave(o){ return !!(o && o.v === 1 && Array.isArray(o.cos) && o.cos.length && o.player && typeof o.player.cash === 'number' && typeof o.week === 'number' && typeof o.rs === 'number' && o.econ && Array.isArray(o.rivals)); }
 function migrate(o){ // brings any older v1 save up to the current shape without discarding data
   if (!validSave(o)) return null;
-  o.player.shorts = o.player.shorts || {}; if (!DIFF[o.diff]) o.diff = 'normal'; o.company = o.company || DEF_CO; o.pname = o.pname || DEF_PN; o.tobs = o.tobs || []; o.tobSeq = o.tobSeq || 1; o.tips = o.tips || []; o.reports = o.reports || []; o.optSeq = o.optSeq || 1; if (o.stage == null) { o.stage = 4; o.allUnlocked = true; } o.research = o.research || {pts: 0, budget: 0, done: {}}; for (const r of o.rivals) if (!r.style) r.style = (RIVAL_DEF.find(d => d.id === r.id) || {style: 'raider'}).style; o.scen = SCEN[o.scen] ? o.scen : 'std'; o.pres = o.pres || {cash: 0, salary: 0, assets: [], earned: 0, seq: 1}; o.missions = o.missions || []; o.misSeq = o.misSeq || 1; o.ach = o.ach || {}; o.stats = Object.assign({tobWins: 0, warWins: 0, lbo: 0, proxyWins: 0, actWins: 0, shortWins: 0, missionsDone: 0}, o.stats || {}); Object.assign(o.player, {opts: o.player.opts || [], ban: o.player.ban || {}, rep: o.player.rep == null ? .5 : o.player.rep, outside: o.player.outside || 0}); if (!o.econ.fx) { o.econ.fx = FX0; o.econ.fxBand = 15; o.econ.fxHist = [FX0]; }
+  o.player.shorts = o.player.shorts || {}; if (!DIFF[o.diff]) o.diff = 'normal'; o.company = o.company || DEF_CO; o.pname = o.pname || DEF_PN; o.tobs = o.tobs || []; o.tobSeq = o.tobSeq || 1; o.tips = o.tips || []; o.reports = o.reports || []; o.optSeq = o.optSeq || 1; if (o.stage == null) { o.stage = 4; o.allUnlocked = true; } o.research = o.research || {pts: 0, budget: 0, done: {}}; for (const r of o.rivals) if (!r.style) r.style = (RIVAL_DEF.find(d => d.id === r.id) || {style: 'raider'}).style; o.scen = SCEN[o.scen] ? o.scen : 'std'; o.pres = o.pres || {cash: 0, salary: 0, assets: [], earned: 0, seq: 1}; o.missions = o.missions || []; o.misSeq = o.misSeq || 1; o.ach = o.ach || {}; if (!o.tut) o.tut = {_m: 1}; if (o.goalIdx == null) o.goalIdx = o.won ? 1 : 0; o.stats = Object.assign({tobWins: 0, warWins: 0, lbo: 0, proxyWins: 0, actWins: 0, shortWins: 0, missionsDone: 0}, o.stats || {}); Object.assign(o.player, {opts: o.player.opts || [], ban: o.player.ban || {}, rep: o.player.rep == null ? .5 : o.player.rep, outside: o.player.outside || 0}); if (!o.econ.fx) { o.econ.fx = FX0; o.econ.fxBand = 15; o.econ.fxHist = [FX0]; }
   return o;
 }
 function parseSave(text){ try { return migrate(JSON.parse(text)); } catch (e) { return null; } }
@@ -1786,13 +1813,31 @@ function loadSave(){
 const ui = {expReg: '', expCity: '', fReg: 'jp', fCity: 'tyo', fInd: 'tech', allU: false, pendingUnlock: null, negK: '', negQ: .5, negP: .15, whoK: 'all', repI: 0, scen: 'std', cname: DEF_CO, pname: '', region: 'all', diff: 'normal', tab: 'market', sel: null, city: null, sort: 'cap', speed: 0, amt: 5, tPrem: .3, tTarget: .51, mPrem: .25, mTarget: '', inboxFlash: false, ceoAmt: .25, samt: 5, actor: 'P', cRaise: .1, ctab: 'info', tMode: 'tob', oType: 'call', oWks: 13, oAmt: 5};
 function toast(msg, bad){ const el = document.createElement('div'); el.className = 'toast' + (bad ? ' bad' : ''); el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), 3800); while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove(); }
 
+function tasks(){ // decisions waiting for the player (read-only)
+  const out = [], p = S.player, by = {};
+  for (const it of S.inbox) by[it.kind] = (by[it.kind] || 0) + 1;
+  const names = {crisis: '資金繰り危機', tender: 'TOB応募の打診', counter: '逆提案', block: '株の買取申し入れ', greenmail: '買戻し提案', tip: '未確認情報'};
+  for (const k of ['crisis', 'tender', 'counter', 'block', 'greenmail', 'tip']) if (by[k]) out.push({t: `${names[k]} ${by[k]}`, go: 'inbox', bad: k === 'crisis'});
+  for (const t of S.tobs) { const c = coById(t.cid); if (c && t.boss !== 'P' && (t.raises.P || (t.knight && t.merge))) out.push({t: `${c.name}で対抗されています`, go: c.id, bad: true}); }
+  const hv = holdingsValue('P'); if (p.loan > 0 && p.loan > hv * DIFF[S.diff].call * .85) out.push({t: '追証が近い', go: 'port', bad: true});
+  const sl = shortLiab(); if (sl > 0 && netWorth('P') < sl * .4) out.push({t: '踏み上げ注意', go: 'port', bad: true});
+  for (const c of S.cos) if (c.ctrl === 'P' && c.crisis && !S.inbox.some(i => i.cid === c.id)) out.push({t: `${c.name}が資金難`, go: c.id, bad: true});
+  for (const m of S.missions) if (m.due - S.week <= 4) out.push({t: `ミッション期限まで${m.due - S.week}週`, go: 'pres'});
+  return out;
+}
+function renderTasks(){
+  const el = $('#tasks'), list = tasks();
+  el.hidden = !list.length;
+  el.innerHTML = list.length ? `<b>対応が必要</b>${list.slice(0, 4).map(x => `<button class="task ${x.bad ? 'bad' : ''}" data-act="task" data-v="${esc(x.go)}">${esc(x.t)}</button>`).join('')}${list.length > 4 ? `<span>ほか${list.length - 4}件</span>` : ''}` : '';
+}
 function renderTop(){
+  renderTasks();
   const p = S.player, nw = netWorth('P');
   const rank = 1 + S.rivals.filter(r => netWorth(r.id) > nw).length;
   $('#date').innerHTML = `<b>${esc(S.company)}</b><span>社長 ${esc(S.pname)}（${title()}）</span><span>${DIFF[S.diff].n}${S.scen !== 'std' ? '・' + SCEN[S.scen].n : ''} · ${dateOf(S.week)}</span>`;
   $('#stats').innerHTML = [
     ['現金', fm(p.cash)], ['信用借入', fm(p.loan)], ['空売り残高', fm(shortLiab())], ['買付余力', fm(buyingPower())],
-    ['純資産', fm(nw), 'nw'], ['順位', rank + '位 / 4'],
+    ['純資産', fm(nw), 'nw'], [S.won ? '次の目標' : '順位', S.won ? ((S.goalIdx || 1) >= GOALS.length ? '全制覇' : nextGoal()[1]) : rank + '位 / 4'],
   ].map(([l, v, c]) => `<div class="stat ${c || ''}"><span>${l}</span><b>${v}</b></div>`).join('');
   document.querySelectorAll('#speed [data-act=speed]').forEach(b => b.classList.toggle('on', +b.dataset.v === ui.speed));
 }
@@ -2151,7 +2196,9 @@ function renderPres(){
   const P = S.pres, w = presWealth(), pr = prestige(), next = TITLES.find(t => t[0] > pr);
   const misHTML = S.missions.map(m => { const d = MIS[m.kind], pg = clamp(d.prog(m), 0, 1); return `<div class="mis"><div class="mis-h"><b>${esc(d.text(m))}</b><span class="num">${shortDate(m.due)}まで</span></div><i class="bar"><b style="width:${pg * 100}%"></b></i><small>進捗 ${pc(pg, 0)} · 報酬 ${fm(m.reward)}</small></div>`; }).join('') || '<div class="empty">次のミッションは四半期の初めに届きます。</div>';
   const got = ACH.filter(a => S.ach[a[0]] != null).length;
-  return `<h3>社長 ${esc(S.pname)}</h3>
+  const stepsDone = STEPS.filter(x => (S.tut || {})[x[0]] != null).length;
+  return `${stepsDone < STEPS.length ? `<h3>はじめの一歩 ${stepsDone} / ${STEPS.length}</h3><div class="ach">${STEPS.map(([id, n, d, rw]) => { const done = (S.tut || {})[id] != null; return `<div class="ach-i ${done ? 'on' : ''}"><b>${done ? '★' : '☆'} ${n}</b><small>${d}・報酬${fm(rw)}</small></div>`; }).join('')}</div>` : ''}
+  <h3>社長 ${esc(S.pname)}</h3>
   <div class="kv"><div><span>称号</span><b>${esc(title())}</b></div><div><span>名声</span><b>${pr}${next ? `<small>／次 ${next[0]}</small>` : ''}</b></div><div><span>評判</span><b>${(repEff() * 100).toFixed(0)}</b></div>
   <div><span>個人の現金</span><b>${fm(P.cash)}</b></div><div><span>個人資産合計</span><b>${fm(w)}</b></div><div><span>役員報酬累計</span><b>${fm(P.earned)}</b></div></div>
   <p class="note" style="margin-top:8px">役員報酬は${esc(S.company)}本体の純資産から支払われ（税45%控除後に個人へ）、ゲームの目標である純資産は減ります。代わりに豪邸やジェット機で名声を高めると、株主提案や委任状争奪戦で支持が集まりやすくなります。</p>
@@ -2531,6 +2578,7 @@ function act(a, el){
     case 'listco': if (c && isCEO(c)) { const a = listCompany(c); if (a) toast(`${c.name}が上場。${fm(a)}を調達`); } break;
     case 'liquidate': if (c && isCEO(c)) { liquidate(c); toast('清算して撤退しました'); ui.sel = null; } break;
     case 'crisis': resolveInbox(+el.dataset.id, v); break;
+    case 'task': if (v.startsWith('C')) { ui.sel = v; ui.tab = 'market'; ui.ctab = 'info'; } else { ui.tab = v; ui.sel = null; } break;
     case 'hire': if (c && isCEO(c)) { const m = hire(c, +v); if (m) toast(`${m.n}を${c.name}のCEOに採用`); } break;
     case 'fire': if (c && isCEO(c)) { fire(c); toast('CEOを解任しました'); } break;
     case 'deleg': if (c && isCEO(c) && c.mgr) { c.deleg = v || null; toast(v ? `${c.name}の経営を「${POLICY[v].n}」で任せました` : '委任をやめました'); } break;
@@ -2656,7 +2704,7 @@ function importText(text, fromBak){
 function showEnd(win){
   const yrs = (S.week / 52).toFixed(1);
   openModal(win
-    ? `<h1>目標達成</h1><p class="lede">${yrs}年で純資産 ${fm(netWorth('P'))} に到達。支配企業 ${S.cos.filter(c => c.ctrl === 'P').length}社。世界市場はあなたの手の中です。</p><div class="btnrow"><button class="btn gold" data-act="close">このまま続ける</button><button class="btn" data-act="restart">新しいゲーム</button></div>`
+    ? `<h1>目標達成</h1><p class="lede">${yrs}年で純資産 ${fm(netWorth('P'))} に到達。支配企業 ${S.cos.filter(c => c.ctrl === 'P').length}社。世界市場はあなたの手の中です。</p><p class="note">このまま続けると、次の目標は純資産3,000億円 → 1兆円 → 3兆円 → 10兆円。ライバルとの財閥争いも続きます。</p><div class="btnrow"><button class="btn gold" data-act="close">このまま続ける</button><button class="btn" data-act="restart">新しいゲーム</button></div>`
     : `<h1>破産</h1><p class="lede">借入が資産を上回り、口座は清算されました（${yrs}年目）。</p><div class="btnrow"><button class="btn gold" data-act="restart">もう一度挑戦</button><button class="btn" data-act="close">盤面を眺める</button></div>`);
 }
 function startNew(){
@@ -2691,7 +2739,7 @@ function boot(){
   showStart();
   if (ui.restored) toast('セーブデータが壊れていたため、バックアップから復元しました', true);
 }
-window.__atlas = {get S(){ return S; }, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, hire, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
+window.__atlas = {get S(){ return S; }, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, hire, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
 boot();
 })();
 </script>

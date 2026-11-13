@@ -318,6 +318,45 @@ async function testPhase4(b) {
   await ctx.close();
 }
 
+async function testPhase5(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {};
+    A.newGame(7070, 'normal', 'T', 't', 'std', true); const S = A.S; S.lost = true;
+    out.emptyTasks = A.tasks().length;
+    const c = S.cos.filter(x => !x.ctrl && !x.priv).sort((a, b) => a.price * a.shares - b.price * b.shares)[0];
+    S.player.cash += 500; const cash0 = S.player.cash;
+    A.execBuy('P', c, c.shares * .06); const cashAfterBuy = S.player.cash;
+    A.stepCheck();
+    out.steps = {buy: S.tut.buy != null, big: S.tut.big != null, reward: +(S.player.cash - cashAfterBuy).toFixed(6)};
+    A.stepCheck(); out.once = +(S.player.cash - cashAfterBuy).toFixed(6) === out.steps.reward;
+    S.inbox.push({kind: 'tip', cid: c.id, from: 'R1', exp: S.week + 3});
+    out.inboxTask = A.tasks().some(t => t.go === 'inbox');
+    S.inbox = [];
+    // endless goals: after the first win the next targets roll on
+    S.won = true; S.goalIdx = 1; S.player.cash += 3000; A.step();
+    out.goal = S.goalIdx;
+    return out;
+  });
+  ok('tasks bar: nothing to do at the start', r.emptyTasks === 0, String(r.emptyTasks));
+  ok('beginner steps: first buy and 5% stake are recorded with a reward', r.steps.buy && r.steps.big && r.steps.reward === 3, JSON.stringify(r.steps));
+  ok('beginner steps: a reward is paid only once', r.once);
+  ok('tasks bar: an inbox item shows up as a task', r.inboxTask);
+  ok('endless mode: passing 3,000億円 after winning moves to the next goal', r.goal === 2, String(r.goal));
+  // old saves get milestones recorded silently, without rewards
+  const o = await p.evaluate(() => { const A = window.__atlas; A.newGame(7071, 'normal', 'T', 't', 'std', true); const S = A.S; S.lost = true; const c = S.cos.find(x => !x.ctrl && !x.priv); A.execBuy('P', c, c.shares * .01); const t = JSON.parse(A.exportText()); delete t.tut; delete t.goalIdx; const s2 = A.parseSave(JSON.stringify(t)); return {tut: s2.tut, goalIdx: s2.goalIdx}; });
+  ok('old saves: milestone state is added on load', o.tut && o.tut._m === 1 && o.goalIdx === 0, JSON.stringify(o));
+  // the tasks bar renders on a phone and navigates
+  const m = await page(b, devices['iPhone 13']);
+  const ph = await m.p.evaluate(() => { const A = window.__atlas; A.newGame(7072, 'normal', 'T', 't', 'std', true); const S = A.S; S.lost = true; S.won = true; const c = S.cos.find(x => !x.ctrl && !x.priv); S.inbox.push({kind: 'tip', cid: c.id, from: 'R1', exp: S.week + 3}); document.querySelector('#modal').hidden = true; return true; });
+  await m.p.evaluate(() => document.querySelector('[data-act="tab"][data-v="news"]').click());
+  const bar = await m.p.evaluate(() => { const el = document.querySelector('#tasks'); return {shown: !el.hidden, w: el.scrollWidth <= el.clientWidth + 1, btn: !!el.querySelector('[data-act="task"]')}; });
+  ok('tasks bar: shown on iPhone without overflow', ph && bar.shown && bar.w && bar.btn, JSON.stringify(bar));
+  if (bar.btn) { await m.p.click('#tasks [data-act="task"]'); const tab = await m.p.evaluate(() => window.__atlas.ui.tab); ok('tasks bar: tapping a task opens the right tab', tab === 'inbox', tab); }
+  ok('no page errors in phase 5 tests', !errs.length && !m.errs.length, errs.concat(m.errs).slice(0, 3).join(' | '));
+  await m.ctx.close(); await ctx.close();
+}
+
 // Simple value bot used since the first version: buys cheap stocks, sells rich ones, milks controlled companies.
 async function balance(b) {
   const {p, ctx} = await page(b);
@@ -369,6 +408,7 @@ async function balance(b) {
     await testPhase2(b);
     await testPhase3(b);
     await testPhase4(b);
+    await testPhase5(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
