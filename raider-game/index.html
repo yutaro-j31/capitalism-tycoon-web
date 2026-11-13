@@ -659,7 +659,7 @@ function buyingPower(){ // half of the short-sale proceeds stay locked as collat
   return Math.max(0, free + Math.max(0, (L - 1) * (hv + free) - L * S.player.loan));
 }
 const shortRoom = () => Math.max(0, Math.max(0, netWorth('P')) - shortLiab());
-const SHORT_CAP = .15; // lendable shares: up to 15% of shares outstanding
+const shortCap = () => hasR('fin3') ? .25 : .15; // lendable shares as a share of shares outstanding
 function playerPay(cost){ // spend cash, borrow the rest on margin
   const p = S.player; if (p.cash >= cost) { p.cash -= cost; return; }
   p.loan += cost - p.cash; p.cash = 0;
@@ -677,7 +677,7 @@ function sharesForShort(c, money){ let n = money / c.price; for (let i = 0; i < 
 function execShort(c, n){
   if (c.priv) return null;
   const pos = S.player.shorts[c.id] || {n: 0, basis: 0};
-  n = Math.min(n, c.shares * SHORT_CAP - pos.n); const q = quoteSell(c, n); if (!q) return null;
+  n = Math.min(n, c.shares * shortCap() - pos.n); const q = quoteSell(c, n); if (!q) return null;
   const proceeds = q.avg * q.n * .9975;
   S.player.cash += proceeds; pos.n += q.n; pos.basis += proceeds; S.player.shorts[c.id] = pos; c.price = q.np;
   return {n: q.n, proceeds};
@@ -1294,17 +1294,21 @@ function sellLux(id){ const a = S.pres.assets.find(x => x.id === id); if (!a) re
 /* ---------- research tree ---------- */
 const RES_COST = [2, 6, 15, 35]; // 億円 of research points per tier
 const RES = {
-  fin: {n: '金融', items: [['fin1', '信用枠拡大', '信用取引で評価額の2.5倍まで買える（通常2倍）'], ['fin2', '低利調達', '信用借入と支配企業の借入金利 −0.5%'], ['fin3', '貸株ネットワーク', '空売りの貸株料 年3% → 1.5%'], ['fin4', 'デリバティブ部門', 'オプションの手数料 5% → 2%']]},
-  ma:  {n: '買収', items: [['ma1', '買付エージェント', 'TOBの応募が集まりやすくなる'], ['ma2', '防衛策の研究', '相手の買収防衛策の発動率 −40%'], ['ma3', '交渉術', '相対取引で相手の言い値 −8%'], ['ma4', '根回し', 'ホワイトナイトの出現率 −50%']]},
-  op:  {n: '経営', items: [['op1', 'マーケティング研究所', '支配企業の広告効率 +50%'], ['op2', 'ロイヤル顧客', '支配企業の顧客の価格感応度 −40%（値下げ合戦で客を奪われにくい）'], ['op3', '生産技術', '支配企業の設備投資の効果 +30%'], ['op4', 'M&Aアドバイザリー', '支配企業の事業売却額 +15%']]},
-  in:  {n: '情報', items: [['in1', 'アナリスト網', '各社に「社内予想」（ブレのない利益予想）を表示'], ['in2', '情報筋', '噂に信頼度が表示される'], ['in3', 'ライバル監視', 'ライバルが買い集め中の銘柄が分かる'], ['in4', 'コンプライアンス体制', 'インサイダー摘発時の課徴金が半分']]},
+  fin: {n: '金融', items: [['fin1', '信用枠拡大', '信用取引で評価額の2.5倍まで買える（通常2倍）'], ['fin2', '低利調達', '信用借入と支配企業の借入金利 −0.5%'], ['fin3', '貸株ネットワーク', '空売りの貸株料 年3% → 1.5%、借りられる株が発行済の15% → 25%'], ['fin4', 'デリバティブ部門', 'オプションの手数料 5% → 2%、追証ラインに5%の余裕（リスク管理）']]},
+  ma:  {n: '買収', items: [['ma1', '買付エージェント', 'TOBの応募が集まりやすくなる'], ['ma2', '防衛策の研究', '相手の買収防衛策の発動率 −40%'], ['ma3', '交渉術', '相対取引で相手の言い値 −8%'], ['ma4', '根回し', 'ホワイトナイトの出現率 −50%、あなたのTOBへのライバルの対抗TOB −30%']]},
+  op:  {n: '経営', items: [['op1', 'マーケティング研究所', '支配企業の広告効率 +50%'], ['op2', 'ロイヤル顧客', '支配企業の顧客の価格感応度 −40%（値上げしても客が離れにくい。高価格にしたときの増益がおよそ倍に）'], ['op3', '生産技術', '支配企業の設備投資の効果 +30%'], ['op4', 'M&Aアドバイザリー', '支配企業の事業売却額 +25%']]},
+  in:  {n: '情報', items: [['in1', 'アナリスト網', '各社に「社内予想」（ブレのない利益予想）を表示'], ['in2', '情報筋', '噂に信頼度が表示される'], ['in3', 'ライバル監視', 'ライバルが買い集め中の銘柄が分かる'], ['in4', 'コンプライアンス体制', 'インサイダー取引の摘発率と課徴金がそれぞれ半分']]},
 };
 const RES_RATE = [0, .0005, .001, .002]; // weekly research budget as a share of the holding company's net assets
-const hasR = id => !!(S.research && S.research.done[id]);
+const hasR = id => !!(S.research && S.research.done[id] != null);
 function resInfo(id){ for (const b in RES) { const i = RES[b].items.findIndex(x => x[0] === id); if (i >= 0) return {b, i, cost: RES_COST[i], item: RES[b].items[i]}; } return null; }
 function canResearch(id){ const r = resInfo(id); if (!r || hasR(id)) return false; if (r.i > 0 && !hasR(RES[r.b].items[r.i - 1][0])) return false; if (r.i >= 2 && !has('research34')) return false; return S.research.pts >= r.cost; }
 function doResearch(id){ if (!canResearch(id)) return false; const r = resInfo(id); S.research.pts -= r.cost; S.research.done[id] = S.week; news(`【研究完了】${r.item[1]}：${r.item[2]}`, 'you'); return true; }
-function researchStep(){ const rate = RES_RATE[S.research.budget] || 0, g = grossWorth(); if (rate > 0 && g > 0 && has('research')) { const spend = g * rate; playerPay(spend); S.research.pts += spend; } }
+function researchLeft(){ // points still needed for everything that can be researched at the current stage
+  let need = 0; for (const b in RES) RES[b].items.forEach(([id], i) => { if (!hasR(id) && (i < 2 || has('research34'))) need += RES_COST[i]; });
+  return Math.max(0, need - S.research.pts);
+}
+function researchStep(){ const rate = RES_RATE[S.research.budget] || 0, g = grossWorth(); if (rate > 0 && g > 0 && has('research')) { const spend = Math.min(g * rate, researchLeft()); if (spend > 0) { playerPay(spend); S.research.pts += spend; } } }
 
 /* ---------- staged feature unlocks ---------- */
 const STAGES = [
@@ -1432,7 +1436,7 @@ function mboEvents(){
 }
 
 /* ---------- (4) divisions & (5) equity / holding company listing ---------- */
-function divisionValue(c, f){ return (c.ctrl === 'P' && hasR('op4') ? 1.15 : 1) * Math.max(opProfit(c) * f * IND[c.ind].pe * .85 * S.econ.sent, c.assets * f * .8); }
+function divisionValue(c, f){ return (c.ctrl === 'P' && hasR('op4') ? 1.25 : 1) * Math.max(opProfit(c) * f * IND[c.ind].pe * .85 * S.econ.sent, c.assets * f * .8); }
 function sellDivision(c, f, quiet){
   const v = divisionValue(c, f), rev = c.rev * f, assets = c.assets * f;
   const buyer = S.cos.filter(b => b !== c && b.ind === c.ind && b.ctrl !== 'P' && fundsOf(b.id) >= v).sort((a, b) => mcap(b) - mcap(a))[0];
@@ -1510,7 +1514,7 @@ function tipsStep(){
       if (q && q.cost <= bf) launchTob(bk, c, price, .51); else t.real = false;
     }
     if (!t.real) { news(`${c.name}の買収観測は誤報だった`, 'deal', c.city); continue; }
-    if (t.used && rnd() < .45) {
+    if (t.used && rnd() < .45 * (hasR('in4') ? .5 : 1)) {
       const fine = Math.max(3, Math.max(0, grossWorth()) * .05) * (hasR('in4') ? .5 : 1);
       playerPay(fine); S.player.ban[c.id] = S.week + 26; S.player.rep = Math.max(0, (S.player.rep || .5) - .2);
       news(`【証券取引等監視委員会】未公表のTOB情報を使った取引として${S.company}に課徴金${fm(fine)}。${c.name}株の取引を26週間禁止`, 'warn', c.city);
@@ -1835,7 +1839,7 @@ function rivalsAct(){
       const c = coById(t.cid); if (!c || c.ctrl === r.id) continue;
       const stake = gfrac(c, r.id), knight = !c.ctrl && t.boss === 'P';
       const homeGuard = r.style === 'keiretsu' && isJP(c) && t.boss === 'P' ? 1.6 : 1; // 天城 defends Japanese companies
-      if (rnd() > Math.min(.9, (stake >= .1 ? .6 : knight ? r.agg * .35 : r.agg * .12) * D.rcnt * homeGuard)) continue;
+      if (rnd() > Math.min(.9, (stake >= .1 ? .6 : knight ? r.agg * .35 : r.agg * .12) * D.rcnt * homeGuard * (t.boss === 'P' && hasR('ma4') ? .7 : 1))) continue;
       const price = t.price * (1.08 + rnd() * .07);
       if (price > fair(c) * 1.8) continue;
       const b = rivalBid(r, c, price, .51, t.ref);
@@ -1850,6 +1854,7 @@ function rivalsAct(){
     }
   }
 }
+const callLine = () => DIFF[S.diff].call + (hasR('fin4') ? .05 : 0); // margin-call line as a share of the stock value
 function playerWeekly(){
   const p = S.player, e = S.econ;
   if (p.loan > 0) {
@@ -1869,7 +1874,7 @@ function playerWeekly(){
     }
   }
   const hv = holdingsValue('P');
-  if (p.loan > 0 && p.loan > hv * DIFF[S.diff].call + p.cash) {
+  if (p.loan > 0 && p.loan > hv * callLine() + p.cash) {
     news('【追証】証拠金維持率を割り込み、保有株が強制売却されました', 'warn');
     toast('追証発生！保有株が強制売却されました', true);
     const list = S.cos.filter(c => c.own.P > 0).sort((a, b) => b.own.P * b.price - a.own.P * a.price);
@@ -1984,7 +1989,7 @@ function tasks(){ // decisions waiting for the player (read-only)
   const names = {vote: '議決権の行使', crisis: '資金繰り危機', tender: 'TOB応募の打診', counter: '逆提案', block: '株の買取申し入れ', greenmail: '買戻し提案', tip: '未確認情報'};
   for (const k of ['crisis', 'vote', 'tender', 'counter', 'block', 'greenmail', 'tip']) if (by[k]) out.push({t: `${names[k]} ${by[k]}`, go: 'inbox', bad: k === 'crisis'});
   for (const t of S.tobs) { const c = coById(t.cid); if (c && t.boss !== 'P' && (t.raises.P || (t.knight && t.merge))) out.push({t: `${c.name}で対抗されています`, go: c.id, bad: true}); }
-  const hv = holdingsValue('P'); if (p.loan > 0 && p.loan > hv * DIFF[S.diff].call * .85) out.push({t: '追証が近い', go: 'port', bad: true});
+  const hv = holdingsValue('P'); if (p.loan > 0 && p.loan > hv * callLine() * .85) out.push({t: '追証が近い', go: 'port', bad: true});
   const sl = shortLiab(); if (sl > 0 && netWorth('P') < sl * .4) out.push({t: '踏み上げ注意', go: 'port', bad: true});
   for (const c of S.cos) if (c.ctrl === 'P' && c.crisis && !S.inbox.some(i => i.cid === c.id)) out.push({t: `${c.name}が資金難`, go: c.id, bad: true});
   for (const m of S.missions) if (m.due - S.week <= 4) out.push({t: `ミッション期限まで${m.due - S.week}週`, go: 'pres'});
@@ -2163,7 +2168,7 @@ function coTrade(c){
   let short = '';
   if (pmine > 0) short = `<section class="box"><h4>空売り <small>本体で保有中の銘柄は空売りできません</small></h4><p>本体の株を全株売却すると空売りできるようになります。</p></section>`;
   else {
-    const sroom = shortRoom(), cap = Math.max(0, c.shares * SHORT_CAP - (sp ? sp.n : 0));
+    const sroom = shortRoom(), cap = Math.max(0, c.shares * shortCap() - (sp ? sp.n : 0));
     const nS = Math.min(sharesForShort(c, ui.samt), cap), qs = nS > 1e-7 ? quoteSell(c, nS) : null, val = qs ? qs.n * qs.avg : 0;
     short = `<section class="box"><h4>空売り <small>本体口座のみ・下がれば利益</small></h4>
       <p>株を借りて今の価格で売り、後で買い戻します。貸株料は年3%、空売り中の配当はあなたが支払います。純資産が空売り残高の30%を下回ると強制買い戻し（踏み上げ）。</p>
@@ -2349,7 +2354,7 @@ const lockNote = (f, name) => `<section class="box locked"><h4>${name} <small>�
 function advice(){ // read-only hints; never touches the PRNG
   const out = [], p = S.player, hv = holdingsValue('P');
   if (!S.allUnlocked && S.stage < 4) out.push([[null, '気になる割安株を買ってみましょう。どこかの会社の株を5%以上持つか純資産50億円で、TOBや空売りが解放されます', '持分を50%超にする（市場で買い増すかTOB）と経営者の段階へ。「経営」タブや研究ツリーが解放されます', '3社を支配するか純資産400億円で、LBOや事業売却、持株会社の上場が解放されます'][S.stage], null]);
-  if (p.loan > 0 && p.loan > hv * DIFF[S.diff].call * .85) out.push(['追証ラインが近いです。借入を返済するか株を売りましょう', null, 1]);
+  if (p.loan > 0 && p.loan > hv * callLine() * .85) out.push(['追証ラインが近いです。借入を返済するか株を売りましょう', null, 1]);
   const sl = shortLiab(); if (sl > 0 && netWorth('P') < sl * .4) out.push(['空売りの担保が不足しかけています（踏み上げ注意）', null, 1]);
   for (const t of S.tobs) { const c = coById(t.cid); if (!c) continue;
     if (t.boss !== 'P' && (t.raises.P || t.knight) && t.end - S.week <= 3) out.push([`${esc(c.name)}で対抗されています。締切${shortDate(t.end)}までに引き上げるか撤退を`, c.id, 1]);
@@ -2374,8 +2379,8 @@ function researchHTML(){
   if (!has('research')) return `<h3>研究ツリー</h3>${lockNote('research', '研究ツリー')}`;
   const R0 = S.research, rate = RES_RATE[R0.budget], g = Math.max(0, grossWorth());
   return `<h3>研究ツリー</h3>
-  <div class="kv"><div><span>研究ポイント</span><b>${fm(R0.pts)}</b></div><div><span>週あたり</span><b>${fm(g * rate)}</b></div><div><span>解放済み</span><b>${Object.keys(R0.done).length} / 16</b></div></div>
-  <p class="lbl">研究予算（毎週、${esc(S.company)}本体の純資産の一定割合を研究に回す）</p>
+  <div class="kv"><div><span>研究ポイント</span><b>${fm(R0.pts)}</b></div><div><span>週あたり</span><b>${fm(Math.min(g * rate, researchLeft()))}</b></div><div><span>解放済み</span><b>${Object.keys(R0.done).length} / 16</b></div></div>
+  <p class="lbl">研究予算（毎週、${esc(S.company)}本体の純資産の一定割合を研究に回す。今の段階で研究できるものに必要な分が貯まると自動で止まります）</p>
   <div class="seg">${['なし', '少し', '普通', '多め'].map((l, i) => `<button class="${R0.budget === i ? 'on' : ''}" data-act="rbudget" data-v="${i}">${l}${i ? `（年${pc(RES_RATE[i] * 52, 1)}）` : ''}</button>`).join('')}</div>
   <div class="rtree">${Object.entries(RES).map(([b, br]) => `<div class="rcol"><b>${br.n}</b>${br.items.map(([id, n, d], i) => { const done = hasR(id), prev = i === 0 || hasR(br.items[i - 1][0]), gate = i >= 2 && !has('research34'), ok = canResearch(id);
     return `<div class="rnode ${done ? 'done' : ''} ${!prev || gate ? 'lock' : ''}"><b>${done ? '★' : i + 1 + '.'} ${n}</b><small>${d}</small>${done ? '<small class="up">解放済み</small>' : gate ? '<small>財閥の段階で解放</small>' : !prev ? '<small>前の段階が必要</small>' : `<button class="btn sm" data-act="research" data-v="${id}" ${ok ? '' : 'disabled'}>${fm(RES_COST[i])}で解放</button>`}</div>`; }).join('')}</div>`).join('')}</div>`;
@@ -2958,7 +2963,7 @@ function boot(){
   showStart();
   if (ui.restored) toast('セーブデータが壊れていたため、バックアップから復元しました', true);
 }
-window.__atlas = {get S(){ return S; }, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, hire, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
+window.__atlas = {get S(){ return S; }, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, hire, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
 boot();
 })();
 </script>

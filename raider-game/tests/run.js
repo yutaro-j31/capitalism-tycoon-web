@@ -429,6 +429,31 @@ async function testPhase6(b) {
   await m.ctx.close(); await ctx.close();
 }
 
+// Research tree: effects work, and the budget stops once nothing is left to buy.
+async function testResearch(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(5151, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true;
+    S.research.done.fin3 = 0; out.week0 = A.shortCap() === .25; delete S.research.done.fin3;
+    out.call = [A.callLine()]; S.research.done.fin4 = 5; out.call.push(A.callLine());
+    // a controlled company: going premium pays roughly twice as much with loyal customers
+    S.player.cash = 5000; const c = S.cos.filter(x => !x.priv && S.cos.filter(y => y.mk === x.mk).length >= 3)[0]; A.execBuy('P', c, c.shares * .55);
+    const g0 = A.pricePreview(c, 1).op - A.pricePreview(c, 0).op; S.research.done.op2 = 5; const g1 = A.pricePreview(c, 1).op - A.pricePreview(c, 0).op;
+    out.op2 = {ctrl: c.ctrl, g0: +g0.toFixed(2), g1: +g1.toFixed(2)};
+    // budget: spends only what is still needed, then stops
+    for (const br of ['fin', 'ma', 'op', 'in']) for (let i = 1; i <= 4; i++) S.research.done[br + i] = 5;
+    delete S.research.done.in4; S.research.pts = 0; S.research.budget = 3; S.player.cash = 1e5;
+    const c0 = S.player.cash; for (let i = 0; i < 20; i++) A.researchStep(); out.spent = +(c0 - S.player.cash).toFixed(4); out.pts = +S.research.pts.toFixed(4); out.left = A.researchLeft();
+    return out;
+  });
+  ok('research: an item finished in week 0 still takes effect', r.week0);
+  ok('research: the derivatives desk widens the margin-call line by 5 points', Math.abs(r.call[1] - r.call[0] - .05) < 1e-9, JSON.stringify(r.call));
+  ok('research: loyal customers make going premium pay more', r.op2.ctrl === 'P' && r.op2.g1 > r.op2.g0 && r.op2.g0 > 0, JSON.stringify(r.op2));
+  ok('research: the budget stops once everything is paid for', r.spent === 35 && r.pts === 35 && r.left === 0, JSON.stringify({spent: r.spent, pts: r.pts, left: r.left}));
+  ok('no page errors in research tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 // Simple value bot used since the first version: buys cheap stocks, sells rich ones, milks controlled companies.
 async function balance(b) {
   const {p, ctx} = await page(b);
@@ -482,6 +507,7 @@ async function balance(b) {
     await testPhase4(b);
     await testPhase5(b);
     await testPhase6(b);
+    await testResearch(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
