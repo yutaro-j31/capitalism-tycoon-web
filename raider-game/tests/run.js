@@ -237,7 +237,7 @@ async function testPhase2(b) {
     A.execBuy('P', c, c.shares * .8); if (c.ctrl !== 'P') A.execBuy('P', c, c.shares * .15);
     out.ctrl = c.ctrl === 'P';
     const f0 = c.fixed; A.restructure(c, 'cost'); out.costCut = c.fixed / f0;
-    A.hire(c, 0); c.deleg = 'cash'; c.brand = .95; S.research.done.op2 = 1; // a strong brand and loyal customers make a price rise pay
+    A.hrInit(); A.hrEnsure(c); c.dm = 'auto'; c.deleg = 'cash'; c.brand = .95; S.research.done.op2 = 1; // a strong brand and loyal customers make a price rise pay
     for (let i = 0; i < 12; i++) { A.step(); S.inbox = []; }
     out.cashPolicy = {payout: c.payout, ps: c.ps, log: (c.mlog || []).length};
     const counts = {raider: 0, turnaround: 0, keiretsu: 0, defend: 0};
@@ -249,7 +249,7 @@ async function testPhase2(b) {
     return out;
   }, QUICK);
   ok('restructuring: cost cut lowers fixed costs by 15%', Math.abs(r.costCut - .85) < 1e-9, r.costCut);
-  ok('delegation: a CEO on the cash policy raises prices and payout', r.ctrl && r.cashPolicy.payout === .8 && r.cashPolicy.ps === 1, JSON.stringify(r.cashPolicy));
+  ok('delegation: executives on the cash policy raise prices and payout', r.ctrl && r.cashPolicy.payout === .8 && r.cashPolicy.ps === 1, JSON.stringify(r.cashPolicy));
   console.log('PHASE2 style-specific rival actions over 10 years: ' + JSON.stringify(r.counts));
   ok('rival styles: the asset-stripper and the turnaround investor each act in character', r.counts.raider > 0 && r.counts.turnaround > 0, '');
   ok('no page errors in phase 2 tests', !errs.length, errs.slice(0, 3).join(' | '));
@@ -552,6 +552,68 @@ async function testPE(b) {
   await m.ctx.close(); await ctx.close();
 }
 
+// Talent: executives, fit, delegation modes, head office, staff, succession and announced departures.
+async function testTalent(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(9191, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 2000;
+    out.allCEO = S.cos.every(c => A.ceoOf(c));
+    // a controlled company: the CEO already in place changes nothing on day one
+    S.player.cash = 20000; const c = S.cos.filter(x => !x.ctrl && !x.priv && x.ind !== 'air' && x.ind !== 'telecom').sort((a, b) => a.price * a.shares - b.price * b.shares)[8]; for (let i = 0; i < 4 && c.ctrl !== 'P'; i++) A.execBuy('P', c, c.shares * .3);
+    out.ctrl = c.ctrl;
+    // hiring: the same strong person helps more in their own industry than in a foreign one
+    const m0 = c.margin, f0 = c.fixed;
+    const star = A.genPerson('test:star', {level: 85, focus: 'gen', ind: c.ind}); S.hr.pool.push(star.id);
+    A.hireInto(star, c.id, 'CEO', 'fixed', 'agency'); out.hired = A.ceoOf(c) === star && c.fixed > f0 && c.margin > m0;
+    const home = A.effOf(star, 'gen', c); const alien = A.genPerson('test:alien', {level: 85, focus: 'gen', ind: c.ind === 'bank' ? 'tech' : 'bank'}); out.fit = home > A.effOf(alien, 'gen', c);
+    const weak = A.genPerson('test:weak', {level: 20, focus: 'gen', ind: c.ind}); S.hr.pool.push(weak.id); const m1 = c.margin; A.hireInto(weak, c.id, 'CEO', 'fixed', 'agency'); out.weakHurts = c.margin < m1;
+    A.hireInto(star, c.id, 'CEO', 'fixed', 'inside'); // back to the star
+    // delegation: approval mode sends a proposal; approving runs it
+    c.dm = 'approve'; c.deleg = 'cash'; c.payout = 0; c.lim = {ad: .02, rt: 'BBB'};
+    for (let i = 0; i < 4; i++) { A.step(); S.inbox = S.inbox.filter(x => x.kind === 'prop'); }
+    const prop = S.inbox.find(x => x.kind === 'prop' && x.cid === c.id); out.prop = !!prop && prop.acts.length > 0;
+    if (prop) { for (const a of prop.acts) A.doAction(c, a); } out.approved = c.payout === .8;
+    c.dm = 'manual'; const pay0 = c.payout; c.payout = .1; for (let i = 0; i < 8; i++) { A.step(); S.inbox = []; } out.manualKeeps = c.payout === .1;
+    // head office: an operating partner sent to the company lifts the margin; capacity for fund companies grows
+    const op = A.genPerson('test:op', {level: 80, focus: 'ops', ind: c.ind}); S.hr.pool.push(op.id); const cap0 = A.peCapacity();
+    A.hireInto(op, 'HQ', 'OP', 'fixed', 'agency'); const m2 = c.margin; A.assignOP(op, c.id); out.op = {margin: c.margin > m2, cap: A.peCapacity() === cap0 + 2};
+    // staff: better pay costs more but lifts morale and productivity
+    const f1 = c.fixed, pr0 = A.productivity(c); A.setWage(c, 1.2); c.trainL = 2; out.wageCost = c.fixed > f1;
+    for (let i = 0; i < 52; i++) { A.step(); S.inbox = []; } out.prodUp = A.productivity(c) > pr0;
+    // retirement is announced half a year ahead; a named successor takes over
+    const cfo = A.genPerson('test:cfo', {level: 70, focus: 'fin', ind: c.ind}); S.hr.pool.push(cfo.id); A.hireInto(cfo, c.id, 'CFO', 'fixed', 'agency'); c.succ = cfo.id;
+    const ceo = A.ceoOf(c); ceo.retire = ceo.age; ceo.mood = .9; let warned = false;
+    for (let i = 0; i < 30 && A.ceoOf(c) === ceo; i++) { A.step(); S.inbox = []; if (S.news.some(n => n.t.includes('引退予定') && n.t.includes(ceo.n))) warned = true; }
+    out.succession = {warned, newCEO: A.ceoOf(c) === cfo};
+    // an outside offer always comes through the inbox first; matching it keeps the person
+    const x = A.ceoOf(c); x.offer = null; let got = null; for (let i = 0; i < 400 && !got; i++) { x.mood = .1; x.quit = null; x.retiring = null; x.retire = 99; x.end = S.week + 300; A.step(); got = S.inbox.find(it => it.kind === 'poach' && it.pid === x.id); if (!got) S.inbox = []; }
+    out.poach = !!got; if (got) { x.sal = got.sal; x.mood = .8; for (let i = 0; i < 4; i++) { A.step(); S.inbox = []; } out.stayed = A.ceoOf(c) === x; }
+    return out;
+  });
+  ok('talent: every company has a CEO on record', r.allCEO);
+  ok('talent: hiring a strong CEO costs a salary and lifts the margin; a weak one lowers it', r.ctrl === 'P' && r.hired && r.weakHurts, JSON.stringify({c: r.ctrl, h: r.hired, w: r.weakHurts}));
+  ok('talent: industry experience matters (the same skill works better at home)', r.fit);
+  ok('talent: approval mode sends proposals; approving runs them; manual mode changes nothing', r.prop && r.approved && r.manualKeeps, JSON.stringify({p: r.prop, a: r.approved, m: r.manualKeeps}));
+  ok('talent: an operating partner lifts the margin and adds fund capacity', r.op.margin && r.op.cap, JSON.stringify(r.op));
+  ok('talent: higher pay costs more and, with training, raises productivity', r.wageCost && r.prodUp);
+  ok('talent: retirement is announced ahead and the named successor becomes CEO', r.succession.warned && r.succession.newCEO, JSON.stringify(r.succession));
+  ok('talent: an outside offer arrives in the inbox and matching it keeps the executive', r.poach && r.stayed, JSON.stringify({p: r.poach, s: r.stayed}));
+  // an old save with a Phase 2 CEO keeps that person
+  const mig = await p.evaluate(() => { const A = window.__atlas; A.newGame(9292, 'normal', 'T', 't', 'std', true); const S = A.S; const t = JSON.parse(A.exportText()); delete t.hr; for (const c of t.cos) { delete c.ex; delete c.cult; delete c.wage; delete c.exApplied; } t.cos[0].mgr = {n: '佐伯 真理', skill: 77, sal: .4}; const o = A.parseSave(JSON.stringify(t)); return !!o; });
+  ok('talent: old saves load (a Phase 2 CEO is converted on the next screen or week)', mig);
+  // screens on a phone
+  const m = await page(b, devices['iPhone 13']);
+  await m.p.evaluate(() => { const A = window.__atlas; A.newGame(9393, 'normal', 'T', 't', 'std', true); const S = A.S; S.lost = true; S.won = true; S.goalIdx = 9; S.player.cash = 3000; const c = S.cos.filter(x => !x.ctrl && !x.priv).sort((a, b) => a.price * a.shares - b.price * b.shares)[3]; for (let i = 0; i < 4 && c.ctrl !== 'P'; i++) A.execBuy('P', c, c.shares * .3); A.ui.sel = c.id; A.ui.ctab = 'ceo'; document.querySelector('#modal').hidden = true; });
+  await m.p.click('[data-act=tab][data-v=market]'); await m.p.click('[data-act=ctab][data-v=ceo]');
+  await m.p.click('[data-act=hopen][data-v=COO]');
+  const u = await m.p.evaluate(() => ({slots: document.querySelectorAll('.slot').length, cands: document.querySelectorAll('.cand').length, staff: [...document.querySelectorAll('h4')].some(h => h.textContent.startsWith('従業員')), o: document.documentElement.scrollWidth - innerWidth}));
+  await m.p.click('[data-act=tab][data-v=pres]');
+  const hq = await m.p.evaluate(() => ({hq: [...document.querySelectorAll('h3')].some(h => h.textContent.startsWith('本社の幹部')), o: document.documentElement.scrollWidth - innerWidth}));
+  ok('iPhone: executive slots, candidates, staff and head-office screens render without overflow', u.slots >= 5 && u.cands > 0 && u.staff && u.o <= 0 && hq.hq && hq.o <= 0, JSON.stringify({u, hq}));
+  ok('no page errors in talent tests', !errs.length && !m.errs.length, errs.concat(m.errs).slice(0, 3).join(' | '));
+  await m.ctx.close(); await ctx.close();
+}
+
 // Simple value bot used since the first version: buys cheap stocks, sells rich ones, milks controlled companies.
 async function balance(b) {
   const {p, ctx} = await page(b);
@@ -607,6 +669,7 @@ async function balance(b) {
     await testPhase6(b);
     await testResearch(b);
     await testPE(b);
+    await testTalent(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
