@@ -136,6 +136,19 @@ i.bar b{display:block;height:100%;background:var(--gold)}
 @media (max-width:620px){.rtree{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .savetext{width:100%;min-height:96px;margin-top:8px;background:var(--sea-deep);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px;font-family:var(--f-mono);font-size:12px}
 .mh{font-size:12px;letter-spacing:.14em;color:var(--mute);margin:16px 0 6px;font-weight:500}
+.mshare{display:flex;flex-direction:column;gap:6px;margin-top:8px;font-size:12px}
+.mshare>div{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(50px,1fr) auto;gap:2px 8px;align-items:center}
+.mshare>div small{grid-column:1/-1;color:var(--mute);font-size:10px;margin-top:-2px}
+.mshare>div.me>span:first-child{color:var(--gold);font-weight:700}
+.mshare span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:4px}
+.attr{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.attr>div{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(60px,1fr) auto;gap:8px;align-items:center}
+.attr .tot{border-top:1px solid var(--line);padding-top:4px;font-weight:700}
+i.pn{display:block;height:8px;position:relative;background:var(--sea-deep);border-radius:4px}
+i.pn b{position:absolute;top:0;bottom:0;border-radius:4px}
+i.pn b.pos{left:50%;background:var(--up)}
+i.pn b.neg{right:50%;background:var(--down)}
+.rtable.cm>div{grid-template-columns:.8fr 1fr 1.6fr .6fr}
 .subtabs{display:flex;gap:4px;margin:12px 0 4px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .subtabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:8px 10px;min-height:40px;font-size:13px;white-space:nowrap}
 .subtabs button.on{color:var(--ink);border-bottom-color:var(--gold);font-weight:700}
@@ -411,16 +424,87 @@ function groupRev(ind, boss){ let s = 0; for (const x of S.cos) if (x.ind === in
 function indTotal(ind, extra){ let s = 0; for (const x of S.cos) if (x.ind === ind) s += x.rev; return s + (extra || 0); }
 function indShare(c){ const tot = indTotal(c.ind, S.cos.includes(c) ? 0 : c.rev); return tot > 0 ? (c.ctrl ? groupRev(c.ind, c.ctrl) : c.rev) / tot : 0; }
 const synergy = c => IND[c.ind].m * clamp((indShare(c) - .12) * .8, 0, .25); // pricing power from market share
-const PRICE = {'-1': {n: '低価格', m: -.2, g: .05}, '0': {n: '標準', m: 0, g: 0}, '1': {n: '高価格', m: .2, g: -.05}};
+/* ---------- region × industry markets (Phase 1) ----------
+   Each company sells into one market: its HQ region × its industry. A market holds total demand
+   (in volume at the standard price) and the volume of small firms not modelled as companies.
+   Revenue = demand × share × price level. Share moves each week toward the company's
+   appeal (base strength × brand × price^-elasticity) relative to rivals and small firms. */
+const PRICE = {'-1': {n: '低価格'}, '0': {n: '標準'}, '1': {n: '高価格'}};
+const priceStepOf = c => clamp(c.base * .5, .02, .08); // a price move a company can afford: half its structural margin, 2–8%
+const levelFor = (c, ps) => 1 + (ps || 0) * priceStepOf(c);
+const EL = {bank: 2, tech: 1.5, auto: 2.5, energy: 2, retail: 4, pharma: 1.2, ship: 3, food: 3, realty: 2, telecom: 2.5, steel: 3, air: 3.5}; // how strongly share reacts to price
+const PHI = {bank: .3, tech: .3, auto: .35, energy: .4, retail: .25, pharma: .3, ship: .45, food: .25, realty: .4, telecom: .45, steel: .4, air: .45}; // fixed share of total costs
+const OTHERS0 = .35; // share held by small firms when a market is first created
+const SHARE_SPEED = .06; // weekly step toward the target share
 const brandOf = c => c.brand == null ? .5 : c.brand;
-const priceAdj = c => Math.max(c.base, IND[c.ind].m * .3) * PRICE[c.ps || 0].m; // ±25% of the company's own structural margin
-function priceWar(c){ // discounters in the same industry squeeze everyone else's margin
-  let tot = 0, cut = 0;
-  for (const x of S.cos) if (x.ind === c.ind) { tot += x.rev; if ((x.ps || 0) < 0 && x !== c && !(c.ctrl && x.ctrl === c.ctrl)) cut += x.rev; }
-  return tot > 0 && (c.ps || 0) >= 0 ? IND[c.ind].m * .12 * cut / tot * (c.ctrl === 'P' && hasR('op2') ? .5 : 1) : 0;
+// Markets are regional: in each city every listed company is in a different industry, so a city-level market
+// would never contain two rivals. Region × industry puts about half the companies into contested markets.
+const REGION = {jp: {n: '日本', c: 'tyo osa ngo fuk spk'}, am: {n: '米州', c: 'nyc tor chi sfo mex sao bue'}, emea: {n: '欧州・中東・アフリカ', c: 'lon par fra zur sto dxb los jnb'}, ap: {n: 'アジア太平洋', c: 'bom sin hkg sha sel syd'}};
+const REGION_OF = Object.fromEntries(Object.entries(REGION).flatMap(([k, r]) => r.c.split(' ').map(c => [c, k])));
+const mkKey = c => REGION_OF[c.city] + '|' + c.ind;
+const mkName = key => { const [r, ind] = key.split('|'); return `${REGION[r].n}の${IND[ind].n}市場`; };
+const plev = c => levelFor(c, c.ps);
+const elOf = c => EL[c.ind] * (c.ctrl === 'P' && hasR('op2') ? .6 : 1);
+const brandF = c => Math.exp(1.2 * (brandOf(c) - .5));
+const priceF = (c, ps) => Math.pow(levelFor(c, ps == null ? c.ps : ps), -elOf(c));
+const appeal = (c, ps) => (c.w || 0) * brandF(c) * priceF(c, ps);
+const vcOf = c => (1 - c.margin) * (1 - PHI[c.ind]); // variable cost per unit of volume
+const fixedOf = c => c.fixed == null ? c.rev * (1 - c.margin) * PHI[c.ind] : c.fixed;
+const opProfit = c => (c.rev * (1 + synergy(c)) - c.rev / plev(c) * vcOf(c) - fixedOf(c)) * fxMult(c);
+const opMargin = c => c.rev > 0 ? opProfit(c) / fxMult(c) / c.rev : 0;
+function mkMembers(){ const by = {}; for (const c of S.cos) { c.mk = mkKey(c); (by[c.mk] = by[c.mk] || []).push(c); } return by; }
+function mkRefresh(){ // re-fit markets to current revenues after structural changes; keeps everyone's accumulated appeal
+  S.mk = S.mk || {};
+  const by = mkMembers();
+  for (const key of Object.keys(S.mk)) if (!by[key]) delete S.mk[key];
+  for (const key of Object.keys(by).sort()) {
+    const list = by[key], vol = list.map(c => c.rev / plev(c)), V = vol.reduce((a, b) => a + b, 0);
+    let M = S.mk[key];
+    if (!M) { const D = V / (1 - OTHERS0); M = S.mk[key] = {D, ov: D - V, ovRef: D - V, ow: OTHERS0}; }
+    if (M.ovRef > 0 && M.ov !== M.ovRef) M.ow *= M.ov / M.ovRef; // small firms absorbed or lost volume
+    M.ovRef = M.ov; M.D = M.ov + V;
+    list.forEach((c, i) => { if (c.fixed == null) c.fixed = c.rev * (1 - c.margin) * PHI[c.ind]; if (c.w > 0 && c.vol > 0) c.w *= vol[i] / c.vol; });
+    const ref = M.ow + list.reduce((a, c) => a + (c.w > 0 && c.vol > 0 ? appeal(c) : 0), 0) || 1;
+    list.forEach((c, i) => {
+      c.sh = vol[i] / M.D;
+      if (!(c.w > 0 && c.vol > 0)) { const s0 = Math.min(c.sh, .95); c.w = s0 / (1 - s0) * ref / (brandF(c) * priceF(c)); } // newcomer: aim at its current share
+      c.vol = vol[i]; c.tsh = c.tsh == null ? c.sh : c.tsh;
+    });
+  }
 }
-function priceGrowth(c){ const b = brandOf(c), ps = c.ps || 0; return PRICE[ps].g * (ps > 0 ? 1.4 - b : 1) + (b - .5) * .08; }
-const opProfit = c => c.rev * (c.margin + synergy(c) + priceAdj(c) - priceWar(c)) * fxMult(c);
+function mkInit(){ // first build (new game or a save from before Phase 1): fits shares so revenues stay exactly as they are
+  S.mk = {};
+  const by = mkMembers();
+  for (const key of Object.keys(by).sort()) {
+    const list = by[key], vol = list.map(c => c.rev / plev(c)), V = vol.reduce((a, b) => a + b, 0), D = V / (1 - OTHERS0);
+    S.mk[key] = {D, ov: D - V, ovRef: D - V, ow: OTHERS0};
+    list.forEach((c, i) => { c.vol = vol[i]; c.sh = vol[i] / D; c.tsh = c.sh; c.w = c.sh / (brandF(c) * priceF(c)); if (c.fixed == null) c.fixed = c.rev * (1 - c.margin) * PHI[c.ind]; });
+  }
+}
+function mkToOthers(c, vol){ const M = S.mk && S.mk[c.mk]; if (M) M.ov += vol; } // volume a company gives up goes to small firms
+function mkTargets(key, override){ // pure: target shares in a market, optionally with one company's price changed
+  const M = S.mk[key], list = S.cos.filter(c => c.mk === key);
+  const a = list.map(c => override && override.id === c.id ? appeal(c, override.ps) : appeal(c));
+  const tot = M.ow + a.reduce((x, y) => x + y, 0);
+  return Object.fromEntries(list.map((c, i) => [c.id, a[i] / tot]));
+}
+function mkStep(){
+  const e = S.econ, by = mkMembers();
+  for (const key of Object.keys(by).sort()) {
+    const M = S.mk[key], list = by[key], I = IND[list[0].ind];
+    M.D *= 1 + (I.g + I.cyc * (e.gdp - 2.5) / 100) / 52 + gauss() * .004;
+    const tgt = mkTargets(key);
+    let sum = 0;
+    for (const c of list) {
+      c.tsh = tgt[c.id]; c.sh += (c.tsh - c.sh) * SHARE_SPEED; sum += c.sh;
+      c.w *= 1 + (c.growth + c.boost - I.g) / 52; // product strength drifts with the company's own growth edge
+      c.fixed *= 1 + I.g / 52;
+    }
+    for (const c of list) { c.vol = M.D * c.sh; c.rev = c.vol * plev(c); }
+    M.ov = Math.max(0, M.D * (1 - sum)); M.ovRef = M.ov;
+  }
+}
+const shareMomentum = c => c.sh > 0 && c.tsh != null ? clamp((c.tsh - c.sh) / c.sh, -.3, .3) * .15 : 0; // the market prices in where share is heading
 function advertise(c, amt){
   amt = Math.min(amt, c.cash); if (amt <= 0) return 0;
   const b = brandOf(c), gain = (1 - b) * clamp(amt / c.rev * 3, 0, .35) * (c.ctrl === 'P' && hasR('op1') ? 1.5 : 1);
@@ -454,7 +538,7 @@ function refreshPV(){ // market value of each company's stock portfolio
   for (const t of S.cos) for (const k in t.own) if (by[k]) by[k].pv += t.own[k] * t.price;
 }
 function fair(c){
-  const ind = IND[c.ind], e = S.econ, ni = niA(c), g = c.growth + c.boost + priceGrowth(c); // the market prices in strategy-driven growth
+  const ind = IND[c.ind], e = S.econ, ni = niA(c), g = c.growth + c.boost + shareMomentum(c);
   const pe = ind.pe * clamp(1 + (g - ind.g) * 6, .5, 2.2) * e.sent * (e.indS[c.ind] || 1) * clamp(1 - (e.rate - 4) * .05, .65, 1.3);
   let v = ni > 0 ? ni * pe : 0;
   v += (c.pv || 0) * .85; // holding-company discount
@@ -476,7 +560,7 @@ function makeCompany(def){
     cash: rev * (.05 + rnd() * .2), assets, debt: assets * (.1 + rnd() * .45),
     payout: [.2, .3, .4, .5][pickIdx(4)], brand: .5, ps: 0, shares: 1, price: 1, hist: [], own: {}, ctrl: null, disc: {}, pill: false, ni: 0, mood: 0, pv: 0,
   };
-  c.margin = c.base;
+  c.margin = c.base; c.fixed = rev * (1 - c.margin) * PHI[ind];
   const total = fair(c); // with shares=1 this is equity value
   c.shares = total / (8 + rnd() * 110);
   c.price = fair(c) * (.88 + rnd() * .24);
@@ -511,6 +595,7 @@ function newGame(seed, diff, company, pname, scen, allU){
   applyScenario();
   for (let i = 0; i < 8; i++) for (const c of S.cos) priceStep(c); // warm up history
   for (const c of S.cos) c.hist = c.hist.slice(-8);
+  mkInit();
   recordNW(); fillMissions();
   news(`${S.company}設立（社長：${S.pname}・難易度：${D.n}・シナリオ：${SCEN[S.scen].n}）。アトラス証券取引所へようこそ。元手${fm(D.cash)}で世界の企業を買い集め、純資産1,000億円を目指せ。`, 'you');
 }
@@ -768,7 +853,7 @@ function mergeQuote(A, B, prem, friendly){
 function execMerge(A, B, prem, friendly, ref){
   const q = mergeQuote(A, B, prem, friendly); if (!q.go) return null;
   let divest = 0;
-  if (q.anti === 'cond') { const sold = B.assets * .25; B.rev *= .75; B.assets -= sold; divest = sold * .9; }
+  if (q.anti === 'cond') { const sold = B.assets * .25; mkToOthers(B, B.rev * .25 / plev(B)); B.rev *= .75; B.fixed *= .75; B.assets -= sold; divest = sold * .9; }
   for (const k in B.own) credit(k, B.own[k] * q.price);
   dropCost(B);
   if (B.cost) { A.cost = A.cost || {}; for (const id in B.cost) if (id !== A.id) A.cost[id] = (A.cost[id] || 0) + B.cost[id]; }
@@ -777,7 +862,7 @@ function execMerge(A, B, prem, friendly, ref){
   const wA = A.rev, wB = B.rev;
   A.margin = (A.margin * wA + B.margin * wB) / (wA + wB); A.base = (A.base * wA + B.base * wB) / (wA + wB);
   A.growth = (A.growth * wA + B.growth * wB) / (wA + wB);
-  A.rev += B.rev; A.assets += B.assets; A.debt += B.debt; A.cash += B.cash - q.cost + divest;
+  A.rev += B.rev; A.fixed += fixedOf(B); A.reorgQ = true; A.assets += B.assets; A.debt += B.debt; A.cash += B.cash - q.cost + divest;
   if (A.cash < 0) { A.debt += -A.cash; A.cash = 0; }
   settleOptions(B.id, q.price);
   for (const t of S.cos) { // B's stock portfolio passes to A
@@ -790,7 +875,7 @@ function execMerge(A, B, prem, friendly, ref){
   if (ui.sel === B.id) ui.sel = A.id;
   news(`【合併】${A.name}が${B.name}を${fm(q.cost)}で買収・吸収（${spc(q.price / (ref || B.price) - 1)}プレミアム）${q.anti === 'cond' ? '。' + q.reg + 'の条件で事業の一部を売却' : ''}`, A.ctrl === 'P' ? 'you' : 'deal', A.city);
   fxArc(A.ctrl, A.city, B.city);
-  recomputeCtrl(); refreshPV();
+  recomputeCtrl(); refreshPV(); mkRefresh();
   return q;
 }
 
@@ -881,7 +966,7 @@ const RES_COST = [2, 6, 15, 35]; // 億円 of research points per tier
 const RES = {
   fin: {n: '金融', items: [['fin1', '信用枠拡大', '信用取引で評価額の2.5倍まで買える（通常2倍）'], ['fin2', '低利調達', '信用借入と支配企業の借入金利 −0.5%'], ['fin3', '貸株ネットワーク', '空売りの貸株料 年3% → 1.5%'], ['fin4', 'デリバティブ部門', 'オプションの手数料 5% → 2%']]},
   ma:  {n: '買収', items: [['ma1', '買付エージェント', 'TOBの応募が集まりやすくなる'], ['ma2', '防衛策の研究', '相手の買収防衛策の発動率 −40%'], ['ma3', '交渉術', '相対取引で相手の言い値 −8%'], ['ma4', '根回し', 'ホワイトナイトの出現率 −50%']]},
-  op:  {n: '経営', items: [['op1', 'マーケティング研究所', '支配企業の広告効率 +50%'], ['op2', 'コスト構造改革', '支配企業が受ける価格競争の影響 −50%'], ['op3', '生産技術', '支配企業の設備投資の効果 +30%'], ['op4', 'M&Aアドバイザリー', '支配企業の事業売却額 +15%']]},
+  op:  {n: '経営', items: [['op1', 'マーケティング研究所', '支配企業の広告効率 +50%'], ['op2', 'ロイヤル顧客', '支配企業の顧客の価格感応度 −40%（値下げ合戦で客を奪われにくい）'], ['op3', '生産技術', '支配企業の設備投資の効果 +30%'], ['op4', 'M&Aアドバイザリー', '支配企業の事業売却額 +15%']]},
   in:  {n: '情報', items: [['in1', 'アナリスト網', '各社に「社内予想」（ブレのない利益予想）を表示'], ['in2', '情報筋', '噂に信頼度が表示される'], ['in3', 'ライバル監視', 'ライバルが買い集め中の銘柄が分かる'], ['in4', 'コンプライアンス体制', 'インサイダー摘発時の課徴金が半分']]},
 };
 const RES_RATE = [0, .0005, .001, .002]; // weekly research budget as a share of the holding company's net assets
@@ -978,6 +1063,7 @@ function checkAch(){
 
 /* ---------- (3) MBO events & delisting ---------- */
 function delist(c, price, why){
+  mkToOthers(c, c.rev / plev(c));
   for (const k in c.own) credit(k, c.own[k] * price);
   dropCost(c);
   const sp = S.player.shorts[c.id];
@@ -986,7 +1072,7 @@ function delist(c, price, why){
   for (const t of S.cos) delete t.own[c.id];
   S.cos = S.cos.filter(x => x !== c); S.inbox = S.inbox.filter(i => i.cid !== c.id); S.tobs = S.tobs.filter(t => t.cid !== c.id);
   if (ui.sel === c.id) ui.sel = null;
-  news(why, 'deal', c.city); recomputeCtrl(); refreshPV();
+  news(why, 'deal', c.city); recomputeCtrl(); refreshPV(); mkRefresh();
 }
 function mboEvents(){
   if (rnd() > .006) return;
@@ -1001,18 +1087,23 @@ function divisionValue(c, f){ return (c.ctrl === 'P' && hasR('op4') ? 1.15 : 1) 
 function sellDivision(c, f, quiet){
   const v = divisionValue(c, f), rev = c.rev * f, assets = c.assets * f;
   const buyer = S.cos.filter(b => b !== c && b.ind === c.ind && b.ctrl !== 'P' && fundsOf(b.id) >= v).sort((a, b) => mcap(b) - mcap(a))[0];
-  c.rev -= rev; c.assets -= assets; c.cash += v;
-  if (buyer) { buyer.rev += rev; buyer.assets += assets; debit(buyer.id, v); }
+  const fx = fixedOf(c) * f;
+  if (!buyer) mkToOthers(c, rev / plev(c));
+  c.rev -= rev; c.fixed -= fx; c.assets -= assets; c.cash += v; c.reorgQ = true;
+  if (buyer) { buyer.rev += rev; buyer.fixed += fx; buyer.reorgQ = true; buyer.assets += assets; debit(buyer.id, v); }
+  mkRefresh();
   if (!quiet) news(`【事業売却】${c.name}が事業の${pc(f, 0)}を${buyer ? buyer.name : '投資ファンド'}へ${fm(v)}で売却`, c.ctrl === 'P' ? 'you' : 'deal', c.city);
   return v;
 }
 function spinOff(c, f){
   const before = fair(c), sfx = isJP(c) ? 'ネクスト' : ' Next';
   const n = {id: 'C' + (S.nextId++), name: c.name + sfx, tk: (c.tk + 'N').slice(0, 5), ind: c.ind, city: c.city, rev: c.rev * f, base: c.base, margin: c.margin, growth: c.growth + .01, boost: 0,
-    cash: c.cash * f, assets: c.assets * f, debt: c.debt * f, payout: c.payout, shares: c.shares, price: 1, hist: [], own: {}, ctrl: null, disc: {}, pill: false, ni: 0, mood: .05, pv: 0};
-  for (const k of ['rev', 'cash', 'assets', 'debt']) c[k] *= 1 - f;
+    cash: c.cash * f, assets: c.assets * f, debt: c.debt * f, payout: c.payout, shares: c.shares, price: 1, hist: [], own: {}, ctrl: null, disc: {}, pill: false, ni: 0, mood: .05, pv: 0,
+    fixed: fixedOf(c) * f, brand: brandOf(c), ps: c.ps || 0, reorgQ: true};
+  for (const k of ['rev', 'cash', 'assets', 'debt', 'fixed']) c[k] *= 1 - f;
+  c.reorgQ = true;
   for (const k in c.own) n.own[k] = c.own[k];
-  S.cos.push(n);
+  S.cos.push(n); mkRefresh();
   n.price = fair(n); n.hist = [n.price]; n.ni = niA(n); n.est = n.ni;
   const ratio = clamp(fair(c) / before, .2, 1), old = c.price; c.price *= ratio;
   for (const k in c.own) { const m = costMap(k); if (m && m[c.id]) { m[n.id] = m[c.id] * (1 - ratio); m[c.id] *= ratio; } } // split the cost basis
@@ -1197,8 +1288,7 @@ function priceStep(c){
 }
 function coStep(c){
   const I = IND[c.ind], e = S.econ;
-  const g = c.growth + c.boost + priceGrowth(c) + I.cyc * (e.gdp - 2.5) / 100;
-  c.rev *= 1 + g / 52 + gauss() * .004;
+  const g = c.growth + c.boost + I.cyc * (e.gdp - 2.5) / 100; // revenue itself comes from mkStep(); g drives capacity investment
   c.brand = brandOf(c) + (.45 - brandOf(c)) * .006; // brand awareness fades without advertising
   c.boost *= .985;
   const ni = niA(c), w = ni / 52, div = ni > 0 ? w * c.payout : 0;
@@ -1214,8 +1304,28 @@ function snapshotReport(){
     cos: S.cos.filter(c => groupSh(c, 'P') > 0).map(c => ({id: c.id, n: c.name, rev: c.rev, ni: c.ni, price: c.price, g: gfrac(c, 'P'), ctl: c.ctrl === 'P'}))});
   if (S.reports.length > 12) S.reports.length = 12;
 }
+const ATTR = [['D', '市場規模'], ['s', '市場シェア'], ['P', '価格'], ['vc', '原価率'], ['fixed', '固定費'], ['syn', '業界シェア効果'], ['fx', '為替']];
+const opState = c => ({D: S.mk[c.mk].D, s: c.sh, P: plev(c), vc: vcOf(c), fixed: fixedOf(c), syn: synergy(c), fx: fxMult(c)});
+const opF = st => (st.D * st.s * (st.P * (1 + st.syn) - st.vc) - st.fixed) * st.fx;
+function attribute(c){ // splits the change in operating profit since last quarter into causes (exact sequential substitution)
+  const q0 = c.q0, st1 = opState(c);
+  if (!q0) return;
+  const cur = Object.assign({}, q0), terms = [];
+  let prev = opF(cur);
+  for (const [k, n] of ATTR) { cur[k] = st1[k]; const v = opF(cur); terms.push([n, v - prev]); prev = v; }
+  if (c.reorgQ) { const vol = terms[0][1] + terms[1][1]; terms.splice(0, 2, ['販売量（合併・事業売却を含む）', vol]); }
+  c.attr = {w: S.week, terms, dop: opF(st1) - opF(q0), dni: niA(c) - q0.ni, op: opF(st1)};
+}
+function competitorsReact(c){ // non-player companies answer a discounter that is taking their customers
+  if (c.ctrl === 'P' || !c.q0) return;
+  const lost = c.sh < c.q0.s * .97, rivalsCut = S.cos.some(x => x !== c && x.mk === c.mk && (x.ps || 0) < 0);
+  if (lost && rivalsCut && (c.ps || 0) >= 0) { if (rnd() < .45) { c.ps = -1; news(`${c.name}が値下げで対抗。${mkName(c.mk)}で価格競争`, 'deal', c.city); } else if (c.cash > c.rev * .03) advertise(c, c.rev * .02); }
+  else if (lost && (c.ps || 0) > 0 && rnd() < .3) c.ps = 0;
+  else if (!lost && (c.ps || 0) < 0 && !rivalsCut && rnd() < .2) c.ps = 0;
+}
 function quarter(){
   const big = [];
+  for (const c of S.cos) { attribute(c); competitorsReact(c); }
   for (const c of S.cos) {
     c.margin = clamp(c.margin + (c.base - c.margin) * .25 + gauss() * c.base * .12, -.1, .45);
     c.growth = c.growth + (IND[c.ind].g - c.growth) * .15 + gauss() * .012;
@@ -1230,6 +1340,7 @@ function quarter(){
     const rt = rating(c)[0];
     if (c.rt && c.rt !== rt && (c.ctrl === 'P' || groupSh(c, 'P') > 0)) news(`【格付け】${c.name}の格付けが${c.rt}から${rt}に${RATINGS.findIndex(r => r[0] === rt) > RATINGS.findIndex(r => r[0] === c.rt) ? '格下げ' : '格上げ'}`, 'earn', c.city);
     c.rt = rt;
+    c.q0 = Object.assign(opState(c), {ni: niA(c)}); c.reorgQ = false;
   }
   big.sort((a, b) => Math.abs(b.sur) - Math.abs(a.sur));
   for (const c of big.slice(0, 2)) news(`【決算${c.sur > 0 ? 'サプライズ' : 'ショック'}】${c.name}の利益が予想を${pc(Math.abs(c.sur), 0)}${c.sur > 0 ? '上回り株価急伸' : '下回り株価急落'}`, c.sur > 0 ? 'earn' : 'warn', c.city);
@@ -1302,7 +1413,6 @@ function rivalsAct(){
   for (const r of S.rivals) {
     // milk controlled companies
     for (const c of S.cos) if (c.ctrl === r.id) {
-      if (rnd() < .03) c.ps = [-1, 0, 0, 1][pickIdx(4)];
       if (rnd() < .04 && c.cash > c.rev * .05) advertise(c, c.rev * .03);
       if (c.cash > mcap(c) * .15 && rnd() < .1) { const a = specialDividend(c, c.cash * .6); news(`${r.n}支配下の${c.name}が特別配当${fm(a)}を実施`, 'deal', c.city); }
       if (c.payout < .5 && rnd() < .05) c.payout = .6;
@@ -1396,7 +1506,7 @@ function greenmail(){
 }
 function maybeIPO(){
   if (S.week % 17 === 0 && S.cos.length < 62 && S.ipo < IPO_POOL.length) {
-    const c = makeCompany(IPO_POOL[S.ipo++]); S.cos.push(c);
+    const c = makeCompany(IPO_POOL[S.ipo++]); S.cos.push(c); mkRefresh();
     news(`【新規上場】${c.name}（${IND[c.ind].n}・${CITY[c.city].n}）が上場。時価総額${fm(mcap(c))}`, 'earn', c.city);
   }
 }
@@ -1404,6 +1514,7 @@ function bankruptcies(){
   for (const c of S.cos.slice()) {
     if (equity(c) < -.25 * c.assets && c.ni < 0) {
       news(`【経営破綻】${c.name}が破綻、株式は無価値に`, 'warn', c.city);
+      mkToOthers(c, c.rev / plev(c));
       if (groupSh(c, 'P') > 0) toast(`${c.name}が破綻。保有株は無価値になりました`, true);
       dropCost(c);
       const sp = S.player.shorts[c.id];
@@ -1412,7 +1523,7 @@ function bankruptcies(){
       for (const t of S.cos) delete t.own[c.id]; // its stock portfolio is liquidated with it
       S.cos = S.cos.filter(x => x !== c); S.inbox = S.inbox.filter(i => i.cid !== c.id); S.tobs = S.tobs.filter(t => t.cid !== c.id);
       if (ui.sel === c.id) ui.sel = null;
-      recomputeCtrl();
+      recomputeCtrl(); mkRefresh();
     }
   }
 }
@@ -1423,6 +1534,7 @@ function step(){
   S.week++; S.player.divW = 0;
   refreshPV();
   econStep();
+  mkStep();
   let r = 0, n = 0;
   for (const c of S.cos) { const p0 = c.price; coStep(c); r += c.price / p0 - 1; n++; }
   S.idx *= 1 + (n ? r / n : 0); S.idxHist.push(S.idx); if (S.idxHist.length > 156) S.idxHist.shift();
@@ -1515,6 +1627,13 @@ function coRow(c, right, extra){
     <div class="sub">${isJP(c) ? '<span class="jp">日本</span>' : ''}${c.tk} · ${IND[c.ind].n} · ${CITY[c.city].n}</div>
     <div class="rt sub">${right || '時価 ' + fm(mcap(c))}</div>${extra ? `<div class="sub extra">${extra}</div>` : ''}</button>`;
 }
+function cityMarkets(city){
+  const reg = REGION_OF[city], keys = Object.keys(S.mk).filter(k => k.split('|')[0] === reg).sort((a, b) => S.mk[b].D - S.mk[a].D);
+  if (!keys.length) return '';
+  return `<section class="box"><h4>${REGION[reg].n}の市場 <small>${CITY[city].n}を含む地域</small></h4><div class="rtable cm"><div class="rh"><span>業種</span><span>市場規模</span><span>首位</span><span>あなた</span></div>${keys.map(k => {
+    const list = S.cos.filter(c => c.mk === k).sort((a, b) => b.sh - a.sh), top = list[0], mine = list.filter(c => c.ctrl === 'P').reduce((a, c) => a + c.sh, 0);
+    return `<div><span>${IND[k.split('|')[1]].n}</span><span>${fm(S.mk[k].D)}</span><span>${esc(top.name)} ${pc(top.sh, 0)}</span><span class="${mine ? 'up' : ''}">${mine ? pc(mine, 0) : '—'}</span></div>`; }).join('')}</div></section>`;
+}
 function renderMarket(){
   if (ui.sel && coById(ui.sel)) return renderCompany(coById(ui.sel));
   ui.sel = null;
@@ -1529,6 +1648,7 @@ function renderMarket(){
   return `${memo.length ? `<section class="memo"><h4>秘書のメモ</h4>${memo.map(([t, id, bad]) => id ? `<button class="memo-i ${bad ? 'bad' : ''}" data-act="sel" data-id="${id}">${t} ›</button>` : `<div class="memo-i ${bad ? 'bad' : ''}">${t}</div>`).join('')}</section>` : ''}
   <div class="filters" role="group" aria-label="地域">${RG.map(([k, l]) => `<button class="chip ${!ui.city && ui.region === k ? 'on' : ''}" data-act="region" data-v="${k}">${l}</button>`).join('')}</div>
   <div class="filters">${ui.city ? `<button class="chip on" data-act="city" data-v="">📍 ${CITY[ui.city].n} ✕</button>` : ''}${S_.map(([k, l]) => `<button class="chip ${ui.sort === k ? 'on' : ''}" data-act="sort" data-v="${k}">${l}</button>`).join('')}</div>
+  ${ui.city ? cityMarkets(ui.city) : ''}
   <div class="rows">${list.map(c => coRow(c)).join('') || '<div class="empty">この都市に上場企業はありません</div>'}</div>`;
 }
 const acctName = k => k === 'P' ? `${S.company}本体` : `子会社 ${(coById(k) || {name: '?'}).name}`;
@@ -1552,6 +1672,25 @@ function renderCompany(c){
   <div class="subtabs" role="tablist">${T.map(([k, l]) => `<button role="tab" aria-selected="${ui.ctab === k}" class="${ui.ctab === k ? 'on' : ''}" data-act="ctab" data-v="${k}">${l}${k === 'raid' && activeTob(c) ? ' ●' : ''}</button>`).join('')}</div>
   ${body}`;
 }
+function marketCard(c){
+  const M = S.mk[c.mk]; if (!M) return '';
+  const list = S.cos.filter(x => x.mk === c.mk).sort((a, b) => b.sh - a.sh), so = Math.max(0, 1 - list.reduce((a, x) => a + x.sh, 0));
+  return `<h3>${mkName(c.mk)}</h3>
+  <div class="kv"><div><span>市場規模（年）</span><b>${fm(M.D)}</b></div><div><span>市場の伸び</span><b>${spc(IND[c.ind].g + IND[c.ind].cyc * (S.econ.gdp - 2.5) / 100)}</b></div><div><span>価格への反応</span><b>${EL[c.ind] >= 3 ? '強い' : EL[c.ind] >= 2 ? '普通' : '弱い'}</b></div></div>
+  <div class="mshare">${list.map(x => `<div class="${x === c ? 'me' : ''}"><span>${x.ctrl ? `<i class="dot" style="background:${OWNC[x.ctrl]}"></i>` : ''}${esc(x.name)}</span><i class="bar"><b style="width:${x.sh * 100}%"></b></i><span class="num">${pc(x.sh)}</span><small>${PRICE[x.ps || 0].n}・ブランド${(brandOf(x) * 100).toFixed(0)}</small></div>`).join('')}
+  <div><span>その他の中小企業</span><i class="bar"><b style="width:${so * 100}%;background:var(--pub)"></b></i><span class="num">${pc(so)}</span><small></small></div></div>`;
+}
+function attrCard(c){
+  const a = c.attr; if (!a) return `<p class="note">利益の増減要因は、次の四半期決算（${dateOf(Math.ceil((S.week + 1) / 13) * 13)}）から表示されます。</p>`;
+  const max = Math.max(...a.terms.map(t => Math.abs(t[1])), Math.abs(a.dni - a.dop), 1e-9);
+  const row = (n, v) => `<div><span>${n}</span><i class="pn"><b class="${v >= 0 ? 'pos' : 'neg'}" style="width:${Math.abs(v) / max * 50}%"></b></i><span class="num ${v >= 0 ? 'up' : 'down'}">${v >= 0 ? '+' : ''}${fm(v)}</span></div>`;
+  return `<h3>前四半期の利益の増減（年換算）</h3>
+  <div class="attr">${a.terms.filter(t => Math.abs(t[1]) > max * .01).map(t => row(t[0], t[1])).join('')}
+  <div class="tot"><span>営業利益の増減</span><i></i><span class="num ${a.dop >= 0 ? 'up' : 'down'}">${a.dop >= 0 ? '+' : ''}${fm(a.dop)}</span></div>
+  ${row('金利・その他', a.dni - a.dop)}
+  <div class="tot"><span>純利益の増減</span><i></i><span class="num ${a.dni >= 0 ? 'up' : 'down'}">${a.dni >= 0 ? '+' : ''}${fm(a.dni)}</span></div></div>
+  <p class="note">${shortDate(a.w)}の決算時点。各要因を順に入れ替えて計算しているので、足し合わせると営業利益の増減と一致します。</p>`;
+}
 function coInfo(c){
   const f = fair(c), eps = c.ni / c.shares, per = eps > 0 ? c.price / eps : 0, pbr = equity(c) > 0 ? mcap(c) / equity(c) : 0;
   const divY = c.ni > 0 ? c.ni * c.payout / mcap(c) : 0, syn = synergy(c), fxe = fxMult(c) - 1, rt = rating(c);
@@ -1564,11 +1703,12 @@ function coInfo(c){
     <div><span>売上（年）</span><b>${fm(c.rev)}</b></div><div><span>純利益（年）</span><b class="${c.ni >= 0 ? '' : 'down'}">${fm(c.ni)}</b></div><div><span>PBR</span><b>${pbr ? pbr.toFixed(2) + '倍' : '—'}</b></div>
     <div><span>予想純利益</span><b>${c.est != null ? fm(c.est) : '—'}</b></div>${hasR('in1') ? `<div><span>社内予想</span><b>${fm(niA(c) * (1 + c.growth / 4))}</b></div>` : ''}<div><span>前回サプライズ</span><b class="${(c.sur || 0) >= 0 ? 'up' : 'down'}">${c.sur != null ? spc(c.sur) : '—'}</b></div><div><span>次の決算</span><b>${toQ}週後</b></div>
     <div><span>現金</span><b>${fm(c.cash)}</b></div><div><span>負債</span><b>${fm(c.debt)}</b></div><div><span>格付け</span><b class="${rt[2] >= 3 ? 'down' : ''}">${rt[0]}（${(S.econ.rate + rt[2]).toFixed(1)}%）</b></div>
-    <div><span>成長率</span><b>${pc(c.growth + c.boost)}</b></div><div><span>利益率</span><b>${pc(c.margin)}${syn > .0005 ? ` <span class="up">+${pc(syn)}</span>` : ''}</b></div><div><span>配当利回り</span><b>${pc(divY)}</b></div>
-    <div><span>価格戦略</span><b>${PRICE[c.ps || 0].n}</b></div><div><span>ブランド</span><b>${(brandOf(c) * 100).toFixed(0)}</b></div><div><span>価格競争の影響</span><b class="${priceWar(c) > .0005 ? 'down' : ''}">${priceWar(c) > .0005 ? '-' + pc(priceWar(c)) : 'なし'}</b></div>
+    <div><span>成長率</span><b>${pc(c.growth + c.boost)}</b></div><div><span>営業利益率</span><b class="${opMargin(c) >= 0 ? '' : 'down'}">${pc(opMargin(c))}${syn > .0005 ? ` <small class="up">内シェア効果+${pc(syn)}</small>` : ''}</b></div><div><span>配当利回り</span><b>${pc(divY)}</b></div>
+    <div><span>価格戦略</span><b>${PRICE[c.ps || 0].n}</b></div><div><span>ブランド</span><b>${(brandOf(c) * 100).toFixed(0)}</b></div><div><span>市場シェア</span><b>${pc(c.sh || 0)}${c.tsh != null && Math.abs(c.tsh - c.sh) > .002 ? ` <small class="${c.tsh > c.sh ? 'up' : 'down'}">${c.tsh > c.sh ? '↑' : '↓'}${pc(c.tsh)}</small>` : ''}</b></div>
     <div><span>業界シェア${c.ctrl ? '（グループ）' : ''}</span><b>${pc(indShare(c))}</b></div><div><span>為替の影響</span><b class="${fxe >= 0 ? 'up' : 'down'}">${spc(fxe)}</b></div><div><span>保有株式</span><b>${fm(c.pv || 0)}</b></div>
   </div>
   ${note ? `<p class="note" style="margin-top:10px">🛂 ${note}</p>` : ''}
+  ${marketCard(c)}${attrCard(c)}
   <h3>株主構成${c.ctrl ? ` <span style="color:${OWNC[c.ctrl]}">· 支配 ${esc(ownerName(c.ctrl))}（グループ ${pc(gfrac(c, c.ctrl))}）</span>` : isCEO(c) ? ` <span style="color:var(--gold)">· 取締役会を掌握（${shortDate(c.boardEnd)}まで）</span>` : ''}</h3><div class="ownbar">${segs}</div><ul class="ownlist">${owners}</ul>`;
 }
 function coTrade(c){
@@ -1665,18 +1805,22 @@ function coRaid(c){
   }
   return out.join('') || '<div class="empty">この会社はあなたのグループが支配しています。「経営」タブから経営判断ができます。</div>';
 }
+function pricePreview(c, ps){ // pure: share and operating profit once the market has fully adjusted to a price level
+  const t = mkTargets(c.mk, {id: c.id, ps})[c.id], P = levelFor(c, ps), D = S.mk[c.mk].D;
+  const op = (D * t * (P * (1 + synergy(c)) - vcOf(c)) - fixedOf(c)) * fxMult(c);
+  return {t, op, m: D * t * P > 0 ? op / fxMult(c) / (D * t * P) : 0};
+}
 function priceBox(c){
-  const ps = c.ps || 0, b = brandOf(c), war = priceWar(c);
-  const eff = v => { const o = c.ps; c.ps = v; const m = c.margin + synergy(c) + priceAdj(c) - priceWar(c), g = priceGrowth(c); c.ps = o; return [m, g]; };
+  const ps = c.ps || 0, b = brandOf(c), cut = S.cos.filter(x => x !== c && x.mk === c.mk && (x.ps || 0) < 0);
   const ads = [.01, .03, .05].map(f => [f, c.rev * f]);
   return `<section class="box"><h4>価格と広告 <small>利益率を取るか、成長とシェアを取るか</small></h4>
     <p class="lbl">価格戦略</p>
-    <div class="seg">${[-1, 0, 1].map(v => { const [m, g] = eff(v); return `<button class="${ps === v ? 'on' : ''}" data-act="pstrat" data-v="${v}">${PRICE[v].n}<br><small>利益率 ${pc(m)}・成長 ${spc(g)}</small></button>`; }).join('')}</div>
-    <p>低価格は売上の伸びとシェアを取りに行く代わりに利益率が下がり、同業他社の利益も削ります（価格競争）。高価格は利益率が上がりますが、ブランドが弱いと客離れが進みます。</p>
-    ${war > .0005 ? `<p class="down">同業の値下げ攻勢で利益率が ${pc(war)} 下がっています。</p>` : ''}
+    <div class="seg">${[-1, 0, 1].map(v => { const pv = pricePreview(c, v); return `<button class="${ps === v ? 'on' : ''}" data-act="pstrat" data-v="${v}">${PRICE[v].n}（${v ? spc(levelFor(c, v) - 1) : '±0%'}）<br><small>シェア ${pc(pv.t)}・営業利益 ${fm(pv.op)}</small></button>`; }).join('')}</div>
+    <p>数字は市場が落ち着いた後の目安です（今のシェア ${pc(c.sh)}）。値動きの幅は会社の利益率に合わせて決まります（この会社は±${pc(priceStepOf(c))}）。シェアは毎週少しずつ動きます。${IND[c.ind].n}は価格への反応が${EL[c.ind] >= 3 ? '強い' : EL[c.ind] >= 2 ? '普通の' : '弱い'}業種です。値下げで奪ったシェアは、同じ市場の競合と中小企業から来ます。</p>
+    ${cut.length ? `<p class="down">同じ市場で値下げ中：${cut.map(x => esc(x.name)).join('、')}</p>` : ''}
     <p class="lbl">広告キャンペーン（ブランド ${(b * 100).toFixed(0)} / 100）</p><i class="bar"><b style="width:${b * 100}%"></b></i>
     <div class="btnrow">${ads.map(([f, a]) => `<button class="btn sm" data-act="advert" data-v="${f}" ${a <= c.cash && a > .001 ? '' : 'disabled'}>売上の${pc(f, 0)}（${fm(a)}）→ +${((1 - b) * clamp(f * 3, 0, .35) * 100).toFixed(0)}</button>`).join('')}</div>
-    <p>ブランドが高いほど成長率が上がり、高価格でも客が離れにくくなります。広告をやめると少しずつ薄れます。費用は会社の現金から出ます。</p></section>`;
+    <p>ブランドが高いほど客に選ばれやすくなり、シェアが上がります。広告をやめると少しずつ薄れます。費用は会社の現金から出ます。</p></section>`;
 }
 function coCeo(c){
   const others = S.cos.filter(b => b !== c).sort((a, b) => mcap(a) - mcap(b));
@@ -1775,6 +1919,7 @@ function reportCard(){
     <div class="seg">${rs.slice(0, 4).map((x, j) => `<button class="${j === i ? 'on' : ''}" data-act="repi" data-v="${j}">${shortDate(x.w)}</button>`).join('')}</div>
     <div class="kv" style="margin-top:8px"><div><span>純資産</span><b>${fm(r.nw)}${d(r.nw, prev && prev.nw)}</b></div><div><span>今期の受取配当</span><b>${prev ? fm(r.divs - prev.divs) : fm(r.divs)}</b></div><div><span>ATLAS指数</span><b>${r.idx.toFixed(0)}${prev ? ` <span class="${r.idx >= prev.idx ? 'up' : 'down'}">${spc(r.idx / prev.idx - 1)}</span>` : ''}</b></div></div>
     ${r.cos.length ? `<div class="rtable"><div class="rh"><span>銘柄</span><span>持分</span><span>売上</span><span>純利益</span><span>株価</span></div>${r.cos.map(x => { const q = pmap[x.id]; return `<div><span>${x.ctl ? '★' : ''}${esc(x.n)}</span><span>${pc(x.g, 0)}</span><span>${fm(x.rev)}</span><span class="${x.ni >= 0 ? '' : 'down'}">${fm(x.ni)}</span><span class="${!q || x.price >= q.price ? 'up' : 'down'}">${q ? spc(x.price / q.price - 1) : '新規'}</span></div>`; }).join('')}</div><p class="note">★は支配企業。株価は前の四半期比。売上・純利益は年換算。</p>` : '<p>この時点の保有株はありません。</p>'}
+    ${ctrlP().some(c => c.attr) ? `<p class="lbl">支配企業の利益の主な増減要因（年換算）</p>${ctrlP().filter(c => c.attr).map(c => { const top = c.attr.terms.slice().sort((x, y) => Math.abs(y[1]) - Math.abs(x[1])).slice(0, 2); return `<div class="orow"><span>${esc(c.name)}</span><span class="num"><span class="${c.attr.dop >= 0 ? 'up' : 'down'}">${c.attr.dop >= 0 ? '+' : ''}${fm(c.attr.dop)}</span>（${top.map(t => `${t[0]} ${t[1] >= 0 ? '+' : ''}${fm(t[1])}`).join('、')}）</span></div>`; }).join('')}` : ''}
     <p class="lbl">ライバルの純資産</p>${rivals.map(([n, v, pv]) => `<div class="orow"><span>${esc(n)}</span><span class="num">${fm(v)}${d(v, pv)}</span></div>`).join('')}</section>`;
 }
 function renderPort(){
@@ -2184,7 +2329,7 @@ const HOWTO = `<ol>
   <li><b>CEOとして稼ぐ：</b>支配企業の現金を特別配当で吸い上げ、自社株買いで持分を高め、合併で拡大。同業種を集めると業界シェアで利益率が上がりますが、独禁法審査にご注意。</li>
   <li><b>為替：</b>円安は海外企業と日本の輸出企業に追い風、円高はその逆です。</li>
   <li><b>成長と研究：</b>最初は売買だけ。大株主→経営者→財閥と成長するたびに使える手が増えます。経営者になると「社長」タブで研究ツリーを進められます。</li>
-  <li><b>会社を育てる：</b>支配企業の「経営」タブで価格戦略と広告を決められます。低価格は成長とシェア、高価格は利益率。ライバルの株は「買収・提案」タブで直接交渉して買うこともできます。</li>
+  <li><b>会社を育てる：</b>各社は地域（日本・米州・欧州/中東/アフリカ・アジア太平洋）×業種の「市場」で競合とシェアを奪い合います。支配企業の「経営」タブで価格と広告を決め、「概要」で市場シェアと利益の増減要因を確認できます。ライバルの株は「買収・提案」タブで直接交渉して買うこともできます。</li>
   <li><b>社長として：</b>「社長」タブで役員報酬を受け取り、豪邸やジェット機で名声を高められます。期限付きのミッションと実績もここに。</li>
   <li><b>その他の手：</b>5%以上で株主提案、15%以上で委任状争奪戦、借入で買うLBO、オプション、支配企業の増資・事業売却・スピンオフ、自社（持株会社）の上場。噂に乗った売買はインサイダー取引として摘発されることも。</li>
   <li><b>空売り：</b>下がりそうな銘柄は株を借りて売り、安くなってから買い戻せば差額が利益。ただし株価が上がると損失に上限はありません。</li>
@@ -2230,7 +2375,7 @@ function importText(text, fromBak){
   const o = parseSave(text);
   if (!o) return '読み込めませんでした。テキストが途中で切れているか、このゲームのセーブではありません。今のゲームはそのままです。';
   if (!fromBak) backupSave();
-  S = o; ui.sel = null; ui.city = null; ui.speed = 0; ui.diff = S.diff;
+  S = o; if (!S.mk) mkInit(); ui.sel = null; ui.city = null; ui.speed = 0; ui.diff = S.diff;
   save(); renderLegend(); renderTicker(); renderAll(true);
   return null;
 }
@@ -2266,13 +2411,13 @@ if (window.ResizeObserver) new ResizeObserver(() => resizeMap()).observe($('.map
 function boot(){
   const saved = loadSave();
   if (saved) backupSave();
-  if (saved) { S = saved; ui.diff = S.diff; ui.cname = S.company; ui.pname = S.pname === DEF_PN ? '' : S.pname; } else newGame(0x1A7A5C, 'normal');
+  if (saved) { S = saved; if (!S.mk) mkInit(); ui.diff = S.diff; ui.cname = S.company; ui.pname = S.pname === DEF_PN ? '' : S.pname; } else newGame(0x1A7A5C, 'normal');
   resizeMap(); renderLegend(); renderTicker(); renderAll(true);
   requestAnimationFrame(frame);
   showStart();
   if (ui.restored) toast('セーブデータが壊れていたため、バックアップから復元しました', true);
 }
-window.__atlas = {get S(){ return S; }, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
+window.__atlas = {get S(){ return S; }, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
 boot();
 })();
 </script>

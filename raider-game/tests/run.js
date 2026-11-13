@@ -173,6 +173,58 @@ async function testUI(b) {
   }
 }
 
+// Phase 1: city × industry markets, share competition and profit attribution.
+async function testMarkets(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(quick => {
+    const A = window.__atlas, out = {roles: {'-1': [0, 0, 0], '0': [0, 0, 0], '1': [0, 0, 0]}, cutHurts: 0, cutTried: 0, attrErr: 0, attrN: 0, bankrupt: 0};
+    const seeds = quick ? [3, 5] : [3, 5, 8, 13, 21, 34];
+    for (const sd of seeds) for (const ps of [-1, 0, 1]) { // one company per seed run under each price level for 3 years
+      A.newGame(sd * 101, 'normal', 'T', 't', 'std', true); const S = A.S, c = S.cos[sd % S.cos.length], id = c.id; c.ps = ps;
+      const r0 = c.rev, s0 = c.sh; for (let i = 0; i < 156; i++) { A.step(); S.inbox = []; const x = S.cos.find(y => y.id === id); if (!x) break; x.ps = ps; }
+      const x = S.cos.find(y => y.id === id); const R = out.roles[ps]; if (!x) { R[3] = (R[3] || 0) + 1; continue; } // merged, bought out or bankrupt
+      R[0] += x.rev / r0; R[1] += x.sh / s0; R[2] += x.cash / r0; R[4] = (R[4] || 0) + 1;
+    }
+    out.shareOrder = {n: 0, bad: 0}; out.marginOrder = {n: 0, bad: 0};
+    for (const sd of seeds) { // pure functions, no randomness: the direction of the price lever for every company
+      A.newGame(sd * 71, 'normal', 'T', 't', 'std', true); const S = A.S; for (let i = 0; i < 26; i++) { A.step(); S.inbox = []; }
+      for (const c of S.cos) {
+        const t = [-1, 0, 1].map(ps => A.mkTargets(c.mk, {id: c.id, ps})[c.id]), m = [-1, 0, 1].map(ps => A.pricePreview(c, ps).m);
+        out.shareOrder.n++; if (!(t[0] > t[1] && t[1] > t[2])) out.shareOrder.bad++;
+        out.marginOrder.n++; if (!(m[2] > m[1] && m[1] > m[0])) out.marginOrder.bad++;
+      }
+    }
+    for (const sd of seeds) { // a rival in the same market cuts its price: our share should fall
+      A.newGame(sd * 313, 'normal', 'T', 't', 'std', true); const S = A.S;
+      const by = {}; for (const c of S.cos) (by[c.mk] = by[c.mk] || []).push(c);
+      const key = Object.keys(by).sort().find(k => by[k].length >= 2); if (!key) continue;
+      const [me, rv] = by[key]; const s0 = me.sh; rv.ps = -1; out.cutTried++;
+      for (let i = 0; i < 26; i++) { A.step(); S.inbox = []; rv.ps = -1; }
+      if (me.sh < s0) out.cutHurts++;
+    }
+    for (const sd of seeds) { // attribution adds up; count bankruptcies
+      A.newGame(sd * 977, 'normal', 'T', 't', 'std', true); const S = A.S;
+      for (let i = 0; i < 260; i++) { A.step(); S.inbox = []; for (const n of S.news) { if (n.w !== S.week) break; if (n.t.startsWith('【経営破綻】')) out.bankrupt++; } }
+      for (const c of S.cos) if (c.attr) { out.attrN++; const sum = c.attr.terms.reduce((a, t) => a + t[1], 0); out.attrErr = Math.max(out.attrErr, Math.abs(sum - c.attr.dop) / Math.max(1, Math.abs(c.attr.op))); }
+    }
+    for (const k in out.roles) { const R = out.roles[k]; for (let i = 0; i < 3; i++) R[i] /= R[4] || 1; }
+    return out;
+  }, QUICK).catch(e => ({error: e.message}));
+  if (r.error) { ok('market tests ran', false, r.error); await ctx.close(); return; }
+  const [lo, st, hi] = [r.roles['-1'], r.roles['0'], r.roles['1']];
+  console.log(`MARKET price roles (3y, relative to start): revenue low ${lo[0].toFixed(2)} / std ${st[0].toFixed(2)} / high ${hi[0].toFixed(2)}; share ${lo[1].toFixed(2)} / ${st[1].toFixed(2)} / ${hi[1].toFixed(2)}; cash ${lo[2].toFixed(2)} / ${st[2].toFixed(2)} / ${hi[2].toFixed(2)}`);
+  ok('price mechanism: for every company, equilibrium share low > standard > high', r.shareOrder.bad === 0 && r.shareOrder.n > 0, `${r.shareOrder.n - r.shareOrder.bad}/${r.shareOrder.n}`);
+  console.log(`MARKET companies lost during the 3 years: low ${lo[3] || 0} / std ${st[3] || 0} / high ${hi[3] || 0}`);
+  // Not every company: with heavy fixed costs, a higher price can lower the margin because lost volume spreads fixed costs thinner (operating leverage).
+  ok('price mechanism: operating margin high > standard > low for most companies (≥85%)', r.marginOrder.n > 0 && r.marginOrder.bad <= r.marginOrder.n * .15, `${r.marginOrder.n - r.marginOrder.bad}/${r.marginOrder.n}`);
+  console.log('MARKET (info only — separate runs diverge, so this is noisy)');
+  ok('a rival price cut takes share from the same market', r.cutHurts === r.cutTried && r.cutTried > 0, `${r.cutHurts}/${r.cutTried}`);
+  ok('profit attribution adds up to the change in operating profit', r.attrN > 0 && r.attrErr < 1e-6, `${r.attrN} companies, max error ${r.attrErr}`);
+  console.log(`MARKET bankruptcies over 5 years across ${QUICK ? 2 : 6} games: ${r.bankrupt}`);
+  ok('no page errors in market tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 // Simple value bot used since the first version: buys cheap stocks, sells rich ones, milks controlled companies.
 async function balance(b) {
   const {p, ctx} = await page(b);
@@ -220,6 +272,7 @@ async function balance(b) {
     await testOldSaves(b);
     await testSaveSafety(b);
     await testUI(b);
+    await testMarkets(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
