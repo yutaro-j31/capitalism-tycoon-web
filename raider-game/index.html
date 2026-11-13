@@ -134,6 +134,8 @@ i.bar b{display:block;height:100%;background:var(--gold)}
 .box.locked{opacity:.7;border-style:dashed}
 .ul{margin:6px 0 0;padding-left:18px;font-size:13px}
 @media (max-width:620px){.rtree{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.savetext{width:100%;min-height:96px;margin-top:8px;background:var(--sea-deep);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px;font-family:var(--f-mono);font-size:12px}
+.mh{font-size:12px;letter-spacing:.14em;color:var(--mute);margin:16px 0 6px;font-weight:500}
 .subtabs{display:flex;gap:4px;margin:12px 0 4px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .subtabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:8px 10px;min-height:40px;font-size:13px;white-space:nowrap}
 .subtabs button.on{color:var(--ink);border-bottom-color:var(--gold);font-weight:700}
@@ -1447,9 +1449,30 @@ function fxArc(owner, a, b){ fx.push({type: 'arc', a, b, col: OWNHEX[owner] || '
 
 /* ---------- save / load ---------- */
 let saveTimer = 0;
-function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+const BAK_KEY = SAVE_KEY + '_bak';
+let saveFailed = false;
+function save(){ // returns true when the game was written; warns once if storage refuses
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); if (saveFailed) { saveFailed = false; toast('セーブが再び書き込めるようになりました'); } return true; }
+  catch (e) { if (!saveFailed) { saveFailed = true; toast('セーブに失敗しました（容量不足やプライベートモードなど）。「?」→セーブ管理から書き出しておけます', true); } return false; }
+}
 function saveSoon(){ clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); }
-function loadSave(){ try { const s = localStorage.getItem(SAVE_KEY); if (!s) return null; const o = JSON.parse(s); if (!(o && o.v === 1 && Array.isArray(o.cos))) return null; o.player.shorts = o.player.shorts || {}; if (!DIFF[o.diff]) o.diff = 'normal'; o.company = o.company || DEF_CO; o.pname = o.pname || DEF_PN; o.tobs = o.tobs || []; o.tobSeq = o.tobSeq || 1; o.tips = o.tips || []; o.reports = o.reports || []; o.optSeq = o.optSeq || 1; if (o.stage == null) { o.stage = 4; o.allUnlocked = true; } o.research = o.research || {pts: 0, budget: 0, done: {}}; o.scen = SCEN[o.scen] ? o.scen : 'std'; o.pres = o.pres || {cash: 0, salary: 0, assets: [], earned: 0, seq: 1}; o.missions = o.missions || []; o.misSeq = o.misSeq || 1; o.ach = o.ach || {}; o.stats = Object.assign({tobWins: 0, warWins: 0, lbo: 0, proxyWins: 0, actWins: 0, shortWins: 0, missionsDone: 0}, o.stats || {}); Object.assign(o.player, {opts: o.player.opts || [], ban: o.player.ban || {}, rep: o.player.rep == null ? .5 : o.player.rep, outside: o.player.outside || 0}); if (!o.econ.fx) { o.econ.fx = FX0; o.econ.fxBand = 15; o.econ.fxHist = [FX0]; } return o; } catch (e) { return null; } }
+function backupSave(){ try { const cur = localStorage.getItem(SAVE_KEY); if (cur) localStorage.setItem(BAK_KEY, cur); return !!cur; } catch (e) { return false; } }
+function validSave(o){ return !!(o && o.v === 1 && Array.isArray(o.cos) && o.cos.length && o.player && typeof o.player.cash === 'number' && typeof o.week === 'number' && typeof o.rs === 'number' && o.econ && Array.isArray(o.rivals)); }
+function migrate(o){ // brings any older v1 save up to the current shape without discarding data
+  if (!validSave(o)) return null;
+  o.player.shorts = o.player.shorts || {}; if (!DIFF[o.diff]) o.diff = 'normal'; o.company = o.company || DEF_CO; o.pname = o.pname || DEF_PN; o.tobs = o.tobs || []; o.tobSeq = o.tobSeq || 1; o.tips = o.tips || []; o.reports = o.reports || []; o.optSeq = o.optSeq || 1; if (o.stage == null) { o.stage = 4; o.allUnlocked = true; } o.research = o.research || {pts: 0, budget: 0, done: {}}; o.scen = SCEN[o.scen] ? o.scen : 'std'; o.pres = o.pres || {cash: 0, salary: 0, assets: [], earned: 0, seq: 1}; o.missions = o.missions || []; o.misSeq = o.misSeq || 1; o.ach = o.ach || {}; o.stats = Object.assign({tobWins: 0, warWins: 0, lbo: 0, proxyWins: 0, actWins: 0, shortWins: 0, missionsDone: 0}, o.stats || {}); Object.assign(o.player, {opts: o.player.opts || [], ban: o.player.ban || {}, rep: o.player.rep == null ? .5 : o.player.rep, outside: o.player.outside || 0}); if (!o.econ.fx) { o.econ.fx = FX0; o.econ.fxBand = 15; o.econ.fxHist = [FX0]; }
+  return o;
+}
+function parseSave(text){ try { return migrate(JSON.parse(text)); } catch (e) { return null; } }
+function loadSave(){
+  let raw = null; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return null; }
+  if (!raw) return null;
+  const o = parseSave(raw); if (o) return o;
+  let bak = null; try { bak = localStorage.getItem(BAK_KEY); } catch (e) { /* ignore */ }
+  const b = bak && parseSave(bak);
+  if (b) { ui.restored = true; return b; } // the main slot is corrupt: fall back to the backup, leave the broken data in place
+  return null;
+}
 
 /* =====================================================================
    UI
@@ -2120,6 +2143,15 @@ function act(a, el){
     case 'repayloan': { const p = S.player, a = v === 'all' ? Math.min(p.cash, p.loan) : Math.min(+v, p.cash, p.loan); p.cash -= a; p.loan -= a; break; }
     case 'inbox': resolveInbox(+el.dataset.id, v === '1'); break;
     case 'newgame': startNew(); return;
+    case 'savemgr': showSaveMgr(); return;
+    case 'exportsave': { const ta = $('#savetext-out'), t = exportText(); ta.value = t; ta.hidden = false;
+      const done = () => toast(`セーブをコピーしました（${Math.round(t.length / 1024)}KB）。メモなどに貼り付けて保管してください`);
+      const fallback = () => { ta.focus(); ta.select(); toast('自動コピーできませんでした。表示されたテキストを長押しでコピーしてください', true); };
+      try { navigator.clipboard.writeText(t).then(done, fallback); } catch (e) { fallback(); } return; }
+    case 'importsave': { const err = importText(($('#savetext-in') || {}).value || ''); if (err) showSaveMgr(`<span class="down">${err}</span>`); else { closeModal(); toast(`セーブを読み込みました（${dateOf(S.week)}）`); } return; }
+    case 'restorebak': { let b = null; try { b = localStorage.getItem(BAK_KEY); } catch (e) { /* ignore */ }
+      if (!b) { showSaveMgr('<span class="down">バックアップがありません。</span>'); return; }
+      const err = importText(b, true); if (err) showSaveMgr(`<span class="down">${err}</span>`); else { closeModal(); toast(`バックアップを読み込みました（${dateOf(S.week)}）`); } return; }
     case 'restart': showStart(true); return;
     case 'diff': ui.diff = v; showStart(!!el.dataset.fresh); return;
     case 'continue': closeModal(); return;
@@ -2180,7 +2212,28 @@ function showUnlock(){
   const go = b >= 3 ? ['pres', '研究ツリーを見る'] : ['market', '市場を見る'];
   openModal(`<h1 style="font-size:22px">新しい機能が解放されました</h1><p class="lede">${esc(S.company)}の成長に合わせて、使える手が増えました。</p>${blocks.join('')}${b < 4 ? `<p class="note">次の段階「${STAGES[b + 1].n}」：${STAGES[b + 1].cond}</p>` : ''}<div class="btnrow"><button class="btn gold" data-act="unlockgo" data-v="${go[0]}">${go[1]}</button><button class="btn" data-act="close">閉じる</button></div>`);
 }
-function showHelp(){ openModal(`<h1 style="font-size:22px">遊び方</h1><p class="lede">${dateOf(S.week)}・純資産 ${fm(netWorth('P'))}</p>${HOWTO}<div class="btnrow"><button class="btn gold" data-act="close">ゲームに戻る</button><button class="btn" data-act="restart">最初からやり直す</button></div>`); }
+function showHelp(){ openModal(`<h1 style="font-size:22px">遊び方</h1><p class="lede">${dateOf(S.week)}・純資産 ${fm(netWorth('P'))}</p>${HOWTO}<div class="btnrow"><button class="btn gold" data-act="close">ゲームに戻る</button><button class="btn" data-act="savemgr">セーブ管理</button><button class="btn" data-act="restart">最初からやり直す</button></div>`); }
+function showSaveMgr(msg){
+  openModal(`<h1 style="font-size:22px">セーブ管理</h1>
+  <p class="lede">セーブはこのブラウザの中だけに保存されます。別の端末へ移すときや念のための控えとして、テキストで書き出せます。</p>
+  ${msg ? `<div class="preview">${msg}</div>` : ''}
+  <h3 class="mh">書き出し</h3>
+  <div class="btnrow"><button class="btn gold" data-act="exportsave">セーブをコピー</button></div>
+  <textarea id="savetext-out" class="savetext" readonly hidden></textarea>
+  <h3 class="mh">読み込み</h3>
+  <p class="note">コピーしておいたテキストを貼り付けてください。読み込む前に、今のセーブはバックアップに退避します。</p>
+  <textarea id="savetext-in" class="savetext" placeholder="ここに貼り付け" autocomplete="off"></textarea>
+  <div class="btnrow"><button class="btn" data-act="importsave">貼り付けたセーブを読み込む</button><button class="btn" data-act="restorebak">バックアップに戻す</button><button class="btn" data-act="close">閉じる</button></div>`);
+}
+function exportText(){ return JSON.stringify(S); }
+function importText(text, fromBak){
+  const o = parseSave(text);
+  if (!o) return '読み込めませんでした。テキストが途中で切れているか、このゲームのセーブではありません。今のゲームはそのままです。';
+  if (!fromBak) backupSave();
+  S = o; ui.sel = null; ui.city = null; ui.speed = 0; ui.diff = S.diff;
+  save(); renderLegend(); renderTicker(); renderAll(true);
+  return null;
+}
 function showEnd(win){
   const yrs = (S.week / 52).toFixed(1);
   openModal(win
@@ -2190,6 +2243,7 @@ function showEnd(win){
 function startNew(){
   // Seed from a counter in storage so each new game differs, without Math.random/Date in the sim.
   let n = 1; try { n = (+localStorage.getItem(SAVE_KEY + '_n') || 0) + 1; localStorage.setItem(SAVE_KEY + '_n', String(n)); } catch (e) { /* ignore */ }
+  backupSave();
   newGame((0x2545F491 * n + 7) | 0, ui.diff, ui.cname, ui.pname, ui.scen, ui.allU);
   ui.sel = null; ui.city = null; ui.tab = 'market'; ui.speed = 1;
   closeModal(); save(); renderLegend(); renderTicker(); renderAll(true);
@@ -2211,12 +2265,14 @@ if (window.ResizeObserver) new ResizeObserver(() => resizeMap()).observe($('.map
 /* ---------- boot ---------- */
 function boot(){
   const saved = loadSave();
+  if (saved) backupSave();
   if (saved) { S = saved; ui.diff = S.diff; ui.cname = S.company; ui.pname = S.pname === DEF_PN ? '' : S.pname; } else newGame(0x1A7A5C, 'normal');
   resizeMap(); renderLegend(); renderTicker(); renderAll(true);
   requestAnimationFrame(frame);
   showStart();
+  if (ui.restored) toast('セーブデータが壊れていたため、バックアップから復元しました', true);
 }
-window.__atlas = {get S(){ return S; }, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
+window.__atlas = {get S(){ return S; }, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
 boot();
 })();
 </script>
