@@ -415,6 +415,8 @@ async function testPhase6(b) {
   const a = await m.p.evaluate(() => ({n: document.querySelectorAll('[data-act=pbuy]').length, o: document.documentElement.scrollWidth - innerWidth}));
   await m.p.click('[data-act=tab][data-v=port]');
   const b2 = await m.p.evaluate(() => ({sell: document.querySelectorAll('[data-act=psell]').length, o: document.documentElement.scrollWidth - innerWidth}));
+  const lg = await m.p.evaluate(() => document.querySelector('#legend').textContent.includes('あなたの不動産'));
+  ok('map legend shows the player\'s real estate once a property is owned', lg);
   ok('iPhone: city property list and holdings render without overflow', a.n > 0 && a.o <= 0 && b2.sell === 1 && b2.o <= 0, JSON.stringify({a, b2}));
   ok('no page errors in phase 6 tests', !errs.length && !m.errs.length, errs.concat(m.errs).slice(0, 3).join(' | '));
   await m.ctx.close(); await ctx.close();

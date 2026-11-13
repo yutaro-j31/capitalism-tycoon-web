@@ -154,6 +154,7 @@ i.pn b.neg{right:50%;background:var(--down)}
 .tasks b{color:var(--down);font-weight:700;margin-right:4px}
 .task{background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:4px 10px;min-height:32px;font-size:12px}
 .task.bad{border-color:var(--down);color:var(--down)}
+.home{width:11px;height:11px;margin-right:1px;vertical-align:-1px}
 .prop{border-top:1px solid var(--line);padding:10px 0}
 .prop-h{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}.prop-h small{color:var(--mute)}
 h4.sub{margin:14px 0 4px;font-size:13px}
@@ -1995,7 +1996,7 @@ function renderTasks(){
   el.innerHTML = list.length ? `<b>対応が必要</b>${list.slice(0, 4).map(x => `<button class="task ${x.bad ? 'bad' : ''}" data-act="task" data-v="${esc(x.go)}">${esc(x.t)}</button>`).join('')}${list.length > 4 ? `<span>ほか${list.length - 4}件</span>` : ''}` : '';
 }
 function renderTop(){
-  renderTasks();
+  renderTasks(); renderLegend();
   const p = S.player, nw = netWorth('P');
   const rank = 1 + S.rivals.filter(r => netWorth(r.id) > nw).length;
   $('#date').innerHTML = `<b>${esc(S.company)}</b><span>社長 ${esc(S.pname)}（${title()}）</span><span>${DIFF[S.diff].n}${S.scen !== 'std' ? '・' + SCEN[S.scen].n : ''} · ${dateOf(S.week)}</span>`;
@@ -2014,7 +2015,8 @@ function renderTicker(){
 const chg = (c, n = 1) => c.hist.length > n ? c.price / c.hist[c.hist.length - 1 - n] - 1 : 0;
 const ownCol = k => OWNC[bossOf(k)] || '#8fa8ba';
 function renderLegend(){
-  $('#legend').innerHTML = `<span><i class="dot" style="background:${OWNC.P}"></i>${esc(S.company)}</span>` + S.rivals.map(r => `<span><i class="dot" style="background:${OWNC[r.id]}"></i>${esc(r.n)}</span>`).join('') + `<span><i class="dot" style="background:var(--pub)"></i>独立系</span>`;
+  const h = `<span><i class="dot" style="background:${OWNC.P}"></i>${esc(S.company)}</span>` + S.rivals.map(r => `<span><i class="dot" style="background:${OWNC[r.id]}"></i>${esc(r.n)}</span>`).join('') + `<span><i class="dot" style="background:var(--pub)"></i>独立系</span>` + ((S.props || []).some(p => p.own === 'P') ? `<span><svg class="home" viewBox="0 0 12 12" aria-hidden="true"><path d="M1 6 6 1.5 11 6V11H1Z" fill="#f2b632"/></svg>あなたの不動産</span>` : '');
+  if (h !== ui.legendH) { ui.legendH = h; $('#legend').innerHTML = h; }
 }
 function renderTabs(){
   const n = S.inbox.length;
@@ -2654,7 +2656,8 @@ function drawMap(now){
   x.stroke(); x.setLineDash([]);
   // cities
   const st = cityStats(), z = view.s / minScale(), sel = ui.sel ? coById(ui.sel) : null;
-  const labels = [];
+  const labels = [], homes = [], myProps = {};
+  for (const p of S.props || []) if (p.own === 'P') myProps[p.city] = (myProps[p.city] || 0) + 1;
   for (const city of CITIES) {
     const o = st[city.id]; const [px, py] = proj(city.lon, city.lat);
     if (px < -40 || px > W + 40 || py < -40 || py > H + 40) continue;
@@ -2673,6 +2676,16 @@ function drawMap(now){
     const hi = ui.city === city.id || (sel && sel.city === city.id);
     if (hi) { x.beginPath(); x.arc(px, py, r + 6, 0, 7); x.strokeStyle = '#f2b632'; x.lineWidth = 2; x.stroke(); }
     if (z > 1.6 || hi || cap > 9000) labels.push([city.n + (o ? ` ${o.n}` : ''), px, py + r + 13, hi]);
+    if (myProps[city.id]) homes.push([px + r * .8, py - r * .8, myProps[city.id]]);
+  }
+  // the player's real estate: a small gold house on the city's upper right (count when more than one)
+  for (const [hx, hy, n] of homes) {
+    const w = 11, h = 9;
+    x.beginPath(); x.moveTo(hx - w / 2 - 1.5, hy - h / 2 + 3); x.lineTo(hx, hy - h / 2 - 4); x.lineTo(hx + w / 2 + 1.5, hy - h / 2 + 3); x.closePath();
+    x.rect(hx - w / 2, hy - h / 2 + 3, w, h - 1);
+    x.lineJoin = 'round'; x.lineWidth = 3; x.strokeStyle = 'rgba(7,26,44,.95)'; x.stroke(); x.fillStyle = '#f2b632'; x.fill();
+    x.fillStyle = 'rgba(7,26,44,.95)'; x.fillRect(hx - 1.5, hy + 1, 3, 4);
+    if (n > 1) { x.font = '700 10px "JetBrains Mono", monospace'; x.textAlign = 'left'; x.lineWidth = 3; x.strokeText('×' + n, hx + w / 2 + 2, hy + 4); x.fillStyle = '#f2b632'; x.fillText('×' + n, hx + w / 2 + 2, hy + 4); }
   }
   x.font = '600 11px "Noto Sans JP", sans-serif'; x.textAlign = 'center';
   for (const [t, px, py, hi] of labels) { x.lineWidth = 3; x.strokeStyle = 'rgba(7,26,44,.9)'; x.strokeText(t, px, py); x.fillStyle = hi ? '#f2b632' : '#e8eef2'; x.fillText(t, px, py); }
