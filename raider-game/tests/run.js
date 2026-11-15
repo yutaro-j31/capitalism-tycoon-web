@@ -748,6 +748,46 @@ async function testUIPack(b) {
   await ph.ctx.close(); await ctx.close();
 }
 
+async function testPlaytestFixes(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(5151, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 300;
+    const held = c => Object.values(c.own).reduce((a, v) => a + v, 0) / c.shares;
+    /* (1) an unlisted company raises equity from its own holders: no free money, nobody-owned shares never appear */
+    const n = A.foundCompany('tyo', 'tech', 20); const nw0 = A.netWorth('P'), cash0 = n.cash;
+    const got = A.issueEquity(n, .2);
+    out.rights = {got: got > 0, frac: Math.abs(held(n) - 1) < 1e-9, mine: Math.abs((n.own.P || 0) / n.shares - 1) < 1e-9, nw: Math.abs(A.netWorth('P') - nw0) < 1e-6, cash: Math.abs(n.cash - cash0 - got) < 1e-9};
+    /* a minority player in someone else's unlisted company is diluted, not charged */
+    const m = A.foundCompany('osa', 'food', 20); m.own = {P: m.shares / 3, R1: m.shares * 2 / 3}; A.recomputeCtrl(); const pc0 = S.player.cash, pf0 = m.own.P / m.shares;
+    A.issueEquity(m, .2); out.minority = S.player.cash === pc0 && m.own.P / m.shares < pf0 && Math.abs(held(m) - 1) < 1e-9;
+    /* (2)(3) a PE record with no stake is closed and cannot be listed */
+    m.pe = {type: 'sec', owner: 'P', w0: 1, flows: [[1, -1]], inv: 1, mq: 50}; delete m.own.P; A.recomputeCtrl();
+    const ipo = A.peIPO(m); A.peStep(); out.pe = !ipo && m.pe.closed === true && Object.values(m.own).every(v => v >= 0);
+    /* (4) awards: an all-zero category gives no prize */
+    for (const c of S.cos) if (c.ctrl) { c.ctrl = null; } S.cos = S.cos.filter(c => !c.priv); for (const c of S.cos) for (const k in c.own) if (k !== 'P') delete c.own[k];
+    A.recomputeCtrl(); S.week = 52; S.awards = []; A.yearAwards(); const aw = S.awards[0];
+    out.award = !aw.wins.includes('emp');
+    /* (5) expansion subsidiaries do not unlock the 3-company stage */
+    A.newGame(5152, 'normal', 'T', 't', 'std', false); const T = A.S; T.player.cash = 60;
+    const c = T.cos.filter(x => !x.ctrl && !x.priv).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; c.own = {P: c.shares * .6}; A.recomputeCtrl();
+    c.cash += c.rev; const cities = ['nyc', 'lon', 'sin', 'syd'].filter(x => x !== c.city);
+    for (const ct of cities.slice(0, 3)) A.expandRegion(c, ct, .05);
+    out.branch = {ctrl: T.cos.filter(x => x.ctrl === 'P').length, stage: A.stageFor(), core: A.ctrlCore().length};
+    return out;
+  });
+  ok('fix: an unlisted company raises equity from its holders (no free money, no ownerless shares)', Object.values(r.rights).every(Boolean), JSON.stringify(r.rights));
+  ok('fix: a minority holder in someone else\'s unlisted company is diluted, not charged', r.minority);
+  ok('fix: a PE record without a stake closes and cannot IPO (no NaN holdings)', r.pe);
+  ok('fix: an all-zero award category has no winner', r.award);
+  ok('fix: expansion subsidiaries do not count toward the 3-company stage', r.branch.ctrl >= 3 && r.branch.core === 1 && r.branch.stage < 4, JSON.stringify(r.branch));
+  const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
+  await q.click('[data-act=newgame]'); await q.click('[data-act=speed][data-v="0"]');
+  const nt = await q.evaluate(() => { for (let i = 0; i < 3; i++) window.__atlas.toast('テスト' + i); return document.querySelectorAll('#toasts .toast').length; });
+  ok('fix: only one toast at a time on a phone', nt === 1, String(nt));
+  ok('no page errors in playtest-fix tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
+  await ph.ctx.close(); await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -853,6 +893,7 @@ async function balance(b) {
     await testQuarterly(b);
     await testHQ(b);
     await testUIPack(b);
+    await testPlaytestFixes(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

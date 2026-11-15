@@ -334,6 +334,7 @@ canvas.chart{width:100%;height:120px;display:block;margin:10px 0 4px}
 .confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
 .setrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
 .setrow button{min-width:72px;min-height:40px}
+@media (max-width:699px){#toasts .toast{padding:8px 12px;font-size:12px;line-height:1.45}}
 </style>
 </head>
 <body>
@@ -981,6 +982,16 @@ function crisisCheck(){
     }
   }
 }
+function rightsIssue(c, f){ /* unlisted: new shares are taken up pro rata by the holders who pay for them.
+     A player holding a minority in a company someone else controls declines and is diluted instead of being charged. */
+  const pay = Object.keys(c.own).sort().filter(k => c.own[k] > 1e-9 && !(bossOf(k) === 'P' && c.ctrl !== 'P'));
+  const base = pay.reduce((a, k) => a + c.own[k], 0); if (base <= 1e-9) return 0;
+  const add = c.shares * f, px = c.price; let raised = 0;
+  for (const k of pay) { const n = add * c.own[k] / base, cost = n * px; debit(k, cost); addCost(k, c.id, cost); c.own[k] += n; raised += cost; }
+  c.cash += raised; c.shares += add; recomputeCtrl();
+  news(`【株主割当増資】非上場の${c.name}が株主から${fm(raised)}の払い込みを受けた`, c.ctrl === 'P' ? 'you' : 'deal', c.city);
+  return raised;
+}
 function resolveCrisis(c, k){
   if (!c.crisis) return false;
   if (k === 'equity') issueEquity(c, .2);
@@ -1316,7 +1327,7 @@ function peBuySecondary(c, to, eq){ // buy an AI firm's portfolio company (secon
   return true;
 }
 function peIPO(c){ // list the company and sell 20% in the offering; the rest is sold later in the market
-  if (!c.pe || !c.priv) return false;
+  if (!c.pe || !c.priv || c.pe.closed || !((c.own[c.pe.owner] || 0) > 1e-9)) return false;
   const owner = c.pe.owner; listCompany(c);
   const n = c.shares * .2, px = c.price, before = snapshotFracs(c), m = Math.min(n, c.own[owner] || 0);
   cutCost(owner, c, m); c.own[owner] -= m; credit(owner, m * px); peFlow(c, m * px); afterOwn(c, before);
@@ -1421,6 +1432,7 @@ function fundWeekly(f){
   }
 }
 function peStep(){ // weekly: deal flow, auctions, due diligence, hidden problems, management quality, exits, funds
+  for (const c of S.cos) if (c.pe && !c.pe.closed && !((c.own[c.pe.owner] || 0) > 1e-9)) peClose(c, '持分がなくなった');
   peInit(S);
   for (const f of S.pe.funds) fundWeekly(f);
   for (const c of S.cos.slice()) if (c.pe && !c.pe.closed && bossOf(c.pe.owner) !== 'P' && c.priv && !has('pe')) peAIStep(c);
@@ -1470,6 +1482,7 @@ function expandRegion(parent, city, f){
   debit(parent.id, X);
   const c = newCo({name: `${parent.name} ${REGION[REGION_OF[city]].n}法人`, tk: (parent.tk.slice(0, 3) + REGION_OF[city].slice(0, 1)).toUpperCase(), ind: parent.ind, city, owner: parent.id, capital: X,
     rev: X, margin: parent.base, growth: parent.growth + .04, cash: X * .3, assets: X * .7, brand: brandOf(parent) * .85, drag: 1.4});
+  c.branch = parent.id;
   news(`【進出】${parent.name}が${CITY[city].n}に現地法人${c.name}を設立し、${mkName(c.mk)}に参入（投資${fm(X)}）`, parent.ctrl === 'P' ? 'you' : 'deal', city);
   return c;
 }
@@ -2005,7 +2018,7 @@ const STAGES = [
 const FEAT_STAGE = {tob: 2, activist: 2, neg: 2, short: 2, ceo: 3, actor: 3, proxy: 3, options: 3, research: 3, found: 3, expand: 3, lbo: 4, divest: 4, realty: 2, pe: 3, privatize: 4, holdipo: 4, research34: 4};
 const has = f => !S || S.allUnlocked || (S.stage || 4) >= (FEAT_STAGE[f] || 1);
 function stageFor(){
-  const nw = netWorth('P'), n = ctrlP().length;
+  const nw = netWorth('P'), n = ctrlCore().length;
   if (n >= 3 || nw >= 400) return 4;
   if (n >= 1 || nw >= 150) return 3;
   if (S.cos.some(c => gfrac(c, 'P') >= .05) || nw >= 80) return 2; // above every starting cash, so nothing unlocks on day one
@@ -2019,6 +2032,14 @@ function checkStage(){
 
 /* ---------- missions & achievements ---------- */
 const ctrlP = () => S.cos.filter(c => c.ctrl === 'P');
+function repairSave(){
+  for (const c of S.cos) {
+    for (const k in c.own) if (!(c.own[k] >= 0)) delete c.own[k];
+    if (c.born != null && c.priv && !c.branch && / [^ ]*法人$/.test(c.name)) { const par = S.cos.find(x => x !== c && c.name.startsWith(x.name + ' ')); if (par) c.branch = par.id; }
+  }
+  recomputeCtrl();
+}
+const ctrlCore = () => ctrlP().filter(c => !c.branch); /* stages and achievements: local subsidiaries from expansion do not count */
 const MIS = {
   ctrlCity: {text: m => `${CITY[m.city].n}の${IND[m.ind].n}企業を支配する`, prog: m => S.cos.some(c => c.city === m.city && c.ind === m.ind && c.ctrl === 'P') ? 1 : 0},
   nw: {text: m => `純資産${fm(m.target)}に到達する`, prog: m => netWorth('P') / m.target},
@@ -2053,8 +2074,8 @@ function missionStep(){
 }
 const ACH = [
   ['ctrl1', '初めての支配', '初めて会社の経営権を握った', () => ctrlP().length >= 1],
-  ['ctrl5', 'コングロマリット', '5社を同時に支配した', () => ctrlP().length >= 5],
-  ['ctrl10', '現代の財閥', '10社を同時に支配した', () => ctrlP().length >= 10],
+  ['ctrl5', 'コングロマリット', '5社を同時に支配した', () => ctrlCore().length >= 5],
+  ['ctrl10', '現代の財閥', '10社を同時に支配した', () => ctrlCore().length >= 10],
   ['pyr', '持株ピラミッド', '子会社名義で他社の株を持った', () => S.cos.some(t => Object.keys(t.own).some(k => isCo(k) && bossOf(k) === 'P'))],
   ['tob', 'TOB成立', '自分のTOBで経営権を握った', () => S.stats.tobWins > 0],
   ['war', 'TOB合戦の勝者', '対抗TOBを退けて買収した', () => S.stats.warWins > 0],
@@ -2065,8 +2086,8 @@ const ACH = [
   ['nw100', '100億円の壁', '純資産100億円に到達', () => netWorth('P') >= 100],
   ['nw500', '500億円クラブ', '純資産500億円に到達', () => netWorth('P') >= 500],
   ['goal', '目標達成', '純資産1,000億円に到達', () => S.won],
-  ['jp5', '日本列島制覇', '日本の5都市すべてで会社を支配', () => new Set(ctrlP().filter(isJP).map(c => c.city)).size >= 5],
-  ['world', '世界の資本家', '8都市以上で会社を支配', () => new Set(ctrlP().map(c => c.city)).size >= 8],
+  ['jp5', '日本列島制覇', '日本の5都市すべてで会社を支配', () => new Set(ctrlCore().filter(isJP).map(c => c.city)).size >= 5],
+  ['world', '世界の資本家', '8都市以上で会社を支配', () => new Set(ctrlCore().map(c => c.city)).size >= 8],
   ['jet', '空飛ぶ社長', 'プライベートジェットを購入', () => S.pres.assets.some(a => a.k === 'jet')],
   ['club', 'オーナー社長', 'プロ野球球団を所有', () => S.pres.assets.some(a => a.k === 'club')],
   ['mis5', '有言実行', 'ミッションを5つ達成', () => S.stats.missionsDone >= 5],
@@ -2150,6 +2171,7 @@ function spinOff(c, f){
   return n;
 }
 function issueEquity(c, f){
+  if (c.priv) return rightsIssue(c, f);
   const add = c.shares * f, px = c.price * .92, before = snapshotFracs(c);
   c.cash += add * px; c.price = (c.price * c.shares + add * px) / (c.shares + add) * .98; c.shares += add;
   afterOwn(c, before);
@@ -2715,7 +2737,7 @@ function playerWeekly(){
 function greenmail(){
   for (const c of S.cos) {
     const f = frac(c, 'P');
-    if (c.ctrl || f < .08 || f > .5 || activeTob(c)) continue;
+    if (c.ctrl || c.priv || f < .08 || f > .5 || activeTob(c)) continue;
     if (S.inbox.some(i => i.cid === c.id)) continue;
     if (rnd() < .025 * DIFF[S.diff].gm * (f / .1)) addInbox({kind: 'greenmail', cid: c.id, price: c.price * (1.15 + rnd() * .2), exp: S.week + 4});
   }
@@ -2810,7 +2832,7 @@ function loadSave(){
    UI
    ===================================================================== */
 const ui = {expReg: '', expCity: '', fReg: 'jp', fCity: 'tyo', fInd: 'tech', allU: false, pendingUnlock: null, negK: '', negQ: .5, negP: .15, whoK: 'all', repI: 0, scen: 'std', cname: DEF_CO, pname: '', region: 'all', diff: 'normal', tab: 'market', sel: null, city: null, sort: 'cap', speed: 0, amt: 5, tPrem: .3, tTarget: .51, mPrem: .25, mTarget: '', inboxFlash: false, ceoAmt: .25, samt: 5, actor: 'P', cRaise: .1, ctab: 'info', tMode: 'tob', oType: 'call', oWks: 13, oAmt: 5, hqTab: 'acc', fsKind: 'pl', fsPer: 'q', deal: null, peBid: 0, peCo: 0, peLev: .5, peOwner: 'P', pePromise: false, fStrat: 'buyout', fGp: .05};
-function toast(msg, bad){ if (ui.sim) return; const el = document.createElement('div'); el.className = 'toast' + (bad ? ' bad' : ''); el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), 3800); while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove(); }
+function toast(msg, bad){ if (ui.sim) return; const el = document.createElement('div'); el.className = 'toast' + (bad ? ' bad' : ''); el.textContent = msg; $('#toasts').appendChild(el); setTimeout(() => el.remove(), 3800); while ($('#toasts').children.length > (innerWidth < 700 ? 1 : 3)) $('#toasts').firstChild.remove(); }
 
 function tasks(){ // decisions waiting for the player (read-only)
   const out = [], p = S.player, by = {};
@@ -3495,7 +3517,7 @@ function coCeo(c){
       <p>社債の金利は格付けで決まります。借金が営業利益に比べて重いほど格付けが下がり、会社全体の利払いが増えます。</p>
       <div class="preview">追加発行枠 ${fm(room)} · 発行後の格付け ${rtAfter[0]}（金利 ${(S.econ.rate + rtAfter[2]).toFixed(1)}%）</div>
       <div class="btnrow"><button class="btn sm" data-act="borrow" ${room > .01 ? '' : 'disabled'}>社債発行 ${fm(room * pick)}</button>
-      ${[.1, .2].map(f => `<button class="btn sm" data-act="issue" data-v="${f}">公募増資 ${pc(f, 0)}（約${fm(c.shares * f * c.price * .92)}）</button>`).join('')}</div>
+      ${[.1, .2].map(f => `<button class="btn sm" data-act="issue" data-v="${f}">${c.priv ? `株主割当増資 ${pc(f, 0)}（グループで${fm(c.shares * f * c.price * gfrac(c, 'P'))}を払い込み）` : `公募増資 ${pc(f, 0)}（約${fm(c.shares * f * c.price * .92)}）`}</button>`).join('')}</div>${c.priv ? '<p>非上場なので新株は株主が持分に応じて引き受け、払い込みます（グループの持分は変わりません）。</p>' : ''}
       <p>増資は株式が増えるため、あなたのグループ持分も薄まります（10%増資で ${pc(myGroup / 1.1)}、20%で ${pc(myGroup / 1.2)}）。${myGroup / 1.2 <= .5 && !byBoard ? '<span class="down">過半数を割ると経営権を失います。</span>' : ''}</p></section>
     <section class="box"><h4>事業ポートフォリオ <small>売却とスピンオフ</small></h4>
       ${has('divest') ? `      <p>事業の一部を同業他社やファンドに売って現金化するか、別会社として切り出して上場させます（スピンオフ：株主には新会社の株が同数配られます）。</p>
@@ -4290,8 +4312,8 @@ function storyPick(it, i){
 const AWARDS = [['nw', '純資産ランキング', k => netWorth(k), fm], ['gr', '年間成長率', k => { const hh = S.nwHist[k] || [], a = hh[Math.max(0, hh.length - 53)] || 0, b = netWorth(k); return a > 0 ? b / a - 1 : 0; }, v => spc(v)], ['emp', '支配企業の数', k => S.cos.filter(c => c.ctrl === k).length, v => v + '社']];
 function yearAwards(){
   const ks = ['P'].concat(S.rivals.map(r => r.id)), y = S.week / 52;
-  const list = AWARDS.map(([id, n, f]) => ({id, n, r: ks.map(k => [k, f(k)]).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))}));
-  const wins = list.filter(a => a.r[0][0] === 'P').map(a => a.id);
+  const list = AWARDS.map(([id, n, f]) => ({id, n, r: ks.map(k => [k, f(k)]).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? 1 : -1))}));
+  const wins = list.filter(a => a.r[0][0] === 'P' && a.r[0][1] > 0 && a.r[0][1] > a.r[1][1] + 1e-9).map(a => a.id);
   S.awards = (S.awards || []).concat([{y, list, wins}]).slice(-30);
   if (wins.length) { repAdd(.02 * wins.length); news(`【年間表彰】${y}年目：${list.filter(a => wins.includes(a.id)).map(a => a.n + '1位').join('・')}を受賞`, 'you'); }
   else news(`【年間表彰】${y}年目の表彰式。今年は受賞なし`, 'you');
@@ -4302,7 +4324,7 @@ function showAwards(){
   ui.pendingAward = false; const A = (S.awards || [])[S.awards.length - 1]; if (!A || modalOpen()) return;
   const med = ['🥇', '🥈', '🥉', '4位'], f = Object.fromEntries(AWARDS.map(a => [a[0], a[3]]));
   openModal(`<h1 style="font-size:22px">🏆 ${A.y}年目の年間表彰</h1><p class="lede">${A.wins.length ? `おめでとうございます！ ${A.wins.length}部門で1位（名声 +${A.wins.length * 3}・評判 +${A.wins.length * 2}）` : '今年は受賞を逃しました。来年こそ。'}</p>
-  ${A.list.map(a => `<div class="award"><h4>${a.n}</h4><ol>${a.r.map(([k, v], i) => `<li class="${k === 'P' ? 'me' : ''}"><span>${med[i]} ${esc(ownerName(k))}</span><b>${f[a.id](v)}</b></li>`).join('')}</ol></div>`).join('')}
+  ${A.list.map(a => `<div class="award"><h4>${a.n}</h4><ol>${a.r.map(([k, v], i) => `<li class="${k === 'P' ? 'me' : ''}"><span>${i && Math.abs(v - a.r[i - 1][1]) < 1e-9 ? '同点' : med[i]} ${esc(ownerName(k))}</span><b>${f[a.id](v)}</b></li>`).join('')}</ol></div>`).join('')}
   <div class="btnrow"><button class="btn gold" data-act="awardok">続ける</button></div>`);
   if (A.wins.length) celebrate(true);
 }
@@ -4456,7 +4478,7 @@ function importText(text, fromBak){
   const o = parseSave(text);
   if (!o) return '読み込めませんでした。テキストが途中で切れているか、このゲームのセーブではありません。今のゲームはそのままです。';
   if (!fromBak) backupSave();
-  S = o; if (!S.mk) mkInit(); ui.sel = null; ui.city = null; ui.speed = 0; ui.diff = S.diff;
+  S = o; if (!S.mk) mkInit(); repairSave(); ui.sel = null; ui.city = null; ui.speed = 0; ui.diff = S.diff;
   save(); renderLegend(); renderTicker(); renderAll(true);
   return null;
 }
@@ -4495,13 +4517,13 @@ if (window.ResizeObserver) new ResizeObserver(() => resizeMap()).observe($('.map
 function boot(){
   const saved = loadSave();
   if (saved) backupSave();
-  if (saved) { S = saved; if (!S.mk) mkInit(); ui.diff = S.diff; ui.cname = S.company; ui.pname = S.pname === DEF_PN ? '' : S.pname; } else newGame(0x1A7A5C, 'normal');
+  if (saved) { S = saved; if (!S.mk) mkInit(); repairSave(); ui.diff = S.diff; ui.cname = S.company; ui.pname = S.pname === DEF_PN ? '' : S.pname; } else newGame(0x1A7A5C, 'normal');
   resizeMap(); renderLegend(); renderTicker(); renderAll(true);
   requestAnimationFrame(frame);
   showStart();
   if (ui.restored) toast('セーブデータが壊れていたため、バックアップから復元しました', true);
 }
-window.__atlas = {get S(){ return S; }, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, ui};
+window.__atlas = {get S(){ return S; }, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, ui};
 boot();
 })();
 </script>
