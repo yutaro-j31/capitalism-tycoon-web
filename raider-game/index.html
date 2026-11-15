@@ -1167,7 +1167,7 @@ function peAcquire(d, owner, eq, lev, promise, co, partner){
   c.debt = d.debt + q.acq; c.payout = 0; c.pill = true; addCost(owner, c.id, own);
   if (part) { const n = c.shares * co; c.own[owner] -= n; c.own[part.id] = n; recomputeCtrl(); }
   c.pe = {type: d.type, owner, w0: S.week, ev0: q.ev, e0: dealEbitda(d, false), rev0: d.rev, m0: d.mTrue, inv: own, flows: [[S.week, -own]], mq: d.mq, dd: d.dd === 2, co: part ? {k: part.id, x: co} : null,
-    risk: d.dd === 2 ? null : d.risk && {k: d.risk.k, cost: d.risk.cost, w: S.week + d.risk.w}, promise: promise ? S.week + 104 : 0};
+    risk: d.dd === 2 ? null : d.risk && {k: d.risk.k, cost: d.risk.cost, w: S.week + d.risk.w}, promise: promise ? S.week + 104 : 0, cultQ: mine && !platform};
   c.price = peMark(c); c.hist = [c.price];
   S.pe.deals = S.pe.deals.filter(x => x !== d);
   news(`【PE買収】${ownerName(owner)}が${d.name}を買収（株式${fm(eq)}・LBO借入${fm(q.acq)}・純有利子負債/EBITDA ${Number.isFinite(q.lev) ? q.lev.toFixed(1) + '倍' : '—'}${part ? `・${part.n}が${pc(co, 0)}を共同出資` : ''}）`, mine ? 'you' : 'deal', d.city);
@@ -1192,6 +1192,7 @@ function peClose(c, why){ // the investment is over: write it into the track rec
   if (!c.pe || c.pe.closed) return; c.pe.closed = true;
   const p = c.pe, inv = -p.flows.filter(x => x[1] < 0).reduce((a, x) => a + x[1], 0), ret = p.flows.filter(x => x[1] > 0).reduce((a, x) => a + x[1], 0);
   const r = {name: c.name, type: p.type, owner: p.owner, fund: isFund(p.owner) ? p.owner : null, w0: p.w0, w1: S.week, inv, ret, moic: inv > 0 ? ret / inv : 0, irr: irr(p.flows, 0, S.week), why};
+  for (const k in (c.ex || {})) { const x = person(c.ex[k]); if (x && x.comp === 'exit' && ret > inv) { const bonus = (ret - inv) * .015; debit(p.owner, bonus); x.mood = Math.min(1, x.mood + .2); if (bossOf(p.owner) === 'P') news(`【EXIT成功報酬】${c.name}の${x.n}（${k}）に${fm(bonus)}を支払い`, 'you', c.city); } }
   if (bossOf(p.owner) === 'P') { S.pe.track.unshift(r); if (S.pe.track.length > 40) S.pe.track.length = 40; }
   if (p.owner === 'P' || isFund(p.owner)) news(`【EXIT】${c.name}（${PE_TYPE[p.type].n}）：投資${fm(inv)} → 回収${fm(ret)}、${r.moic.toFixed(2)}倍${r.irr != null ? `・IRR ${pc(r.irr, 1)}` : ''}（${why}）`, r.moic >= 1 ? 'you' : 'warn', c.city);
 }
@@ -1225,6 +1226,12 @@ function peTransfer(c, to, pps, why, type){ // the whole unlisted company change
   c.pe = {type: type || 'sec', owner: to, w0: S.week, ev0: peEV(c), e0: ebitda(c), rev0: c.rev, m0: opMargin(c), inv: total - acq, flows: [[S.week, -(total - acq)]], mq, dd: true, risk: null, promise: 0};
   c.deleg = null; afterOwn(c, before);
   news(`【売却】${c.name}を${ownerName(to)}が${fm(total)}で取得${acq ? `（うち借入${fm(acq)}）` : ''}`, bossOf(to) === 'P' ? 'you' : 'deal', c.city);
+}
+function peCulture(c, change){ // after a buyout: keep the company's culture, or move it to a profit-first PE culture
+  if (!c.pe || !c.pe.cultQ) return false; c.pe.cultQ = false;
+  if (change && c.cult !== 'profit') { const was = CULTS[c.cult]; c.cult = 'profit'; c.fixed *= .96; c.sat = Math.max(.05, (c.sat == null ? .6 : c.sat) - .15); exApply(c); news(`【社風の転換】${c.name}の社風を「${was}」から「利益重視」へ。固定費−4%、従業員の満足度は低下`, 'you', c.city); }
+  else news(`【社風の維持】${c.name}は「${CULTS[c.cult]}」の社風を維持`, 'you', c.city);
+  return true;
 }
 function peAIStep(c){ // how AI firms and rivals run what they bought, and when they sell
   const p = c.pe, held = S.week - p.w0;
@@ -1436,7 +1443,7 @@ const TRAITS = {grow: {n: '成長志向', comp: 'opt'}, stable: {n: '安定志�
 const SKILLS = {gen: '経営', fin: '財務', ops: '事業運営', mkt: 'マーケ', tech: '技術', deal: 'M&A', hr: '人材'};
 const ROLES = {CEO: {n: 'CEO', k: 'gen', d: '全体の経営と利益率。他の幹部がいない分野は兼任（効果6割）'}, COO: {n: 'COO', k: 'ops', d: '価格・設備投資・固定費の伸び'}, CFO: {n: 'CFO', k: 'fin', d: '借入金利・返済・配当・格付け'}, CMO: {n: 'CMO', k: 'mkt', d: '広告の効果とブランド'}, CTO: {n: 'CTO', k: 'tech', d: '研究開発の効果'}};
 const HQ_ROLES = {MA: {n: 'M&A責任者', k: 'deal', d: 'TOBの応募・相対取引の価格が有利に'}, PEH: {n: 'PE投資責任者', k: 'deal', d: 'デューデリジェンスが安く速く、案件が増える'}, HR: {n: 'CHRO（人事責任者）', k: 'hr', d: 'グループの従業員満足度と幹部の定着'}, OP: {n: 'オペレーティングパートナー', k: 'ops', d: '支配企業に派遣して経営改善（1人2社まで）', multi: 4}};
-const COMP = {fixed: {n: '固定年俸', d: '安定した報酬'}, bonus: {n: '利益連動賞与', d: '年俸7割＋営業利益の1%。短期の利益を重視しがち'}, ltip: {n: '長期業績連動', d: '年俸8割＋契約満了時に企業価値の伸びの2%。研究開発や広告を重視'}, opt: {n: 'ストックオプション', d: '年俸6割＋株価上昇益（新株発行で既存株主は希薄化）'}};
+const COMP = {exit: {n: 'EXIT成功報酬', d: '年俸6割＋PE投資の売却益の1.5%。売却までに価値を上げることに集中（PE投資先のみ）', pe: true}, fixed: {n: '固定年俸', d: '安定した報酬'}, bonus: {n: '利益連動賞与', d: '年俸7割＋営業利益の1%。短期の利益を重視しがち'}, ltip: {n: '長期業績連動', d: '年俸8割＋契約満了時に企業価値の伸びの2%。研究開発や広告を重視'}, opt: {n: 'ストックオプション', d: '年俸6割＋株価上昇益（新株発行で既存株主は希薄化）'}};
 const CULTS = {growth: '成長重視', profit: '利益重視', tech: '技術重視', stable: '安定重視', customer: '顧客重視', trad: '伝統重視'};
 const CULT_FIT = {growth: {grow: 1, aggr: 1, stable: -1, cons: -1}, profit: {cost: 1, short: 1, aggr: -1, tech: -1}, tech: {tech: 1, long: 1, cost: -1, short: -1}, stable: {stable: 1, cons: 1, aggr: -1, grow: -1}, customer: {grow: 1, long: 1, cost: -1}, trad: {stable: 1, long: 1, aggr: -1, short: -1, tech: -1}};
 const FAM = ['佐伯', '黒田', '早川', '森', '高槻', '藤原', '小野寺', '水野', '宮本', '桐生', 'Lowe', 'Souza', 'Hansen', 'Rao', 'Bernard', 'Grant', 'Park', 'Li', 'Okafor', 'Novak', 'Meyer', 'Costa'];
@@ -1448,7 +1455,9 @@ function genPerson(key, o){ // pure in its inputs: the same key always gives the
   o = o || {}; const h = i => hashStr(key + ':' + i), L = o.level != null ? o.level : 35 + h(1) % 42, inds = Object.keys(IND), trs = Object.keys(TRAITS);
   const sk = {}; Object.keys(SKILLS).forEach((k, i) => { sk[k] = clamp(Math.round(L + (h(10 + i) % 41) - 20 + (o.focus === k ? 12 : 0)), 12, 95); });
   const age = o.age || 31 + h(2) % 30, ind = o.ind || inds[h(3) % inds.length];
-  const p = {id: 'H' + (S.hr.seq++), n: `${FAM[h(4) % FAM.length]} ${GIV[h(5) % GIV.length]}`, age, sk, pot: clamp(Math.max(L + 8, 62 + h(6) % 34) + (age < 40 ? 6 : 0), 40, 98), tr: o.tr || trs[h(7) % trs.length],
+  const used = new Set(Object.values(S.hr.people).map(x => x.n)); let nm = '';
+  for (let t = 0; t < 12 && (!nm || used.has(nm)); t++) nm = `${FAM[h(4 + t * 31) % FAM.length]} ${GIV[h(5 + t * 37) % GIV.length]}`; // avoid two people with the same name
+  const p = {id: 'H' + (S.hr.seq++), n: nm, age, sk, pot: clamp(Math.max(L + 8, 62 + h(6) % 34) + (age < 40 ? 6 : 0), 40, 98), tr: o.tr || trs[h(7) % trs.length],
     ind, exp: {[ind]: 52 * (3 + h(8) % 8)}, retire: 62 + h(9) % 9, mood: .65, loyal: .3 + (h(11) % 50) / 100, at: null, role: null, since: 0, end: 0, comp: 'fixed', trainW: -99};
   p.sal = salAsk(p);
   S.hr.people[p.id] = p; return p;
@@ -1489,7 +1498,8 @@ function seat(p, c, r, legacy){ // put a person into a role (salary goes into th
   p.at = c.id; p.role = r; p.since = S.week; p.end = S.week + 156; c.ex[r] = p.id;
   if (!legacy) { c.fixed += paySal(p); exApply(c); } else c.exApplied = exWant(c); // the CEO already in place is part of today's numbers
 }
-const paySal = p => p.sal * ({fixed: 1, bonus: .7, ltip: .8, opt: .6}[p.comp] || 1);
+const paySal = p => p.sal * ({fixed: 1, bonus: .7, ltip: .8, opt: .6, exit: .6}[p.comp] || 1);
+const compLikes = p => p.comp === TRAITS[p.tr].comp || (p.comp === 'exit' && ['aggr', 'cost', 'short'].includes(p.tr)); // pay that suits the person
 function unseat(p, why){ // the person leaves the role; a named successor steps up to CEO
   const c = coById(p.at);
   if (c && c.ex) { c.fixed = Math.max(0, c.fixed - paySal(p)); delete c.ex[p.role];
@@ -1527,7 +1537,7 @@ function hireInto(p, target, r, comp, ch){ // target: a company or 'HQ'
   p.comp = comp || TRAITS[p.tr].comp; p.optK = null;
   if (c) { const old = exOf(c, r); if (old) { unseat(old); } seat(p, c, r); if (p.comp === 'opt') p.optK = c.price; }
   else { p.at = 'HQ'; p.role = r; p.since = S.week; p.end = S.week + 156; if (r === 'OP') { S.hr.hq.OP.push(p.id); p.asg = []; } else { const old = person(S.hr.hq[r]); if (old) unseat(old); S.hr.hq[r] = p.id; } }
-  p.mood = clamp(.6 + (p.comp === TRAITS[p.tr].comp ? .1 : 0) + (c ? cultFit(p, c) * .08 : 0), 0, 1);
+  p.mood = clamp(.6 + (compLikes(p) ? .1 : 0) + (c ? cultFit(p, c) * .08 : 0), 0, 1);
   return 'ok';
 }
 function dismiss(p){ // severance: half a year's pay
@@ -1564,10 +1574,12 @@ function planActions(c){ // what the executives would do this month, with who, w
     if (rt > tgt && c.cash > c.rev * .03) acts.push({k: 'repay', amt: c.cash - c.rev * .03, r: cfo === ceo ? 'CEO' : 'CFO', why: `格付け${rating(c)[0]}を${RT_ORDER[Math.max(0, tgt)]}以上へ`});
     const pay = pol === 'grow' ? .2 : pol === 'bal' ? .4 : .8; if (Math.abs(c.payout - pay) > 1e-9) acts.push({k: 'payout', v: pay, r: cfo === ceo ? 'CEO' : 'CFO', why: '方針どおりの配当性向'});
     if (pol === 'cash' && c.cash > c.rev * .08) acts.push({k: 'sdiv', amt: c.cash * .5, r: cfo === ceo ? 'CEO' : 'CFO', why: '余剰資金の回収'}); }
-  if (ceo && opMargin(c) < IND[c.ind].m * .6 && (c.rsW || 0) <= S.week && !(c.pe && c.pe.promise > S.week) && ceo.tr !== 'stable' && (pol !== 'grow' || ceo.tr === 'cost'))
+  if (ceo && opMargin(c) < IND[c.ind].m * (ceo.comp === 'exit' ? .8 : .6) && (c.rsW || 0) <= S.week && !(c.pe && c.pe.promise > S.week) && ceo.tr !== 'stable' && (pol !== 'grow' || ceo.tr === 'cost' || ceo.comp === 'exit')) // an EXIT bonus makes the CEO fix costs early
     acts.push({k: 'restr', v: 'cost', r: 'CEO', why: `利益率${pc(opMargin(c), 1)}が業種平均を大きく下回る`});
   // weaker executives sometimes miss a month on an item (never something unannounced)
-  return acts.filter(a => { const p = exOf(c, a.r) || ceo; return !p || rnd() >= (100 - p.sk[ROLES[a.r] ? ROLES[a.r].k : 'gen']) / 300; });
+  const auth = c.auth || {}; // roles the player has kept for themselves
+  const area = {price: 'COO', ad: 'CMO', rd: 'CTO', repay: 'CFO', payout: 'CFO', sdiv: 'CFO', restr: 'CEO'}; // the area decides, whoever covers it
+  return acts.filter(a => auth[area[a.k]] !== false).filter(a => { const p = exOf(c, a.r) || ceo; return !p || rnd() >= (100 - p.sk[ROLES[a.r] ? ROLES[a.r].k : 'gen']) / 300; });
 }
 function doAction(c, a){
   if (a.k === 'price') c.ps = a.v;
@@ -1594,7 +1606,28 @@ function logActs(c, acts){
 /* staff: headcount, wages, training, satisfaction */
 const headcount = c => Math.round(c.rev / RPE[c.ind] * 10); // people (rev in 億円)
 const laborCost = c => c.fixed * .6;
-const productivity = c => 1 + ((c.train == null ? .3 : c.train) - .3) * .15 + ((c.sat == null ? .6 : c.sat) - .6) * .15;
+const productivity = c => (1 + ((c.train == null ? .3 : c.train) - .3) * .15 + ((c.sat == null ? .6 : c.sat) - .6) * .15) * (c.strike > (S ? S.week : 0) ? .75 : 1); // a strike cuts output
+const UNION = {auto: .8, steel: .8, air: .85, ship: .7, telecom: .6, energy: .55, food: .45, pharma: .35, retail: .4, realty: .25, bank: .3, tech: .15}; // how organised the workforce is
+const unionOf = c => clamp(UNION[c.ind] + ((hashStr(c.id + ':u') % 21) - 10) / 100, .05, .95);
+const talksWeek = c => hashStr(c.id + ':talks') % 52; // each company negotiates once a year
+function laborDemand(c){ return Math.round(clamp(.015 + (c.ni > 0 ? .015 : 0) + (c.sat < .5 ? .015 : 0) + Math.max(0, S.econ.gdp - 2) * .004 + unionOf(c) * .01, .01, .06) * 1000) / 1000; }
+function laborSettle(c, choice, d){ // the strike risk rises with a strong union, unhappy staff and a hard line
+  const u = unionOf(c);
+  if (choice === 'accept') { setWage(c, (c.wage || 1) * (1 + d)); c.sat = Math.min(.95, c.sat + .06); return null; }
+  if (choice === 'half') { setWage(c, (c.wage || 1) * (1 + d / 2)); c.sat = Math.max(.05, c.sat - .02); }
+  else c.sat = Math.max(.05, c.sat - .1);
+  const risk = clamp(u * (choice === 'half' ? .6 : 1.2) * (.75 - c.sat) * 2, 0, .9);
+  if (rnd() < risk) { const wks = 2 + pickIdx(3); c.strike = S.week + wks; c.sat = Math.max(.05, c.sat - .05); return wks; }
+  return 0;
+}
+function laborStep(c){
+  if (c.laborPick && S.week >= c.laborPick.w) { const lp = c.laborPick; c.laborPick = null; const wks = laborSettle(c, lp.choice, lp.d);
+    if (c.ctrl === 'P') { if (wks) { news(`【ストライキ】${c.name}の労働組合が${wks}週間のストライキ。生産性が25%低下`, 'warn', c.city); toast(`${c.name}でストライキ（${wks}週間）`, true); } else news(`【労使交渉】${c.name}の賃上げ交渉が妥結（${{accept: `要求どおり+${pc(lp.d, 1)}`, half: `半分の+${pc(lp.d / 2, 1)}`, reject: '賃上げなし'}[lp.choice]}）`, 'you', c.city); } }
+  if (S.week % 52 !== talksWeek(c)) return;
+  const d = laborDemand(c);
+  if (c.ctrl === 'P' && !c.priv && has('ceo') || c.ctrl === 'P' && c.priv && has('ceo')) { addInbox({kind: 'labor', cid: c.id, d, exp: S.week + 2}); c.laborPick = {choice: 'reject', d, w: S.week + 3}; } // unanswered talks count as a refusal
+  else c.laborPick = {choice: 'half', d, w: S.week + 1};
+}
 const staffT = [.1, .3, .6]; // training level targets: none / normal / generous
 const turnover = c => clamp(.08 + (.6 - (c.sat == null ? .6 : c.sat)) * .3, .02, .4);
 function setWage(c, w){ const old = c.wage || 1; c.fixed += laborCost(c) * (w - old) / old; c.wage = w; }
@@ -1611,7 +1644,7 @@ function hrStep(){
   hrInit(); poolStep();
   const pay = hqPayroll(); if (pay > 0) playerPay(pay / 52);
   for (const c of S.cos) hrEnsure(c);
-  for (const c of S.cos) staffStep(c);
+  for (const c of S.cos) { staffStep(c); laborStep(c); }
   const yearEnd = S.week % 52 === 0;
   for (const p of Object.values(S.hr.people)) {
     if (yearEnd) p.age++;
@@ -1622,7 +1655,7 @@ function hrStep(){
     const k = roleSkill(p.role); p.sk[k] = Math.min(p.pot, p.sk[k] + Math.max(0, p.pot - p.sk[k]) / (52 * 10)); // learning on the job
     const mine = p.at === 'HQ' || (c && c.ctrl === 'P');
     if (!mine) continue;
-    const perf = c ? (c.ni > 0 ? .05 : -.08) : 0, tgt = clamp(.6 + (p.comp === TRAITS[p.tr].comp ? .08 : 0) + (c ? cultFit(p, c) * .08 : 0) + perf + Math.max(0, hqEff('HR')) * .1 + (p.sal / salAsk(p) - 1) * .8, 0, 1);
+    const perf = c ? (c.ni > 0 ? .05 : -.08) : 0, tgt = clamp(.6 + (compLikes(p) ? .08 : 0) + (c ? cultFit(p, c) * .08 : 0) + perf + Math.max(0, hqEff('HR')) * .1 + (p.sal / salAsk(p) - 1) * .8, 0, 1);
     p.mood += (tgt - p.mood) * .03;
     if (p.age >= p.retire && !p.retiring) { p.retiring = S.week + 26; news(`【引退予定】${p.n}（${p.age}歳・${roleName(p)}）が${shortDate(p.retiring)}に引退します。後継者の準備を`, 'warn', c && c.city); }
     if (p.retiring && S.week >= p.retiring) { news(`【引退】${p.n}が${roleName(p)}を退任`, 'warn', c && c.city); unseat(p, 'retire'); continue; }
@@ -1954,9 +1987,9 @@ function missionStep(){
   for (const m of S.missions.slice()) {
     const d = MIS[m.kind];
     if (d.prog(m) >= 1) {
-      S.missions = S.missions.filter(x => x !== m); S.player.cash += m.reward; S.stats.missionsDone++;
+      S.missions = S.missions.filter(x => x !== m); S.stats.missionsDone++;
       S.player.rep = Math.min(1, (S.player.rep == null ? .5 : S.player.rep) + .05);
-      news(`【ミッション達成】「${d.text(m)}」報酬${fm(m.reward)}を獲得`, 'you'); toast(`ミッション達成！ ${d.text(m)}（報酬 ${fm(m.reward)}）`);
+      news(`【ミッション達成】「${d.text(m)}」を達成。評判が上がった`, 'you'); toast(`ミッション達成！ ${d.text(m)}（評判アップ）`);
     } else if (m.due < S.week) {
       S.missions = S.missions.filter(x => x !== m); S.player.rep = Math.max(0, (S.player.rep == null ? .5 : S.player.rep) - .03);
       news(`【ミッション失敗】「${d.text(m)}」は期限切れ`, 'warn');
@@ -2246,7 +2279,8 @@ function coStep(c){
   c.boost *= .985;
   const ni = niA(c), w = ni / 52, div = ni > 0 ? w * c.payout : 0;
   c.ni = ni;
-  c.cash += w - div; payDividend(c, div);
+  c.cash += w; c.divAcc = (c.divAcc || 0) + div; // set aside for the quarterly dividend
+  if (S.week % 13 === 0 && c.divAcc > 0) { const d = Math.min(c.divAcc, Math.max(0, c.cash)); c.cash -= d; payDividend(c, d); c.divAcc = 0; }
   const capex = c.assets * Math.max(0, g) / 52; c.cash -= capex; c.assets += capex;
   if (c.cash < 0) { c.debt += -c.cash; c.cash = 0; }
   priceStep(c);
@@ -2515,7 +2549,7 @@ function recordNW(){
   for (const k of ['P', 'R1', 'R2', 'R3']) { const h = S.nwHist[k]; h.push(netWorth(k)); if (h.length > 260) h.shift(); }
 }
 function step(){
-  S.week++; S.player.divW = 0; S.player.rentW = 0;
+  S.week++; if (S.week % 13 === 0) S.player.divW = 0; S.player.rentW = 0; // divW: dividends received this quarter
   refreshPV();
   econStep();
   mkStep(); propStep(); hrStep();
@@ -2581,8 +2615,8 @@ function toast(msg, bad){ const el = document.createElement('div'); el.className
 function tasks(){ // decisions waiting for the player (read-only)
   const out = [], p = S.player, by = {};
   for (const it of S.inbox) by[it.kind] = (by[it.kind] || 0) + 1;
-  const names = {prop: '経営陣の提案', renew: '幹部の契約更新', poach: '幹部の引き抜き', pesec: 'セカンダリー案件', peexit: '売却の入札', vote: '議決権の行使', crisis: '資金繰り危機', tender: 'TOB応募の打診', counter: '逆提案', block: '株の買取申し入れ', greenmail: '買戻し提案', tip: '未確認情報'};
-  for (const k of ['crisis', 'poach', 'renew', 'prop', 'peexit', 'pesec', 'vote', 'tender', 'counter', 'block', 'greenmail', 'tip']) if (by[k]) out.push({t: `${names[k]} ${by[k]}`, go: 'inbox', bad: k === 'crisis'});
+  const names = {labor: '賃上げ交渉', prop: '経営陣の提案', renew: '幹部の契約更新', poach: '幹部の引き抜き', pesec: 'セカンダリー案件', peexit: '売却の入札', vote: '議決権の行使', crisis: '資金繰り危機', tender: 'TOB応募の打診', counter: '逆提案', block: '株の買取申し入れ', greenmail: '買戻し提案', tip: '未確認情報'};
+  for (const k of ['crisis', 'labor', 'poach', 'renew', 'prop', 'peexit', 'pesec', 'vote', 'tender', 'counter', 'block', 'greenmail', 'tip']) if (by[k]) out.push({t: `${names[k]} ${by[k]}`, go: 'inbox', bad: k === 'crisis'});
   for (const t of S.tobs) { const c = coById(t.cid); if (c && t.boss !== 'P' && (t.raises.P || (t.knight && t.merge))) out.push({t: `${c.name}で対抗されています`, go: c.id, bad: true}); }
   const hv = holdingsValue('P'); if (p.loan > 0 && p.loan > hv * callLine() * .85) out.push({t: '追証が近い', go: 'port', bad: true});
   const sl = shortLiab(); if (sl > 0 && netWorth('P') < sl * .4) out.push({t: '踏み上げ注意', go: 'port', bad: true});
@@ -2695,8 +2729,8 @@ function peHoldingCard(c){
   const p = c.pe, s = peStats(c), e = ebitda(c), T = PE_TYPE[p.type], f = fundBy(p.owner);
   return `<div class="deal"><div class="deal-h static"><span class="tag" style="border-color:${T.col};color:${T.col}">${T.n}</span><b>${esc(c.name)}</b><small>${f ? esc(f.n) : esc(ownerName(p.owner))}${p.co ? `＋${esc(ownerName(p.co.k))} ${pc(p.co.x, 0)}` : ''}・${s.yrs.toFixed(1)}年</small></div>
     <div class="kv"><div><span>EBITDA</span><b>${fm(p.e0)} → ${fm(e)}</b></div><div><span>負債/EBITDA</span><b class="${e > 0 && c.debt / e > 5 ? 'down' : ''}">${e > 0 ? (c.debt / e).toFixed(1) + '倍' : '—'}</b></div><div><span>格付け</span><b>${rating(c)[0]}</b></div>
-    <div><span>投資額</span><b>${fm(s.inv)}</b></div><div><span>回収済み＋評価額</span><b>${fm(s.ret)} ＋ ${fm(s.nav)}</b></div><div><span>MOIC・IRR</span><b class="${s.moic >= 1 ? 'up' : 'down'}">${xf(s.moic)} · ${ipc(s.irr)}</b></div></div>
-    ${p.risk ? '' : ''}${p.promise > S.week ? `<p class="note">雇用維持の約束：${shortDate(p.promise)}までコスト削減はできません</p>` : ''}${ceoOf(c) && c.priv ? `<p class="note">CEO ${esc(ceoOf(c).n)}（経営 ${Math.round(ceoOf(c).sk.gen)}）${ceoOf(c).sk.gen < 50 && !opsOf(c).length ? '：このままだと利益率が少しずつ下がります。「経営改善」でCEOを交代するか、オペレーティングパートナーを派遣すると止まります' : ''}${opsOf(c).length ? `・派遣中 ${opsOf(c).map(x => esc(x.n)).join('、')}` : ''}</p>` : ''}
+    <div><span>投資額</span><b>${fm(s.inv)}</b></div><div><span>回収済み＋評価額</span><b>${fm(s.ret)} ＋ ${fm(s.nav)}</b></div><div><span>MOIC・IRR${s.yrs < 1 ? '（IRRは1年後から）' : ''}</span><b class="${s.moic >= 1 ? 'up' : 'down'}">${xf(s.moic)} · ${s.yrs >= 1 ? ipc(s.irr) : '—'}</b></div></div>
+    ${p.cultQ && bossOf(p.owner) === 'P' ? `<div class="preview">買収後の組織方針：今の社風は「${CULTS[c.cult]}」。<br>維持すると摩擦はありません。「利益重視」に変えると固定費が4%下がりますが、満足度が下がり、社風に合わない幹部は力を出しにくくなります。<div class="btnrow"><button class="btn sm" data-act="pecult" data-id="${c.id}" data-v="0">社風を維持</button><button class="btn sm" data-act="pecult" data-id="${c.id}" data-v="1" ${c.cult === 'profit' ? 'disabled' : ''}>利益重視に転換</button></div></div>` : ''}${p.promise > S.week ? `<p class="note">雇用維持の約束：${shortDate(p.promise)}までコスト削減はできません</p>` : ''}${ceoOf(c) && c.priv ? `<p class="note">CEO ${esc(ceoOf(c).n)}（経営 ${Math.round(ceoOf(c).sk.gen)}）${ceoOf(c).sk.gen < 50 && !opsOf(c).length ? '：このままだと利益率が少しずつ下がります。「経営改善」でCEOを交代するか、オペレーティングパートナーを派遣すると止まります' : ''}${opsOf(c).length ? `・派遣中 ${opsOf(c).map(x => esc(x.n)).join('、')}` : ''}</p>` : ''}
     <div class="btnrow"><button class="btn sm" data-act="peman" data-id="${c.id}">経営改善</button>${c.priv ? `<button class="btn sm" data-act="perecap" data-id="${c.id}" ${ebitda(c) * 4 - c.debt > .2 ? '' : 'disabled'}>配当リキャップ</button><button class="btn sm" data-act="pesale" data-id="${c.id}" ${p.sale ? 'disabled' : ''}>${p.sale ? `売却手続き中（${shortDate(p.sale.end)}）` : '売却手続き'}</button><button class="btn sm" data-act="peipo" data-id="${c.id}">IPO</button>` : `<span class="note">上場済み${p.ipo && isFund(p.owner) ? `（ロックアップ明け${shortDate(p.ipo.lock)}から段階的に売却）` : '（「市場」から売却）'}</span>`}</div></div>`;
 }
 function fundCard(f){
@@ -2769,7 +2803,7 @@ function hirePanel(target, role){ // channel tabs and candidate list for one slo
   return `<div class="hire"><p class="lbl">${(ROLES[role] || HQ_ROLES[role]).n}を探す</p>
     <div class="seg">${[['open', '一般募集'], ['agency', '人材紹介'], ['hunt', 'ヘッドハント'], ['inside', 'グループ内']].map(([k, l]) => `<button class="${ch === k ? 'on' : ''}" data-act="hch" data-v="${k}">${l}</button>`).join('')}</div>
     <p class="note">${{open: '手数料なし。応募者の能力は大まかにしか分かりません。', agency: '年俸の25%の手数料で、この役職に合う人を正確な能力付きで紹介。', hunt: '他社の幹部を年俸1.3倍で引き抜く。手数料は年俸の35%。断られることもあります（目安を表示）。', inside: 'グループ内の幹部を異動・昇格。元の役職は空きます。'}[ch]}</p>
-    <p class="lbl">報酬制度</p><div class="seg">${Object.entries(COMP).map(([k, v]) => `<button class="${(ui.hcomp || 'auto') === k ? 'on' : ''}" data-act="hcomp" data-v="${k}">${v.n}</button>`).join('')}<button class="${(ui.hcomp || 'auto') === 'auto' ? 'on' : ''}" data-act="hcomp" data-v="auto">本人の希望</button></div>
+    <p class="lbl">報酬制度</p><div class="seg">${Object.entries(COMP).filter(([k, v]) => !v.pe || (c && c.pe && !c.pe.closed)).map(([k, v]) => `<button class="${(ui.hcomp || 'auto') === k ? 'on' : ''}" data-act="hcomp" data-v="${k}">${v.n}</button>`).join('')}<button class="${(ui.hcomp || 'auto') === 'auto' ? 'on' : ''}" data-act="hcomp" data-v="auto">本人の希望</button></div>
     <p class="note">${ui.hcomp && COMP[ui.hcomp] ? COMP[ui.hcomp].d : '本人の性格に合った制度にすると満足度が上がります。'}</p>
     ${(ch === 'inside' ? group : list).map(p => `<div class="cand">${personLine(p, c, role, ch === 'open')}<div class="btnrow"><button class="btn sm buy" data-act="hirep" data-id="${p.id}">${ch === 'hunt' ? `引き抜く（成功の目安 ${pc(huntOdds(p, p.sal * 1.3), 0)}・手数料 ${fm(chFee(ch, p))}）` : ch === 'inside' ? '異動させる' : `採用${chFee(ch, p) ? `（手数料 ${fm(chFee(ch, p))}）` : ''}`}</button></div></div>`).join('') || '<div class="empty">候補がいません。別の方法を試すか、来四半期に新しい人材が出てきます。</div>'}
     <div class="btnrow"><button class="btn sm" data-act="hclose">閉じる</button></div></div>`;
@@ -2781,6 +2815,7 @@ function execBox(c){
     ${opsOf(c).length ? `<p class="note">派遣中のオペレーティングパートナー：${opsOf(c).map(p => esc(p.n)).join('、')}</p>` : ''}
     <p class="lbl">経営の任せ方</p><div class="seg">${Object.entries(DMODE).map(([k, l]) => `<button class="${(c.dm || 'manual') === k ? 'on' : ''}" data-act="dmode" data-v="${k}">${l}</button>`).join('')}</div>
     ${(c.dm || 'manual') !== 'manual' ? `<p class="lbl">方針</p><div class="seg">${Object.entries(POLICY).map(([k, v]) => `<button class="${(c.deleg || 'bal') === k ? 'on' : ''}" data-act="deleg" data-v="${k}">${v.n}</button>`).join('')}</div>
+    <p class="lbl">幹部に任せる分野（外すとその判断はあなたが行います）</p><div class="seg">${[['COO', '価格'], ['CMO', '広告'], ['CTO', '研究開発'], ['CFO', '財務・配当'], ['CEO', 'コスト削減']].map(([r, l]) => `<button class="${(c.auth || {})[r] !== false ? 'on' : ''}" data-act="auth" data-v="${r}">${l}</button>`).join('')}</div>
     <p class="lbl">広告予算の上限（売上比・月）</p><div class="seg">${[.01, .02, .03].map(v => `<button class="${(c.lim || {ad: .02}).ad === v ? 'on' : ''}" data-act="limad" data-v="${v}">${pc(v, 0)}</button>`).join('')}</div>
     <p class="lbl">目標の格付け（下回るとCFOが返済）</p><div class="seg">${['A', 'BBB', 'BB'].map(v => `<button class="${(c.lim || {rt: 'BBB'}).rt === v ? 'on' : ''}" data-act="limrt" data-v="${v}">${v}</button>`).join('')}</div>
     <p class="note">${POLICY[c.deleg || 'bal'].d}。4週ごとに各幹部が担当分野を判断します（いない分野はCEOが兼任）。${c.dm === 'approve' ? '提案は受信箱に届き、承認すると実行されます。' : ''}合併・売却・増資・大型借入は常にあなたの判断です。幹部の性格と報酬制度で判断の癖が変わります。</p>` : '<p class="note">手動：すべてあなたが判断します。承認制なら幹部の提案を受信箱で確認、自動なら方針と予算の範囲で実行します。</p>'}
@@ -2789,8 +2824,8 @@ function execBox(c){
 function staffBox(c){
   const sat = c.sat == null ? .6 : c.sat;
   return `<section class="box"><h4>従業員 <small>${grp(headcount(c))}人</small></h4>
-    <div class="kv"><div><span>人件費（年）</span><b>${fm(laborCost(c))}</b></div><div><span>満足度</span><b class="${sat < .45 ? 'down' : sat > .7 ? 'up' : ''}">${(sat * 100).toFixed(0)}</b></div><div><span>離職率</span><b>${pc(turnover(c), 0)}</b></div><div><span>能力（研修）</span><b>${(c.train * 100).toFixed(0)}</b></div><div><span>生産性</span><b class="${productivity(c) >= 1 ? 'up' : 'down'}">${pc(productivity(c) - 1, 1)}</b></div></div>
-    <p class="lbl">給与水準（業界比）</p><div class="seg">${[.9, 1, 1.1, 1.2].map(v => `<button class="${Math.abs((c.wage || 1) - v) < 1e-9 ? 'on' : ''}" data-act="wage" data-v="${v}">${v === 1 ? '業界並み' : spc(v - 1)}</button>`).join('')}</div>
+    <div class="kv"><div><span>人件費（年）</span><b>${fm(laborCost(c))}</b></div><div><span>満足度</span><b class="${sat < .45 ? 'down' : sat > .7 ? 'up' : ''}">${(sat * 100).toFixed(0)}</b></div><div><span>離職率</span><b>${pc(turnover(c), 0)}</b></div><div><span>能力（研修）</span><b>${(c.train * 100).toFixed(0)}</b></div><div><span>生産性</span><b class="${productivity(c) >= 1 ? 'up' : 'down'}">${pc(productivity(c) - 1, 1)}</b></div><div><span>労働組合</span><b>${unionOf(c) >= .65 ? '強い' : unionOf(c) >= .35 ? '普通' : '弱い'}</b></div><div><span>次の賃上げ交渉</span><b>${shortDate(S.week + ((talksWeek(c) - S.week % 52 + 52) % 52 || 52))}</b></div></div>${c.strike > S.week ? `<p class="down">ストライキ中（${shortDate(c.strike)}まで）：生産性 −25%</p>` : ''}
+    <p class="lbl">給与水準（業界比・今 ${(c.wage || 1) === 1 ? '業界並み' : spc((c.wage || 1) - 1)}）</p><div class="seg">${[.9, 1, 1.1, 1.2].map(v => `<button class="${Math.abs((c.wage || 1) - v) < 1e-9 ? 'on' : ''}" data-act="wage" data-v="${v}">${v === 1 ? '業界並み' : spc(v - 1)}</button>`).join('')}</div>
     <p class="lbl">研修</p><div class="seg">${['なし', '普通（売上の0.1%）', '手厚い（0.4%）'].map((l, i) => `<button class="${(c.trainL == null ? 1 : c.trainL) === i ? 'on' : ''}" data-act="trainl" data-v="${i}">${l}</button>`).join('')}</div>
     <p class="note">給与を上げると人件費は増えますが満足度が上がり、研修とあわせて生産性（＝原価）が良くなります。コスト削減（人員削減）は満足度と能力を下げます。満足度が低いと離職が増え、育てた能力が流出します。</p></section>`;
 }
@@ -2808,6 +2843,14 @@ function hrInboxCard(it){
   if (it.kind === 'renew') return `<div class="offer"><p><b>契約更新：${esc(p.n)}</b>（${esc(roleName(p))}）</p><p>${shortDate(it.exp)}で契約が切れます。3年の更新に年俸 ${fm(it.ask)}（現在 ${fm(p.sal)}）を求めています。満足度 ${(p.mood * 100).toFixed(0)}。</p><div class="btnrow"><button class="btn buy" data-act="hrenew" data-id="${it.id}" data-v="1">更新する</button><button class="btn" data-act="hrenew" data-id="${it.id}" data-v="0">更新しない</button></div></div>`;
   if (it.kind === 'poach') return `<div class="offer" style="border-color:var(--down)"><p><b>引き抜きの誘い：${esc(p.n)}</b>（${esc(roleName(p))}）</p><p>${esc(ownerName(it.from))}が年俸 ${fm(it.sal)}（現在 ${fm(p.sal)}）で誘っています。${shortDate(it.exp)}までに条件を合わせないと移籍します。</p><div class="btnrow"><button class="btn buy" data-act="hcounter" data-id="${it.id}" data-v="1">年俸を${fm(it.sal)}に上げて引き留める</button><button class="btn" data-act="hcounter" data-id="${it.id}" data-v="0">引き留めない</button></div></div>`;
   return '';
+}
+function laborCard(it, c){
+  const u = unionOf(c);
+  return `<div class="offer"><p><b>賃上げ交渉：${esc(c.name)}</b></p><p>労働組合（${u >= .65 ? '強い' : u >= .35 ? '普通' : '弱い'}）が賃上げ <b>+${pc(it.d, 1)}</b> を求めています。従業員満足度 ${((c.sat || .6) * 100).toFixed(0)}・人件費 ${fm(laborCost(c))}。</p>
+    <div class="rows"><div class="orow"><span><b>受け入れる</b><br><small>人件費 +${fm(laborCost(c) * it.d)}／年・満足度アップ</small></span><span><button class="btn sm buy" data-act="labor" data-id="${it.id}" data-v="accept">選ぶ</button></span></div>
+    <div class="orow"><span><b>半分で妥結を目指す</b><br><small>+${pc(it.d / 2, 1)}・ストライキの恐れ 少し</small></span><span><button class="btn sm" data-act="labor" data-id="${it.id}" data-v="half">選ぶ</button></span></div>
+    <div class="orow"><span><b>拒否する</b><br><small>満足度が下がり、組合が強いとストライキの恐れ</small></span><span><button class="btn sm sell" data-act="labor" data-id="${it.id}" data-v="reject">選ぶ</button></span></div></div>
+    <p class="note">回答しないと拒否とみなされます（期限 ${shortDate(it.exp)}）。ストライキ中は生産性が25%下がります。</p></div>`;
 }
 function propCard(it, c){
   return `<div class="offer"><p><b>経営陣の提案：${esc(c.name)}</b>（方針：${POLICY[c.deleg || 'bal'].n}）</p><div class="rows">${it.acts.map(a => `<div class="orow"><span><b>${a.r}</b> ${actText(a)}</span><span><small>${esc(a.why)}</small></span></div>`).join('')}</div><div class="btnrow"><button class="btn buy" data-act="hprop" data-id="${it.id}" data-v="1">承認して実行</button><button class="btn" data-act="hprop" data-id="${it.id}" data-v="0">却下</button><button class="btn sm" data-act="sel" data-id="${c.id}">企業を見る</button></div></div>`;
@@ -3123,7 +3166,7 @@ function researchHTML(){
 }
 function renderPres(){
   const P = S.pres, w = presWealth(), pr = prestige(), next = TITLES.find(t => t[0] > pr);
-  const misHTML = S.missions.map(m => { const d = MIS[m.kind], pg = clamp(d.prog(m), 0, 1); return `<div class="mis"><div class="mis-h"><b>${esc(d.text(m))}</b><span class="num">${shortDate(m.due)}まで</span></div><i class="bar"><b style="width:${pg * 100}%"></b></i><small>進捗 ${pc(pg, 0)} · 報酬 ${fm(m.reward)}</small></div>`; }).join('') || '<div class="empty">次のミッションは四半期の初めに届きます。</div>';
+  const misHTML = S.missions.map(m => { const d = MIS[m.kind], pg = clamp(d.prog(m), 0, 1); return `<div class="mis"><div class="mis-h"><b>${esc(d.text(m))}</b><span class="num">${shortDate(m.due)}まで</span></div><i class="bar"><b style="width:${pg * 100}%"></b></i><small>進捗 ${pc(pg, 0)} · 達成で評判アップ・失敗で評判ダウン</small></div>`; }).join('') || '<div class="empty">次のミッションは四半期の初めに届きます。</div>';
   const got = ACH.filter(a => S.ach[a[0]] != null).length;
   const stepsDone = STEPS.filter(x => (S.tut || {})[x[0]] != null).length;
   return `${stepsDone < STEPS.length ? `<h3>はじめの一歩 ${stepsDone} / ${STEPS.length}</h3><div class="ach">${STEPS.map(([id, n, d, rw]) => { const done = (S.tut || {})[id] != null; return `<div class="ach-i ${done ? 'on' : ''}"><b>${done ? '★' : '☆'} ${n}</b><small>${d}・報酬${fm(rw)}</small></div>`; }).join('')}</div>` : ''}
@@ -3163,8 +3206,8 @@ function renderPort(){
   <h3>${esc(S.company)}本体の口座</h3>
   <div class="kv"><div><span>現金</span><b>${fm(p.cash)}</b></div><div><span>株式評価額</span><b>${fm(hv)}</b></div><div><span>信用借入</span><b class="${ratio > .55 ? 'down' : ''}">${fm(p.loan)}</b></div>
   <div><span>借入/評価額</span><b class="${ratio > .55 ? 'down' : ''}">${pc(ratio)}</b></div><div><span>空売り残高</span><b>${fm(shortLiab())}</b></div><div><span>買付余力</span><b>${fm(buyingPower())}</b></div>
-  <div><span>今週の受取配当</span><b class="up">${fm(p.divW || 0)}</b></div><div><span>年間配当見込み</span><b>${fm(divYr)}</b></div><div><span>受取配当累計</span><b>${fm(p.divs)}</b></div></div>
-  <p class="note" style="margin-top:8px">現金が毎週増えるのは、保有株の配当（年間配当を週ごとに分けて受取）が入るためです。${p.loan > 0 ? '信用借入の利息は毎週差し引かれます。' : ''}</p>
+  <div><span>直近の四半期配当</span><b class="up">${fm(p.divW || 0)}</b></div><div><span>次の配当日</span><b>${shortDate(Math.ceil((S.week + 1) / 13) * 13)}</b></div><div><span>年間配当見込み</span><b>${fm(divYr)}</b></div><div><span>受取配当累計</span><b>${fm(p.divs)}</b></div></div>
+  <p class="note" style="margin-top:8px">配当は四半期ごと（13週に1回）にまとめて入ります。会社は毎週の利益から配当分を積み立て、四半期末に株主へ支払います。${p.loan > 0 ? '信用借入の利息は毎週差し引かれます。' : ''}</p>
   ${p.loan > 0 ? `<div class="btnrow">${[5, 25].map(v => `<button class="btn sm" data-act="repayloan" data-v="${v}" ${p.cash > .01 ? '' : 'disabled'}>${fm(v)}返済</button>`).join('')}<button class="btn sm" data-act="repayloan" data-v="all" ${p.cash > .01 ? '' : 'disabled'}>可能な限り返済</button></div>` : ''}
   ${groupTree()}
   ${tobs.length ? `<h3>進行中のTOB ${tobs.length}</h3><div class="rows">${tobs.map(t => { const c = coById(t.cid); return c ? coRow(c, `<span style="color:${OWNC[t.boss] || 'var(--ink)'}">●</span> ${fp(t.price)} · ${shortDate(t.end)}締切`) : ''; }).join('')}</div>` : ''}
@@ -3235,6 +3278,7 @@ function renderInbox(){
     if (it.kind === 'renew' || it.kind === 'poach') return hrInboxCard(it);
     const c = coById(it.cid); if (!c) return '';
     if (it.kind === 'prop') return propCard(it, c);
+    if (it.kind === 'labor') return laborCard(it, c);
     const n = c.own.P || 0, amt = n * (it.price || 0), prem = (it.price || 0) / c.price - 1;
     if (it.kind === 'tip') return `<div class="offer tip"><p><b>未確認情報</b></p><p>「${esc(ownerName(it.from))}が${esc(c.name)}にTOBを準備している」との噂が入りました。${(() => { const t = S.tips.find(x => x.cid === c.id); return hasR('in2') && t ? `情報筋の見立て：<b>${t.hint ? '本当らしい' : '誤報らしい'}</b>（当たるのは8割ほど）` : '真偽は不明です。'; })()}</p><div class="preview"><em>この情報をもとに${esc(c.name)}株やオプションを買うと、噂が本当だった場合に証券取引等監視委員会の調査を受けることがあります（課徴金・取引禁止）。</em></div><div class="btnrow"><button class="btn" data-act="inbox" data-id="${it.id}" data-v="0">確認した</button><button class="btn sm" data-act="sel" data-id="${c.id}">企業を見る</button></div></div>`;
     if (it.kind === 'renew' || it.kind === 'poach') return hrInboxCard(it);
@@ -3561,6 +3605,9 @@ function act(a, el){
     case 'fgp': ui.fGp = +v; break;
     case 'fraise': { const f = fundRaise(ui.fStrat, ui.fGp); if (f) toast(`${f.n}の募集を始めました（13週）`); } break;
     case 'task': if (v.startsWith('C')) { ui.sel = v; ui.tab = 'market'; ui.ctab = 'info'; } else { ui.tab = v; ui.sel = null; } break;
+    case 'labor': { const it = S.inbox.find(i => i.id === +el.dataset.id), x = it && coById(it.cid); S.inbox = S.inbox.filter(i => i !== it); if (x && x.laborPick) { x.laborPick = {choice: v, d: it.d, w: S.week + 1}; toast(`${x.name}の交渉方針を伝えました（来週結果）`); } } break;
+    case 'auth': if (c && isCEO(c)) { c.auth = Object.assign({}, c.auth); c.auth[v] = c.auth[v] === false; } break;
+    case 'pecult': { const x = coById(el.dataset.id); if (x && peCulture(x, v === '1')) toast(v === '1' ? '社風を利益重視に転換しました' : '社風を維持します'); } break;
     case 'hopen': ui.hire = ui.hire && ui.hire.t === (c && c.id) && ui.hire.r === v ? null : {t: c && c.id, r: v}; break;
     case 'hopenhq': ui.hire = ui.hire && ui.hire.t === 'HQ' && ui.hire.r === v ? null : {t: 'HQ', r: v}; break;
     case 'hclose': ui.hire = null; break;
@@ -3742,7 +3789,7 @@ function boot(){
   showStart();
   if (ui.restored) toast('セーブデータが壊れていたため、バックアップから復元しました', true);
 }
-window.__atlas = {get S(){ return S; }, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
+window.__atlas = {get S(){ return S; }, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, ui};
 boot();
 })();
 </script>

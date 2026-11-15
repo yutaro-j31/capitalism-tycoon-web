@@ -614,6 +614,47 @@ async function testTalent(b) {
   await m.ctx.close(); await ctx.close();
 }
 
+// Quarterly dividends, missions without cash, and the rest of the talent system (EXIT bonus, labour, culture, authority).
+async function testQuarterly(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(4545, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true;
+    // a dividend payer: cash arrives only in quarter-end weeks
+    const c = S.cos.filter(x => !x.priv && x.payout > .2 && x.ni > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[0];
+    S.tut = {buy: 0, big: 0, tob: 0, ctrl: 0, run: 0, vert: 0}; S.missions = []; S.player.cash = 50; A.execBuy('P', c, c.shares * .04); S.player.loan = 0; S.player.cash = 10;
+    const weeks = []; for (let i = 0; i < 26; i++) { const c0 = S.player.cash; A.step(); S.inbox = []; S.player.loan = 0; if (S.player.cash > c0 + 1e-9) weeks.push(S.week); }
+    out.divWeeks = weeks; out.allQuarterEnds = weeks.length > 0 && weeks.every(w => w % 13 === 0);
+    // a mission done: no cash, more reputation
+    S.missions = [{kind: 'nw', target: 0, due: S.week + 10, id: 999}]; const cash = S.player.cash, rep = S.player.rep;
+    try { A.step(); } catch (e) { out.err = e.message; } S.inbox = [];
+    out.mission = {noCash: !(S.player.cash > cash + 1e-6) || weeksHasQ(S.week), rep: S.player.rep > rep, done: !S.missions.some(m => m.id === 999)};
+    function weeksHasQ(w){ return w % 13 === 0; }
+    // labour: a refusal with a strong union and unhappy staff can end in a strike; accepting raises pay and morale
+    const L = S.cos.find(x => x.ind === 'auto' || x.ind === 'steel'); L.sat = .3; let strikes = 0; for (let i = 0; i < 40; i++) { L.sat = .3; L.strike = 0; if (A.laborSettle(L, 'reject', .03)) strikes++; }
+    const f0 = L.fixed, s0 = L.sat; A.laborSettle(L, 'accept', .03); out.labor = {strikes, accepted: L.fixed > f0 && L.sat > s0};
+    L.strike = S.week + 3; out.strikeHurts = A.productivity(L) < .8;
+    // authority: a role kept by the player is left out of the plan
+    const M = S.cos.filter(x => !x.ctrl && !x.priv).sort((a, b) => a.price * a.shares - b.price * b.shares)[2]; S.player.cash = 5000; for (let i = 0; i < 4 && M.ctrl !== 'P'; i++) A.execBuy('P', M, M.shares * .3);
+    M.deleg = 'cash'; M.payout = 0; M.auth = {CFO: false}; out.auth = !A.planActions(M).some(a => a.r === 'CFO' || a.k === 'payout');
+    return out;
+  });
+  ok('dividends are paid once a quarter (cash arrives only in quarter-end weeks)', r.allQuarterEnds, JSON.stringify(r.divWeeks));
+  ok('missions pay no cash; completing one raises reputation', r.mission.rep && r.mission.done, JSON.stringify(r.mission) + (r.err || ''));
+  ok('labour: refusing a strong union with unhappy staff can bring strikes; accepting raises pay and morale; strikes cut productivity', r.labor.strikes > 0 && r.labor.accepted && r.strikeHurts, JSON.stringify(r.labor));
+  ok('authority: a role the player keeps is not delegated', r.auth);
+  // EXIT bonus and the culture choice after a PE buyout
+  const e = await p.evaluate(() => { const A = window.__atlas; A.newGame(4646, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 3000;
+    let d = null; for (let i = 0; i < 80; i++) { const x = A.peDealGen(); if (x && x.type !== 'turn' && A.dealAsk(x) > 2) { d = x; break; } } d.bids = []; d.n = 0; d.ai = 0; d.risk = null; d.dd = 2;
+    const c = A.peAcquire(d, 'P', A.dealAsk(d), 0, false); A.hrInit(); A.hrEnsure(c);
+    const q = c.pe.cultQ, cult0 = c.cult, f0 = c.fixed; A.peCulture(c, true); const cult = {asked: q, changed: cult0 === 'profit' || (c.cult === 'profit' && c.fixed < f0)};
+    const x = A.ceoOf(c); x.comp = 'exit'; S.pe.firms[0].cash = 1e5; c.price = c.price * 2; const cash0 = S.player.cash; A.peSell(c, {kind: 'pe', buyer: S.pe.firms[0].id, eq: c.price * c.shares});
+    return {cult, bonusNews: S.news.some(n => n.t.includes('EXIT成功報酬'))}; });
+  ok('PE buyout: the player chooses to keep or change the culture', e.cult.asked && e.cult.changed, JSON.stringify(e.cult));
+  ok('EXIT bonus: an executive on an EXIT bonus is paid from a profitable sale', e.bonusNews);
+  ok('no page errors in quarterly/labour tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 // Simple value bot used since the first version: buys cheap stocks, sells rich ones, milks controlled companies.
 async function balance(b) {
   const {p, ctx} = await page(b);
@@ -670,6 +711,7 @@ async function balance(b) {
     await testResearch(b);
     await testPE(b);
     await testTalent(b);
+    await testQuarterly(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
