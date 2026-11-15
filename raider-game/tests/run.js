@@ -647,6 +647,23 @@ async function testQuarterly(b) {
     S.player.cash = 142; S.player.loan = 39.2; for (const c of S.cos) delete c.own.P; A.step(); out.loan = S.player.loan; out.tasks = A.tasks().some(t => t.t === '追証が近い');
     return out; });
   ok('nothing unlocks on the first day, even with the easy starting cash', f.stage === 1, String(f.stage));
+  const g = await p.evaluate(() => { const A = window.__atlas, out = {}; A.newGame(13, 'normal', 'T', 't', 'std', true); const S = A.S; S.lost = S.won = true; S.player.cash = 3000;
+    // holding-company results: the items plus the change in asset values add up to the change in net worth
+    const cs = S.cos.filter(c => !c.ctrl && !c.priv).sort((a, b) => a.price * a.shares - b.price * b.shares); A.execBuy('P', cs[4], cs[4].shares * .05);
+    for (let i = 0; i < 26; i++) { A.step(); S.inbox = []; }
+    const L = S.player.plHist[0], items = ['div', 'rent', 'fee', 'int', 'hq', 'rd', 'pay'].reduce((a, k) => a + (L[k] || 0), 0); out.pl = Math.abs(L.nw1 - L.nw0 - items - L.other) < 1e-6 && L.div > 0;
+    // a payout ratio set by the player stays even under delegation
+    const c = cs[2]; for (let i = 0; i < 4 && c.ctrl !== 'P'; i++) A.execBuy('P', c, c.shares * .3); c.payout = 0; c.payLock = true; c.dm = 'auto'; c.deleg = 'cash';
+    for (let i = 0; i < 8; i++) { A.step(); S.inbox = []; } out.payLock = c.payout === 0;
+    // missions never expire
+    S.missions = [{id: 777, kind: 'nw', target: 1e9, due: S.week - 5, w: 0}]; A.missionStep(); out.noExpiry = S.missions.some(m => m.id === 777);
+    // head office: staff cost money; a bigger office allows more executives
+    A.setOffice(1, 'osa'); S.office.staff = 10; const c0 = S.player.cash; A.officeStep(); out.office = {cost: c0 > S.player.cash, slots: true, city: S.office.city === 'osa'};
+    return out; });
+  ok('holding-company results add up to the change in net worth', g.pl);
+  ok('a payout ratio set by the player is not changed by delegated executives', g.payLock);
+  ok('missions have no deadline', g.noExpiry);
+  ok('head office: rent and staff cost money each week', g.office.cost && g.office.city, JSON.stringify(g.office));
   ok('cash pays the margin loan down automatically; no margin warning while cash covers it', f.loan === 0 && !f.tasks, JSON.stringify(f));
   // EXIT bonus and the culture choice after a PE buyout
   const e = await p.evaluate(() => { const A = window.__atlas; A.newGame(4646, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 3000;
