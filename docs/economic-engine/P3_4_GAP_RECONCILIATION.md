@@ -99,7 +99,7 @@ player-common activation.
 | G30 | `syncPESubsidiary`, `normalizeHoldingMap` | `pe-dual-ownership-test.js` (functional only). | OPEN | No caller enumeration or fault set. |
 | G31 | Weekly PE fund `processFundsWeek` | `week-pe-fund-save-atomicity` (Node only). | PARTIAL | No WebKit. |
 | G32 | Weekly `updateMarket` | `PHASE_3_WEEKLY_MARKET_EVIDENCE.md` (partial). | PARTIAL | Unknown holder, class and control evidence stays unsupported. |
-| G33 | Expanded week `updateCapitalMarketsExpandedWeekly` | Margin hook covered by G08. | PARTIAL | No dedicated fault set for the PE-mirror and public-listing hooks. |
+| G33 | Expanded week `updateCapitalMarketsExpandedWeekly` | Margin hook covered by G08; `week-transaction-atomicity-test.js` covers the installed company-PE mirror plus public ownership/quarterly hooks through the applicable shared save-fault set, pending predecessor, nested transaction, retry and fresh durable hydration. | PARTIAL | Combined PE/public-hook native WebKit evidence remains open; this does not adopt unknown holder/class/control authority. |
 | G39 | `executeMBO`, fund exit | `execute-mbo-` and `pe-portfolio-exit-save-atomicity` Node + WebKit. | PARTIAL | The MBO Node test has no pending or nested cases (#1089: E09 incomplete). Neither WebKit test, nor the fund-exit Node test, has nested cases. |
 
 ### Cross-cutting

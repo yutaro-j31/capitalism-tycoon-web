@@ -169,4 +169,63 @@ console.log('week transaction atomicity tests passed');
       console.log(`public weekly market mirror=${mirror} ${mode}: rollback / retry / fresh fake-IDB PASS`);
     }
   }
+
+  // P3-4 G33: exercise the installed expansion wrapper with both ownership-bearing
+  // hooks that were previously covered only by healthy-path tests: the weekly PE
+  // legal-position mirror and the public-company ownership/quarterly history writer.
+  // `change`/`notify` are not applicable: advanceWeek emits its committed `week`
+  // event, while neither ownership hook emits those event types.
+  const { makeTransactionFaultCase } = require('./helpers/transaction-fault-case');
+  async function expandedOwnershipScenario() {
+    const s = await scenario('own'), game = s.game;
+    delete game.g.companyStocks.CPTY;
+    game.g.finance = s.modules.finance.defaultFinanceState(game.g);
+    game.g.departments.investment = { name:'投資部' };
+    game.g.founderOwnershipRatio = .45;
+    game.g.externalShareholderRatio = .40;
+    game.g.competitorOwnedRatio = .15;
+    // Keep the test focused on the ownership-history writer, not activist RNG/content.
+    game.g.activistCampaigns = [{ id:'existing-activist', status:'active' }];
+    assert.equal(game.createPEDeal('G33 fixture', 20_000_000, 'company'), true);
+    const deal = game.g.peDeals.at(-1);
+    assert.equal(game.g.subsidiaries.filter(row => row.id === `pe-subsidiary-${deal.id}`).length, 1);
+    assert.equal(game.save(), true); await s.backend.flush();
+    return { ...s, dealID:deal.id };
+  }
+  const expanded = makeTransactionFaultCase({
+    name:'expanded ownership week', fixture:expandedOwnershipScenario,
+    command:s => s.game.advanceWeek(false), snapshot, economic,
+    expectSuccess(before, after, s) {
+      assert.equal(after.week, before.week + 1);
+      assert.equal(after.lastExpansionUpdateWeek, after.week, 'expanded wrapper runs once');
+      const priorDeal = before.peDeals.find(row => row.id === s.dealID);
+      const deal = after.peDeals.find(row => row.id === s.dealID);
+      const mirror = after.subsidiaries.find(row => row.id === `pe-subsidiary-${s.dealID}`);
+      assert.equal(deal.holdingWeeks, priorDeal.holdingWeeks + 1, 'PE legal position advances once');
+      assert.equal(after.subsidiaries.filter(row => row.id === mirror.id).length, 1, 'PE mirror remains singular');
+      assert.equal(mirror.peDealID, deal.id); assert.equal(mirror.valuationManagedBy, 'pe');
+      assert.equal(mirror.ownership, deal.ownershipRatio);
+      assert.ok(Math.abs(mirror.valuation * mirror.ownership - deal.currentValuation) < .01,
+        'weekly mirror equals the legal PE stake');
+      assert.deepEqual(after.ownershipHistory.at(-1), { week:after.week,
+        founder:after.founderOwnershipRatio, external:after.externalShareholderRatio,
+        competitor:after.competitorOwnedRatio }, 'history records the final canonical ratios');
+      assert.equal(after.ownershipHistory.filter(row => row.week === after.week).length, 1,
+        'public ownership history is written once');
+      for (const id of ['CPTY','EXT']) {
+        const rows = after.quarterlyStockResults[id];
+        assert.equal(rows[0].week, after.week, `${id} quarterly listing hook runs`);
+        assert.equal(rows.filter(row => row.week === after.week).length, 1, `${id} one quarterly row`);
+      }
+      assert.equal(s.modules.finance.validate(after).ok, true, 'committed expansion week remains balanced');
+    },
+    label:(_variant, kind, options) =>
+      `expanded ownership week ${kind}/pending=${options.pending}/nested=${options.nested}`
+  });
+  for (const kind of expanded.faultKinds.filter(kind => !['change','notify'].includes(kind)))
+    await expanded.rejected('company-pe-public', kind);
+  await expanded.rejected('company-pe-public', 'save-false', { pending:true });
+  await expanded.rejected('company-pe-public', 'save-throw', { pending:true });
+  await expanded.rejected('company-pe-public', 'save-false', { nested:true });
+  await expanded.rejected('company-pe-public', 'save-throw', { nested:true });
 })().catch(error => { console.error(error); process.exitCode = 1; });
