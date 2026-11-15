@@ -642,6 +642,12 @@ async function testQuarterly(b) {
   ok('missions pay no cash; completing one raises reputation', r.mission.rep && r.mission.done, JSON.stringify(r.mission) + (r.err || ''));
   ok('labour: refusing a strong union with unhappy staff can bring strikes; accepting raises pay and morale; strikes cut productivity', r.labor.strikes > 0 && r.labor.accepted && r.strikeHurts, JSON.stringify(r.labor));
   ok('authority: a role the player keeps is not delegated', r.auth);
+  const f = await p.evaluate(() => { const A = window.__atlas, out = {};
+    A.newGame(11, 'easy', 'T', 't', 'std', false); const S = A.S; S.lost = true; A.step(); out.stage = S.stage; // easy starts with 50億円
+    S.player.cash = 142; S.player.loan = 39.2; for (const c of S.cos) delete c.own.P; A.step(); out.loan = S.player.loan; out.tasks = A.tasks().some(t => t.t === '追証が近い');
+    return out; });
+  ok('nothing unlocks on the first day, even with the easy starting cash', f.stage === 1, String(f.stage));
+  ok('cash pays the margin loan down automatically; no margin warning while cash covers it', f.loan === 0 && !f.tasks, JSON.stringify(f));
   // EXIT bonus and the culture choice after a PE buyout
   const e = await p.evaluate(() => { const A = window.__atlas; A.newGame(4646, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 3000;
     let d = null; for (let i = 0; i < 80; i++) { const x = A.peDealGen(); if (x && x.type !== 'turn' && A.dealAsk(x) > 2) { d = x; break; } } d.bids = []; d.n = 0; d.ai = 0; d.risk = null; d.dd = 2;
