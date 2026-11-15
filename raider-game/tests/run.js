@@ -681,6 +681,73 @@ async function testQuarterly(b) {
 }
 
 // Head office: departments, financial statements, board meetings, venture capital, property offers, reports.
+async function testUIPack(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(4242, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 400;
+    /* (1) the price sheet mirrors the valuation exactly */
+    out.fair = S.cos.every(c => Math.abs(A.fairParts(c).per - A.fair(c)) < 1e-9 * Math.max(1, A.fair(c)));
+    /* (3) screener filters */
+    A.ui.scr = {cheap: true}; out.scr = S.cos.filter(A.scrPass).every(c => A.fair(c) / c.price > 1.2); A.ui.scr = {};
+    /* (4) overlay values stay in 0..1 */
+    out.ov = ['cheap', 'rival', 'growth', 'mine'].every(k => { A.ui.ov = k; return Object.values(A.ovStats()).every(v => v >= 0 && v <= 1 + 1e-9); }); A.ui.ov = '';
+    /* (7) stories never draw from the PRNG and arrive in the inbox */
+    let rsSame = true, got = 0;
+    for (let w = 0; w < 120; w++) { S.week++; const rs = S.rs, n = S.inbox.length; A.storyStep(); if (S.rs !== rs) rsSame = false; if (S.inbox.length > n) { got++; const it = S.inbox[S.inbox.length - 1]; A.storyPick(it, 0); if (S.inbox.includes(it)) rsSame = false; } }
+    out.story = {rsSame, got};
+    /* (8) year-end awards: rankings of all four players, prestige from wins */
+    S.week = 52; S.awards = []; const pr0 = A.prestige(); A.yearAwards(); const aw = S.awards[0];
+    out.award = !!aw && aw.list.length === 3 && aw.list.every(l => l.r.length === 4) && A.prestige() - pr0 === aw.wins.length * 3;
+    A.ui.pendingAward = false;
+    /* (5) auto-pause follows the setting */
+    S.settings.p_inbox = false; A.ui.speed = 2; A.addInbox({kind: 'tip', cid: S.cos[0].id, exp: S.week + 4}); const kept = A.ui.speed;
+    S.settings.p_inbox = true; A.addInbox({kind: 'tip', cid: S.cos[0].id, exp: S.week + 4}); out.pause = kept === 2 && A.ui.speed === 0; S.inbox = [];
+    return out;
+  });
+  ok('UI pack: the "why" sheet reproduces the theoretical share price exactly', r.fair);
+  ok('UI pack: the screener only lists companies matching the filter', r.scr);
+  ok('UI pack: every map overlay value is between 0 and 1', r.ov);
+  ok('UI pack: story cards arrive without touching the simulation RNG', r.story.rsSame && r.story.got > 3, JSON.stringify(r.story));
+  ok('UI pack: year-end awards rank all four players and add prestige for wins', r.award);
+  ok('UI pack: auto-pause respects the per-category setting', r.pause);
+  /* UI flows on iPhone */
+  const ph = await page(b, {...devices['iPhone 13']});
+  const q = ph.p; await q.click('[data-act=diff][data-v=normal]'); await q.click('[data-act=newgame]'); await q.click('[data-act=speed][data-v="0"]');
+  const g = await q.evaluate(() => ({bub: !!document.querySelector('.guidebub'), hi: !!document.querySelector('.guide')}));
+  await q.click('[data-act=guideoff]'); const g2 = await q.evaluate(() => !document.querySelector('.guidebub') && !document.querySelector('.guide'));
+  ok('UI pack: the secretary guide highlights the next step and can be turned off', g.bub && g.hi && g2, JSON.stringify(g));
+  await q.click('[data-act=why][data-v=nw]'); const w1 = await q.evaluate(() => !!document.querySelector('#modal .why') && document.querySelector('#modal').textContent.includes('純資産の内訳'));
+  const wo = await q.evaluate(() => document.documentElement.scrollWidth - innerWidth); await q.click('#modal [data-act=close]');
+  ok('UI pack: tapping net worth opens its breakdown', w1 && wo <= 0);
+  const id = await q.evaluate(() => { const A = window.__atlas, S = A.S; S.won = true; S.allUnlocked = true; S.player.cash += 300;
+    const c = S.cos.filter(c => !c.ctrl && c.ind !== 'air' && c.ind !== 'telecom').sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; A.execBuy('P', c, c.shares * .8); A.ui.sel = c.id; A.ui.ctab = 'info'; return c.id; });
+  await q.click('[data-act=tab][data-v=market]');
+  await q.click('[data-act=watch]'); const wl = await q.evaluate(id => window.__atlas.S.watch.includes(id), id);
+  await q.click('[data-act=why][data-v=px]'); const pxw = await q.evaluate(() => document.querySelector('#modal').textContent.includes('理論株価')); await q.click('#modal [data-act=close]');
+  ok('UI pack: watchlist star and price breakdown work', wl && pxw, JSON.stringify({wl, pxw}));
+  await q.evaluate(() => { window.__atlas.ui.ctab = 'ceo'; }); await q.click('[data-act=tab][data-v=market]');
+  const before = await q.evaluate(() => JSON.stringify(window.__atlas.S));
+  const btn = await q.$('[data-act=restr]:not([disabled])');
+  const pv = {has: !!btn};
+  if (btn) { await btn.click(); pv.modal = await q.evaluate(() => document.querySelector('#modal').textContent.includes('実行前の確認')); pv.same = before === await q.evaluate(() => JSON.stringify(window.__atlas.S));
+    pv.o = await q.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    await q.click('#modal [data-ok="1"]'); pv.changed = before !== await q.evaluate(() => JSON.stringify(window.__atlas.S)); }
+  ok('UI pack: the preview leaves the game untouched until "execute" is pressed', pv.has && pv.modal && pv.same && pv.changed && pv.o <= 0, JSON.stringify(pv));
+  await q.evaluate(() => { const A = window.__atlas, c = A.S.cos.find(x => x.ctrl === 'P'); A.ui.sel = c.id; A.ui.ctab = 'ceo'; A.ui.hire = {t: c.id, r: 'CFO'}; A.ui.hch = 'agency'; });
+  await q.click('[data-act=tab][data-v=market]');
+  const hb = await q.$$('[data-act=hcmp]'); if (hb.length > 1) { await hb[0].click(); const hb2 = await q.$$('[data-act=hcmp]'); await hb2[1].click(); }
+  const cmp = await q.evaluate(() => ({svg: !!document.querySelector('.cmp svg polygon'), n: document.querySelectorAll('.cmp th').length, o: document.documentElement.scrollWidth - innerWidth}));
+  ok('UI pack: two hiring candidates are compared on a radar chart', cmp.svg && cmp.n === 3 && cmp.o <= 0, JSON.stringify(cmp));
+  await q.evaluate(() => { const A = window.__atlas; A.ui.sel = null; A.ui.scrOpen = true; }); await q.click('[data-act=tab][data-v=market]');
+  await q.click('[data-act=scr][data-v=cheap]'); await q.click('[data-act=scrsave]');
+  const sc = await q.evaluate(() => ({saved: (window.__atlas.S.scrSaved || []).length, o: document.documentElement.scrollWidth - innerWidth}));
+  await q.click('[data-act=ov]'); const ovb = await q.evaluate(() => document.querySelector('#ovbtn').textContent);
+  await q.evaluate(() => window.__atlas.celebrate(true)); const conf = await q.evaluate(() => !!document.querySelector('.confetti'));
+  ok('UI pack: screener presets, map overlay button and confetti', sc.saved === 1 && sc.o <= 0 && ovb === '割安' && conf, JSON.stringify({sc, ovb, conf}));
+  ok('no page errors in UI pack tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
+  await ph.ctx.close(); await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -785,6 +852,7 @@ async function balance(b) {
     await testTalent(b);
     await testQuarterly(b);
     await testHQ(b);
+    await testUIPack(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
