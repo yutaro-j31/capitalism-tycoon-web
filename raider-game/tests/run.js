@@ -851,6 +851,57 @@ async function testFeedback13(b) {
   await ph.ctx.close(); await ctx.close();
 }
 
+async function testFeedback10(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(7171, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    /* (1) loss-makers are never tagged cheap */
+    out.cheap = S.cos.every(c => !A.isCheap(c) || c.ni > 0);
+    /* (2) bank: borrowing adds cash and debt, not net worth; the cash flow statement still adds up */
+    S.player.cash = 50; const t = S.cos.filter(c => !c.priv && !c.ctrl)[2]; A.execBuy('P', t, A.sharesForMoney(t, 40)); A.step(); S.inbox = [];
+    const nw0 = A.netWorth('P'), cash0 = S.player.cash, lim = A.bankLimit(); const got = A.bankBorrow(10);
+    out.bank = {got: got > 0, nw: Math.abs(A.netWorth('P') - nw0) < 1e-9, cash: Math.abs(S.player.cash - cash0 - got) < 1e-9, cap: A.bankBorrow(1e6) <= lim};
+    A.step(); S.inbox = []; const L = S.player.plWH[0], C = A.cfOf(L); out.cf = Math.abs(C.op + C.inv + C.fin - (L.cash1 - L.cash0)) < 1e-9;
+    const B = A.bsNow(); out.bs = Math.abs(B.eq - A.netWorth('P') / (1 - (S.player.outside || 0))) < 1e-6 && B.L.some(x => x[0] === 'bank' && x[2] > 0);
+    /* (3)(4) underwriters set the listing date and price */
+    const n = A.foundCompany('tyo', 'tech', 20); A.startIPO(n, 'list', 'fast'); out.uw = n.ipoPlan.end === S.week + A.UW.fast.wk && n.ipoPlan.uw === 'fast';
+    /* (6) more candidates */
+    out.cands = A.marketFor('CFO', 'agency', null).length;
+    /* (8) a secondary buy keeps the CEO: contracts run at least 26 weeks after the purchase */
+    const q = S.cos.find(c => !c.priv && !c.ctrl && c !== t); q.priv = true; q.own = {Q1: q.shares}; A.recomputeCtrl(); q.pe = {type: 'buyout', owner: 'Q1', w0: S.week, flows: [[S.week, -1]], inv: 1, mq: 50, dd: true};
+    const ceo = q.ex && q.ex.CEO; if (ceo) S.hr.people[ceo].end = S.week + 1;
+    const eqq = A.fair(q) * q.shares; S.player.cash += eqq * 2 + 50; out.bought = A.peBuySecondary(q, 'P', eqq) && q.pe.owner === 'P'; for (let i = 0; i < 3; i++) { A.step(); S.inbox = S.inbox.filter(x => x.kind !== 'renew'); }
+    out.ceoStays = out.bought && !!ceo && q.ex.CEO === ceo;
+    /* (9) a PE IPO keeps the owner above half */
+    q.ni = Math.abs(q.ni) + 1; A.peIPO(q, A.UW.mid); out.ipoCtrl = !q.priv && q.ctrl === 'P' && q.own.P / q.shares > .5;
+    /* (10) forced settlement sells whole positions; an unpayable overdraft is bankruptcy */
+    S.lost = false; const mine = S.cos.filter(c => !c.priv && (c.own.P || 0) > 0).length; S.player.cash = 0; S.player.loan = A.holdingsValue('P') * .99; S.player.mcall = {w: S.week - 2, due: S.week};
+    A.playerWeekly(); out.closeout = S.cos.filter(c => !c.priv && (c.own.P || 0) > 0).length < mine || S.player.loan < 1e-9;
+    S.lost = false; for (const c of S.cos) if (!c.priv) delete c.own.P; for (const pr of S.props) if (pr.own === 'P') pr.own = null; S.player.loan = 0; S.player.cash = -50; S.player.od = S.week - 9;
+    A.overdraftStep(); out.bankrupt = S.lost === true && /資金繰り/.test(S.lostWhy || '');
+    document.querySelector('#modal').hidden = true;
+    return out;
+  });
+  ok('feedback2: loss-making companies are never tagged as cheap', r.cheap);
+  ok('feedback2: a bank loan adds cash and debt but no net worth; statements still add up', r.bank.got && r.bank.nw && r.bank.cash && r.bank.cap && r.cf && r.bs, JSON.stringify(r));
+  ok('feedback2: the chosen underwriter sets the listing date', r.uw);
+  ok('feedback2: the agency shows at least 8 candidates', r.cands >= 8, String(r.cands));
+  ok('feedback2: the CEO of a company bought on the secondary market stays on', r.ceoStays);
+  ok('feedback2: a PE IPO keeps the owner in control', r.ipoCtrl);
+  ok('feedback2: forced settlement sells whole positions; an overdraft nobody can cover is bankruptcy', r.closeout && r.bankrupt, JSON.stringify({c: r.closeout, b: r.bankrupt}));
+  const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
+  await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]'); await q.click('[data-act=speed][data-v="0"]');
+  await q.click('[data-act=why][data-v=cash]'); await q.click('#modal [data-act=bank]');
+  const bk = await q.evaluate(() => ({open: document.querySelector('#modal').innerText.includes('融資枠'), o: document.documentElement.scrollWidth - innerWidth}));
+  await q.click('#modal [data-act=close]');
+  await q.evaluate(() => { const A = window.__atlas, n = A.foundCompany('tyo', 'food', 10); A.ui.sel = n.id; A.ui.ctab = 'ceo'; });
+  await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=listco]');
+  const ip = await q.evaluate(() => ({n: document.querySelectorAll('#modal [data-act=ipostart]').length, date: /上場予定 \d{4}年/.test(document.querySelector('#modal').innerText), o: document.documentElement.scrollWidth - innerWidth}));
+  ok('feedback2: the bank screen and the underwriter choice open on iPhone', bk.open && bk.o <= 0 && ip.n === 3 && ip.date && ip.o <= 0, JSON.stringify({bk, ip}));
+  ok('no page errors in feedback2 tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
+  await ph.ctx.close(); await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -958,6 +1009,7 @@ async function balance(b) {
     await testUIPack(b);
     await testPlaytestFixes(b);
     await testFeedback13(b);
+    await testFeedback10(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
