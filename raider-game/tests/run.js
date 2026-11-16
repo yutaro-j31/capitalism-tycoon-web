@@ -934,6 +934,32 @@ async function testCreditMacroControl(b) {
   await ctx.close();
 }
 
+async function testLadderGrad(b) {
+  const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
+  await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]'); await q.click('[data-act=speed][data-v="0"]');
+  await q.evaluate(() => { const A = window.__atlas, S = A.S; S.won = true; S.settings.guide = false; S.settings.confirm = false; S.player.cash = 100; const c = S.cos.find(x => !x.priv && !x.ctrl); A.ui.sel = c.id; A.ui.ctab = 'trade'; A.ui.amt = 5; });
+  await q.click('[data-act=tab][data-v=market]');
+  await (await q.$$('[data-act=amtd]'))[3].click(); await (await q.$$('[data-act=amtd]'))[2].click();
+  const amt = await q.evaluate(() => window.__atlas.ui.amt);
+  await q.evaluate(() => { window.__atlas.ui.ctab = 'raid'; }); await q.click('[data-act=tab][data-v=market]');
+  const p0 = await q.evaluate(() => window.__atlas.ui.tPrem); await (await q.$$('[data-act=tpremd]'))[2].click(); const p1 = await q.evaluate(() => window.__atlas.ui.tPrem);
+  const o1 = await q.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+  ok('ladder: the buy amount and the TOB premium step up and down', Math.abs(amt - 16) < 1e-9 && Math.abs(p1 - p0 - .01) < 1e-9 && o1 <= 0, JSON.stringify({amt, p0, p1, o1}));
+  const vc = await q.evaluate(() => { const A = window.__atlas, S = A.S; A.hqInit(); A.vcQuarter(); const d = S.vc.deals[0]; if (!d) return {none: true}; const c0 = S.player.cash; const okv = A.vcInvest(d.id, .07); const h = S.vc.hold.find(x => x.id === d.id); return {okv, stake: h && h.stake, paid: +(c0 - S.player.cash).toFixed(4), cost: +(d.val * .07).toFixed(4)}; });
+  ok('ladder: a venture stake of any whole percent from 1% to 20% can be bought', vc.none || (vc.okv && Math.abs(vc.stake - .07) < 1e-9 && Math.abs(vc.paid - vc.cost) < 1e-6), JSON.stringify(vc));
+  const g = await q.evaluate(() => { const A = window.__atlas, S = A.S; A.hqInit(); A.setOffice(2, 'tyo'); const d = S.dept.acc; const s0 = d.staff, cost0 = A.deptCost(), eff0 = A.deptEff('acc');
+    const n = A.gradOffer('acc', 3), queued = S.gradQ.acc; S.week = A.gradJoinW(); A.gradStep();
+    return {n, queued, joined: d.staff - s0, jr: d.jr, costPer: +((A.deptCost() - cost0) / 3).toFixed(4), effPer: +((A.deptEff('acc') - eff0) / 3).toFixed(3), ab: d.ab}; });
+  ok('graduates: offers join on the entrance day as cheaper, less able juniors', g.n === 3 && g.queued === 3 && g.joined === 3 && g.jr === 3 && g.costPer < .08 && g.effPer < g.ab / 70, JSON.stringify(g));
+  const grow = await q.evaluate(() => { const A = window.__atlas, S = A.S, d = S.dept.acc, a0 = d.jrAb; for (let i = 0; i < 20; i++) A.gradStep(); return {a0, a1: d.jrAb, jr: d.jr}; });
+  ok('graduates: juniors learn on the job', grow.a1 > grow.a0 || grow.jr === 0, JSON.stringify(grow));
+  await q.evaluate(() => { window.__atlas.ui.sel = null; window.__atlas.ui.hqTab = 'hr'; }); await q.click('[data-act=tab][data-v=pres]');
+  const ui = await q.evaluate(() => ({box: document.querySelector('#pbody').innerText.includes('新卒採用'), lad: document.querySelectorAll('[data-act=gradd]').length, o: document.documentElement.scrollWidth - innerWidth}));
+  ok('graduates: the hiring box shows on the HR floor without overflow', ui.box && ui.lad > 0 && ui.o <= 0, JSON.stringify(ui));
+  ok('no page errors in ladder/graduate tests', !ph.errs.length, ph.errs.slice(0, 3).join(' | '));
+  await ph.ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1043,6 +1069,7 @@ async function balance(b) {
     await testFeedback13(b);
     await testFeedback10(b);
     await testCreditMacroControl(b);
+    await testLadderGrad(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
