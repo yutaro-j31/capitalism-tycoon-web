@@ -994,6 +994,50 @@ async function testFeedback3(b) {
   await ctx.close();
 }
 
+async function testPitches2(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(9393, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 300; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    const free = () => Object.values(S.hr.people).find(x => !x.at);
+    const seatHQ = r => { const m = free(); m.at = 'HQ'; m.role = r; S.hr.hq[r] = m.id; m.sk.fin = m.sk.deal = m.sk.hr = 85; return m; };
+    const find = (kind, t) => S.inbox.find(i => i.kind === kind && (!t || (i.act && i.act.t === t)));
+    const run = (kind, t, n) => { for (let i = 0; i < (n || 40); i++) { S.week++; A.pitchMore(); const it = find(kind, t); if (it) return it; } return null; };
+    /* 1a: CFO locks a fixed rate before rates rise */
+    seatHQ('CFO'); S.player.bank = 20; S.econ.infl = 3.5; S.inbox = [];
+    const f = run('pitch', 'fix'); out.fix = !!f; if (f) { A.pitchDo(f); out.fixed = !!S.player.bankFix && Math.abs(A.bankRate() - S.player.bankFix.r) < 1e-9; }
+    /* 1b: CFO takes profits on foreign stock in a weak yen */
+    S.player.bank = 0; S.econ.fx = 158; S.inbox = []; const fo = S.cos.find(c => !c.priv && !c.ctrl && !A.isJP(c)); A.execBuy('P', fo, fo.shares * .05);
+    const fx = run('pitch', 'sellhalf'); out.fx = !!fx; if (fx) { const h0 = fo.own.P; A.pitchDo(fx); out.fxSold = fo.own.P < h0; }
+    /* 9: CFO and M&A head disagree when debt is heavy */
+    seatHQ('MA'); S.econ.fx = 140; S.inbox = []; S.player.loan = A.grossWorth() * .6 + 50; S.player.cash = 0;
+    const d = run('debate'); out.debate = !!d && d.opts.length === 2;
+    /* 2: the M&A head warns of a rival buying up a company */
+    S.player.loan = 0; S.player.cash = 300; S.inbox = []; const t = S.cos.find(c => !c.priv && !c.ctrl && c !== fo && !A.activeTob(c)); for (const k of Object.keys(t.own)) delete t.own[k]; t.own.R1 = t.shares * .2; t.own.P = t.shares * .05; A.recomputeCtrl();
+    const pre = (() => { for (let i = 0; i < 40; i++) { S.week++; A.pitchMore(); const it = S.inbox.find(x => x.kind === 'pitch' && x.act.t === 'tob' && /買い集め/.test(x.text)); if (it) return it; } return null; })(); out.preempt = !!pre;
+    /* 3: a subsidiary CMO answers a price cut with advertising */
+    S.inbox = []; const c = S.cos.find(x => !x.priv && !x.ctrl && x !== t && x !== fo && S.cos.some(y => y !== x && y.mk === x.mk)); for (const k of Object.keys(c.own)) delete c.own[k]; c.own.P = c.shares * .6; A.recomputeCtrl();
+    const cmo = free(); cmo.at = c.id; cmo.role = 'CMO'; c.ex.CMO = cmo.id; c.cash = c.rev * .2; S.cos.find(y => y !== c && y.mk === c.mk).ps = -1;
+    const ad = run('pitch', 'ad'); out.cmo = !!ad; if (ad) { const b0 = c.brand; A.pitchDo(ad); out.adDone = c.brand > b0; }
+    /* 7: IR briefing before a miss halves the drop */
+    S.inbox = []; A.hqInit(); S.dept.ir.on = true; S.dept.ir.staff = 2; c.est = Math.abs(A.niA(c)) * 3 + 1;
+    let ir = null; for (let i = 0; i < 20 && !ir; i++) { S.week++; A.pitchMore(); ir = find('pitch', 'ir'); }
+    out.ir = !!ir; if (ir) { A.pitchDo(ir); out.irSet = c.irBrief === true; }
+    /* 8: the CHRO wants to keep a strong executive */
+    seatHQ('HR'); S.inbox = []; const star = free(); star.at = c.id; star.role = 'CFO'; c.ex.CFO = star.id; star.sk.fin = 88; star.mood = .5; star.offer = null;
+    const k = run('pitch', 'keep'); out.keep = !!k; if (k) { const m0 = A.S.hr.people[k.act.pid].mood; A.pitchDo(k); out.kept = A.S.hr.people[k.act.pid].mood > m0; }
+    return out;
+  });
+  ok('pitches2: the CFO proposes a fixed rate and it locks the bank rate', r.fix && r.fixed, JSON.stringify(r));
+  ok('pitches2: the CFO proposes taking profits on foreign stock in a weak yen', r.fx && r.fxSold);
+  ok('pitches2: the CFO and the M&A head disagree when debt is heavy', r.debate);
+  ok('pitches2: the M&A head warns of a rival buying up a company', r.preempt);
+  ok('pitches2: a subsidiary CMO answers a price cut with advertising', r.cmo && r.adDone);
+  ok('pitches2: IR offers a briefing before a weak quarter', r.ir && r.irSet);
+  ok('pitches2: the CHRO proposes keeping a strong executive', r.keep && r.kept);
+  ok('no page errors in pitch tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1105,6 +1149,7 @@ async function balance(b) {
     await testCreditMacroControl(b);
     await testLadderGrad(b);
     await testFeedback3(b);
+    await testPitches2(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
