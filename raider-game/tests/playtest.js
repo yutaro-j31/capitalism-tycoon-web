@@ -48,7 +48,8 @@ function inPage(seed) { /* installs window.__pt */
       let held = 0; for (const k in c.own) { if (!(c.own[k] >= 0)) bad.push(`持株がマイナス`); held += c.own[k]; }
       if (held > c.shares * (1 + 1e-6)) bad.push(`発行株数を超える保有`);
       const t = {}; for (const k in c.own) { const b = k[0] === 'C' ? (S.cos.find(x => x.id === k) || {}).ctrl : /^F\d+$/.test(k) ? 'P' : k; if (b) t[b] = (t[b] || 0) + c.own[k]; }
-      let nc = null; for (const b in t) if (t[b] > c.shares * .5) nc = b; if ((nc || null) !== (c.ctrl || null)) bad.push(`支配者の不一致`);
+      let nc = null, bv = 0, sv = 0; for (const b of Object.keys(t).sort()) { if (t[b] > bv) { sv = bv; bv = t[b]; nc = b; } else if (t[b] > sv) sv = t[b]; }
+      if (nc && !(bv > c.shares * .5 || (bv >= c.shares * .4 - 1e-9 && sv < bv * .5 && A.ownCap(c, nc) >= 1))) nc = null; if ((nc || null) !== (c.ctrl || null)) bad.push(`支配者の不一致`);
       if (c.ex) for (const r in c.ex) if (c.ex[r] && !S.hr.people[c.ex[r]]) bad.push('存在しない幹部を参照');
     }
     fin(S.player.cash, 'player.cash'); fin(S.player.loan, 'player.loan'); fin(A.netWorth('P'), 'netWorth');

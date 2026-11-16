@@ -28,7 +28,8 @@ const INVARIANTS = () => {
     let held = 0; for (const k in c.own) { if (!(c.own[k] >= 0)) bad.push(`${c.id} own ${k}<0`); held += c.own[k]; }
     if (held > c.shares * (1 + 1e-6)) bad.push(`${c.id} over-held`);
     const t = {}; for (const k in c.own) { const b = k[0] === 'C' ? (S.cos.find(x => x.id === k) || {}).ctrl : /^F\d+$/.test(k) ? 'P' : k; if (b) t[b] = (t[b] || 0) + c.own[k]; }
-    let nc = null; for (const b in t) if (t[b] > c.shares * .5) nc = b;
+    let nc = null, bv = 0, sv = 0; for (const b of Object.keys(t).sort()) { if (t[b] > bv) { sv = bv; bv = t[b]; nc = b; } else if (t[b] > sv) sv = t[b]; } /* majority, or 40%+ with the rest dispersed (not in regulated industries) */
+    if (nc && !(bv > c.shares * .5 || (bv >= c.shares * .4 - 1e-9 && sv < bv * .5 && window.__atlas.ownCap(c, nc) >= 1))) nc = null;
     if ((nc || null) !== (c.ctrl || null)) bad.push(`${c.id} ctrl mismatch`);
   }
   fin(S.player.cash, 'player.cash'); fin(S.player.loan, 'player.loan');
@@ -902,6 +903,37 @@ async function testFeedback10(b) {
   await ph.ctx.close(); await ctx.close();
 }
 
+async function testCreditMacroControl(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(8181, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true;
+    /* (7) effective control */
+    const c = S.cos.find(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom'), sh = c.shares;
+    c.own = {P: sh * .42, R1: sh * .15}; A.recomputeCtrl(); out.eff = c.ctrl === 'P';
+    c.own = {P: sh * .42, R1: sh * .25}; A.recomputeCtrl(); out.contested = c.ctrl === null;
+    c.own = {P: sh * .39}; A.recomputeCtrl(); out.below40 = c.ctrl === null;
+    const air = S.cos.find(x => !x.priv && !x.ctrl && x.ind === 'air' && !A.isJP || (x.ind === 'air' && !x.ctrl && !x.priv));
+    if (air) { air.own = {P: air.shares * .45}; A.recomputeCtrl(); out.regulated = A.ownCap(air, 'P') < 1 ? air.ctrl === null : true; air.own = {}; A.recomputeCtrl(); } else out.regulated = true;
+    c.own = {}; A.recomputeCtrl();
+    /* (1) refinancing: a strong company refinances at today's rate; an over-borrowed one is refused and repays from cash */
+    const good = S.cos.filter(x => x.debt > 1 && x.ni > 0).sort((a, b) => A.dscr(b) - A.dscr(a))[0]; A.debtInit(good); good.lockR = 2; S.econ.rate = 6; const ni0 = good.ni;
+    out.lag = Math.abs(A.niA ? 0 : 0) === 0; good.dueW = S.week; A.refiStep(); out.refi = good.lockR > 2 && good.lockR < 6 && good.dueW === S.week + 26;
+    const bad = S.cos.find(x => x !== good && !x.priv && x.debt > 1); A.debtInit(bad); bad.debt = Math.max(bad.debt, A.mcap ? 0 : 0) + Math.max(5, bad.rev * 3); bad.cash = bad.debt * .1; bad.crisis = null; bad.dueW = S.week; const d0 = bad.debt;
+    A.refiStep(); const fresh = S.news.slice(0, 6).map(n => n.t); out.refused = bad.debt < d0 && fresh.some(t => /借り換え失敗/.test(t) && t.includes(bad.name)) && (!!bad.crisis || fresh.some(t => /危機回避|資金を注入/.test(t))); /* AI-run companies resolve the crisis at once */
+    /* (2) inflation follows a raw-material shock and the central bank leans against it; a glut cuts prices */
+    S.econ.raw = 1.5; S.econ.infl = 2; for (let i = 0; i < 60; i++) A.econStep(); out.infl = S.econ.infl > 3 && S.econ.rate > 4.5;
+    const M = S.mk[c.mk], p0 = A.plevOf ? 0 : 0; M.glut = 0; const pl0 = c.rev; M.cap = M.D * 1.25; A.step(); S.inbox = []; out.glut = (M.glut || 0) > 0;
+    return out;
+  });
+  ok('control: 40%+ with the other holders dispersed is effective control; a strong second holder or a regulated industry needs a majority', r.eff && r.contested && r.below40 && r.regulated, JSON.stringify(r));
+  ok('credit: a healthy company refinances a quarter of its debt at today\'s rate (fixed-rate lag)', r.refi);
+  ok('credit: a company whose DSCR is too low is refused and falls into a funding crisis', r.refused);
+  ok('macro: a raw-material shock raises inflation and the policy rate follows', r.infl);
+  ok('macro: excess industry capacity becomes a supply glut', r.glut);
+  ok('no page errors in credit/macro/control tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1010,6 +1042,7 @@ async function balance(b) {
     await testPlaytestFixes(b);
     await testFeedback13(b);
     await testFeedback10(b);
+    await testCreditMacroControl(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

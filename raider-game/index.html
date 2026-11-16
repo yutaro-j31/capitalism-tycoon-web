@@ -523,7 +523,7 @@ const REGION = {jp: {n: '日本', c: 'tyo osa ngo fuk spk'}, am: {n: '米州', c
 const REGION_OF = Object.fromEntries(Object.entries(REGION).flatMap(([k, r]) => r.c.split(' ').map(c => [c, k])));
 const mkKey = c => REGION_OF[c.city] + '|' + c.ind;
 const mkName = key => { const [r, ind] = key.split('|'); return `${REGION[r].n}の${IND[ind].n}市場`; };
-const plev = c => levelFor(c, c.ps);
+const plev = c => levelFor(c, c.ps) * (1 - ((S && S.mk && S.mk[c.mk] && S.mk[c.mk].glut) || 0)); /* a supply glut pushes the whole market's prices down */
 // Price sensitivity is set so that the standard price is where operating profit peaks: a company sitting on a fat
 // per-unit margin or a big share would otherwise always gain by raising its price. Raising the price pays only with a
 // strong brand (advertising) or loyal customers (research op2); cutting it buys share at the cost of profit.
@@ -591,13 +591,22 @@ function mkStep(){
   const e = S.econ, by = mkMembers();
   for (const key of Object.keys(by).sort()) {
     const M = S.mk[key], list = by[key], I = IND[list[0].ind];
-    M.D *= 1 + (indG(list[0].ind) + I.cyc * (e.gdp - 2.5) / 100) / 52 + gauss() * .004;
+    M.D *= 1 + (indG(list[0].ind) + I.cyc * (e.gdp - 2.5) / 100 + .8 * ((e.infl == null ? 2 : e.infl) - 2) / 100) / 52 + gauss() * .004;
+    { /* industry capacity: in good times and when margins are fat everyone expands at once; the excess is a glut until closures catch up */
+      if (M.cap == null) M.cap = M.D;
+      const mg = list.reduce((a, c) => a + opMargin(c), 0) / list.length, inv = .15 * Math.max(0, e.sent - 1) + .5 * Math.max(0, mg - I.m) + .1 * Math.max(0, e.gdp - 2.5) / 2.5 - .1 * Math.max(0, (e.credit == null ? .3 : e.credit) - .4);
+      M.cap *= 1 + (indG(list[0].ind) + I.cyc * (e.gdp - 2.5) / 100 + inv) / 52;
+      const r = M.cap / M.D; M.cap *= 1 - (r - 1) * .02; /* closures when there is too much, new capacity when there is too little */
+      M.glut = clamp((M.cap / M.D - 1.03) * .8, 0, .2);
+      if (!M.glutOn && M.glut >= .05) (M.glutOn = true) && news(`【供給過剰】${mkName(key)}で好況期の設備投資が膨らみ供給過剰に。値崩れで各社の利益が圧迫される`, 'econ');
+      if (M.glutOn && M.glut < .01) (M.glutOn = false) || news(`【需給改善】${mkName(key)}の供給過剰が解消し、価格が戻った`, 'econ');
+    }
     const tgt = mkTargets(key);
     let sum = 0;
     for (const c of list) {
       c.tsh = tgt[c.id]; c.sh += (c.tsh - c.sh) * SHARE_SPEED; sum += c.sh;
       c.w *= 1 + (c.growth + c.boost - indG(c.ind)) / 52; // product strength drifts with the company's own growth edge
-      c.fixed *= 1 + indG(c.ind) / 52 - .01 * effOf(exOf(c, 'COO'), 'ops', c) / 52; // a strong COO keeps overheads from creeping up
+      c.fixed *= 1 + indG(c.ind) / 52 + ((e.infl == null ? 2 : e.infl) - 2) / 100 / 52 - .01 * effOf(exOf(c, 'COO'), 'ops', c) / 52; // a strong COO keeps overheads from creeping up
     }
     for (const c of list) { c.vol = M.D * c.sh; c.rev = c.vol * plev(c); }
     M.ov = Math.max(0, M.D * (1 - sum)); M.ovRef = M.ov;
@@ -615,7 +624,7 @@ const RATINGS = [['AAA', 1, .6], ['AA', 2, .9], ['A', 3, 1.3], ['BBB', 4, 1.8], 
 function ratingFor(debt, op){ if (debt <= 1e-9) return RATINGS[0]; if (op <= 0) return RATINGS[6]; const lev = debt / op; return RATINGS.find(r => lev < r[1]); }
 const rating = c => ratingFor(c.debt, opProfit(c));
 const penalty = c => c.pen && c.pen.until > (S ? S.week : 0) ? c.pen.add : 0; // refinancing surcharge after a crisis
-function niA(c){ const e = S.econ; return opProfit(c) - c.debt * (e.rate + rating(c)[2] + penalty(c) - (c.ctrl === 'P' && hasR('fin2') ? .5 : 0) - .8 * effOf(exOf(c, 'CFO'), 'fin', c)) / 100 + c.cash * Math.max(0, e.rate - 1) / 200; }
+function niA(c){ const e = S.econ; return opProfit(c) - c.debt * ((c.lockR == null ? e.rate : c.lockR) + rating(c)[2] + penalty(c) - (c.ctrl === 'P' && hasR('fin2') ? .5 : 0) - .8 * effOf(exOf(c, 'CFO'), 'fin', c)) / 100 + c.cash * Math.max(0, e.rate - 1) / 200; }
 // (10) foreign-ownership rules: airlines and telecoms are protected sectors
 const NAT = {P: 'jp', R1: 'us', R2: 'eu', R3: 'jp'};
 const natOfCo = c => isJP(c) ? 'jp' : 'ov';
@@ -863,6 +872,15 @@ function afterOwn(c, before){
   }
   recomputeCtrl(); refreshPV();
 }
+function ctrlRule(c, tally){ /* control: more than half the votes; or, without a majority holder, a leader with 40%+ while nobody else has even half of that (the rest is dispersed). Regulated industries need a true majority. */
+  let best = null, bv = 0, second = 0;
+  for (const b of Object.keys(tally).sort()) { const v = tally[b]; if (v > bv) { second = bv; bv = v; best = b; } else if (v > second) second = v; }
+  if (!best) return null;
+  if (bv > c.shares * .5) return best;
+  if (bv >= c.shares * .4 - 1e-9 && second < bv * .5 && ownCap(c, best) >= 1) return best;
+  return null;
+}
+const effCtrl = c => c.ctrl && groupSh(c, c.ctrl) <= c.shares * .5; /* controls without a majority */
 function recomputeCtrl(){ // group control: every stake held by a person or by companies that person controls counts
   const prev = {}; for (const c of S.cos) prev[c.id] = c.ctrl;
   for (let it = 0; it < 6; it++) {
@@ -870,7 +888,7 @@ function recomputeCtrl(){ // group control: every stake held by a person or by c
     for (const c of S.cos) {
       const tally = {};
       for (const k in c.own) { const b = bossOf(k); if (b) tally[b] = (tally[b] || 0) + c.own[k]; }
-      let nc = null; for (const b in tally) if (tally[b] > c.shares * .5) nc = b;
+      const nc = ctrlRule(c, tally);
       if (nc !== c.ctrl) { c.ctrl = nc; changed = true; }
     }
     if (!changed) break;
@@ -880,10 +898,10 @@ function recomputeCtrl(){ // group control: every stake held by a person or by c
 function ctrlNews(c, prev){
   c.ctrlW = S.week; if (prev === 'P' || c.ctrl !== 'P') { c.deleg = null; }
   if (c.ctrl) {
-    news(`【経営権取得】${ownerName(c.ctrl)}が${c.name}を支配下に（グループ持分${pc(gfrac(c, c.ctrl), 1)}）`, c.ctrl === 'P' ? 'you' : 'deal', c.city);
+    news(`【経営権取得】${ownerName(c.ctrl)}が${c.name}を支配下に（グループ持分${pc(gfrac(c, c.ctrl), 1)}${effCtrl(c) ? '・過半数はないが筆頭株主で、ほかの株主が分散しているため実質支配' : ''}）`, c.ctrl === 'P' ? 'you' : 'deal', c.city);
     if (c.ctrl === 'P') toast(`${c.name}の経営権を取得！ CEOとして配当・自社株買い・買収・他社株の取得が可能に`);
     else if (prev === 'P') toast(`${c.name}の経営権を失いました`, true);
-  } else if (prev) news(`${ownerName(prev)}が${c.name}の過半数を割り込む`, prev === 'P' ? 'you' : 'deal', c.city);
+  } else if (prev) news(`${ownerName(prev)}が${c.name}の経営権を失う（グループ持分${pc(gfrac(c, prev), 1)}）`, prev === 'P' ? 'you' : 'deal', c.city);
 }
 function maybePill(c, k){
   if (rnd() < DIFF[S.diff].pill * (bossOf(k) === 'P' && hasR('ma2') ? .6 : 1) * (bossOf(k) === 'P' ? 1 - .25 * deptPower('legal') : 1)) {
@@ -1016,6 +1034,39 @@ function reformStep(c){
 
 /* ---------- credit crises (Phase 4) ---------- */
 const CRISIS = {equity: {n: '増資で乗り切る', d: '新株20%を発行して資金を確保（持分が薄まる）'}, sell: {n: '事業を売って返済', d: '事業の15%を売却して借金を返す'}, refi: {n: '高金利で借り換え', d: '2年間、借入金利が年3%上乗せになる'}};
+/* debt is a ladder: a quarter of it matures every 26 weeks and must be refinanced. The bank looks at the debt-service cover ratio
+   (DSCR = EBITDA / (interest + a year of principal on a seven-year amortisation)); the bar rises when credit is tight. The base rate on old
+   debt stays locked until it is refinanced, so a change in the policy rate reaches companies with a lag. */
+const TRANCHE = .25;
+function debtInit(c){ if (c.lockR == null) c.lockR = S.econ.rate; if (c.dueW == null) c.dueW = S.week + 4 + hashStr(c.id + ':due') % 26; }
+const dsRate = c => (c.lockR == null ? S.econ.rate : c.lockR) + rating(c)[2] + penalty(c);
+function dscr(c){ const ds = c.debt * dsRate(c) / 100 + c.debt / 7; /* interest + principal on a seven-year amortisation */ return ds > 1e-9 ? Math.max(0, ebitda(c)) / ds : 99; }
+const dscrNeed = () => 1 + .8 * (S.econ.credit == null ? .3 : S.econ.credit);
+function refiOutlook(c){ const d = dscr(c), n = dscrNeed(); return d >= n ? ['通常の借り換え', 'up'] : d >= n * .7 ? ['条件付き（上乗せ金利2%）', ''] : ['借り換え拒否の恐れ', 'down']; }
+function refiStep(){
+  for (const c of S.cos) {
+    debtInit(c); if (S.week < c.dueW) continue;
+    if (c.crisis) { c.dueW = S.week + 4; continue; } /* already in a funding crisis: the lenders wait for its outcome */
+    c.dueW = S.week + 26;
+    if (c.debt < .5) { c.lockR = S.econ.rate; continue; }
+    const amt = c.debt * TRANCHE, d = dscr(c), need = dscrNeed(), mine = c.ctrl === 'P', held = groupSh(c, 'P') > 0;
+    if (d >= need) { c.lockR = c.lockR * (1 - TRANCHE) + S.econ.rate * TRANCHE; continue; }
+    if (d >= need * .7) { c.lockR = c.lockR * (1 - TRANCHE) + S.econ.rate * TRANCHE; c.pen = {until: S.week + 52, add: Math.max(penalty(c), 2)};
+      news(`【条件付き借り換え】${c.name}の借入${fm(amt)}は返済能力（DSCR ${d.toFixed(2)}倍・基準${need.toFixed(2)}倍）が足りず、上乗せ金利2%で借り換え`, mine ? 'warn' : 'deal', c.city); continue; }
+    const pay = Math.min(Math.max(0, c.cash), amt); c.cash -= pay; c.debt -= pay; S.econ.dflt = (S.econ.dflt || 0) + 1;
+    news(`【借り換え失敗】${c.name}は返済能力（DSCR ${d.toFixed(2)}倍）が基準${need.toFixed(2)}倍に届かず、銀行が借り換えを拒否。${fm(pay)}を手元資金で返済${amt - pay > .01 ? `し、残り${fm(amt - pay)}の返済資金が必要に` : ''}`, mine || held ? 'warn' : 'deal', c.city);
+    if (amt - pay > .01 && !c.crisis) {
+      c.crisis = {w: S.week, due: S.week + 8, refi: true}; if (!c.priv) c.price *= .85;
+      if (!c.ctrl && !c.priv) news(`【買収の好機】${c.name}は資金繰りに追われ株価が急落。再建を条件に支援する買い手が現れれば…`, 'deal', c.city);
+      if (mine) { addInbox({kind: 'crisis', cid: c.id, exp: c.crisis.due}); autoPause('inbox'); } else aiCrisis(c);
+    }
+  }
+}
+function aiCrisis(c){ /* AI-run (or independent) companies pick a way out at once */
+  const r = c.ctrl && rivalBy(c.ctrl), k = r ? {raider: 'sell', turnaround: 'refi', keiretsu: 'equity'}[r.style] : ['equity', 'refi'][pickIdx(2)];
+  if (r && k === 'equity' && gfrac(c, r.id) / 1.2 <= .55 && r.cash > mcap(c) * .2) { allot(c, r.id, .2); delete c.crisis; news(`【危機回避】${r.n}が${c.name}に資金を注入`, 'deal', c.city); }
+  else resolveCrisis(c, k);
+}
 function crisisCheck(){
   for (const c of S.cos) {
     if (c.crisis) {
@@ -1026,11 +1077,7 @@ function crisisCheck(){
     c.crisis = {w: S.week, due: S.week + 8};
     news(`【資金繰り危機】${c.name}（格付け${rating(c)[0]}）の手元資金が尽きかけている。8週以内に資金確保が必要`, c.ctrl === 'P' ? 'warn' : 'deal', c.city);
     if (c.ctrl === 'P') addInbox({kind: 'crisis', cid: c.id, exp: c.crisis.due});
-    else { // AI-run companies pick a way out at once
-      const r = c.ctrl && rivalBy(c.ctrl), k = r ? {raider: 'sell', turnaround: 'refi', keiretsu: 'equity'}[r.style] : ['equity', 'refi'][pickIdx(2)];
-      if (r && k === 'equity' && gfrac(c, r.id) / 1.2 <= .55 && r.cash > mcap(c) * .2) { allot(c, r.id, .2); delete c.crisis; news(`【危機回避】${r.n}が${c.name}に資金を注入`, 'deal', c.city); }
-      else resolveCrisis(c, k);
-    }
+    else aiCrisis(c);
   }
 }
 function rightsIssue(c, f){ /* unlisted: new shares are taken up pro rata by the holders who pay for them.
@@ -2192,7 +2239,7 @@ const STEPS = [
   ['buy', '初めて株を買う', '「市場」で企業を選び「売買」から購入', 1, () => S.cos.some(c => (c.own.P || 0) > 0) || ctrlP().length > 0],
   ['big', '5%以上を持つ大株主になる', '同じ会社の株を買い増す', 2, () => S.cos.some(c => gfrac(c, 'P') >= .05)],
   ['tob', 'TOBを出す', '「買収・提案」から公開買付けを開始', 3, () => S.tobs.some(t => t.boss === 'P') || S.stats.tobWins > 0],
-  ['ctrl', '会社の経営権を握る', 'グループ持分を50%超に', 5, () => ctrlP().length > 0],
+  ['ctrl', '会社の経営権を握る', 'グループ持分を50%超に（または40%以上で、ほかの株主がその半分未満に分散）', 5, () => ctrlP().length > 0],
   ['run', '経営判断をする', '支配企業の「経営」で価格・広告・幹部の採用・委任・再建のどれかを使う', 3, () => ctrlP().some(c => c.ps || c.adW != null || (c.dm && c.dm !== 'manual') || c.rsW || (c.ex && Object.values(c.ex).some(id => person(id) && person(id).since > 0)))],
   ['vert', '垂直統合を実現する', '仕入れ先の業種の会社もグループで支配する', 10, () => ctrlP().some(c => vertLinks(c).length > 0)],
 ];
@@ -2411,16 +2458,30 @@ function resolveInbox(id, accept){
 }
 
 /* ---------- weekly simulation ---------- */
+function macroGlut(){ const ms = Object.values(S.mk || {}); return ms.length ? ms.reduce((a, M) => a + (M.glut || 0) * M.D, 0) / Math.max(1e-9, ms.reduce((a, M) => a + M.D, 0)) : 0; }
+function macroStep(){ /* inflation and the credit cycle (no extra random draws: they follow the state) */
+  const e = S.econ, x = e.gdp - 2.5, i0 = e.infl, c0 = e.credit;
+  e.infl = clamp(e.infl + ((2 + .5 * x + 4 * ((e.raw || 1) - 1) + (e.fx - 140) * .01) - e.infl) * .03, -2, 12);
+  e.dflt *= .96;
+  e.credit = clamp(e.credit + ((.25 + (e.rate - 4) * .07 + Math.min(.3, e.dflt * .03) - Math.max(0, x) * .03 + macroGlut() * .5) - e.credit) * .05, 0, 1);
+  if (i0 < 4 && e.infl >= 4) news(`【物価】インフレ率が${e.infl.toFixed(1)}%に上昇。中央銀行は利上げに動く見込み`, 'econ');
+  if (i0 >= 4 && e.infl < 3.5) news(`【物価】インフレ率が${e.infl.toFixed(1)}%に落ち着き、利上げ圧力が和らぐ`, 'econ');
+  if (!e.crunch && e.credit >= .5 && (e.crunch = true)) news('【金融】信用収縮：銀行が融資基準を厳しくし、借り換えの審査が通りにくくなった', 'econ');
+  if (e.crunch && e.credit < .38 && !(e.crunch = false)) news('【金融】信用環境が改善し、銀行が貸出に前向きになった', 'econ');
+}
 function econStep(){
-  const e = S.econ;
-  e.gdp = clamp(e.gdp + (2.5 - e.gdp) * .02 + gauss() * .18, -5, 8);
-  const tr = 1.5 + Math.max(0, e.gdp) * .9;
+  const e = S.econ; if (e.infl == null) e.infl = 2; if (e.credit == null) e.credit = .3; if (e.dflt == null) e.dflt = 0;
+  const glut = macroGlut(), x0 = e.gdp - 2.5;
+  /* demand feeds back: tight credit, supply gluts and high inflation slow the economy */
+  e.gdp = clamp(e.gdp + (2.5 - e.gdp) * .02 + gauss() * .18 - (e.credit - .35) * .05 - glut * .25 - Math.max(0, e.infl - 4) * .01, -5, 8);
+  const tr = clamp(1.5 + e.infl + .5 * (e.infl - 2) + .4 * x0, .25, 12); /* the central bank leans against inflation and the output gap */
   e.rate = clamp(e.rate + (tr - e.rate) * .03 + gauss() * .03, .25, 12);
   e.sent = clamp(e.sent + (1 - e.sent) * .03 + (e.gdp - 2.5) * .002 + gauss() * .015, .55, 1.6);
   for (const k in e.indS) e.indS[k] = clamp(e.indS[k] + (1 - e.indS[k]) * .04 + gauss() * .02, .6, 1.6);
   // USD/JPY: drifts toward 140, pushed weaker by high overseas rates
   e.fx = clamp(e.fx + (140 - e.fx) * .012 + (e.rate - 3.5) * .08 + gauss() * 1.3, 90, 200);
   e.raw = clamp((e.raw || 1) + (1 - (e.raw || 1)) * .02 + gauss() * .012, .6, 1.8); // raw-material price index
+  macroStep();
   e.fxHist.push(e.fx); if (e.fxHist.length > 156) e.fxHist.shift();
   fxNews();
 }
@@ -2927,7 +2988,7 @@ function step(){
   S.idx *= 1 + (n ? r / n : 0); S.idxHist.push(S.idx); if (S.idxHist.length > 156) S.idxHist.shift();
   if (S.week % 13 === 0) quarter();
   if (S.week % 13 === 0) { snapshotReport(); news(`【四半期レポート】${dateOf(S.week)}時点の報告書が届きました（「保有」タブ）`, 'you'); }
-  rivalsAct(); whiteKnights(); resolveTobs(); proxySteps(); rivalVotes(); tipsStep(); optionsStep(); playerWeekly(); presStep(); researchStep(); crisisCheck(); greenmail(); rumours(); mboEvents(); events(); storyStep(); ipoStep(); maybeIPO(); peStep(); bankruptcies(); holdingYearly(); missionStep();
+  rivalsAct(); whiteKnights(); resolveTobs(); proxySteps(); rivalVotes(); tipsStep(); optionsStep(); playerWeekly(); presStep(); researchStep(); refiStep(); crisisCheck(); greenmail(); rumours(); mboEvents(); events(); storyStep(); ipoStep(); maybeIPO(); peStep(); bankruptcies(); holdingYearly(); missionStep();
   S.inbox = S.inbox.filter(i => { if (i.exp < S.week) { news('提案の期限が切れました', 'you'); return false; } return true; });
   if (S.week % 52 === 0) yearAwards();
   if (S.week % 52 === 0) news(`【年次】${S.week / 52}年目終了。あなたの純資産は${fm(netWorth('P'))}、受取配当累計${fm(S.player.divs)}`, 'you');
@@ -3033,7 +3094,7 @@ function renderTabs(){
   const T = [['market', '市場'], ['port', '保有'], ['pe', 'PE'], ['pres', '本社'], ['rivals', 'ライバル'], ['news', 'ニュース'], ['inbox', '受信箱' + (n ? `<span class="badge">${n}</span>` : '')]];
   $('#tabs').innerHTML = T.map(([k, l]) => `<button data-act="tab" data-v="${k}" class="${ui.tab === k ? 'on' : ''}">${l}</button>`).join('');
 }
-const ctrlChip = c => c.ctrl ? `<span class="ctrl" style="background:${OWNC[c.ctrl]}">${c.ctrl === 'P' ? '支配' : ownerName(c.ctrl).slice(0, 4)}</span>` : '';
+const ctrlChip = c => c.ctrl ? `<span class="ctrl" style="background:${OWNC[c.ctrl]}">${c.ctrl === 'P' ? (effCtrl(c) ? '実質支配' : '支配') : ownerName(c.ctrl).slice(0, 4)}</span>` : '';
 function coRow(c, right, extra){
   const ch = chg(c), cheap = isCheap(c), t = activeTob(c);
   return `<button class="row" data-act="sel" data-id="${c.id}">
@@ -3683,10 +3744,11 @@ function coCeo(c){
     ${restrBox(c)}
     <section class="box"><h4>資金調達 <small>社債と増資</small></h4>
       <p>社債の金利は格付けで決まります。借金が営業利益に比べて重いほど格付けが下がり、会社全体の利払いが増えます。</p>
+      ${c.debt > .5 ? (() => { debtInit(c); const o = refiOutlook(c); return `<div class="preview">次の借り換え ${dateOf(c.dueW)}・${fm(c.debt * TRANCHE)}（借入の25%）<br>返済能力 DSCR <b>${dscr(c).toFixed(2)}倍</b>（銀行の基準 ${dscrNeed().toFixed(2)}倍）→ <b class="${o[1]}">${o[0]}</b><br><small>借入の基準金利 ${(c.lockR == null ? S.econ.rate : c.lockR).toFixed(2)}%（政策金利 ${S.econ.rate.toFixed(2)}%）。借り換えのたびに今の金利に近づきます。DSCRはEBITDA÷（利息＋7年返済の1年分の元本）。借入を減らすか利益を上げると改善します。</small></div>`; })() : ''}
       <div class="preview">追加発行枠 ${fm(room)} · 発行後の格付け ${rtAfter[0]}（金利 ${(S.econ.rate + rtAfter[2]).toFixed(1)}%）</div>
       <div class="btnrow"><button class="btn sm" data-act="borrow" ${room > .01 ? '' : 'disabled'}>社債発行 ${fm(room * pick)}</button>
       ${[.1, .2].map(f => `<button class="btn sm" data-act="issue" data-v="${f}">${c.priv ? `株主割当増資 ${pc(f, 0)}（グループで${fm(c.shares * f * c.price * gfrac(c, 'P'))}を払い込み）` : `公募増資 ${pc(f, 0)}（約${fm(c.shares * f * c.price * .92)}）`}</button>`).join('')}</div>${c.priv ? '<p>非上場なので新株は株主が持分に応じて引き受け、払い込みます（グループの持分は変わりません）。</p>' : ''}
-      <p>増資は株式が増えるため、あなたのグループ持分も薄まります（10%増資で ${pc(myGroup / 1.1)}、20%で ${pc(myGroup / 1.2)}）。${myGroup / 1.2 <= .5 && !byBoard ? '<span class="down">過半数を割ると経営権を失います。</span>' : ''}</p></section>
+      <p>増資は株式が増えるため、あなたのグループ持分も薄まります（10%増資で ${pc(myGroup / 1.1)}、20%で ${pc(myGroup / 1.2)}）。${myGroup / 1.2 <= .5 && !byBoard ? (myGroup / 1.2 < .4 ? '<span class="down">支配の条件（過半数、または40%以上で他の株主が分散）を下回り、経営権を失います。</span>' : '<span class="down">過半数を割ります。40%以上を保ち、2番目の株主があなたの半分未満なら実質支配が続きます。</span>') : ''}</p></section>
     <section class="box"><h4>事業ポートフォリオ <small>売却とスピンオフ</small></h4>
       ${has('divest') ? `      <p>事業の一部を同業他社やファンドに売って現金化するか、別会社として切り出して上場させます（スピンオフ：株主には新会社の株が同数配られます）。</p>
       <div class="btnrow">${[.15, .3].map(f => `<button class="btn sm" data-act="divsell" data-v="${f}">事業${pc(f, 0)}を売却（約${fm(divisionValue(c, f))}）</button>`).join('')}<button class="btn sm" data-act="spinoff" data-v=".3">事業30%をスピンオフ</button></div>` : `<p>${lockText('divest')}</p>`}
@@ -3859,7 +3921,9 @@ function renderRivals(){
   <div class="shr">${shares.map(([ind, b, v]) => `<span>${IND[ind].n}</span><i><b style="width:${Math.min(100, v * 100 / .5)}%;background:${b ? OWNC[b] : 'var(--pub)'}"></b></i><span>${b ? `<b class="num">${pc(v)}</b> ${esc(ownerName(b))}` : '独立系のみ'}</span>`).join('')}</div>
   <h3>為替（ドル円）</h3><canvas class="chart" id="fxChart" style="height:110px"></canvas>
   <p class="note">円安は海外企業の円換算利益と日本の輸出企業（自動車・海運・テック・鉄鋼）を押し上げ、輸入に頼る日本の航空・エネルギー・食品・小売には逆風です。</p>
-  <h3>マクロ経済</h3><div class="kv"><div><span>ドル円</span><b>${e.fx.toFixed(1)}円</b></div><div><span>原材料指数</span><b class="${(e.raw || 1) <= 1 ? 'up' : 'down'}">${((e.raw || 1) * 100).toFixed(0)}</b></div><div><span>13週変化</span><b class="${fx13 >= 0 ? 'up' : 'down'}">${fx13 >= 0 ? '+' : ''}${fx13.toFixed(1)}円</b></div><div><span>GDP成長率</span><b>${e.gdp.toFixed(1)}%</b></div><div><span>政策金利</span><b>${e.rate.toFixed(2)}%</b></div><div><span>市場心理</span><b class="${e.sent >= 1 ? 'up' : 'down'}">${(e.sent * 100).toFixed(0)}</b></div></div>`;
+  <h3>マクロ経済</h3><div class="kv"><div><span>ドル円</span><b>${e.fx.toFixed(1)}円</b></div><div><span>原材料指数</span><b class="${(e.raw || 1) <= 1 ? 'up' : 'down'}">${((e.raw || 1) * 100).toFixed(0)}</b></div><div><span>13週変化</span><b class="${fx13 >= 0 ? 'up' : 'down'}">${fx13 >= 0 ? '+' : ''}${fx13.toFixed(1)}円</b></div><div><span>GDP成長率</span><b>${e.gdp.toFixed(1)}%</b></div><div><span>政策金利</span><b>${e.rate.toFixed(2)}%</b></div><div><span>市場心理</span><b class="${e.sent >= 1 ? 'up' : 'down'}">${(e.sent * 100).toFixed(0)}</b></div><div><span>インフレ率</span><b class="${(e.infl || 2) > 4 ? 'down' : ''}">${(e.infl == null ? 2 : e.infl).toFixed(1)}%</b></div><div><span>信用環境</span><b class="${e.crunch ? 'down' : (e.credit || .3) < .3 ? 'up' : ''}">${e.crunch ? '収縮' : (e.credit || .3) < .3 ? '緩和' : '普通'}</b></div><div><span>借り換え審査</span><b>DSCR ${dscrNeed().toFixed(2)}倍</b></div></div>
+  ${(() => { const g = Object.keys(S.mk).filter(k => (S.mk[k].glut || 0) >= .03).sort((a, b) => S.mk[b].glut - S.mk[a].glut).slice(0, 5); return g.length ? `<p class="lbl">供給過剰の市場（値下がり幅）</p><div class="rows">${g.map(k => `<div class="orow"><span>${mkName(k)}</span><span class="num down">−${pc(S.mk[k].glut, 0)}</span></div>`).join('')}</div>` : ''; })()}
+  <p class="note">景気の連鎖：好況・高い利益率 → 各社が一斉に設備を増やす → 供給過剰で値崩れ → 利益が落ち返済能力（DSCR）が下がる → 借り換え失敗・倒産 → 銀行が審査を厳しくする（信用収縮）→ 景気が冷え、中央銀行が利下げ → 回復。インフレが進むと利上げ、借入の金利は借り換えのたびに追いつきます。</p>`;
 }
 function renderNews(){
   return `<p class="note">会社名をタップすると企業の概要を開きます。</p><ul class="news">${S.news.map(n => `<li><span class="wk">${shortDate(n.w)}</span><span class="k-${n.k}">${linkCos(esc(n.t))}</span></li>`).join('')}</ul>`;
@@ -4625,7 +4689,7 @@ function closeModal(){ if (ui.sim) return; $('#modal').hidden = true; }
 const HOWTO = `<ol>
   <li><b>株を買う：</b>「市場」タブで企業を選び、売買パネルで購入。<span style="color:var(--up)">割安</span>タグは株価が理論株価を20%以上下回る銘柄です。</li>
   <li><b>信用取引：</b>現金を超える買付は自動で借入（評価額の約2倍まで）。借入が株式評価額の一定割合（難易度で60〜80%）を超えると追証で強制売却。</li>
-  <li><b>経営権を握る：</b>あなたと支配下の会社の持分を合わせて50%を超えるとその会社を支配。支配した会社の資金で別の会社の株を買えば、少ない元手で持株ピラミッドを築けます。</li>
+  <li><b>経営権を握る：</b>あなたと支配下の会社の持分を合わせて50%を超えるとその会社を支配。過半数がなくても、40%以上の筆頭株主で、2番目の株主がその半分未満なら「実質支配」になります（航空・通信など外資規制のある業種は過半数が必要）。支配した会社の資金で別の会社の株を買えば、少ない元手で持株ピラミッドを築けます。</li>
   <li><b>TOB合戦：</b>公開買付けは4週間の買付期間があり、ライバルが対抗TOBで値を吊り上げてきます。締切時に最高値の買付けが成立します。</li>
   <li><b>CEOとして稼ぐ：</b>支配企業の現金を特別配当で吸い上げ、自社株買いで持分を高め、合併で拡大。同業種を集めると業界シェアで利益率が上がりますが、独禁法審査にご注意。</li>
   <li><b>為替：</b>円安は海外企業と日本の輸出企業に追い風、円高はその逆です。</li>
@@ -4726,7 +4790,7 @@ function boot(){
   showStart();
   if (ui.restored) toast('セーブデータが壊れていたため、バックアップから復元しました', true);
 }
-window.__atlas = {get S(){ return S; }, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, isCheap, bankBorrow, bankRepay, bankLimit, showBank, showIPO, UW, peTransfer, peBuySecondary, marketFor, hrStep, peIPO, bankrupt, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, sharesForMoney, holdingsValue, callLine, playerWeekly, overdraftStep, coverOverdraft, setOffice, activeTob, tenderQuote, tobNeedPrice, resolveTobs, startIPO, ipoStep, needOf, staffNeed, vcQuarter, showVC, ui};
+window.__atlas = {get S(){ return S; }, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, isCheap, bankBorrow, bankRepay, bankLimit, showBank, showIPO, UW, peTransfer, peBuySecondary, marketFor, hrStep, peIPO, bankrupt, ctrlRule, ownCap, dscr, dscrNeed, refiStep, econStep, macroGlut, debtInit, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, sharesForMoney, holdingsValue, callLine, playerWeekly, overdraftStep, coverOverdraft, setOffice, activeTob, tenderQuote, tobNeedPrice, resolveTobs, startIPO, ipoStep, needOf, staffNeed, vcQuarter, showVC, ui};
 boot();
 })();
 </script>
