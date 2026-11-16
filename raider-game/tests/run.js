@@ -654,7 +654,7 @@ async function testQuarterly(b) {
     // holding-company results: the items plus the change in asset values add up to the change in net worth
     const cs = S.cos.filter(c => !c.ctrl && !c.priv).sort((a, b) => a.price * a.shares - b.price * b.shares); A.execBuy('P', cs[4], cs[4].shares * .05);
     for (let i = 0; i < 26; i++) { A.step(); S.inbox = []; }
-    const L = S.player.plHist[0], items = ['div', 'rent', 'fee', 'int', 'hq', 'rd', 'pay'].reduce((a, k) => a + (L[k] || 0), 0); out.pl = Math.abs(L.nw1 - L.nw0 - items - L.other) < 1e-6 && L.div > 0;
+    const L = S.player.plHist[0], items = ['div', 'rent', 'fee', 'int', 'hq', 'rd', 'pay', 'fine', 'tax'].reduce((a, k) => a + (L[k] || 0), 0); out.pl = Math.abs(L.nw1 - L.nw0 - items - L.other) < 1e-6 && L.div > 0;
     // a payout ratio set by the player stays even under delegation
     const c = cs[2]; for (let i = 0; i < 4 && c.ctrl !== 'P'; i++) A.execBuy('P', c, c.shares * .3); c.payout = 0; c.payLock = true; c.dm = 'auto'; c.deleg = 'cash';
     for (let i = 0; i < 8; i++) { A.step(); S.inbox = []; } out.payLock = c.payout === 0;
@@ -893,7 +893,7 @@ async function testFeedback10(b) {
   const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
   await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]'); await q.click('[data-act=speed][data-v="0"]');
   await q.click('[data-act=why][data-v=cash]'); await q.click('#modal [data-act=bank]');
-  const bk = await q.evaluate(() => ({open: document.querySelector('#modal').innerText.includes('融資枠'), o: document.documentElement.scrollWidth - innerWidth}));
+  const bk = await q.evaluate(() => ({open: document.querySelector('#modal').innerText.includes('アトラス中央銀行'), o: document.documentElement.scrollWidth - innerWidth}));
   await q.click('#modal [data-act=close]');
   await q.evaluate(() => { const A = window.__atlas, n = A.foundCompany('tyo', 'food', 10); A.ui.sel = n.id; A.ui.ctab = 'ceo'; });
   await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=listco]');
@@ -1038,6 +1038,54 @@ async function testPitches2(b) {
   await ctx.close();
 }
 
+async function testAC(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(4747, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 200; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    const c = S.cos.filter(x => !x.priv && !x.ctrl)[3]; A.execBuy('P', c, A.sharesForMoney(c, 100)); A.step(); S.inbox = [];
+    /* (1) a term loan adds cash and debt, not net worth; weekly payments shrink it; statements add up */
+    const offs = A.loanOffers(); const nw0 = A.netWorth('P'), cash0 = S.player.cash;
+    out.loan = offs.length === 3 && A.takeLoan(0) && Math.abs(A.netWorth('P') - nw0) < 1e-6 && S.player.cash > cash0;
+    const a0 = A.termDebt(); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; } out.amort = A.termDebt() < a0;
+    const L = S.player.plWH[0], C = A.cfOf(L); out.cf = Math.abs(C.op + C.inv + C.fin - (L.cash1 - L.cash0)) < 1e-9;
+    const B = A.bsNow(); out.bs = Math.abs(B.eq - A.netWorth('P') / (1 - (S.player.outside || 0))) < 1e-6;
+    /* (13) corporate tax on a positive quarter */
+    S.player.pl = Object.assign({}, S.player.pl, {div: 10, rent: 2, hq: -1}); const t = A.corpTax(); out.tax = Math.abs(t - .3 * (5 + 2 - 1 + (S.player.pl.int || 0) + (S.player.pl.fee || 0) + (S.player.pl.rd || 0) + (S.player.pl.pay || 0))) < 1e-6 && S.player.pl.tax < 0;
+    /* (9) welfare levels scale the cost */
+    A.hqInit(); S.dept.acc.staff = 10; S.welfare = {edu: 2}; const w2 = A.welfareCost(); S.welfare.edu = 4; out.welf = Math.abs(A.welfareCost() - 2 * w2) < 1e-9 && w2 > 0;
+    /* (3) venture tranches and personal money */
+    A.vcQuarter(); const d = S.vc.deals[0]; if (d) { const tr = A.vcTranches(d); S.pres.cash = d.val; const pc0 = S.pres.cash, vc0 = A.vcValue();
+      out.vcp = A.vcInvest(d.id, tr[2], 'pres', 2) && S.pres.cash < pc0 && A.vcValue() === vc0 && A.presWealth() > 0 && !!A.vcFind(d.id); } else out.vcp = true;
+    /* (2) delegated CFO covers negative cash from the credit line */
+    const m = Object.values(S.hr.people).find(x => !x.at); m.at = 'HQ'; m.role = 'CFO'; S.hr.hq.CFO = m.id; m.dlg = {bank: true, acc: true};
+    S.player.tl = []; S.player.bank = 0; S.player.cash = -3; A.dlgStep(); out.dlg = S.player.cash >= -1e-9 && (S.player.bank || 0) > 0;
+    /* (5) a theme expo opens on schedule with its own deals */
+    S.expo = null; S.week = 9 + 26 * 2; A.expoStep(); out.expo = !!S.expo && S.expo.deals.length === 7 && !!A.vcFind(S.expo.deals[0].id);
+    /* (10) per-share dividend */
+    out.ps = A.perShare(.005) > 0;
+    return out;
+  });
+  ok('A/C: a term loan adds cash and debt but no net worth, is paid down weekly, and statements still add up', r.loan && r.amort && r.cf && r.bs, JSON.stringify(r));
+  ok('A/C: corporate tax is 30% of the quarter with half of dividends exempt', r.tax);
+  ok('A/C: welfare levels scale their cost', r.welf);
+  ok('A/C: a venture tranche can be bought with personal money (not company net worth)', r.vcp);
+  ok('A/C: a delegated CFO covers negative cash from the credit line', r.dlg);
+  ok('A/C: a theme expo opens with its own venture deals', r.expo);
+  ok('A/C: the board shows the dividend per share', r.ps);
+  const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
+  await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=ccol][data-v="2"]'); await q.click('[data-act=clogo][data-v="3"]'); await q.click('[data-act=newgame]'); await q.click('[data-act=speed][data-v="0"]');
+  const brand = await q.evaluate(() => window.__atlas.S.color === '#3a8ee6' && window.__atlas.S.logo === 3 && !!document.querySelector('#date svg.logo'));
+  await q.evaluate(() => { const A = window.__atlas; A.ui.mview = 'card'; A.ui.sel = null; }); await q.click('[data-act=tab][data-v=market]');
+  const cards = await q.evaluate(() => ({n: document.querySelectorAll('.mcard').length, o: document.documentElement.scrollWidth - innerWidth}));
+  await q.evaluate(() => { const A = window.__atlas, S = A.S; S.won = true; A.hqInit(); S.dept.hr.on = true; S.dept.hr.staff = 2; A.ui.hqTab = 'hr'; A.ui.mview = 'list'; });
+  await q.click('[data-act=tab][data-v=pres]'); const wf = await q.evaluate(() => ({n: document.querySelectorAll('.wcard').length, o: document.documentElement.scrollWidth - innerWidth}));
+  await q.click('[data-act=why][data-v=cash]'); await q.click('#modal [data-act=bank]'); const bk = await q.evaluate(() => document.querySelectorAll('#modal [data-act=loantake]').length);
+  await q.click('#modal [data-act=close]');
+  ok('A/C: brand colour and logo, industry cards, welfare cards and loan offers render on iPhone', brand && cards.n > 0 && cards.o <= 0 && wf.n === 10 && wf.o <= 0 && bk > 0, JSON.stringify({brand, cards, wf, bk}));
+  ok('no page errors in A/C tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
+  await ph.ctx.close(); await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1150,6 +1198,7 @@ async function balance(b) {
     await testLadderGrad(b);
     await testFeedback3(b);
     await testPitches2(b);
+    await testAC(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
