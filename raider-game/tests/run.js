@@ -960,6 +960,40 @@ async function testLadderGrad(b) {
   await ph.ctx.close();
 }
 
+async function testFeedback3(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(9191, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 500; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    /* training at the ceiling stretches it for younger people; older people at the ceiling are not charged */
+    const ppl = Object.values(S.hr.people), a = ppl[0], z = ppl[1];
+    a.sk.gen = 80; a.pot = 80; a.age = 50; a.trainW = -99; out.t1 = A.trainExec(a, 'gen') && a.sk.gen === 82 && a.pot === 82;
+    z.sk.gen = 80; z.pot = 80; z.age = 60; z.trainW = -99; const c0 = S.player.cash; out.t2 = !A.trainExec(z, 'gen') && S.player.cash === c0;
+    /* two years of quarterly results are kept */
+    for (let i = 0; i < 27; i++) { A.step(); S.inbox = []; }
+    out.qh = S.cos.every(c => (c.qh || []).length >= 1 && c.qh.length <= 8);
+    /* selling a stake to other buyers */
+    const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[3];
+    A.execBuy('P', c, c.shares * .3); const held = c.own.P; c.bsale = {end: S.week}; A.bsaleStep(); const it = S.inbox.find(i => i.kind === 'bsale' && i.cid === c.id);
+    out.bids = it ? it.bids.length : 0; const cash1 = S.player.cash; out.sold = !!it && A.bsaleExec(it, 0) && !(c.own.P > 1e-9) && S.player.cash > cash1;
+    /* an M&A head pitches; taking the pitch acts on it */
+    S.inbox = []; const m = Object.values(S.hr.people).find(x => !x.at); m.at = 'HQ'; m.role = 'MA'; S.hr.hq.MA = m.id; m.sk.deal = 90;
+    let pit = null; for (let i = 0; i < 16 && !pit; i++) { S.week++; A.pitchStep(); pit = S.inbox.find(x => x.kind === 'pitch'); }
+    out.pitch = !!pit;
+    if (pit && pit.act.t === 'buy') { const t = A.S.cos.find(x => x.id === pit.act.cid), h0 = t.own.P || 0; A.pitchDo(pit); out.pitchDid = (t.own.P || 0) > h0; } else out.pitchDid = !!pit;
+    /* IPO with a chosen offering size */
+    const n = A.foundCompany('tyo', 'food', 30); n.margin = n.base = .25; A.startIPO(n, 'list', 'mid', .2, .1); S.week = n.ipoPlan.end; n.ni = Math.abs(n.ni) + 1; A.ipoStep();
+    out.ipo = !n.priv && Math.abs(n.own.P / n.shares - .7) < 1e-6;
+    return out;
+  });
+  ok('training: at the ceiling a younger executive stretches it; an older one is not charged', r.t1 && r.t2, JSON.stringify(r));
+  ok('results: each company keeps up to eight quarters of history', r.qh);
+  ok('block sale: buyers bid for your stake and selling transfers it', r.bids > 0 && r.sold, JSON.stringify({b: r.bids, s: r.sold}));
+  ok('pitches: the M&A head brings a proposal that can be carried out', r.pitch && r.pitchDid);
+  ok('IPO: the chosen numbers of new and sold shares are used', r.ipo);
+  ok('no page errors in feedback3 tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1070,6 +1104,7 @@ async function balance(b) {
     await testFeedback10(b);
     await testCreditMacroControl(b);
     await testLadderGrad(b);
+    await testFeedback3(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
