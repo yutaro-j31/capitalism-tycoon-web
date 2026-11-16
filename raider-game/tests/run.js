@@ -465,7 +465,7 @@ async function testPE(b) {
     let d1 = gen(); for (let i = 0; i < 40 && (d1.type === 'turn' || A.dealAsk(d1) < 2); i++) d1 = gen(); d1.risk = {k: 'debt', cost: d1.rev * .1, w: 10}; d1.exp = S.week + 20; const c0 = S.player.cash;
     A.peDD(d1); out.ddPaid = S.player.cash < c0; for (let i = 0; i < 4; i++) { A.step(); S.inbox = []; } out.ddDone = d1.dd === 2; const after = A.dealAsk(d1); d1.dd = 0; out.ddCheaper = after < A.dealAsk(d1); d1.dd = 2; // same week: what the seller's numbers say vs what due diligence found
     // a deal nobody else wants: a 10% lowball wins; the J-curve shows right after buying
-    const d = gen(); d.n = 0; d.ai = 0; d.exp = S.week + 20; d.risk = null;
+    let d = gen(); for (let i = 0; i < 40 && (d.type === 'turn' || A.dealAsk(d) < 2); i++) d = gen(); d.n = 0; d.ai = 0; d.bids = []; d.exp = S.week + 20; d.risk = null;
     const nw0 = A.netWorth('P'), cash0 = S.player.cash, q = A.peQuote(d, A.dealAsk(d) * .9, .5, 'P');
     out.bid = A.peBid(d, -.1, .5, false, 'P'); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; }
     const c = byDeal(d); out.won = !!c && c.ctrl === 'P' && c.priv && c.own.P === c.shares;
@@ -483,7 +483,7 @@ async function testPE(b) {
     if (c) { A.peExitStart(c); for (let i = 0; i < 6; i++) A.step(); const it = S.inbox.find(i => i.kind === 'peexit' && i.cid === c.id); out.exitBids = it ? it.bids.length : 0;
       if (it) { const cash2 = S.player.cash; const bb = it.bids[it.bids.length - 1]; A.peSell(c, bb); out.sold = (!S.cos.includes(c) || (c.own.P == null && c.ctrl === bb.buyer)) && S.player.cash > cash2 && S.pe.track.length >= 1 && S.pe.track[0].moic > 0; } }
     // take a controlled listed company private
-    const L = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[4]; S.player.cash += 3000; for (let i = 0; i < 4 && L.ctrl !== 'P'; i++) A.execBuy('P', L, L.shares * .3);
+    const L = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[4]; S.player.cash += 3000; for (let i = 0; i < 10 && L.ctrl !== 'P'; i++) A.execBuy('P', L, L.shares * .3); /* a poison pill can dilute the first buys */
     const tp = L.ctrl === 'P' && A.peTakePrivate(L, 0); out.privatized = !!tp && L.priv && L.own.P === L.shares && !!L.pe; out.tpInfo = {ctrl: L.ctrl, priv: L.priv, tob: S.tobs.some(t => t.cid === L.id), bp: Math.round(A.buyingPower()), cap: Math.round(L.price * L.shares), pe: !!L.pe, own: L.own.P && +(L.own.P / L.shares).toFixed(3)};
     // funds: LP money never counts as the player's
     S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
@@ -788,6 +788,69 @@ async function testPlaytestFixes(b) {
   await ph.ctx.close(); await ctx.close();
 }
 
+async function testFeedback13(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(6161, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    /* (A) a large buy no longer shows an instant paper gain, and a round trip loses money */
+    S.player.cash = 300; const c = S.cos.filter(x => !x.priv && !x.ctrl && !Object.keys(x.own).length).sort((a, b) => a.price * a.shares - b.price * b.shares)[3];
+    const nw0 = A.netWorth('P'), cash0 = S.player.cash; A.execBuy('P', c, A.sharesForMoney(c, 30)); const nwBuy = A.netWorth('P'); A.execSell('P', c, c.own.P);
+    out.impact = {paper: +(nwBuy - nw0).toFixed(3), trip: +(S.player.cash - cash0).toFixed(3)};
+    /* (G) head-office costs come out of cash; negative cash is an overdraft that the bank collects after 8 weeks */
+    S.player.cash = 0; S.player.loan = 0; A.hqInit(); A.setOffice(2, 'tyo'); S.dept.acc.staff = 10; const loan0 = S.player.loan;
+    A.deptStep(); out.od1 = S.player.cash < 0 && S.player.loan === loan0;
+    const t = S.cos.find(x => !x.priv && !x.ctrl && x !== c); A.execBuy('P', t, A.sharesForMoney(t, 5)); S.player.cash = -2; S.player.loan = 0;
+    A.overdraftStep(); const w = S.week; out.od2 = S.player.od === w; S.week += 8; A.overdraftStep(); out.od3 = S.player.cash >= -1e-9 && S.player.od == null;
+    /* (H) margin call: a deadline first, then a forced sale */
+    S.player.cash = 0; const hv = A.holdingsValue('P'); S.player.loan = hv * A.callLine() * 1.03; const own0 = t.own.P;
+    A.playerWeekly(); out.mc1 = !!S.player.mcall && t.own.P === own0;
+    S.week = S.player.mcall.due; S.player.loan = A.holdingsValue('P') * A.callLine() * 1.03; A.playerWeekly(); out.mc2 = !S.player.mcall && (t.own.P || 0) < own0;
+    /* (F) a TOB with the minimum condition buys nothing when the take falls short; the "needed price" reaches the target */
+    S.player.cash = 500; S.player.loan = 0; const g = S.cos.filter(x => !x.priv && !x.ctrl && !A.activeTob(x)).sort((a, b) => a.price * a.shares - b.price * b.shares)[1];
+    A.launchTob('P', g, g.price * 1.02, .51, false); const tob = A.activeTob(g); tob.minc = .51; tob.end = S.week; const had = g.own.P || 0; A.resolveTobs(); out.minc = (g.own.P || 0) === had;
+    const np = A.tobNeedPrice('P', g, .51); const q = np && A.tenderQuote('P', g, np, .51); out.need = !np || q.after >= .51 - 1e-9;
+    /* (L) listing takes a preparation period and a review */
+    const n = A.foundCompany('tyo', 'tech', 20); n.ni = Math.abs(n.ni) + 1; n.margin = Math.max(n.margin, .2); const st = A.startIPO(n, 'list');
+    out.ipo1 = st && n.priv && !!n.ipoPlan; S.week = n.ipoPlan.end; n.ni = Math.abs(n.ni) + 1; A.ipoStep(); out.ipo2 = !n.priv || /上場延期/.test(S.news[0].t);
+    /* (M) the holding company's own IPO goes through the same preparation */
+    S.player.cash = 300; S.dept.acc.staff = 40; S.dept.acc.ab = 80; S.dept.acc.mo = 90; S.player.ipoPlan = {f: .2, w0: S.week, end: S.week}; A.ipoStep(); out.ytr = (S.player.outside || 0) > 0 || /上場延期/.test(S.news[0].t);
+    /* (C) staffing need grows with the group */
+    const n0 = A.needOf('legal'); for (const x of S.cos.filter(y => !y.priv && !y.ctrl).slice(0, 3)) { x.own = {P: x.shares * .6}; } A.recomputeCtrl(); out.need2 = A.needOf('legal') > n0;
+    return out;
+  });
+  ok('feedback: a large buy shows no instant paper gain and an immediate round trip loses money', r.impact.paper <= 0.05 && r.impact.trip < 0, JSON.stringify(r.impact));
+  ok('feedback: head-office costs come out of cash (no silent borrowing)', r.od1);
+  ok('feedback: negative cash warns first and is collected after 8 weeks', r.od2 && r.od3, JSON.stringify(r));
+  ok('feedback: a margin call gives a deadline, then shares are force-sold', r.mc1 && r.mc2, JSON.stringify({mc1: r.mc1, mc2: r.mc2}));
+  ok('feedback: a TOB with the minimum condition buys nothing when it falls short', r.minc);
+  ok('feedback: the suggested TOB price reaches the target', r.need);
+  ok('feedback: an IPO needs a preparation period and a review', r.ipo1 && r.ipo2, JSON.stringify({a: r.ipo1, b: r.ipo2}));
+  ok('feedback: the holding company can list after its preparation', r.ytr);
+  ok('feedback: legal staffing need grows with the number of controlled companies', r.need2);
+  /* UI on iPhone: legal/IR tab, venture detail, news links, unlisted valuation, office from the city view */
+  const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
+  await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]'); await q.click('[data-act=speed][data-v="0"]');
+  await q.evaluate(() => { const A = window.__atlas, S = A.S; S.won = true; S.settings.guide = false; S.player.cash = 300; A.hqInit(); S.dept.inv.on = true; S.dept.legal.on = true; S.dept.inv.staff = 10; A.vcQuarter(); if (!S.vc.deals.length) A.vcQuarter(); A.ui.hqTab = 'inv'; });
+  await q.click('[data-act=tab][data-v=pres]');
+  const inv = await q.evaluate(() => ({legalOnInv: document.querySelector('#pbody').innerText.includes('法務部'), vc: !!document.querySelector('[data-act=vcopen]')}));
+  if (inv.vc) await q.click('[data-act=vcopen]');
+  const vc = await q.evaluate(() => ({modal: !document.querySelector('#modal').hidden && !!document.querySelector('#modal svg polygon') && document.querySelector('#modal').innerText.includes('主要株主'), o: document.documentElement.scrollWidth - innerWidth}));
+  await q.evaluate(() => { document.querySelector('#modal').hidden = true; window.__atlas.ui.hqTab = 'legal'; }); await q.click('[data-act=tab][data-v=pres]');
+  const lg = await q.evaluate(() => document.querySelector('#pbody').innerText.includes('法務部') && document.querySelector('#pbody').innerText.includes('必要人数の目安'));
+  ok('feedback: legal and IR live on their own tab with a staffing target; ventures open a detail sheet', !inv.legalOnInv && inv.vc && vc.modal && vc.o <= 0 && lg, JSON.stringify({inv, vc, lg}));
+  await q.evaluate(() => { const S = window.__atlas.S; S.news.unshift({w: S.week, t: `【テスト】${S.cos[3].name}の決算発表`, k: 'earn'}); }); /* a fresh game has no news naming a company yet */
+  await q.click('[data-act=tab][data-v=news]'); const nl = await q.$('.nlink'); let opened = false;
+  if (nl) { await nl.click(); opened = await q.evaluate(() => !!window.__atlas.ui.sel && window.__atlas.ui.tab === 'market'); }
+  ok('feedback: a company name in the news opens its overview', opened);
+  await q.evaluate(() => { const A = window.__atlas, n = A.foundCompany('osa', 'food', 10); A.ui.sel = null; A.ui.city = 'osa'; });
+  await q.click('[data-act=tab][data-v=market]');
+  const pv = await q.evaluate(() => ({val: [...document.querySelectorAll('#pbody .row')].some(r => r.innerText.includes('評価額')), hq: !!document.querySelector('[data-act=hqhere]')}));
+  await q.click('[data-act=hqhere]'); const fl = await q.evaluate(() => window.__atlas.ui.hqTab === 'floor' && document.querySelector('#hqcity').value === 'osa');
+  ok('feedback: unlisted companies show a valuation; the city view opens the office contract', pv.val && pv.hq && fl, JSON.stringify({pv, fl}));
+  ok('no page errors in feedback tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
+  await ph.ctx.close(); await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -894,6 +957,7 @@ async function balance(b) {
     await testHQ(b);
     await testUIPack(b);
     await testPlaytestFixes(b);
+    await testFeedback13(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

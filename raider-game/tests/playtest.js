@@ -52,7 +52,7 @@ function inPage(seed) { /* installs window.__pt */
       if (c.ex) for (const r in c.ex) if (c.ex[r] && !S.hr.people[c.ex[r]]) bad.push('存在しない幹部を参照');
     }
     fin(S.player.cash, 'player.cash'); fin(S.player.loan, 'player.loan'); fin(A.netWorth('P'), 'netWorth');
-    if (S.player.cash < -1e-6) bad.push('本体の現金がマイナス'); if (S.player.loan < -1e-9) bad.push('信用借入がマイナス');
+    if (S.player.cash < -1e-6 && S.player.od != null && S.week - S.player.od > 9) bad.push('現金のマイナスが回収されない'); if (S.player.loan < -1e-9) bad.push('信用借入がマイナス');
     fin(S.pres.cash, 'pres.cash'); if (S.pres.cash < -1e-6) bad.push('社長個人の現金がマイナス');
     fin(S.research.pts, 'research.pts'); if (S.research.pts < -1e-6) bad.push('研究ポイントがマイナス');
     for (const rv of S.rivals) { fin(rv.cash, rv.n + '.cash'); fin(A.netWorth(rv.id), rv.n + '.nw'); }
