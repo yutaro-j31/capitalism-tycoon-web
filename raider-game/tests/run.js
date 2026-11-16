@@ -1086,6 +1086,40 @@ async function testAC(b) {
   await ph.ctx.close(); await ctx.close();
 }
 
+async function testFeedback12(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(5353, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 200; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    /* liquidation pays only what is left after the debt */
+    const n = A.foundCompany('tyo', 'food', 20); n.debt = n.assets * .5 + n.cash + 50; const cash0 = S.player.cash; A.liquidate(n); out.liq = Math.abs(S.player.cash - cash0) < 1e-9;
+    /* Japan and Europe announce every quarter */
+    S.news = []; A.newsQuarter(); out.cb = S.news.some(x => /日本銀行/.test(x.t)) && S.news.some(x => /欧州中央銀行/.test(x.t));
+    /* an ignored renewal renews automatically */
+    const m = Object.values(S.hr.people).find(x => !x.at); m.at = 'HQ'; m.role = 'CFO'; S.hr.hq.CFO = m.id; m.end = S.week + 1; m.renewAsked = true; m.mood = .7;
+    for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; } out.renew = m.at === 'HQ' && m.end > S.week + 100;
+    /* grades need an investment department */
+    A.hqInit(); S.dept.inv.on = false; out.grade = /未評価/.test(A.gradeTxt({grade: 'A'}));
+    /* the CEO room can use a typed amount */
+    A.ui.ceoAbs = 3; out.amt = A.ceoAmtOf({cash: 10}) === 3 && A.ceoAmtOf({cash: 2}) === 2; A.ui.ceoAbs = null;
+    return out;
+  });
+  ok('feedback4: liquidating an indebted company pays nothing back', r.liq);
+  ok('feedback4: the Bank of Japan and the ECB announce their rates every quarter', r.cb);
+  ok('feedback4: an executive whose renewal is not declined stays on', r.renew);
+  ok('feedback4: venture grades need an investment department; the CEO room accepts a typed amount', r.grade && r.amt, JSON.stringify(r));
+  const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
+  await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]'); await q.click('[data-act=speed][data-v="0"]');
+  await q.click('[data-act=tab][data-v=bank]'); const bank = await q.evaluate(() => ({ok: document.querySelector('#pbody').innerText.includes('アトラス中央銀行'), o: document.documentElement.scrollWidth - innerWidth}));
+  await q.evaluate(() => { const A = window.__atlas, S = A.S; S.won = true; S.settings.confirm = false; S.player.cash = 100; const c = S.cos.find(x => !x.priv && !x.ctrl); A.execBuy('P', c, A.sharesForMoney(c, 20)); A.ui.sel = c.id; A.ui.ctab = 'trade'; A.ui.sellF = .1; window.__c = c.id; });
+  await q.click('[data-act=tab][data-v=market]');
+  const h0 = await q.evaluate(() => window.__atlas.S.cos.find(x => x.id === window.__c).own.P);
+  await (await q.$$('[data-act=sellfd]'))[3].click(); const f = await q.evaluate(() => window.__atlas.ui.sellF);
+  await q.click(`[data-act=sell][data-v="${f}"]`); const h1 = await q.evaluate(() => window.__atlas.S.cos.find(x => x.id === window.__c).own.P);
+  ok('feedback4: a bank tab, and selling a chosen number of shares', bank.ok && bank.o <= 0 && Math.abs(f - .2) < 1e-9 && Math.abs(h1 - h0 * .8) < h0 * 1e-6, JSON.stringify({bank, f, h0, h1}));
+  ok('no page errors in feedback4 tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
+  await ph.ctx.close(); await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1199,6 +1233,7 @@ async function balance(b) {
     await testFeedback3(b);
     await testPitches2(b);
     await testAC(b);
+    await testFeedback12(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
