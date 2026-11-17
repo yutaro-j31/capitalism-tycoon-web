@@ -1367,12 +1367,22 @@ async function balance(b) {
         }
         if (!hit && A.netWorth('P') >= 1000) hit = w / 52;
       }
-      (out[d] = out[d] || []).push({hit, rivals: S.rivals.map(r => Math.round(A.netWorth(r.id)))});
+      /* analyst: a competent player who trades on the visible estimate each quarter (cash only) */
+      A.newGame(sd * 7919, d, 'T', 't', 'std', true); const S2 = A.S; let hit2 = null;
+      for (let w = 0; w < 780 && hit2 == null; w++) {
+        if (w % 13 === 0) {
+          for (const c of S2.cos) if (!c.priv && (c.own.P || 0) > 0 && c.ctrl !== 'P' && c.price > A.fairEst(c) * .97) A.execSell('P', c, c.own.P);
+          const L = S2.cos.filter(c => !c.priv && !c.ctrl && c.ni > 0 && A.fairEst(c) / c.price > 1.15 && !(c.own.P > 0)).sort((a, b) => A.fairEst(b) / b.price - A.fairEst(a) / a.price).slice(0, 4);
+          const m = Math.max(0, S2.player.cash) * .9 / Math.max(1, L.length); for (const c of L) A.execBuy('P', c, A.sharesForMoney(c, m), m);
+        }
+        A.step(); S2.inbox = []; if (A.netWorth('P') >= 1000) hit2 = (w + 1) / 52;
+      }
+      (out[d] = out[d] || []).push({hit, hit2, rivals: S.rivals.map(r => Math.round(A.netWorth(r.id)))});
     }
     return out;
   }, QUICK);
   const summary = {};
-  for (const d in res) { const hits = res[d].map(x => x.hit == null ? 15 : x.hit); const riv = res[d].map(x => Math.max(...x.rivals)); summary[d] = {botYears: hits.map(h => +h.toFixed(1)), topRival: riv}; }
+  for (const d in res) { const hits = res[d].map(x => x.hit == null ? 15 : x.hit); const riv = res[d].map(x => Math.max(...x.rivals)); summary[d] = {analystYears: res[d].map(x => +(x.hit2 == null ? 15 : x.hit2).toFixed(1)), botYears: hits.map(h => +h.toFixed(1)), topRival: riv}; }
   console.log('BALANCE ' + JSON.stringify(summary));
   if (fs.existsSync(BASELINE) && !args.has('--update-baseline')) {
     const base = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
@@ -1381,7 +1391,10 @@ async function balance(b) {
       const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
       const by = avg(summary[d].botYears), bb = avg(base[d].botYears);
       console.log(`${Math.abs(by / bb - 1) <= .4 ? 'INFO' : 'WARN'}  balance ${d}: bot reaches the goal in ${by.toFixed(1)}y on average (baseline ${bb.toFixed(1)}y)`);
+      if (base[d].analystYears) { const ay = avg(summary[d].analystYears), ab = avg(base[d].analystYears); console.log(`${Math.abs(ay / ab - 1) <= .3 ? 'INFO' : 'WARN'}  balance ${d}: analyst reaches the goal in ${ay.toFixed(1)}y on average (baseline ${ab.toFixed(1)}y)`); }
     }
+    const av = d => summary[d] && summary[d].analystYears.reduce((x, y) => x + y, 0) / summary[d].analystYears.length;
+    if (!QUICK && av('easy') && av('hard')) console.log(`${av('easy') <= av('normal') && av('normal') <= av('hard') ? 'INFO' : 'WARN'}  balance order: analyst ${av('easy').toFixed(1)}y (easy) ≤ ${av('normal').toFixed(1)}y (normal) ≤ ${av('hard').toFixed(1)}y (hard)`);
   }
   if (args.has('--update-baseline') && !QUICK) { fs.writeFileSync(BASELINE, JSON.stringify(summary, null, 2) + '\n'); console.log('wrote baseline.json'); }
   await ctx.close();
