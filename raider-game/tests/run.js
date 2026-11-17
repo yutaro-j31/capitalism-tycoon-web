@@ -1478,6 +1478,64 @@ async function testLadder2(b) {
   await ctx.close();
 }
 
+async function testTrader(b) {
+  const {p} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(4242, 'normal', 'T', 't', 'trader', false); let S = A.S; S.won = false; document.querySelector('#modal').hidden = true;
+    /* start: 10,000,000円 in a personal account; no company, no TOB; margin, short and options come after 26 weeks of record */
+    out.start = Math.abs(S.player.cash - .1) < 1e-12 && S.company === '個人口座' && A.preCo() && !S.founded;
+    out.gate0 = !A.has('tob') && !A.has('short') && !A.has('pe') && !A.has('found');
+    out.worth0 = Math.abs(A.myWorth() - .1) < 1e-9;
+    /* whole shares: the trade box offers only whole-share counts */
+    const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => b.price - a.price)[0];
+    A.ui.sel = c.id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.ui._trSel = c.id; A.ui.tmode = 'cash'; A.ui.tf = .5; A.ui.tab = 'market'; A.renderAll(true);
+    const go = document.querySelector('#tr-go'), n = go ? +go.dataset.n : -1; out.whole = n > 0 && Math.abs(n * 1e6 - Math.round(n * 1e6)) < 1e-6;
+    out.roundSh = A.roundSh(1.2345678e-3) === 1234e-6 && A.roundSh(-1) === 0;
+    const cash0 = S.player.cash; go.click(); out.bought = Math.abs((c.own.P || 0) - n) < 1e-12 && S.player.cash < cash0;
+    /* margin is locked before 26 weeks: a buy costing more than the cash is refused */
+    A.ui.tmode = 'margin'; A.renderAll(true); const g2 = document.querySelector('#tr-go'); out.marginLocked = !g2 || g2.disabled || +g2.dataset.n === 0;
+    /* track record: one return a week, no PRNG used for it */
+    for (let i = 0; i < 30; i++) A.step(); const st = A.trStats(); out.rec = st && st.weeks === 30 && A.trWeeks() === 30 && isFinite(st.total) && st.mdd >= 0;
+    out.gate26 = A.has('short') && A.has('options') && !A.has('tob');
+    out.rewards = A.rewScale() === .02;
+    /* managed money: management fee, performance fee above the high-water mark */
+    S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; A.mmAccept({amt: 1, who: 'テスト'}); out.mmIn = S.mm.aum === 1 && S.mm.hwm === 1 && S.mm.inv === 1;
+    const pc = S.player.cash; S.week = 103; A.mmWeek(0); const fee = 1 * .02 / 52; out.fee = Math.abs(S.mm.fees - fee) < 1e-12 && Math.abs(S.player.cash - pc - fee) < 1e-12;
+    S.week = 104; const a0 = S.mm.aum; A.mmWeek(.1); const grown = a0 * 1.1, aft = grown - grown * .02 / 52; out.perf = Math.abs(S.mm.perf - (aft - 1) * .2) < 1e-9 && Math.abs(S.mm.hwm - S.mm.aum) < 1e-12;
+    const perf0 = S.mm.perf; S.week = 156; A.mmWeek(-.05); out.hwm = S.mm.perf === perf0; /* below the high-water mark: no performance fee */
+    /* investors leave after a bad year */
+    S.tr.rets = Array(52).fill(-.004); const aum1 = S.mm.aum; S.week = 169; A.mmQuarter(); out.out = S.mm.aum < aum1 - 1e-9;
+    /* an offer appears after a good year when there is room */
+    S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; S.tr.rets = Array(52).fill(.003); S.tr.mcW = null; S.inbox = []; S.player.cash = Math.max(S.player.cash, .2); A.mmQuarter();
+    const off = S.inbox.find(i => i.kind === 'mmoffer'); out.offer = !!off && off.amt > 0 && off.amt <= A.mmCap() + 1e-9;
+    S.inbox = []; S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0};
+    /* founding: needs 30,000,000円; net worth falls only by the fee; the cash you keep becomes personal */
+    S.player.cash = .1; out.noFound = !A.incorporate('X', 0);
+    S.player.cash += .4; const nw0 = A.myWorth(); out.found = A.incorporate('テスト商事', .05) && S.founded && !A.preCo() && S.company === 'テスト商事';
+    out.nwFee = Math.abs(A.myWorth() - (nw0 - .005)) < 1e-6 && Math.abs(S.pres.cash - .05) < 1e-12;
+    out.gateCo = !A.preCo() && A.rewScale() === .02;
+    /* the personal account (U) trades cash-only and counts in personal net worth */
+    const d = S.cos.filter(x => !x.priv && !x.ctrl && x !== c)[0];
+    A.ui.sel = d.id; A.ui._trSel = d.id; A.ui.actor = 'U'; A.ui.tmode = 'margin'; A.renderAll(true); const g3 = document.querySelector('#tr-go'); out.uMargin = !g3 || g3.disabled || +g3.dataset.n === 0;
+    A.ui.tmode = 'cash'; A.ui.tf = 1; A.renderAll(true); const g4 = document.querySelector('#tr-go'); const nU = g4 ? +g4.dataset.n : 0; const w1 = A.myWorth(); if (g4 && !g4.disabled) g4.click();
+    out.uBuy = nU > 0 && Math.abs((d.own.U || 0) - nU) < 1e-12 && S.pres.cash < .05 && Math.abs(A.myWorth() - w1) < .01;
+    out.econ = A.econCheck(S) === '';
+    /* save format 3 round-trip, checksum covers personal cash */
+    const txt = A.exportText(), o = JSON.parse(txt); out.fmt = o.fmt === 3 && !!A.parseSave(txt);
+    o.pres.cash += 1; out.tamper = !A.parseSave(JSON.stringify(o));
+    /* the company fails but the person still has money: restart as an individual */
+    const uH = d.own.U || 0; A.bankrupt('テスト倒産'); out.restart = !S.lost && !S.founded && A.preCo() && S.restarts === 1 && Math.abs((d.own.P || 0) - uH) < 1e-12 && !d.own.U;
+    /* determinism: two runs from the same seed match */
+    const run = () => { A.newGame(77, 'normal', 'T', 't', 'trader', false); A.S.won = false; for (let i = 0; i < 70; i++) { A.step(); for (const it of A.S.inbox.slice()) if (it.kind === 'mmoffer') A.mmAccept(it); A.S.inbox = []; } return JSON.stringify([A.S.player.cash, A.S.mm, A.S.tr.rets.slice(-5), A.S.cos.map(x => x.price)]); };
+    out.det = run() === run();
+    /* classic games: personal net worth is the goal; no trader state consumes the PRNG */
+    A.newGame(88, 'normal', 'T', 't', 'std', false); S = A.S; out.classic = !A.preCo() && A.rewScale() === 1 && Math.abs(A.myWorth() - (A.netWorth('P') + A.presWealth())) < 1e-9;
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('trader: start, gates, whole shares, track record, managed money, founding, personal account, save, restart, determinism', !fails.length, JSON.stringify(fails));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1654,6 +1712,7 @@ async function balance(b) {
     await testPeStep(b);
     await testLadder2(b);
     await testGpt5(b);
+    await testTrader(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
