@@ -1303,6 +1303,39 @@ async function testGpt3(b) {
   await ctx.close();
 }
 
+async function testPeTob(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(6161, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1}; S.player.cash = 500;
+    const pick = () => S.cos.find(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom' && !A.activeTob(x) && x.ni > 0);
+    /* goodwill: a controlling stake bought at a normal premium is booked at cost, but never above 125% of intrinsic value */
+    const c = pick(); c.price = A.fair(c); const cost = c.shares * .6 * A.fair(c) * 1.2; c.own = {P: c.shares * .6}; S.player.cost[c.id] = cost; A.recomputeCtrl();
+    out.gw = c.ctrl === 'P' && Math.abs(A.ctrlPx('P', c) - A.fair(c) * 1.2) < 1e-6 && Math.abs(A.holdingsMkt('P') - c.own.P * c.price) < 1e-9;
+    S.player.cost[c.id] = c.shares * .6 * A.fair(c) * 2; out.gwCap = Math.abs(A.ctrlPx('P', c) - A.fair(c) * 1.25) < 1e-6;
+    /* post-merger integration: fixed costs fall about 6% over the first year of control, then stop */
+    const wk = S.week; c.pmi = {w0: S.week}; c.fixed = 100; for (let i = 0; i < 60; i++) { A.pmiStep(c); S.week++; } S.week = wk; out.pmi = !c.pmi && c.fixed > 90 && c.fixed < 95; /* 52 weekly steps, then it stops */
+    c.own = {}; A.recomputeCtrl(); delete S.player.cost[c.id];
+    /* a funding crisis in an autopilot subsidiary is funded by the parent when it can, keeping control */
+    const d = pick(); d.own = {P: d.shares * .52}; A.recomputeCtrl(); d.dm = 'auto'; d.crisis = {w: S.week + 8}; 
+    A.playerCrisisAuto(d); out.parent = !d.crisis && d.ctrl === 'P' && d.own.P / d.shares > .52;
+    S.player.cash = 0; d.crisis = {w: S.week + 8}; const sh0 = d.shares; A.playerCrisisAuto(d); out.noDilute = !d.crisis && d.ctrl === 'P' && d.own.P / d.shares > .5; /* no cash: refinance or a small offering, never one that costs control */
+    d.own = {}; A.recomputeCtrl(); S.player.cash = 500;
+    /* tender acceptance: +19% gets about half the float, +35% nearly all */
+    const e = pick(); e.price = A.fair(e); const half = A.tenderQuote('P', e, e.price * 1.19, 1), all = A.tenderQuote('P', e, e.price * 1.36, 1);
+    out.accept = half && Math.abs(half.accept - .5) < .03 && all && all.accept > .99;
+    /* rivals do not pay more than their cap in a bidding war */
+    out.cap = A.RIVAL_CAP && A.RIVAL_CAP.raider <= 1.4 && A.RIVAL_CAP.turnaround <= 1.3;
+    return out;
+  });
+  ok('PE/TOB: a controlling stake is booked at cost (goodwill) up to 125% of intrinsic value; collateral stays at market', r.gw && r.gwCap, JSON.stringify(r));
+  ok('PE/TOB: post-merger integration trims fixed costs about 6% in the first year, then ends', r.pmi);
+  ok('PE/TOB: an autopilot subsidiary in a funding crisis is funded by the parent, or refinanced without losing control', r.parent && r.noDilute);
+  ok('PE/TOB: a 19% premium attracts about half the float and 36% nearly all of it', r.accept);
+  ok('PE/TOB: rivals cap what they pay in a bidding war', r.cap);
+  ok('no page errors in PE/TOB tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1434,6 +1467,7 @@ async function balance(b) {
     await testBalance2(b);
     await testGpt2(b);
     await testGpt3(b);
+    await testPeTob(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
