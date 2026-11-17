@@ -1336,6 +1336,37 @@ async function testPeTob(b) {
   await ctx.close();
 }
 
+async function testExitGuide(b) {
+  const {p, ctx, errs} = await page(b, {...devices['iPhone 13']});
+  await p.click('[data-act=allu][data-v="1"]'); await p.click('[data-act=newgame]');
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, S = A.S, out = {}; S.settings.guide = false; S.player.cash = 300;
+    const c = S.cos.filter(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom' && x.ni > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[0];
+    c.own = {P: c.shares * .55}; S.player.cost[c.id] = c.shares * .55 * c.price * .55; A.recomputeCtrl();
+    out.taken = c.ctrl === 'P' && c.ctrlW === S.week && !!c.pmi; /* control records the week and starts integration */
+    let x = A.exitInfo(c); out.notYet = !x.ready && x.checks.length === 4 && !x.checks[0][1];
+    delete c.pmi; c.ctrlW = S.week - 120; x = A.exitInfo(c);
+    out.ready = x.ready && x.lo > x.cost * 1.5 && x.hi >= x.lo && x.mkt > 0 && x.mkt < x.lo; /* a block sale beats selling on the market */
+    const rs = S.rs; A.exitInfo(c); out.noRng = S.rs === rs;
+    S.qn = {}; const nn = S.news.length; c.exitHinted = false; A.quarter(); out.hint = S.news.some(n => /【売り時】/.test(n.t)) && c.exitHinted;
+    const n0 = S.news.length; A.quarter(); out.once = !S.news.slice(0, S.news.length - n0).some(n => /【売り時】.*/.test(n.t) && n.t.includes(c.name));
+    A.ui.pendingAward = null; A.ui.pendingUnlock = null; document.querySelector('#modal').hidden = true; out.id = c.id;
+    return out;
+  });
+  await p.evaluate(() => { document.querySelector('#modal').hidden = true; window.__atlas.act('tab', {dataset: {v: 'port'}}); });
+  const listed = await p.evaluate(id => { const b = document.querySelector(`[data-act=exitgo][data-id="${id}"]`); return !!b && /売り時/.test(b.textContent); }, r.id);
+  await p.evaluate(id => { document.querySelector('#modal').hidden = true; window.__atlas.act('exitgo', {dataset: {id}}); }, r.id);
+  const box = await p.evaluate(() => { const bx = document.querySelector('.exitbox'), trade = [...document.querySelectorAll('h4')].find(h => /株式売買/.test(h.textContent)); return !!bx && /売り時です/.test(bx.textContent) && !!trade && (bx.compareDocumentPosition(trade) & Node.DOCUMENT_POSITION_FOLLOWING) > 0; });
+  const sold = await p.evaluate(id => { const A = window.__atlas, S = A.S, c = S.cos.find(x => x.id === id); A.act('bsalego', {dataset: {}}); S.week = c.bsale.end; A.bsaleStep(); const it = S.inbox.find(i => i.kind === 'bsale' && i.cid === id); if (!it) return 'no bids'; const cash0 = S.player.cash, best = Math.max(...it.bids.map(b => b.px)), i = it.bids.findIndex(b => b.px === best), n = c.own.P; A.act('bsell', {dataset: {id: String(it.id), v: String(i)}}); return Math.abs(S.player.cash - cash0 - n * best) < 1e-6 && !(c.own.P > 0) && c.ctrl !== 'P'; }, r.id);
+  ok('exit: taking control records the week and starts integration; the guide waits until integration is done', r.taken && r.notYet, JSON.stringify(r));
+  ok('exit: after two years with a gain, the guide says sell, and a block sale is shown above a market sale', r.ready && r.noRng);
+  ok('exit: a one-time 【売り時】 news item appears', r.hint && r.once);
+  ok('exit: the holdings tab lists the subsidiary as ready and opens the exit box above the trade box', listed && box, JSON.stringify({listed, box}));
+  ok('exit: selling to the best bid pays the bid and hands over control', sold === true, String(sold));
+  ok('no page errors in exit tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1468,6 +1499,7 @@ async function balance(b) {
     await testGpt2(b);
     await testGpt3(b);
     await testPeTob(b);
+    await testExitGuide(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
