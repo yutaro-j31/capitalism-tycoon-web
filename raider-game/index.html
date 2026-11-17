@@ -4999,9 +4999,9 @@ function showWhy(k, c){
   let h = '', t = '';
   if (k === 'nw') {
     t = '純資産の内訳'; const fund = ((S.pe && S.pe.funds) || []).reduce((a, f) => a + gpRatio(f) * fundNAV(f), 0), g = grossWorth();
-    h = wr('現金', p.cash) + wr('保有株の評価', hvE, `${S.cos.filter(x => (x.own.P || 0) > 0).length}銘柄・子会社が持つ株は子会社の株価に含まれます${hvE > hv + 1e-6 ? `。支配している上場子会社は理論株価の95%で評価（時価より${fm(hvE - hv)}高い）。信用取引と銀行の担保は時価で計算します` : ''}`) + (optionsValue() ? wr('オプション', optionsValue()) : '') + (propEquity('P') ? wr('不動産（時価−ローン）', propEquity('P')) : '') + (vcValue() ? wr('ベンチャー投資', vcValue()) : '') + (fund ? wr('自社ファンドへの出資分', fund) : '')
+    h = wr('現金', p.cash) + wr('保有株の評価', hvE, `${S.cos.filter(x => (x.own.P || 0) > 0).length}銘柄・子会社が持つ株は子会社の株価に含まれます${hvE > hv + 1e-6 ? `。支配している上場子会社は「理論株価の95%」か「取得原価（のれん込み・理論株価の125%まで）」の高い方で評価（時価より${fm(hvE - hv)}高い）。信用取引・銀行・空売りの担保は時価で計算します` : ''}`) + (optionsValue() ? wr('オプション', optionsValue()) : '') + (propEquity('P') ? wr('不動産（時価−ローン）', propEquity('P')) : '') + (vcValue() ? wr('ベンチャー投資', vcValue()) : '') + (fund ? wr('自社ファンドへの出資分', fund) : '')
       + (p.loan ? wr('信用借入', -p.loan) : '') + (sl ? wr('空売りの買戻し額', -sl) : '') + ((p.outside || 0) > 0 ? wr(`外部株主の持分（${pc(p.outside)}）`, -g * p.outside, '本体を上場・増資したぶん') : '') + wr('純資産', netWorth('P'), '', 'tot')
-      + `<p class="note">目標は純資産${S.won ? nextGoal()[1] : '1,000億円'}。株価が動くと「保有株の時価」が毎週変わります。</p>`;
+      + `<p class="note">目標は純資産${S.won ? nextGoal()[1] : '1,000億円'}。株価が動くと「保有株の評価」が毎週変わります。</p>`;
   } else if (k === 'bp') {
     t = '買付余力の計算'; const free = p.cash - sl * .5, L = hasR('fin1') ? 2.5 : 2;
     h = wr('現金', p.cash) + (sl ? wr('空売り代金の担保（50%）', -sl * .5) : '') + wr('自由に使える現金', free) + wr('保有株の時価', hv) + wr('信用の倍率', mx(L), hasR('fin1') ? '研究「信用枠拡大」で2.5倍' : '研究「信用枠拡大」で2.5倍に')
