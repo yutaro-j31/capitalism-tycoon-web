@@ -942,7 +942,7 @@ async function testLadderGrad(b) {
   await q.click('[data-act=tqd][data-v="1"]'); await q.click('[data-act=tqd][data-v="1"]'); await q.click('[data-act=tqd][data-v="-1"]'); await q.click('[data-act=tqd][data-v="1"]'); /* the quantity stepper (1% of the maximum per tap) */
   const amt = await q.evaluate(() => ({tf: window.__atlas.ui.tf, money: window.__atlas.ui.amt}));
   await q.evaluate(() => { window.__atlas.ui.ctab = 'raid'; }); await q.click('[data-act=tab][data-v=market]');
-  const p0 = await q.evaluate(() => window.__atlas.ui.tPrem); await (await q.$$('[data-act=tpremd]'))[2].click(); const p1 = await q.evaluate(() => window.__atlas.ui.tPrem);
+  const p0 = await q.evaluate(() => window.__atlas.ui.tPrem); await q.click('[data-act=sstep][data-k=tPrem][data-v="0.01"]'); /* the premium stepper */ const p1 = await q.evaluate(() => window.__atlas.ui.tPrem);
   const o1 = await q.evaluate(() => document.documentElement.scrollWidth - innerWidth);
   ok('ladder: the buy quantity and the TOB premium step up and down', Math.abs(amt.tf - .02) < 1e-9 && amt.money > 0 && Math.abs(p1 - p0 - .01) < 1e-9 && o1 <= 0, JSON.stringify({amt, p0, p1, o1}));
   const vc = await q.evaluate(() => { const A = window.__atlas, S = A.S; A.hqInit(); A.vcQuarter(); const d = S.vc.deals[0]; if (!d) return {none: true}; const c0 = S.player.cash; const okv = A.vcInvest(d.id, .07); const h = S.vc.hold.find(x => x.id === d.id); return {okv, stake: h && h.stake, paid: +(c0 - S.player.cash).toFixed(4), cost: +(d.val * .07).toFixed(4)}; });
@@ -1421,6 +1421,30 @@ async function testTradeTabs(b) {
   await ctx.close();
 }
 
+async function testRoadTob(b) {
+  const {p, ctx, errs} = await page(b, {...devices['iPhone 13']});
+  await p.click('[data-act=newgame]');
+  /* the early-game roadmap: buy → accounting → control → bigger office → investment department, without touching the PRNG */
+  const r = await p.evaluate(() => { const A = window.__atlas, S = A.S, out = {}; S.settings.guide = false; const rs = S.rs, id = () => (A.roadNext() || {}).id;
+    out.s0 = id(); const L = S.cos.filter(c => !c.priv && !c.ctrl).slice(0, 6); for (const c of L) A.execBuy('P', c, A.sharesForMoney(c, 4)); out.s1 = id();
+    S.dept.acc.on = true; S.dept.acc.staff = 1; S.stage = Math.max(S.stage, 2); out.s2 = id();
+    const c = S.cos.find(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom'); c.own.P = c.shares * .6; A.recomputeCtrl(); S.stage = 3; out.s3 = id();
+    A.setOffice(1, 'tyo'); out.s4 = id(); S.dept.inv.on = true; S.dept.inv.staff = 1; out.s5 = id(); out.rng = S.rs === rs; return out; });
+  await p.evaluate(() => { document.querySelector('#modal').hidden = true; window.__atlas.act('tab', {dataset: {v: 'market'}}); window.__atlas.S.dept.inv.on = false; window.__atlas.renderAll(true); });
+  await p.evaluate(() => { const A = window.__atlas; A.ui.pendingUnlock = null; A.ui.pendingAward = null; document.querySelector('#modal').hidden = true; document.querySelector('.memo-i.road').click(); }); const went = await p.evaluate(() => window.__atlas.ui.tab === 'pres' && window.__atlas.ui.hqTab === 'floor' && !!document.querySelector('.road') && /投資部/.test(document.querySelector('.hqhead').innerText));
+  ok('road: the next step goes buy → accounting → control → small office → investment department', r.s0 === 'buy' && r.s1 === 'acc' && r.s2 === 'ctrl' && r.s3 === 'office' && r.s4 === 'inv' && r.s5 !== 'inv' && r.rng, JSON.stringify(r));
+  ok('road: the memo button opens the floor tab, where the checklist and the secretary point to the same step', went);
+  /* TOB: premium and target use the stepper and slider; dragging updates the label in place */
+  const t = await p.evaluate(() => { const A = window.__atlas, S = A.S; S.player.cash = 500; S.allUnlocked = true; const c = S.cos.find(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom' && !A.activeTob(x)); for (const k in c.own) if (k === 'P') delete c.own.P; A.recomputeCtrl(); A.ui.sel = c.id; A.ui.ctab = 'raid'; A.ui.tPrem = .25; A.ui.tTarget = .51; A.act('tab', {dataset: {v: 'market'}});
+    const r0 = document.querySelector('[data-act-input=sslide][data-k=tPrem]'), box = r0.closest('section'); r0.value = 400; r0.dispatchEvent(new Event('input', {bubbles: true}));
+    return {prem: A.ui.tPrem, lbl: document.querySelector('#ss-tPrem').textContent, same: r0.closest('section') === box && document.body.contains(box)}; });
+  await p.click('[data-act=sstep][data-k=tTarget][data-v="0.01"]'); await p.click('[data-act=sstep][data-k=tTarget][data-v="0.01"]');
+  const tg = await p.evaluate(() => window.__atlas.ui.tTarget);
+  ok('TOB: the premium slider updates in place and the target stepper moves by 1%', Math.abs(t.prem - .4) < 1e-9 && t.lbl === '+40%' && t.same && Math.abs(tg - .53) < 1e-9, JSON.stringify({t, tg}));
+  ok('no page errors in road/TOB tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1556,6 +1580,7 @@ async function balance(b) {
     await testExitGuide(b);
     await testGpt4(b);
     await testTradeTabs(b);
+    await testRoadTob(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
