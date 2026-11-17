@@ -1463,6 +1463,58 @@ async function testPeStep(b) {
   await ctx.close();
 }
 
+async function testLadder2(b) {
+  const {p, ctx, errs} = await page(b, {...devices['iPhone 13']});
+  await p.click('[data-act=allu][data-v="1"]'); await p.click('[data-act=newgame]');
+  /* every remaining amount uses the stepper box; a slider in a dialog applies when released */
+  const r = await p.evaluate(() => { const A = window.__atlas, S = A.S; S.settings.guide = false; S.player.cash = 300; A.hqInit(); A.vcQuarter(); const d = S.vc.deals[0]; if (!d) return {none: true};
+    A.ui.pendingAward = null; A.ui.pendingUnlock = null; document.querySelector('#modal').hidden = true; A.ui.hqTab = 'inv'; A.act('tab', {dataset: {v: 'pres'}});
+    const box = document.querySelector('#pbody .lad'), sl = document.querySelector(`#pbody [data-act-input=lslide][data-a=vcsd][data-id="${d.id}"]`); if (!sl) return {box: !!box, sl: false};
+    sl.value = 1000; sl.dispatchEvent(new Event('input', {bubbles: true})); const during = (A.ui.vcS || {})[d.id]; sl.dispatchEvent(new Event('change', {bubbles: true}));
+    const after = A.ui.vcS[d.id], open = !!document.querySelector(`#pbody [data-act-input=lslide][data-a=vcsd][data-id="${d.id}"]`);
+    document.querySelector(`#pbody [data-act=vcsd][data-id="${d.id}"][data-v="0.01"]`).click(); return {box: !!box, sl: true, during, after, open, step: A.ui.vcS[d.id], old: document.querySelectorAll('.ladder').length}; });
+  ok('stepper: a slider applies on release (not while dragging), and ＋ steps by 1% within the limit', r.none || (r.box && r.sl && r.during == null && Math.abs(r.after - .2) < 1e-9 && r.open && Math.abs(r.step - .2) < 1e-9 && r.old === 0), JSON.stringify(r));
+  ok('no page errors in stepper tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
+async function testGpt5(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(5555, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    for (let i = 0; i < 6; i++) A.step(); A.bankBorrow(.9); A.takeLoan(0);
+    /* BUG-05/17: a current-format save without its checksum is refused */
+    const txt = A.exportText(), t = f => { const o = JSON.parse(txt); f(o); return !A.parseSave(JSON.stringify(o)); };
+    out.ok = !!A.parseSave(txt);
+    out.noChk = t(o => { delete o.chk; }); out.noChkDebt = t(o => { delete o.chk; o.player.bank = 0; o.player.tl = []; }); out.badChk = t(o => { o.chk = 12345; });
+    /* BUG-20/21: the trade box's share count is exactly what trades, and the maximum short can always be placed */
+    const ids = S.cos.filter(c => !c.priv).map(c => c.id).slice(0, 15); let bad = 0, maxOff = 0;
+    for (const id of ids) for (const [mode, tf] of [['short', 1], ['short', .5], ['cash', .5]]) {
+      A.newGame(5555, 'normal', 'T', 't', 'std', true); const T2 = A.S; T2.settings.guide = false; document.querySelector('#modal').hidden = true; A.ui.sel = id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.ui._trSel = id; A.ui.tmode = mode; A.ui.tf = tf; A.ui.tab = 'market'; A.renderAll(true);
+      const go = document.querySelector('#tr-go'); if (!go) continue; if (go.disabled) { if (tf === 1) maxOff++; continue; }
+      const c = T2.cos.find(x => x.id === id), shown = +go.dataset.n, before = c.own.P || 0; go.click();
+      const got = mode === 'short' ? (T2.player.shorts[id] ? T2.player.shorts[id].n : 0) : (c.own.P || 0) - before; if (Math.abs(got - shown) > 1e-12) bad++; }
+    out.qty = bad === 0; out.maxShort = maxOff === 0;
+    /* BUG-13: a squeeze buys back until market-value collateral is 45% of what is still short (or nothing is left) */
+    A.newGame(5556, 'normal', 'T', 't', 'std', true); const U = A.S; U.won = U.lost = true; U.player.cash = 30;
+    const L = U.cos.filter(c => !c.priv && !c.ctrl).slice(0, 2); for (const c of L) A.execShort(c, A.sharesForShort(c, 12));
+    for (const c of L) c.price *= 2.2; U.player.cash = Math.min(U.player.cash, 2); A.step();
+    const sl = A.shortLiab(); out.squeeze = sl < 1e-9 || A.nwMkt() >= sl * .45 - 1e-6;
+    return out;
+  });
+  ok('gpt5: a current save without its checksum, or with a wrong one, is refused (BUG-05/17)', r.ok && r.noChk && r.noChkDebt && r.badChk, JSON.stringify(r));
+  ok('gpt5: the share count shown is exactly what trades; the maximum short can always be placed (BUG-20/21)', r.qty && r.maxShort);
+  ok('gpt5: a short squeeze ends only at 45% market-value collateral or with nothing left short (BUG-13)', r.squeeze);
+  /* BUG-19: restoring the backup says whether it was saved */
+  const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
+  await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]');
+  const msg = await q.evaluate(() => { const A = window.__atlas; localStorage.setItem(A.SAVE_KEY + '_bak', A.exportText()); const ls = Object.getPrototypeOf(localStorage), real = ls.setItem; ls.setItem = function(){ throw new Error('full'); };
+    document.querySelector('#modal').hidden = true; A.act('restorebak', {dataset: {}}); const t = [...document.querySelectorAll('#toasts .toast')].map(x => x.textContent).join(' | '); ls.setItem = real; return t; });
+  ok('gpt5: restoring the backup when storage refuses says it is loaded but not saved (BUG-19)', /バックアップを読み込みました.*書き込めませんでした/.test(msg), msg);
+  ok('no page errors in gpt5 tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
+  await ph.ctx.close(); await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1600,6 +1652,8 @@ async function balance(b) {
     await testTradeTabs(b);
     await testRoadTob(b);
     await testPeStep(b);
+    await testLadder2(b);
+    await testGpt5(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
