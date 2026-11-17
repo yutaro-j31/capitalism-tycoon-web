@@ -9,7 +9,7 @@ const RUN = ONLY || STRATS;
 
 function run(args) {
   const [strat, seed, weeks, diff] = args, A = window.__atlas;
-  A.newGame(seed, diff, 'B', 'b', 'std', true); const S = A.S; S.won = true; S.settings.p_year = false;
+  A.newGame(seed, diff, 'B', 'b', 'std', true); const S = A.S; S.won = true; S.settings.p_year = false; if (/^pe/.test(strat)) { A.hqInit(); Object.assign(S.dept.inv, {on: true, staff: Math.max(1, S.dept.inv.staff)}); } /* PE needs an investment department */
   const est = c => (A.estFair ? A.estFair(c) : A.fair(c));
   let peak = 0, mdd = 0, hit = null; const tr = []; let nC = 0;
   const sellAll = () => { for (const c of S.cos) if (!c.priv && (c.own.P || 0) > 0 && c.ctrl !== 'P') A.execSell('P', c, c.own.P); };

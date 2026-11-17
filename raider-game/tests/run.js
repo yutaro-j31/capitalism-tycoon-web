@@ -459,7 +459,7 @@ async function testResearch(b) {
 async function testPE(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
-    const A = window.__atlas, out = {}; A.newGame(6161, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 600;
+    const A = window.__atlas, out = {}; A.newGame(6161, 'normal', 'T', 't', 'std', true); A.hqInit(); Object.assign(A.S.dept.inv, {on: true, staff: Math.max(1, A.S.dept.inv.staff)}); /* PE needs an investment department */ const S = A.S; S.won = S.lost = true; S.player.cash = 600;
     const gen = () => { let d = null; for (let i = 0; i < 50 && !d; i++) d = A.peDealGen(); return d; };
     const byDeal = d => S.cos.find(x => x.pe && x.tk === 'PE' + String(d.id).slice(1).padStart(3, '0')); // tickers are unique, names are not
     // due diligence: costs money and reveals the real margin; a found problem comes off the price
@@ -532,7 +532,7 @@ async function testPE(b) {
   ok('PE co-investment: an AI firm takes 25%, the player keeps control and pays 75%', r.co.bid && Math.abs(r.co.mine - .75) < 1e-6 && Math.abs(r.co.partner - .25) < 1e-6 && r.co.ctrl === 'P' && Math.abs(r.co.inv - .75) < 1e-6, JSON.stringify(r.co));
   ok('PE secondary: an AI firm offers its company to the player first, and buying it starts a new investment', r.sec && r.sec.offered && r.sec.bought && r.sec.owner === 'P' && r.sec.type === 'sec' && r.sec.firmPaid, JSON.stringify(r.sec));
   // long run with a PE-playing bot: nothing breaks
-  const l = await p.evaluate(inv => { const A = window.__atlas; A.newGame(6262, 'hard', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 300; let bought = 0, sold = 0;
+  const l = await p.evaluate(inv => { const A = window.__atlas; A.newGame(6262, 'hard', 'T', 't', 'std', true); A.hqInit(); Object.assign(A.S.dept.inv, {on: true, staff: Math.max(1, A.S.dept.inv.staff)}); /* PE needs an investment department */ const S = A.S; S.won = S.lost = true; S.player.cash = 300; let bought = 0, sold = 0;
     for (let w = 0; w < 520; w++) { A.step();
       for (const it of S.inbox.filter(i => i.kind === 'peexit')) { const c = S.cos.find(x => x.id === it.cid); if (c && A.peSell(c, it.bids[0])) sold++; }
       S.inbox = [];
@@ -544,7 +544,7 @@ async function testPE(b) {
   ok('PE: invariants hold over 10 years of buying and selling', !l.bad.length && Number.isFinite(l.nw) && l.bought > 0, l.bad.slice(0, 5).join(', '));
   // the PE tab on a phone
   const m = await page(b, devices['iPhone 13']);
-  await m.p.evaluate(() => { const A = window.__atlas; A.newGame(6363, 'normal', 'T', 't', 'std', true); A.S.lost = true; for (let i = 0; i < 40 && A.S.pe.deals.length < 2; i++) A.peDealGen(); document.querySelector('#modal').hidden = true; });
+  await m.p.evaluate(() => { const A = window.__atlas; A.newGame(6363, 'normal', 'T', 't', 'std', true); A.hqInit(); Object.assign(A.S.dept.inv, {on: true, staff: Math.max(1, A.S.dept.inv.staff)}); /* PE needs an investment department */ A.renderAll(true); /* shows the PE tab */ A.S.lost = true; for (let i = 0; i < 40 && A.S.pe.deals.length < 2; i++) A.peDealGen(); document.querySelector('#modal').hidden = true; });
   await m.p.click('[data-act=tab][data-v=pe]');
   await m.p.click('.deal-h[data-act=peopen]');
   const u = await m.p.evaluate(() => ({deals: document.querySelectorAll('.deal').length, bidBtn: !!document.querySelector('[data-act=pebid]'), o: document.documentElement.scrollWidth - innerWidth}));
@@ -621,7 +621,7 @@ async function testTalent(b) {
 async function testQuarterly(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
-    const A = window.__atlas, out = {}; A.newGame(4545, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true;
+    const A = window.__atlas, out = {}; A.newGame(4545, 'normal', 'T', 't', 'std', true); A.hqInit(); Object.assign(A.S.dept.inv, {on: true, staff: Math.max(1, A.S.dept.inv.staff)}); /* PE needs an investment department */ const S = A.S; S.won = S.lost = true;
     // a dividend payer: cash arrives only in quarter-end weeks
     const c = S.cos.filter(x => !x.priv && x.payout > .2 && x.ni > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[0];
     S.tut = {buy: 0, big: 0, tob: 0, ctrl: 0, run: 0, vert: 0}; S.missions = []; S.player.cash = 50; A.execBuy('P', c, c.shares * .04); S.player.loan = 0; S.player.cash = 10;
@@ -646,11 +646,11 @@ async function testQuarterly(b) {
   ok('labour: refusing a strong union with unhappy staff can bring strikes; accepting raises pay and morale; strikes cut productivity', r.labor.strikes > 0 && r.labor.accepted && r.strikeHurts, JSON.stringify(r.labor));
   ok('authority: a role the player keeps is not delegated', r.auth);
   const f = await p.evaluate(() => { const A = window.__atlas, out = {};
-    A.newGame(11, 'easy', 'T', 't', 'std', false); const S = A.S; S.lost = true; A.step(); out.stage = S.stage; // easy starts with 50億円
+    A.newGame(11, 'easy', 'T', 't', 'std', false); A.hqInit(); Object.assign(A.S.dept.inv, {on: true, staff: Math.max(1, A.S.dept.inv.staff)}); /* PE needs an investment department */ const S = A.S; S.lost = true; A.step(); out.stage = S.stage; // easy starts with 50億円
     S.player.cash = 142; S.player.loan = 39.2; for (const c of S.cos) delete c.own.P; A.step(); out.loan = S.player.loan; out.tasks = A.tasks().some(t => t.t === '追証が近い');
     return out; });
   ok('nothing unlocks on the first day, even with the easy starting cash', f.stage === 1, String(f.stage));
-  const g = await p.evaluate(() => { const A = window.__atlas, out = {}; A.newGame(13, 'normal', 'T', 't', 'std', true); const S = A.S; S.lost = S.won = true; S.player.cash = 3000;
+  const g = await p.evaluate(() => { const A = window.__atlas, out = {}; A.newGame(13, 'normal', 'T', 't', 'std', true); A.hqInit(); Object.assign(A.S.dept.inv, {on: true, staff: Math.max(1, A.S.dept.inv.staff)}); /* PE needs an investment department */ const S = A.S; S.lost = S.won = true; S.player.cash = 3000;
     // holding-company results: the items plus the change in asset values add up to the change in net worth
     const cs = S.cos.filter(c => !c.ctrl && !c.priv).sort((a, b) => a.price * a.shares - b.price * b.shares); A.execBuy('P', cs[4], cs[4].shares * .05);
     for (let i = 0; i < 26; i++) { A.step(); S.inbox = []; }
@@ -669,7 +669,7 @@ async function testQuarterly(b) {
   ok('head office: rent and staff cost money each week', g.office.cost && g.office.city, JSON.stringify(g.office));
   ok('cash pays the margin loan down automatically; no margin warning while cash covers it', f.loan === 0 && !f.tasks, JSON.stringify(f));
   // EXIT bonus and the culture choice after a PE buyout
-  const e = await p.evaluate(() => { const A = window.__atlas; A.newGame(4646, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 3000;
+  const e = await p.evaluate(() => { const A = window.__atlas; A.newGame(4646, 'normal', 'T', 't', 'std', true); A.hqInit(); Object.assign(A.S.dept.inv, {on: true, staff: Math.max(1, A.S.dept.inv.staff)}); /* PE needs an investment department */ const S = A.S; S.won = S.lost = true; S.player.cash = 3000;
     let d = null; for (let i = 0; i < 80; i++) { const x = A.peDealGen(); if (x && x.type !== 'turn' && A.dealAsk(x) > 2) { d = x; break; } } d.bids = []; d.n = 0; d.ai = 0; d.risk = null; d.dd = 2;
     const c = A.peAcquire(d, 'P', A.dealAsk(d), 0, false); A.hrInit(); A.hrEnsure(c);
     const q = c.pe.cultQ, cult0 = c.cult, f0 = c.fixed; A.peCulture(c, true); const cult = {asked: q, changed: cult0 === 'profit' || (c.cult === 'profit' && c.fixed < f0)};
@@ -939,15 +939,15 @@ async function testLadderGrad(b) {
   await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]'); await q.click('[data-act=speed][data-v="0"]');
   await q.evaluate(() => { const A = window.__atlas, S = A.S; S.won = true; S.settings.guide = false; S.settings.confirm = false; S.player.cash = 100; const c = S.cos.find(x => !x.priv && !x.ctrl); A.ui.sel = c.id; A.ui.ctab = 'trade'; A.ui.amt = 5; });
   await q.click('[data-act=tab][data-v=market]');
-  await (await q.$$('[data-act=amtd]'))[3].click(); await (await q.$$('[data-act=amtd]'))[2].click();
-  const amt = await q.evaluate(() => window.__atlas.ui.amt);
+  await q.click('[data-act=tqd][data-v="1"]'); await q.click('[data-act=tqd][data-v="1"]'); await q.click('[data-act=tqd][data-v="-1"]'); await q.click('[data-act=tqd][data-v="1"]'); /* the quantity stepper (1% of the maximum per tap) */
+  const amt = await q.evaluate(() => ({tf: window.__atlas.ui.tf, money: window.__atlas.ui.amt}));
   await q.evaluate(() => { window.__atlas.ui.ctab = 'raid'; }); await q.click('[data-act=tab][data-v=market]');
   const p0 = await q.evaluate(() => window.__atlas.ui.tPrem); await (await q.$$('[data-act=tpremd]'))[2].click(); const p1 = await q.evaluate(() => window.__atlas.ui.tPrem);
   const o1 = await q.evaluate(() => document.documentElement.scrollWidth - innerWidth);
-  ok('ladder: the buy amount and the TOB premium step up and down', Math.abs(amt - 16) < 1e-9 && Math.abs(p1 - p0 - .01) < 1e-9 && o1 <= 0, JSON.stringify({amt, p0, p1, o1}));
+  ok('ladder: the buy quantity and the TOB premium step up and down', Math.abs(amt.tf - .02) < 1e-9 && amt.money > 0 && Math.abs(p1 - p0 - .01) < 1e-9 && o1 <= 0, JSON.stringify({amt, p0, p1, o1}));
   const vc = await q.evaluate(() => { const A = window.__atlas, S = A.S; A.hqInit(); A.vcQuarter(); const d = S.vc.deals[0]; if (!d) return {none: true}; const c0 = S.player.cash; const okv = A.vcInvest(d.id, .07); const h = S.vc.hold.find(x => x.id === d.id); return {okv, stake: h && h.stake, paid: +(c0 - S.player.cash).toFixed(4), cost: +(d.val * .07).toFixed(4)}; });
   ok('ladder: a venture stake of any whole percent from 1% to 20% can be bought', vc.none || (vc.okv && Math.abs(vc.stake - .07) < 1e-9 && Math.abs(vc.paid - vc.cost) < 1e-6), JSON.stringify(vc));
-  const g = await q.evaluate(() => { const A = window.__atlas, S = A.S; A.hqInit(); A.setOffice(2, 'tyo'); const d = S.dept.acc; const s0 = d.staff, cost0 = A.deptCost(), eff0 = A.deptEff('acc');
+  const g = await q.evaluate(() => { const A = window.__atlas, S = A.S; A.hqInit(); A.setOffice(2, 'tyo'); const d = S.dept.acc; d.on = true; if (!d.staff) d.staff = 1; /* an accounting department to hire into */ const s0 = d.staff, cost0 = A.deptCost(), eff0 = A.deptEff('acc');
     const n = A.gradOffer('acc', 3), queued = S.gradQ.acc; S.week = A.gradJoinW(); A.gradStep();
     return {n, queued, joined: d.staff - s0, jr: d.jr, costPer: +((A.deptCost() - cost0) / 3).toFixed(4), effPer: +((A.deptEff('acc') - eff0) / 3).toFixed(3), ab: d.ab}; });
   ok('graduates: offers join on the entrance day as cheaper, less able juniors', g.n === 3 && g.queued === 3 && g.joined === 3 && g.jr === 3 && g.costPer < .08 && g.effPer < g.ab / 70, JSON.stringify(g));
@@ -1052,7 +1052,7 @@ async function testAC(b) {
     /* (13) corporate tax on a positive quarter */
     S.player.pl = Object.assign({}, S.player.pl, {div: 10, rent: 2, hq: -1}); const t = A.corpTax(); out.tax = Math.abs(t - .3 * (5 + 2 - 1 + (S.player.pl.int || 0) + (S.player.pl.fee || 0) + (S.player.pl.rd || 0) + (S.player.pl.pay || 0))) < 1e-6 && S.player.pl.tax < 0;
     /* (9) welfare levels scale the cost */
-    A.hqInit(); S.dept.acc.staff = 10; S.welfare = {edu: 2}; const w2 = A.welfareCost(); S.welfare.edu = 4; out.welf = Math.abs(A.welfareCost() - 2 * w2) < 1e-9 && w2 > 0;
+    A.hqInit(); S.dept.acc.on = true; S.dept.acc.staff = 10; S.welfare = {edu: 2}; const w2 = A.welfareCost(); S.welfare.edu = 4; out.welf = Math.abs(A.welfareCost() - 2 * w2) < 1e-9 && w2 > 0;
     /* (3) venture tranches and personal money */
     A.vcQuarter(); const d = S.vc.deals[0]; if (d) { const tr = A.vcTranches(d); S.pres.cash = d.val; const pc0 = S.pres.cash, vc0 = A.vcValue();
       out.vcp = A.vcInvest(d.id, tr[2], 'pres', 2) && S.pres.cash < pc0 && A.vcValue() === vc0 && A.presWealth() > 0 && !!A.vcFind(d.id); } else out.vcp = true;
@@ -1113,9 +1113,9 @@ async function testFeedback12(b) {
   await q.evaluate(() => { const A = window.__atlas, S = A.S; S.won = true; S.settings.confirm = false; S.player.cash = 100; const c = S.cos.find(x => !x.priv && !x.ctrl); A.execBuy('P', c, A.sharesForMoney(c, 20)); A.ui.sel = c.id; A.ui.ctab = 'trade'; A.ui.sellF = .1; window.__c = c.id; });
   await q.click('[data-act=tab][data-v=market]');
   const h0 = await q.evaluate(() => window.__atlas.S.cos.find(x => x.id === window.__c).own.P);
-  await (await q.$$('[data-act=sellfd]'))[3].click(); const f = await q.evaluate(() => window.__atlas.ui.sellF);
-  await q.click(`[data-act=sell][data-v="${f}"]`); const h1 = await q.evaluate(() => window.__atlas.S.cos.find(x => x.id === window.__c).own.P);
-  ok('feedback4: a bank tab, and selling a chosen number of shares', bank.ok && bank.o <= 0 && Math.abs(f - .2) < 1e-9 && Math.abs(h1 - h0 * .8) < h0 * 1e-6, JSON.stringify({bank, f, h0, h1}));
+  await q.click('[data-act=trmode][data-v=sell]'); await q.click('[data-act=tqset][data-v="0.25"]'); const f = await q.evaluate(() => window.__atlas.ui.sellF);
+  await q.click('#tr-go'); const h1 = await q.evaluate(() => window.__atlas.S.cos.find(x => x.id === window.__c).own.P);
+  ok('feedback4: a bank tab, and selling a chosen number of shares from the sell tab', bank.ok && bank.o <= 0 && Math.abs(f - .25) < 1e-9 && Math.abs(h1 - h0 * .75) < h0 * 1e-6, JSON.stringify({bank, f, h0, h1}));
   ok('no page errors in feedback4 tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
   await ph.ctx.close(); await ctx.close();
 }
@@ -1123,7 +1123,7 @@ async function testFeedback12(b) {
 async function testGptBugs(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
-    const A = window.__atlas, out = {}; A.newGame(6262, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 300; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    const A = window.__atlas, out = {}; A.newGame(6262, 'normal', 'T', 't', 'std', true); A.hqInit(); Object.assign(A.S.dept.inv, {on: true, staff: Math.max(1, A.S.dept.inv.staff)}); /* PE needs an investment department */ const S = A.S; S.won = S.lost = true; S.player.cash = 300; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
     /* BUG-07: a fund that is still raising keeps net worth finite */
     S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
     const f = A.fundRaise('buyout', .05); if (f) { f.lp = 0; f.gp = 0; } out.nan = Number.isFinite(A.netWorth('P')) && Number.isFinite(A.bsNow().eq);
@@ -1157,12 +1157,12 @@ async function testGptBugs(b) {
   const lt = await q.$('[data-act=loantake]'); if (lt) await lt.click(); await q.waitForTimeout(700);
   const saved = await q.evaluate(() => { const o = JSON.parse(localStorage.getItem(window.__atlas.SAVE_KEY)); return (o.player.tl || []).length === (window.__atlas.S.player.tl || []).length && (o.player.tl || []).length > 0; });
   /* BUG-01: the short button either trades or says why */
-  const sh = await q.evaluate(() => { const A = window.__atlas, S = A.S; S.settings.confirm = false; for (const c of S.cos) delete c.own.P; S.player.loan = 0; S.player.cash = 30; const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; A.ui.sel = c.id; A.ui.ctab = 'trade'; A.ui.samt = 50; return c.id; });
-  await q.click('[data-act=tab][data-v=market]'); const n0 = await q.evaluate(() => document.querySelectorAll('#toasts .toast').length); await q.click('[data-act=short]');
+  const sh = await q.evaluate(() => { const A = window.__atlas, S = A.S; S.settings.confirm = false; for (const c of S.cos) delete c.own.P; S.player.loan = 0; S.player.cash = 30; const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; A.ui.sel = c.id; A.ui.ctab = 'trade'; return c.id; });
+  await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=trmode][data-v=short]'); await q.click('[data-act=tqset][data-v="1"]'); const n0 = await q.evaluate(() => document.querySelectorAll('#toasts .toast').length); await q.click('#tr-go');
   const shr = await q.evaluate(id => ({pos: !!window.__atlas.S.player.shorts[id], toast: document.querySelector('#toasts').innerText}), sh);
   /* BUG-06: 0 shares cannot be sold */
   await q.evaluate(() => { const A = window.__atlas, S = A.S, c = S.cos.find(x => x.id === A.ui.sel); delete S.player.shorts[c.id]; A.execBuy('P', c, c.shares * .01); A.ui.sellF = 0; });
-  await q.click('[data-act=tab][data-v=market]'); const zero = await q.evaluate(() => { const b = [...document.querySelectorAll('[data-act=sell]')].find(x => x.innerText.includes('入力')); return !!b && b.disabled; });
+  await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=trmode][data-v=sell]'); const zero = await q.evaluate(() => { const b = document.querySelector('#tr-go'); return !!b && b.dataset.act === 'sell' && b.disabled && window.__atlas.ui.tf === 0; });
   /* BUG-10 */
   await q.evaluate(() => { const A = window.__atlas, c = A.S.cos.find(x => x.id === A.ui.sel); c.price = A.fair(c) * 1.4; A.ui.ctab = 'info'; });
   await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=why][data-v=px]'); const dear = await q.evaluate(() => document.querySelector('#modal').innerText.includes('割高')); await q.click('#modal [data-act=close]');
@@ -1256,11 +1256,11 @@ async function testGpt2(b) {
   await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=why][data-v=px]');
   const disc = await q.evaluate(() => document.querySelector('#modal').innerText); await q.click('#modal [data-act=close]');
   ok('gpt2: 30% below the estimate reads as a 30% discount with 43% upside (BUG-10)', /30%安い＝割安（上昇余地 43%）/.test(disc), disc.slice(0, 0));
-  await q.evaluate(() => { const A = window.__atlas; A.ui.ctab = 'trade'; A.ui.cashOnly = true; const c = A.S.cos.find(x => x.id === A.ui.sel); const d = A.S.cos.find(x => !x.priv && !x.ctrl && x !== c); A.execBuy('P', d, A.sharesForMoney(d, 2)); A.ui.amt = 5; }); /* some shares held, so margin room exceeds cash */
-  await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=amt][data-v=max]');
-  const cm = await q.evaluate(() => { const A = window.__atlas, btn = document.querySelector('[data-act=buy]'); return {amt: A.ui.amt, cash: A.S.player.cash, borrow: document.querySelector('.cashsplit').innerText, dis: btn.disabled}; });
-  ok('gpt2: in cash-only mode the max button uses cash and no margin is previewed (BUG-11)', cm.amt <= cm.cash + 1e-9 && cm.amt > 0 && !cm.dis, JSON.stringify(cm));
-  await q.click('[data-act=buy]');
+  await q.evaluate(() => { const A = window.__atlas; A.ui.ctab = 'trade'; const c = A.S.cos.find(x => x.id === A.ui.sel); const d = A.S.cos.find(x => !x.priv && !x.ctrl && x !== c); A.execBuy('P', d, A.sharesForMoney(d, 2)); }); /* some shares held, so margin room exceeds cash */
+  await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=trmode][data-v=cash]'); await q.click('[data-act=tqset][data-v="1"]');
+  const cm = await q.evaluate(() => { const A = window.__atlas, btn = document.querySelector('#tr-go'); return {amt: A.ui.amt, cash: A.S.player.cash, cashOnly: A.ui.cashOnly, margin: /信用借入/.test(document.querySelector('.tr-info').innerText), dis: btn.disabled}; });
+  ok('gpt2: the 現物買い tab at maximum uses cash only and shows no margin loan (BUG-11)', cm.amt <= cm.cash + 1e-9 && cm.amt > 0 && cm.cashOnly && !cm.margin && !cm.dis, JSON.stringify(cm));
+  await q.click('#tr-go');
   const imm = await q.evaluate(() => { const o = JSON.parse(localStorage.getItem(window.__atlas.SAVE_KEY)); return Math.abs(o.player.cash - window.__atlas.S.player.cash) < 1e-9; });
   ok('gpt2: a trade is saved at once, without waiting (BUG-02)', imm);
   await q.evaluate(() => { const ls = Object.getPrototypeOf(localStorage); window.__set = ls.setItem; ls.setItem = function(){ throw new Error('full'); }; window.__atlas.ui.speed = 0; });
@@ -1356,7 +1356,7 @@ async function testExitGuide(b) {
   await p.evaluate(() => { document.querySelector('#modal').hidden = true; window.__atlas.act('tab', {dataset: {v: 'port'}}); });
   const listed = await p.evaluate(id => { const b = document.querySelector(`[data-act=exitgo][data-id="${id}"]`); return !!b && /売り時/.test(b.textContent); }, r.id);
   await p.evaluate(id => { document.querySelector('#modal').hidden = true; window.__atlas.act('exitgo', {dataset: {id}}); }, r.id);
-  const box = await p.evaluate(() => { const bx = document.querySelector('.exitbox'), trade = [...document.querySelectorAll('h4')].find(h => /株式売買/.test(h.textContent)); return !!bx && /売り時です/.test(bx.textContent) && !!trade && (bx.compareDocumentPosition(trade) & Node.DOCUMENT_POSITION_FOLLOWING) > 0; });
+  const box = await p.evaluate(() => { const bx = document.querySelector('.exitbox'), trade = document.querySelector('.tr'); /* the trade box */ return !!bx && /売り時です/.test(bx.textContent) && !!trade && (bx.compareDocumentPosition(trade) & Node.DOCUMENT_POSITION_FOLLOWING) > 0; });
   const sold = await p.evaluate(id => { const A = window.__atlas, S = A.S, c = S.cos.find(x => x.id === id); A.act('bsalego', {dataset: {}}); S.week = c.bsale.end; A.bsaleStep(); const it = S.inbox.find(i => i.kind === 'bsale' && i.cid === id); if (!it) return 'no bids'; const cash0 = S.player.cash, best = Math.max(...it.bids.map(b => b.px)), i = it.bids.findIndex(b => b.px === best), n = c.own.P; A.act('bsell', {dataset: {id: String(it.id), v: String(i)}}); return Math.abs(S.player.cash - cash0 - n * best) < 1e-6 && !(c.own.P > 0) && c.ctrl !== 'P'; }, r.id);
   ok('exit: taking control records the week and starts integration; the guide waits until integration is done', r.taken && r.notYet, JSON.stringify(r));
   ok('exit: after two years with a gain, the guide says sell, and a block sale is shown above a market sale', r.ready && r.noRng);
@@ -1402,6 +1402,25 @@ async function testGpt4(b) {
   await ph.ctx.close(); await ctx.close();
 }
 
+async function testTradeTabs(b) {
+  const {p, ctx, errs} = await page(b, {...devices['iPhone 13']});
+  await p.click('[data-act=allu][data-v="1"]'); await p.click('[data-act=newgame]');
+  /* a new company in a home office has no departments, and PE waits for an investment department */
+  const start = await p.evaluate(() => { const A = window.__atlas, S = A.S; A.hqInit(); return {acc: S.dept.acc.on, staff: Object.values(S.dept).reduce((a, d) => a + (d.on ? d.staff : 0), 0), peTab: !!document.querySelector('[data-act=tab][data-v=pe]'), has: A.has ? A.has('pe') : null}; });
+  const opened = await p.evaluate(() => { const A = window.__atlas, S = A.S; S.dept.inv.on = true; S.dept.inv.staff = 1; A.renderAll(true); return !!document.querySelector('[data-act=tab][data-v=pe]'); });
+  /* the trade box: five tabs, a stepper and a slider; dragging updates the numbers without re-rendering */
+  const id = await p.evaluate(() => { const A = window.__atlas, S = A.S; S.settings.guide = false; S.player.cash = 30; const c = S.cos.find(x => !x.priv && !x.ctrl); A.ui.sel = c.id; A.ui.ctab = 'trade'; A.ui.pendingAward = null; A.ui.pendingUnlock = null; document.querySelector('#modal').hidden = true; return c.id; });
+  await p.evaluate(() => { document.querySelector('#modal').hidden = true; window.__atlas.act('tab', {dataset: {v: 'market'}}); });
+  const ui = await p.evaluate(() => { const r = document.querySelector('#tr-range'), box = document.querySelector('.tr'); const before = box; r.value = 500; r.dispatchEvent(new Event('input', {bubbles: true}));
+    return {tabs: [...document.querySelectorAll('[data-act=trmode]')].map(x => x.textContent.replace('🔒', '')).join(','), same: document.querySelector('.tr') === before, n: document.querySelector('#tr-n').textContent, go: !document.querySelector('#tr-go').disabled, tf: window.__atlas.ui.tf}; });
+  const bought = await p.evaluate(id => { const A = window.__atlas, S = A.S, c = S.cos.find(x => x.id === id), c0 = S.player.cash; document.querySelector('#tr-go').click(); return {got: (c.own.P || 0) > 0, cashUsed: c0 - S.player.cash, loan: S.player.loan, reset: A.ui.tf === 0}; }, id);
+  ok('trade: a new game starts with no departments; the PE tab appears once an investment department exists', !start.acc && start.staff === 0 && !start.peTab && start.has === false && opened, JSON.stringify({start, opened}));
+  ok('trade: five tabs (現物買い・信用買い・売る・空売り・オプション); the slider updates in place', ui.tabs === '現物買い,信用買い,売る,空売り,オプション' && ui.same && /株$/.test(ui.n) && ui.go && ui.tf === .5, JSON.stringify(ui));
+  ok('trade: buying half the cash amount spends cash only and resets the quantity', bought.got && bought.cashUsed > 13.5 && bought.cashUsed <= 15.01 && bought.loan === 0 && bought.reset, JSON.stringify(bought));
+  ok('no page errors in trade-tab tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1412,7 +1431,7 @@ async function testHQ(b) {
     const B = A.bsNow(); out.bs = Math.abs(B.eq - (A.netWorth('P') / (1 - (S.player.outside || 0)))) < 1e-6;
     const L = S.player.plHist[0], C = A.cfOf(L); out.cf = Math.abs(C.op + C.inv + C.fin - (L.cash1 - L.cash0)) < 1e-9;
     // a thin accounting team: statements lag; more people bring them up to date
-    S.dept.acc.staff = 0; out.lagThin = A.accLag(); S.dept.acc.staff = 4; S.dept.acc.ab = 70; S.dept.acc.mo = 80; out.lagFull = A.accLag();
+    S.dept.acc.on = true; /* set up an accounting department first (a new company has none) */ S.dept.acc.staff = 0; out.lagThin = A.accLag(); S.dept.acc.staff = 4; S.dept.acc.ab = 70; S.dept.acc.mo = 80; out.lagFull = A.accLag();
     // investment department: research points and more venture deals
     A.setOffice(3, 'tyo'); S.dept.inv.on = true; S.dept.inv.staff = 40; S.dept.inv.ab = 70; const pts0 = S.research.pts; S.research.budget = 0; A.deptStep(); out.research = S.research.pts > pts0;
     A.vcQuarter(); out.vcDeals = S.vc.deals.length;
@@ -1536,6 +1555,7 @@ async function balance(b) {
     await testPeTob(b);
     await testExitGuide(b);
     await testGpt4(b);
+    await testTradeTabs(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
