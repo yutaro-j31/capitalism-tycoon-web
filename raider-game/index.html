@@ -3938,7 +3938,7 @@ function renderMarket(){
 const acctName = k => k === 'P' ? `${S.company}本体` : `子会社 ${(coById(k) || {name: '?'}).name}`;
 function actorField(c){
   const actors = actorsFor(c), k = ui.actor;
-  const lbl = a => a === 'P' ? `${esc(S.company)}本体（使える資金 ${fm(buyingPower())}）` : `子会社 ${esc(coById(a).name)}（使える資金 ${fm(fundsOf(a))}）`;
+  const lbl = a => a === 'P' ? `${esc(S.company)}本体（使える資金 ${fm(tradeFunds('P'))}${ui.cashOnly ? '・現金のみ' : ''}）` : `子会社 ${esc(coById(a).name)}（使える資金 ${fm(fundsOf(a))}）`;
   return `<div class="field"><label for="actor">名義</label>${actors.length > 1 ? `<select id="actor" data-act-input="actor">${actors.map(a => `<option value="${a}" ${a === k ? 'selected' : ''}>${lbl(a)}</option>`).join('')}</select>` : `<b class="acct">${lbl('P')}</b>`}</div>
   <p>${k === 'P' ? `${esc(S.company)}本体の現金と信用取引の借入枠を使います。` : `${esc(coById(k).name)}の現金と借入枠を使い、株は${esc(coById(k).name)}の保有になります。`}${actors.length > 1 ? '名義を子会社にすると、少ない元手でグループ支配を広げられます（持株ピラミッド）。' : '会社を支配すると、その会社の資金で買う名義も選べるようになります。'}</p>`;
 }
