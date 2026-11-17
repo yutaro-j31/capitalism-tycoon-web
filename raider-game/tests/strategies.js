@@ -1,14 +1,15 @@
 /* Strategy benchmark: simple scripted strategies over N years and several seeds, using only player-visible signals.
-   Usage: node raider-game/tests/strategies.js [years=10] [seeds=3]   Prints median final net worth, goal hits and max drawdown. */
+   Usage: node raider-game/tests/strategies.js [years=10] [seeds=3] [difficulty=normal] [strategies=value,pe,...]   Prints median final net worth, goal hits and max drawdown. */
 const {chromium} = require('playwright');
 const path = require('path');
-const YEARS = +(process.argv[2] || 10), NS = +(process.argv[3] || 3);
+const YEARS = +(process.argv[2] || 10), NS = +(process.argv[3] || 3), DIFF = process.argv[4] || 'normal', ONLY = process.argv[5] ? process.argv[5].split(',') : null;
 const SEEDS = [12345, 54321, 98765, 24680, 13579].slice(0, NS);
 const STRATS = ['value', 'vc', 'pe', 'tob', 'dividend', 'cash'];
+const RUN = ONLY || STRATS;
 
 function run(args) {
-  const [strat, seed, weeks] = args, A = window.__atlas;
-  A.newGame(seed, 'normal', 'B', 'b', 'std', true); const S = A.S; S.won = true; S.settings.p_year = false;
+  const [strat, seed, weeks, diff] = args, A = window.__atlas;
+  A.newGame(seed, diff, 'B', 'b', 'std', true); const S = A.S; S.won = true; S.settings.p_year = false;
   const est = c => (A.estFair ? A.estFair(c) : A.fair(c));
   let peak = 0, mdd = 0, hit = null;
   const sellAll = () => { for (const c of S.cos) if (!c.priv && (c.own.P || 0) > 0 && c.ctrl !== 'P') A.execSell('P', c, c.own.P); };
@@ -38,8 +39,8 @@ function run(args) {
   await p.goto('file://' + path.join(__dirname, '..', 'index.html')); await p.waitForTimeout(300);
   await p.evaluate(() => { document.querySelector('#modal').hidden = true; });
   const out = {};
-  for (const s of STRATS) {
-    const rs = []; for (const seed of SEEDS) rs.push(await p.evaluate(run, [s, seed, YEARS * 52]));
+  for (const s of RUN) {
+    const rs = []; for (const seed of SEEDS) rs.push(await p.evaluate(run, [s, seed, YEARS * 52, DIFF]));
     const nws = rs.map(r => r.nw).sort((a, b) => a - b);
     out[s] = {median: Math.round(nws[Math.floor(nws.length / 2)]), min: Math.round(nws[0]), max: Math.round(nws[nws.length - 1]), goal: rs.filter(r => r.hit != null).length + '/' + rs.length, mdd: Math.round(Math.max(...rs.map(r => r.mdd)) * 100) + '%', lost: rs.filter(r => r.lost).length};
     console.log(s.padEnd(9), JSON.stringify(out[s]));

@@ -1272,6 +1272,37 @@ async function testGpt2(b) {
   await ph.ctx.close(); await ctx.close();
 }
 
+async function testGpt3(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(5151, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    for (let i = 0; i < 10; i++) A.step();
+    /* BUG-17: saves that break the money and ownership rules are refused */
+    const txt = JSON.stringify(S), bad = f => { const o = JSON.parse(txt); f(o); return !A.parseSave(JSON.stringify(o)); };
+    out.over = bad(o => { o.cos[0].own = {P: o.cos[0].shares * 2}; });
+    out.dup = bad(o => { o.cos[1].id = o.cos[0].id; });
+    out.loanNull = bad(o => { o.player.loan = null; });
+    out.tobsGone = bad(o => { delete o.tobs; });
+    out.ghost = bad(o => { o.cos[0].own.C9999 = 1; });
+    out.costFill = (() => { const o = JSON.parse(txt); const c = o.cos.find(x => !x.priv); c.own.P = c.shares * .01; delete o.player.cost; const g = A.parseSave(JSON.stringify(o)); return !!g && Math.abs(g.player.cost[c.id] - c.own.P * c.price) < 1e-9; })();
+    out.goodOk = !!A.parseSave(txt);
+    /* BUG-18: cash-only buying never borrows, even on the stocks where rounding used to overshoot */
+    let borrowed = 0; for (const c of S.cos.filter(x => !x.priv)) { const n = A.sharesForMoney(c, 30); const q = n > 0 ? n : 0; if (q) { const qb = A.quoteBuy(c, q), cost = qb.avg * qb.n * 1.0025; if (cost > 30 + 1e-9) borrowed++; } }
+    out.round = borrowed === 0;
+    /* BUG-13: the control premium does not widen short-selling room */
+    const t = S.cos.find(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom'); t.price = A.fair(t) * .6; t.own = {P: t.shares * .45}; A.recomputeCtrl();
+    out.short = t.ctrl === 'P' && A.netWorth('P') > A.nwMkt() + 1e-6 && Math.abs(A.shortRoom() - Math.max(0, A.nwMkt() - A.shortLiab())) < 1e-9;
+    t.own = {}; A.recomputeCtrl();
+    return out;
+  });
+  ok('gpt3: saves owning over 100%, with duplicate ids, a missing loan, lost tender offers or unknown holders are refused (BUG-17)', r.over && r.dup && r.loanNull && r.tobsGone && r.ghost && r.goodOk, JSON.stringify(r));
+  ok('gpt3: a lost cost basis is rebuilt at market value, so no fake gain appears', r.costFill);
+  ok('gpt3: the share count for a sum never costs more than the sum (BUG-18)', r.round);
+  ok('gpt3: short-selling room uses market values, not the control premium (BUG-13)', r.short);
+  ok('no page errors in gpt3 tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1389,6 +1420,7 @@ async function balance(b) {
     await testGptBugs(b);
     await testBalance2(b);
     await testGpt2(b);
+    await testGpt3(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
