@@ -1181,7 +1181,8 @@ async function testBalance2(b) {
     const amp = .04 + .26 * (1 - A.estAcc()); out.est = S.cos.every(c => Math.abs(A.fairEst(c) / A.fair(c) - 1) <= amp + 1e-9) && S.cos.some(c => Math.abs(A.fairEst(c) / A.fair(c) - 1) > 1e-6);
     /* a controlling stake is worth at least 95% of intrinsic value; the balance sheet agrees */
     const c = S.cos.find(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom'); c.price = A.fair(c) * .6; c.own = {P: c.shares * .6}; A.recomputeCtrl();
-    out.ctrl = Math.abs(A.ctrlPx('P', c) - A.fair(c) * .95) < 1e-9 && Math.abs(A.bsNow().eq - A.netWorth('P')) < 1e-6;
+    const day1 = Math.abs(A.ctrlPx('P', c) - c.price) < 1e-9; /* on the day control is taken, no premium is booked yet */ c.ctrlW = S.week - 52; /* a year later, integrated */
+    out.ctrl = day1 && Math.abs(A.ctrlPx('P', c) - A.fair(c) * .95) < 1e-9 && Math.abs(A.bsNow().eq - A.netWorth('P')) < 1e-6;
     c.own = {}; A.recomputeCtrl();
     /* a company on autopilot solves its own funding crisis */
     const d = S.cos.find(x => !x.priv && !x.ctrl && x !== c); d.own = {P: d.shares * .6}; A.recomputeCtrl(); d.dm = 'auto'; d.ni = -1; d.debt = Math.max(d.debt, 5); d.cash = 0; d.crisis = null; d.dueW = S.week; d.debt = d.rev * 10;
@@ -1224,7 +1225,7 @@ async function testGpt2(b) {
     /* BUG-13: the control premium raises net worth but not the credit lines */
     const t = S.cos.find(x => !x.priv && !x.ctrl && x !== c && x.ind !== 'air' && x.ind !== 'telecom'); t.price = A.fair(t) * .6;
     t.own = {P: t.shares * .3}; A.recomputeCtrl(); const bp0 = A.buyingPower(), bl0 = A.bankLimit(), nwA = A.netWorth('P'), dv0 = A.divIncomeY();
-    t.own.P = t.shares * .45; A.recomputeCtrl();
+    t.own.P = t.shares * .45; A.recomputeCtrl(); t.ctrlW = S.week - 52; /* an integrated subsidiary: the control premium is fully booked */
     const ctrl = t.ctrl === 'P', extra = t.shares * .15 * t.price; out.collat = ctrl && A.holdingsValue('P') > A.holdingsMkt('P') + 1e-6 && A.buyingPower() - bp0 <= extra * 1.5 + 1e-6 && A.bankLimit() - bl0 <= extra * .45 + (A.divIncomeY() - dv0) * 4 + 1e-6 && A.netWorth('P') > nwA + extra * 1.5; /* only the market value of the extra 15% adds credit; the premium adds net worth */
     t.own = {}; A.recomputeCtrl();
     /* BUG-12: the same company turned round twice counts once */
@@ -1290,7 +1291,7 @@ async function testGpt3(b) {
     let borrowed = 0; for (const c of S.cos.filter(x => !x.priv)) { const n = A.sharesForMoney(c, 30); const q = n > 0 ? n : 0; if (q) { const qb = A.quoteBuy(c, q), cost = qb.avg * qb.n * 1.0025; if (cost > 30 + 1e-9) borrowed++; } }
     out.round = borrowed === 0;
     /* BUG-13: the control premium does not widen short-selling room */
-    const t = S.cos.find(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom'); t.price = A.fair(t) * .6; t.own = {P: t.shares * .45}; A.recomputeCtrl();
+    const t = S.cos.find(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom'); t.price = A.fair(t) * .6; t.own = {P: t.shares * .45}; A.recomputeCtrl(); t.ctrlW = S.week - 52; /* integrated: the premium is booked */
     out.short = t.ctrl === 'P' && A.netWorth('P') > A.nwMkt() + 1e-6 && Math.abs(A.shortRoom() - Math.max(0, A.nwMkt() - A.shortLiab())) < 1e-9;
     t.own = {}; A.recomputeCtrl();
     return out;
@@ -1687,6 +1688,45 @@ async function testRealism(b) {
   ok('no page errors in realism tests', errs.length === 0, errs.join(' | '));
 }
 
+async function testMuse(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(4321, 'normal', 'T', 't', 'std', true); let S = A.S; S.won = S.lost = true; S.player.cash = 3000;
+    /* (1) buying control of a cheap company books no premium on the day; it is earned over a year of integration */
+    const c = S.cos.filter(x => !x.priv && !x.ctrl && !Object.keys(x.own).length && x.ind !== 'air' && x.ind !== 'telecom').sort((a, b) => a.price * a.shares - b.price * b.shares)[3]; c.price = A.fair(c) * .4;
+    const nw0 = A.netWorth('P'), pay = c.shares * .6 * c.price; S.player.cash -= pay; c.own.P = c.shares * .6; S.player.cost[c.id] = pay; A.recomputeCtrl();
+    const full = Math.max(c.price, A.fair(c) * .95); out.day1 = c.ctrl === 'P' && Math.abs(A.netWorth('P') - nw0) < 1e-6;
+    c.ctrlW = S.week - 26; const half = A.ctrlPx('P', c); c.ctrlW = S.week - 52; out.phaseIn = half > c.price + 1e-9 && half < full - 1e-9 && Math.abs(A.ctrlPx('P', c) - full) < 1e-9;
+    /* (2) missions carry no cash reward figure (they pay reputation) */
+    out.noMissionCash = S.missions.every(m => m.reward == null);
+    /* (3) a counter-bid that cannot be paid leaves the earlier bid standing */
+    const t = S.cos.filter(x => !x.priv && !x.ctrl && !A.activeTob(x) && x !== c && !Object.keys(x.own).length).sort((a, b) => a.price * a.shares - b.price * b.shares)[2];
+    A.launchTob('P', t, t.price * 1.3, .51); const R1 = S.rivals[0]; A.launchTob(R1.id, t, t.price * 1.45, .51); R1.cash = 0; S.tobs.find(x => x.cid === t.id).end = S.week;
+    A.resolveTobs(); out.revive = (t.own.P || 0) > 0 && !(t.own[R1.id] > 0) && S.news.some(n => /対抗TOBは資金が足りず撤回/.test(n.t));
+    /* (3) the personal account cannot spend more than it holds */
+    A.newGame(4322, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = .5; A.incorporate('Z', 0); S.pres.cash = .001; const u = S.cos.filter(x => !x.priv && !x.ctrl)[0];
+    A.execBuy('U', u, u.shares * .01); out.uFloor = S.pres.cash >= -1e-12;
+    /* BUG-32: newsletter profit is operating cash flow */
+    A.newGame(4323, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 27; i++) A.step(); A.nlStart(); while (S.week % 13 !== 0) A.step(); for (let i = 0; i < 13; i++) A.step();
+    const L = S.player.plHist[0], C = A.cfOf(L); out.cfNl = L.nl > 0 && Math.abs(C.inv) < 1e-9 && Math.abs(C.op - (L.nl + (L.tax || 0) + (L.div || 0) + (L.fee || 0) + (L.int || 0) + (L.hq || 0))) < 1e-9;
+    /* BUG-31: confirming a floor plan with more departments than floors is refused */
+    A.newGame(4324, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; A.hqInit(); A.ui.plan = {lvl: 0, on: Object.fromEntries(Object.keys(S.dept).map(k => [k, true]))};
+    A.act('planok', {dataset: {}}); out.floors = Object.values(S.dept).filter(d => d.on).length <= 1;
+    /* PE: no acquisition debt for a loss-maker; lenders want interest covered 1.5 times */
+    for (let i = 0; i < 6 && !(S.pe.deals || []).length; i++) A.peDealGen(); const d = S.pe.deals[0]; const q = A.peQuote(d, A.dealAsk(d), .65, 'P');
+    out.peCover = !!d && (q.cover >= 1.5 - 1e-9 || q.acq === 0) && typeof q.risk === 'string';
+    const d2 = Object.assign({}, d, {mTrue: -.1, mShow: -.1, assets: 0}); const q2 = A.peQuote(d2, A.dealAsk(d2), .65, 'P'); out.peLoss = q2.acq === 0 && q2.risk === '高' && q2.burn > 0;
+    /* (4) listed companies can fail: a company in its fourth crisis in a row, losing money and not covering its interest, finds no rescuer */
+    A.newGame(4325, 'normal', 'T', 't', 'std', false); S = A.S; S.won = false; const z = S.cos.find(x => !x.priv && !x.ctrl);
+    z.margin = z.base = -.2; z.debt = z.assets * 1.2; z.cash = 0; z.crisisW = S.week - 10; z.crisisN = 3; z.ni = -Math.abs(z.ni) - 1; z.crisis = {w: S.week, due: S.week + 8};
+    A.aiCrisis(z); out.noRescue = !!z.crisis; for (let i = 0; i < 9 && S.cos.includes(z); i++) A.step(); out.failed = !S.cos.includes(z) || z.forceBk;
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('muse: control premium earned over a year, no mission cash, counter-bid revival, personal floor, newsletter cash flow, floor plan, PE lending, failing companies', !fails.length, JSON.stringify(fails));
+  ok('no page errors in muse tests', errs.length === 0, errs.join(' | '));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1867,6 +1907,7 @@ async function balance(b) {
     await testMidgame(b);
     await testGpt7(b);
     await testRealism(b);
+    await testMuse(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
