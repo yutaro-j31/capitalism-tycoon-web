@@ -1727,6 +1727,34 @@ async function testMuse(b) {
   ok('no page errors in muse tests', errs.length === 0, errs.join(' | '));
 }
 
+async function testGroup(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {};
+    /* small private companies: a trader's new company sees deals from tens of millions of yen, without institutional bidders */
+    A.newGame(5151, 'normal', 'T', 't', 'trader', false); let S = A.S; S.won = false; S.player.cash = .8; A.incorporate('Z', 0); A.hqInit();
+    out.peOpen = A.has('pe') && A.peScale() < 1; for (let i = 0; i < 60 && (S.pe.deals || []).length < 3; i++) A.step();
+    out.small = S.pe.deals.length > 0 && S.pe.deals.every(d => d.small && d.rev < 10 && d.n === 0) && S.pe.deals.some(d => A.dealAsk(d) < 1);
+    const d = S.pe.deals.filter(x => A.dealAsk(x) < S.player.cash * .9).sort((a, b) => A.dealAsk(a) - A.dealAsk(b))[0];
+    out.buy = !!d && A.peBid(d, 0, 0, false, 'P', 0); for (let i = 0; i < 6; i++) A.step(); out.owned = S.cos.some(c => c.pe && c.pe.owner === 'P' && c.priv);
+    /* the classic scenarios keep their deal sizes */
+    A.newGame(5150, 'normal', 'T', 't', 'std', true); out.classicScale = A.peScale() >= 15;
+    /* group synergies: same industry and region, with an accounting department at head office */
+    A.newGame(5152, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; A.hqInit(); S.dept.acc.on = true; S.dept.acc.staff = 4;
+    const G = S.cos.filter(x => !x.priv && !x.ctrl && x.ind === 'food').slice(0, 3); const solo = G[0], op0 = A.opProfit(solo);
+    solo.own = {P: solo.shares * .7}; A.recomputeCtrl(); const opAlone = A.opProfit(solo), g1 = A.grpSyn(solo);
+    for (const c of G.slice(1)) c.own = {P: c.shares * .7}; A.recomputeCtrl(); const g3 = A.grpSyn(solo), op3 = A.opProfit(solo);
+    out.syn = g1 && g1.n === 0 && g1.buy === 0 && g3.n === 2 && g3.buy > 0 && g3.admin > 0 && g3.fund > 0 && op3 > opAlone;
+    S.dept.acc.on = false; A.recomputeCtrl(); const gNo = A.grpSyn(solo); out.needAcc = gNo.admin === 0 && gNo.fund === 0 && gNo.buy > 0; S.dept.acc.on = true; A.recomputeCtrl();
+    const b0 = G.map(c => c.brand); G[1].brand = .9; while (S.week % 13 !== 12) A.step(); A.step(); out.brand = G[0].brand > b0[0] - 1e-9 && G[2].brand > b0[2] - 1e-9;
+    A.ui.tab = 'market'; A.ui.sel = solo.id; A.ui.ctab = 'info'; A.renderAll(true); out.card = document.body.innerHTML.includes('グループのシナジー');
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('group: small private deals for a trader company; synergies from industry, region and the accounting department; shared brand', !fails.length, JSON.stringify(fails));
+  ok('no page errors in group tests', errs.length === 0, errs.join(' | '));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1908,6 +1936,7 @@ async function balance(b) {
     await testGpt7(b);
     await testRealism(b);
     await testMuse(b);
+    await testGroup(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
