@@ -666,6 +666,7 @@ function mkStep(){
 }
 const shareMomentum = c => c.sh > 0 && c.tsh != null ? clamp((c.tsh - c.sh) / c.sh, -.3, .3) * .15 : 0; // the market prices in where share is heading
 function advertise(c, amt){
+  if (!finite(amt)) return 0; /* not a finite number: change nothing */
   amt = Math.min(amt, c.cash); if (amt <= 0) return 0;
   const b = brandOf(c), gain = (1 - b) * clamp(amt / c.rev * 3, 0, .35) * (c.ctrl === 'P' && hasR('op1') ? 1.5 : 1) * (1 + .5 * effOf(exOf(c, 'CMO'), 'mkt', c));
   c.cash -= amt; c.brand = b + gain; c.adW = S.week;
@@ -923,6 +924,7 @@ function sharesForShort(c, money){ /* shares whose sale value (shares × average
   return 0;
 }
 function execShort(c, n){
+  if (!finite(n)) return null; /* not a finite number: change nothing */
   if (c.priv) return null;
   const pos = S.player.shorts[c.id] || {n: 0, basis: 0};
   n = Math.min(n, c.shares * shortCap() - pos.n); const q = quoteSell(c, n); if (!q) return null;
@@ -942,6 +944,7 @@ function buyRoom(k, c){ const boss = bossOf(k) || k; return Math.max(0, ownCap(c
 const isBanned = c => (S.player.ban[c.id] || 0) > S.week;
 function markInsider(c){ for (const t of S.tips) if (t.cid === c.id && !t.used) t.used = true; }
 function execBuy(k, c, n, maxCost){ /* maxCost: the most this purchase may cost (cash-only buying) */
+  if (!finite(n) || (maxCost != null && !finite(maxCost))) return null; /* not a finite number: change nothing */
   if (k === c.id || c.priv) return null;
   n = Math.min(n, buyRoom(k, c));
   if (maxCost != null) n = Math.min(n, sharesForMoney(c, maxCost));
@@ -955,6 +958,7 @@ function execBuy(k, c, n, maxCost){ /* maxCost: the most this purchase may cost 
   return {n: q.n, cost};
 }
 function execSell(k, c, n){
+  if (!finite(n)) return null; /* not a finite number: change nothing */
   n = Math.min(n, c.own[k] || 0); const q = quoteSell(c, n); if (!q) return null;
   const before = snapshotFracs(c), proceeds = q.avg * q.n * .9975;
   cutCost(k, c, q.n);
@@ -966,6 +970,7 @@ function execSell(k, c, n){
   return {n: q.n, proceeds};
 }
 function transferShares(from, to, c, n, price){ // block trade between holders
+  if (!finite(n) || !finite(price)) return 0; /* not a finite number: change nothing */
   n = Math.min(n, c.own[from] || 0); if (n <= 1e-7) return 0;
   const before = snapshotFracs(c), amt = n * price;
   cutCost(from, c, n);
@@ -1313,15 +1318,16 @@ function resolveTobs(){
 }
 
 /* ---------- CEO actions (controller only) ---------- */
-function specialDividend(c, amt){ amt = Math.min(amt, c.cash); if (amt <= 0) return 0; c.cash -= amt; payDividend(c, amt); c.price = Math.max(.05, c.price - amt / c.shares * .9); return amt; }
+function specialDividend(c, amt){ if (!finite(amt)) return 0; amt = Math.min(amt, c.cash); if (amt <= 0) return 0; c.cash -= amt; payDividend(c, amt); c.price = Math.max(.05, c.price - amt / c.shares * .9); return amt; }
 function buyback(c, money){
+  if (!finite(money)) return null; /* not a finite number: change nothing */
   money = Math.min(money, c.cash); const n = sharesForMoney(c, money); const q = quoteBuy(c, n); if (!q) return null;
   const before = snapshotFracs(c), cost = q.avg * q.n * 1.0025;
   c.cash -= cost; c.shares -= q.n; c.price = q.mp; afterOwn(c, before);
   return {n: q.n, cost};
 }
-function borrow(c, amt){ amt = Math.min(amt, Math.max(0, maxDebt(c) - c.debt)); if (amt <= 0) return 0; c.debt += amt; c.cash += amt; return amt; }
-function repay(c, amt){ amt = Math.min(amt, c.cash, c.debt); if (amt <= 0) return 0; c.debt -= amt; c.cash -= amt; return amt; }
+function borrow(c, amt){ if (!finite(amt)) return 0; amt = Math.min(amt, Math.max(0, maxDebt(c) - c.debt)); if (amt <= 0) return 0; c.debt += amt; c.cash += amt; return amt; }
+function repay(c, amt){ if (!finite(amt)) return 0; amt = Math.min(amt, c.cash, c.debt); if (amt <= 0) return 0; c.debt -= amt; c.cash -= amt; return amt; }
 /* ---------- restructuring (Phase 2) ---------- */
 const RESTR = {
   cost: {n: 'コスト削減', d: '固定費 −15%。退職金など削減額の半年分を一度に支払い、ブランドが少し下がる'},
@@ -2240,7 +2246,7 @@ function hrAutoHire(c, r){ // AI owners pick the best free person for the role
 }
 function hqPayroll(){ let s = 0; for (const r in HQ_ROLES) { const v = S.hr.hq[r]; for (const id of (Array.isArray(v) ? v : [v])) { const p = person(id); if (p) s += p.sal; } } return s; }
 
-function rdInvest(c, amt){ amt = Math.min(amt, c.cash); if (amt <= 0) return 0; c.cash -= amt; (c.rd = c.rd || []).push({w: S.week + 13, gain: Math.min(.15, amt / c.rev * 1.5 * Math.max(.3, 1 + .6 * effOf(exOf(c, 'CTO'), 'tech', c)))}); return amt; }
+function rdInvest(c, amt){ if (!finite(amt)) return 0; amt = Math.min(amt, c.cash); if (amt <= 0) return 0; c.cash -= amt; (c.rd = c.rd || []).push({w: S.week + 13, gain: Math.min(.15, amt / c.rev * 1.5 * Math.max(.3, 1 + .6 * effOf(exOf(c, 'CTO'), 'tech', c)))}); return amt; }
 function rdStep(c){ // R&D pays off after a quarter as stronger products (appeal)
   if (!c.rd || !c.rd.length) return;
   const due = c.rd.filter(x => x.w <= S.week); if (!due.length) return;
@@ -2248,7 +2254,7 @@ function rdStep(c){ // R&D pays off after a quarter as stronger products (appeal
   for (const x of due) c.w *= 1 + x.gain;
   if (c.ctrl === 'P') news(`【研究開発】${c.name}の新製品が完成、商品力が向上`, 'you', c.city);
 }
-function invest(c, amt){ amt = Math.min(amt, c.cash); if (amt <= 0) return 0; c.cash -= amt; c.assets += amt * .6; c.boost = Math.min(.15, c.boost + amt / c.rev * .3 * (c.ctrl === 'P' && hasR('op3') ? 1.3 : 1)); return amt; }
+function invest(c, amt){ if (!finite(amt)) return 0; amt = Math.min(amt, c.cash); if (amt <= 0) return 0; c.cash -= amt; c.assets += amt * .6; c.boost = Math.min(.15, c.boost + amt / c.rev * .3 * (c.ctrl === 'P' && hasR('op3') ? 1.3 : 1)); return amt; }
 function mergeQuote(A, B, prem, friendly, sale){ // sale: a PE owner selling an unlisted company to A
   const price = B.price * (1 + prem), cost = price * B.shares;
   const ok = B.priv && B.ctrl !== A.ctrl && !sale ? false : friendly ? true : B.ctrl ? (B.ctrl === A.ctrl ? prem >= 0 : prem >= .35) : prem >= .2;
@@ -2822,6 +2828,7 @@ function rivalAsk(c, k, n){ // the price at which a rival group is willing to pa
   return base * (1 + prem);
 }
 function negotiate(k, c, n, price, actor){
+  if (!finite(n) || !finite(price)) return {res: 'none'}; /* not a finite number: change nothing */
   if (c.priv) return {res: 'none'};
   c.neg = c.neg || {};
   if ((c.neg[k] || 0) > S.week) return {res: 'cool'};
