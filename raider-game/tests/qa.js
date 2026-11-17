@@ -14,8 +14,8 @@ let fails = 0; const ok = (name, cond, info) => { if (!cond) fails++; console.lo
     const ctx = await b.newContext({...devices['iPhone 13']}); const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
     await p.goto(URL); await p.waitForTimeout(300);
     const KEY = await p.evaluate(() => window.__atlas.SAVE_KEY);
-    const good = await p.evaluate(() => { const A = window.__atlas; A.newGame(777, 'normal', 'QA', 'q', 'std', true); for (let i = 0; i < 30; i++) A.step(); return JSON.stringify(A.S); });
-    const good2 = await p.evaluate(() => { const A = window.__atlas; for (let i = 0; i < 10; i++) A.step(); return JSON.stringify(A.S); });
+    const good = await p.evaluate(() => { const A = window.__atlas; A.newGame(777, 'normal', 'QA', 'q', 'std', true); for (let i = 0; i < 30; i++) A.step(); return A.exportText(); });
+    const good2 = await p.evaluate(() => { const A = window.__atlas; for (let i = 0; i < 10; i++) A.step(); return A.exportText(); });
     const broken = (() => { const o = JSON.parse(good); o.cos[0].own = {P: o.cos[0].shares * 2}; return JSON.stringify(o); })(); /* parses, but owns twice the shares that exist */
     const set = async (m, k) => p.evaluate(([KEY, m, k]) => { localStorage.clear(); if (m != null) localStorage.setItem(KEY, m); if (k != null) localStorage.setItem(KEY + '_bak', k); }, [KEY, m, k]);
     const state = async () => p.evaluate(KEY => { const A = window.__atlas, w = s => { try { return JSON.parse(localStorage.getItem(s)).week; } catch (e) { return localStorage.getItem(s) == null ? null : 'bad'; } };
@@ -108,7 +108,7 @@ let fails = 0; const ok = (name, cond, info) => { if (!cond) fails++; console.lo
   {
     const ctx = await b.newContext(); const p = await ctx.newPage(); await p.goto(URL); await p.waitForTimeout(300);
     const r = await p.evaluate(() => { const A = window.__atlas; A.newGame(2468, 'normal', 'QA', 'q', 'std', true); for (let i = 0; i < 52; i++) { A.step(); A.S.inbox = []; }
-      const mid = JSON.stringify(A.S); for (let i = 0; i < 52; i++) { A.step(); A.S.inbox = []; }
+      const mid = A.exportText(); for (let i = 0; i < 52; i++) { A.step(); A.S.inbox = []; }
       const fp = () => JSON.stringify({rs: A.S.rs, week: A.S.week, idx: A.S.idx, px: A.S.cos.map(c => [c.id, +c.price.toFixed(9), c.shares, JSON.stringify(c.own)]), p: [A.S.player.cash, A.S.player.loan], r: A.S.rivals.map(x => x.cash)});
       const a = fp(), err = A.importText(mid); for (let i = 0; i < 52; i++) { A.step(); A.S.inbox = []; } const bb = fp(); return {same: a === bb, err}; });
     ok('determinism: loading the week-52 save and playing on matches the uninterrupted run at week 104', r.same && !r.err, r.err || '');

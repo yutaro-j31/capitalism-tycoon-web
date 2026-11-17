@@ -1213,7 +1213,7 @@ async function testGpt2(b) {
     const A = window.__atlas, out = {}; A.newGame(4141, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
     for (let i = 0; i < 20; i++) A.step();
     /* BUG-05: missing history/message lists are rebuilt and the game still plays; impossible values are refused; nothing changes in the running game */
-    const txt = JSON.stringify(S), rs0 = S.rs, w0 = S.week;
+    const txt = A.exportText(), rs0 = S.rs, w0 = S.week;
     out.repair = ['inbox', 'nwHist', 'news', 'idxHist'].every(k => { const o = JSON.parse(txt); delete o[k]; return !!A.parseSave(JSON.stringify(o)); });
     out.refuse = [o => { o.week = -100; }, o => { o.week = 3.5; }, o => { o.cos[0].city = 'zz'; }, o => { o.player.cash = 'x'; }].every(f => { const o = JSON.parse(txt); f(o); return !A.parseSave(JSON.stringify(o)); });
     out.untouched = A.S === S && S.rs === rs0 && S.week === w0 && !A.ui.sim;
@@ -1278,7 +1278,7 @@ async function testGpt3(b) {
     const A = window.__atlas, out = {}; A.newGame(5151, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
     for (let i = 0; i < 10; i++) A.step();
     /* BUG-17: saves that break the money and ownership rules are refused */
-    const txt = JSON.stringify(S), bad = f => { const o = JSON.parse(txt); f(o); return !A.parseSave(JSON.stringify(o)); };
+    const txt = A.exportText(), bad = f => { const o = JSON.parse(txt); f(o); return !A.parseSave(JSON.stringify(o)); };
     out.over = bad(o => { o.cos[0].own = {P: o.cos[0].shares * 2}; });
     out.dup = bad(o => { o.cos[1].id = o.cos[0].id; });
     out.loanNull = bad(o => { o.player.loan = null; });
