@@ -3436,7 +3436,6 @@ function fmtCheck(o){ /* a current-format save must still hold every debt and co
   if (!Array.isArray(p.opts)) return 'オプションの記録がない';
   if (!p.cost || typeof p.cost !== 'object') return '取得原価の記録がない';
   if (o.vc && !Array.isArray(o.vc.hold)) return 'ベンチャー出資の記録がない';
-  if (o.chk != null && finSig(o) !== o.chk) return 'お金と契約の記録がセーブ時と一致しない';
   return '';
 }
 function econCheck(o){ /* money and ownership must add up; returns the first problem or '' */
@@ -3464,6 +3463,7 @@ function validSave(o){
   if (!(o && o.v === 1 && Array.isArray(o.cos) && o.cos.length && o.player && finite(o.player.cash) && Number.isInteger(o.week) && o.week >= 0 && o.week < 52 * 1000 && finite(o.rs) && o.econ && finite(o.econ.rate) && Array.isArray(o.rivals) && o.rivals.length && Array.isArray(o.tobs))) return false; /* open tender offers hold money: a missing list is not rebuilt */
   for (const c of o.cos) if (!c || typeof c.id !== 'string' || !CITY[c.city] || !IND[c.ind] || !finite(c.price) || !finite(c.shares) || !(c.shares > 0) || !c.own || typeof c.own !== 'object') return false;
   for (const r of o.rivals) if (!r || !finite(r.cash)) return false;
+  if ((o.fmt || 0) >= SAVE_FMT && o.chk != null && finSig(o) !== o.chk) return false; /* money or contracts changed since the save was written */
   return !econCheck(o);
 }
 function migrate(o){ // brings any older v1 save up to the current shape without discarding data
@@ -3484,7 +3484,7 @@ let trialErr = ''; /* why the last save was refused (for support and tests) */
 function trialLoad(o){ /* a save is accepted only if it opens, draws every tab and plays two weeks on a copy (nothing is kept) */
   const S0 = S, u0 = Object.assign({}, ui);
   try { S = JSON.parse(JSON.stringify(o)); ui.sim = true; if (!S.mk) mkInit(); repairSave(); hqInit(); hrReady(); recordCheck(); tasks();
-    const P = panels(); for (const k in P) { ui.tab = k; P[k](); } S.chk = null; /* the checksum describes the save as written, not the copy after two test weeks */ for (let i = 0; i < 2; i++) step(); recordCheck(); const e = econCheck(S); if (e) throw new Error(e); for (const k in P) { ui.tab = k; P[k](); } return true; }
+    const P = panels(); for (const k in P) { ui.tab = k; P[k](); } for (let i = 0; i < 2; i++) step(); recordCheck(); const e = econCheck(S); if (e) throw new Error(e); for (const k in P) { ui.tab = k; P[k](); } return true; }
   catch (e) { trialErr = String(e && e.stack || e).slice(0, 400); return false; }
   finally { S = S0; for (const k of Object.keys(ui)) if (!(k in u0)) delete ui[k]; Object.assign(ui, u0); ui.sim = false; }
 }
