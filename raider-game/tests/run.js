@@ -1284,7 +1284,7 @@ async function testGpt3(b) {
     out.loanNull = bad(o => { o.player.loan = null; });
     out.tobsGone = bad(o => { delete o.tobs; });
     out.ghost = bad(o => { o.cos[0].own.C9999 = 1; });
-    out.costFill = (() => { const o = JSON.parse(txt); const c = o.cos.find(x => !x.priv); c.own.P = c.shares * .01; delete o.player.cost; const g = A.parseSave(JSON.stringify(o)); return !!g && Math.abs(g.player.cost[c.id] - c.own.P * c.price) < 1e-9; })();
+    out.costFill = (() => { const o = JSON.parse(txt); const c = o.cos.find(x => !x.priv); c.own.P = c.shares * .01; delete o.player.cost; delete o.fmt; delete o.chk; /* an older-format save (before format 2) */ const g = A.parseSave(JSON.stringify(o)); return !!g && Math.abs(g.player.cost[c.id] - c.own.P * c.price) < 1e-9; })();
     out.goodOk = !!A.parseSave(txt);
     /* BUG-18: cash-only buying never borrows, even on the stocks where rounding used to overshoot */
     let borrowed = 0; for (const c of S.cos.filter(x => !x.priv)) { const n = A.sharesForMoney(c, 30); const q = n > 0 ? n : 0; if (q) { const qb = A.quoteBuy(c, q), cost = qb.avg * qb.n * 1.0025; if (cost > 30 + 1e-9) borrowed++; } }
@@ -1365,6 +1365,41 @@ async function testExitGuide(b) {
   ok('exit: selling to the best bid pays the bid and hands over control', sold === true, String(sold));
   ok('no page errors in exit tests', !errs.length, errs.slice(0, 3).join(' | '));
   await ctx.close();
+}
+
+async function testGpt4(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(4747, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    for (let i = 0; i < 8; i++) A.step();
+    /* money is shown in full yen */
+    out.fm = A.fm(1) === '100,000,000円' && A.fm(1000) === '100,000,000,000円' && A.fm(-2.5) === '-250,000,000円' && A.fm(0) === '0円';
+    /* BUG-05/17: a current save that lost a debt or a contract is refused; an older save is migrated */
+    A.bankBorrow(.9); A.takeLoan(0); const c = S.cos.find(x => !x.priv && !x.ctrl); A.execShort(c, A.sharesForShort(c, 5));
+    const txt = A.exportText(), t = f => { const o = JSON.parse(txt); f(o); return !A.parseSave(JSON.stringify(o)); };
+    out.ok = !!A.parseSave(txt);
+    out.strict = [o => delete o.player.bank, o => delete o.player.tl, o => { o.player.shorts = {}; }, o => delete o.player.opts, o => { o.cos[0].own.X9 = 1; }, o => { o.cos[0].price = -1; }, o => { o.cos[0].debt = -5; }, o => { o.player.cash += 10; }].every(t);
+    out.legacy = !t(o => { delete o.fmt; delete o.chk; delete o.player.bank; delete o.player.tl; o.player.loan = 0; });
+    /* BUG-13: the squeeze keeps buying back until market-value collateral is restored */
+    const d = S.cos.find(x => !x.priv && !x.ctrl && x !== c && x.ind !== 'air' && x.ind !== 'telecom'); d.price = A.fair(d) * .3; d.own = {P: d.shares * .6}; A.recomputeCtrl(); S.player.cash = 0;
+    c.price *= 6; A.step(); const sl = A.shortLiab(); out.squeeze = sl === 0 || A.nwMkt() >= sl * .45 - 1e-6 || !S.player.shorts[c.id];
+    return out;
+  });
+  ok('gpt4: every amount is shown in full yen (1億円 = 100,000,000円)', r.fm, JSON.stringify(r));
+  ok('gpt4: a current save missing a debt, loan, short, option, holder or with edited money is refused; an older save is migrated (BUG-05/17)', r.ok && r.strict && r.legacy);
+  ok('gpt4: a short squeeze stops only when market-value collateral is back (BUG-13)', r.squeeze);
+  /* BUG-19: a load that cannot be written says so and keeps retrying */
+  const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
+  await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]');
+  const res = await q.evaluate(() => { const A = window.__atlas; const o = JSON.parse(A.exportText()); A.step(); A.step();
+    const ls = Object.getPrototypeOf(localStorage), real = ls.setItem; ls.setItem = function(){ throw new Error('full'); };
+    const msg = A.importText(JSON.stringify(o)); const unsaved = A.ui.importUnsaved === true, week = A.S.week === o.week;
+    ls.setItem = real; return {msg, unsaved, week}; });
+  await q.waitForTimeout(2600);
+  const cleared = await q.evaluate(() => { const A = window.__atlas, d = JSON.parse(localStorage.getItem(A.SAVE_KEY)); return d.week === A.S.week && !document.querySelector('[data-act=unsaved]'); });
+  ok('gpt4: a load that cannot be saved is reported as loaded-but-unsaved, then saved once storage works (BUG-19)', !res.msg && res.unsaved && res.week && cleared, JSON.stringify({res, cleared}));
+  ok('no page errors in gpt4 tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
+  await ph.ctx.close(); await ctx.close();
 }
 
 async function testHQ(b) {
@@ -1500,6 +1535,7 @@ async function balance(b) {
     await testGpt3(b);
     await testPeTob(b);
     await testExitGuide(b);
+    await testGpt4(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
