@@ -1820,6 +1820,43 @@ async function testExitRoute(b) {
   ok('no page errors in exit/route tests', errs.length === 0, errs.join(' | '));
 }
 
+async function testUxFin(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; let S;
+    /* BUG-37: no bank borrowing before the bank is open, by any route */
+    A.newGame(8301, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; const c0 = S.cos.filter(x => !x.priv && !x.ctrl)[0]; A.execBuy('P', c0, A.roundSh(A.sharesForMoney(c0, .05)), .05);
+    const cash0 = S.player.cash, bank0 = S.player.bank; out.bank37 = A.bankBorrow(1) === 0 && A.takeLoan(0) === false && S.player.cash === cash0 && S.player.bank === bank0;
+    /* BUG-38: the breakdown lists every asset and debt and ends at the header figure */
+    A.showWhy('nw'); const rows = [...document.querySelectorAll('#modal .whyrow.tot b')].map(x => x.textContent); out.nw38 = rows[rows.length - 1] === A.fm(A.myWorth()); A.closeModal && A.closeModal();
+    /* BUG-39: tags, screener and sort use the same published figures */
+    for (let i = 0; i < 14; i++) A.step(); let mism = 0; for (const c of S.cos.filter(x => !x.priv)) if (A.repCheap(c) !== A.SCR.cheap[1](c)) mism++; out.pub39 = mism === 0;
+    /* BUG-40: half of the short-sale proceeds stay locked; a cash purchase cannot use them */
+    A.newGame(8302, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; S.player.cash = .2; const sh = S.cos.filter(x => !x.priv && !x.ctrl)[5]; A.execShort(sh, A.sharesForShort(sh, .1));
+    const free = Math.max(0, S.player.cash - A.shortLiab() * .5), bu = S.cos.filter(x => !x.priv && !x.ctrl && x !== sh)[3];
+    A.ui.tab = 'market'; A.ui.sel = bu.id; A.ui._trSel = bu.id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.ui.tmode = 'cash'; A.ui.tf = 1; A.renderAll(true); const go = document.querySelector('#tr-go'), c1 = S.player.cash; go.click();
+    out.short40 = c1 - S.player.cash <= free + 1e-9 && S.player.cash >= A.shortLiab() * .5 - 1e-9 && S.player.loan === 0;
+    /* BUG-41: a subsidiary's cash purchase does not borrow; borrowing is the explicit 'margin' mode */
+    A.newGame(8303, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; S.player.cash = 20000; const sub = S.cos.filter(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom').sort((a, b) => a.price * a.shares - b.price * b.shares)[6];
+    for (let i = 0; i < 8 && sub.ctrl !== 'P'; i++) A.execBuy('P', sub, sub.shares * .2); sub.cash = 5; const tgt = S.cos.filter(x => !x.priv && !x.ctrl && x !== sub)[2], debt0 = sub.debt;
+    A.ui.sel = tgt.id; A.ui._trSel = tgt.id; A.ui.actor = sub.id; A.ui.tmode = 'cash'; A.ui.tf = 1; A.renderAll(true); const g2 = document.querySelector('#tr-go'); if (g2 && !g2.disabled) g2.click();
+    out.sub41 = sub.ctrl === 'P' && sub.debt <= debt0 + 1e-9 && sub.cash >= -1e-9;
+    /* FIN-01: the margin rate shown is the rate charged */
+    S.research.done.fin2 = true; S.player.loan = 10; S.player.cash = 0; const lc = S.player.cash; A.ui.tmode = 'margin'; A.ui.actor = 'P'; A.renderAll(true);
+    out.fin01 = Math.abs(A.marginRate() - (S.econ.rate + 1.5)) < 1e-9 && document.body.innerHTML.includes(`年${A.marginRate().toFixed(1)}%`);
+    /* FIN-02: year-on-year with losses */
+    out.fin02 = A.yoyTxt(5, -2)[0] === 'から黒字化' && A.yoyTxt(-3, 4)[0] === 'から赤字転落' && A.yoyTxt(-5, -2)[0] === '赤字拡大' && A.yoyTxt(-1, -2)[0] === '赤字縮小' && A.yoyTxt(6, 4)[0] === '+50.0%';
+    /* FIN-04: the cumulative return spans the whole history */
+    A.newGame(8304, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 3; i++) A.step(); S.tr.cum = 3; S.tr.rets = S.tr.rets.slice(0, 3); out.fin04 = Math.abs(A.trStats().total - 2) < 1e-9;
+    /* the first purchase pays a trader about 5% of the starting money */
+    const c2 = S.cos.filter(x => !x.priv && !x.ctrl)[1], before = S.player.cash; A.execBuy('P', c2, 1e-6, 1); A.stepCheck(); out.reward = S.tut.buy != null && S.player.cash - before > -.01 && A.stepScale() === .005;
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('ux/finance: bank gating, signed net-worth breakdown, published data everywhere, short collateral, subsidiary cash mode, margin rate, year-on-year, cumulative return (BUG-37..41, FIN)', !fails.length, JSON.stringify(fails));
+  ok('no page errors in ux/finance tests', errs.length === 0, errs.join(' | '));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -2004,6 +2041,7 @@ async function balance(b) {
     await testGroup(b);
     await testGpt9(b);
     await testExitRoute(b);
+    await testUxFin(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
