@@ -1484,7 +1484,7 @@ async function testTrader(b) {
   const r = await p.evaluate(() => {
     const A = window.__atlas, out = {}; A.newGame(4242, 'normal', 'T', 't', 'trader', false); let S = A.S; S.won = false; document.querySelector('#modal').hidden = true;
     /* start: 10,000,000円 in a personal account; no company, no TOB; margin, short and options come after 26 weeks of record */
-    out.start = Math.abs(S.player.cash - .1) < 1e-12 && S.company === '個人口座' && A.preCo() && !S.founded;
+    out.start = Math.abs(S.player.cash - .1) < 1e-12 && S.company === A.indivName() && A.preCo() && !S.founded;
     out.gate0 = !A.has('tob') && !A.has('short') && !A.has('pe') && !A.has('found');
     out.worth0 = Math.abs(A.myWorth() - .1) < 1e-9;
     /* whole shares: the trade box offers only whole-share counts */
@@ -1556,6 +1556,49 @@ async function testTrader(b) {
   });
   const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
   ok('trader: start, gates, whole shares, track record, managed money, founding, personal account, save, restart, determinism', !fails.length, JSON.stringify(fails));
+}
+
+async function testMidgame(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(6161, 'normal', 'T', 't', 'trader', false); let S = A.S; S.won = false; document.querySelector('#modal').hidden = true;
+    /* the growth market: twelve small listed companies, in the trader scenario only */
+    const g = S.cos.filter(c => c.gm); out.growth = g.length === 12 && g.every(c => !c.priv && c.price * c.shares > 2 && c.price * c.shares < 100); out.caps = g.map(c => Math.round(c.price * c.shares)).join(',');
+    out.name = S.company === 'T（個人投資家）' || S.company === 't（個人投資家）';
+    /* an individual: no TOB at first; company-only tools stay closed and say why */
+    out.gate1 = !A.has('tob') && !A.has('pe') && !A.has('lbo') && !A.has('found');
+    /* the research newsletter: 26 weeks of record and 2,000,000円 first; members bring cash that is not counted as investment return */
+    out.nlEarly = !A.nlStart();
+    for (let i = 0; i < 26; i++) A.step(); for (const c of S.cos) if (c.own.P) A.execSell('P', c, c.own.P);
+    out.nlGo = A.nlStart() && Math.abs(S.nl.subs) < 1e-12; S.tr.rets = Array(52).fill(.004); const n0 = S.tr.rets.length, c0 = S.player.cash;
+    for (let i = 0; i < 26; i++) A.step(); out.nlGrow = S.nl.subs > 20 && S.nl.subs <= A.nlCap() && S.player.cash > c0 && S.nl.rev > 0;
+    out.nlFlow = S.tr.rets.slice(n0).every(x => Math.abs(x) < 1e-9); /* no shares held: the newsletter's money is not a trading gain */
+    out.mmIndiv = Math.abs(A.mmPeople() - Math.min(20, 3 + 4 * A.trWeeks() / 52)) < 1e-9;
+    /* 5% of a growth company makes you a major shareholder: TOB, property and a securities-backed loan open for an individual */
+    const t = g.slice().sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; S.player.cash = t.price * t.shares * 1.5; const lim0 = A.bankLimit();
+    A.execBuy('P', t, t.shares * .051, 1e9); A.checkStage(); out.stage2 = S.stage === 2 && A.has('tob') && A.has('realty') && !A.has('pe');
+    A.ui.tab = 'market'; A.renderAll(true); out.loanTab = !!document.querySelector('[data-act=tab][data-v=bank]');
+    out.tob = A.launchTob('P', t, t.price * 1.4, .51) !== false && S.tobs.some(x => x.boss === 'P');
+    /* stage thresholds are scaled for a trader, unchanged for the other scenarios */
+    out.scaled = Math.abs(A.stageNW(2) - 4.8) < 1e-9 && Math.abs(A.stageNW(4) - 24) < 1e-9;
+    /* after founding: LBO from the "経営者" stage; operating companies can be founded with small capital */
+    A.newGame(6162, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 12; A.incorporate('Z', 0); S.stage = 3;
+    out.lbo = A.has('lbo') && A.has('found'); A.ui.tab = 'port'; A.renderAll(true);
+    const lim1 = A.bankLimit(); out.bankHalf = lim1 > 0;
+    out.found = [...document.querySelectorAll('[data-act=found]')].map(e => +e.dataset.v).join(',');
+    /* saves keep the newsletter; a negative member count is refused */
+    A.newGame(6163, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 27; i++) A.step(); A.nlStart(); for (let i = 0; i < 5; i++) A.step();
+    const txt = A.exportText(), o = JSON.parse(txt); out.save = !!A.parseSave(txt) && o.nl && o.nl.subs > 0; o.nl.subs = -5; out.negNl = !!A.econCheck(o);
+    const run = () => { A.newGame(91, 'normal', 'T', 't', 'trader', false); A.S.won = false; for (let i = 0; i < 60; i++) { A.step(); if (i === 30) A.nlStart(); } return JSON.stringify([A.S.player.cash, A.S.nl, A.S.cos.filter(c => c.gm).map(c => c.price)]); };
+    out.det = run() === run();
+    /* classic games are untouched: no growth market, original thresholds */
+    A.newGame(92, 'normal', 'T', 't', 'std', false); out.classic = !A.S.cos.some(c => c.gm) && A.stageNW(2) === 80 && A.S.company === 'T';
+    return out;
+  });
+  const fails = Object.entries(r).filter(([k, v]) => v !== true && k !== 'found' && k !== 'caps').map(([k]) => k);
+  ok('midgame: growth market, individual route (TOB, loan, newsletter), scaled stages, LBO bridge, saves, determinism', !fails.length, JSON.stringify(fails) + ' caps ' + r.caps);
+  ok('midgame: a trader founds operating companies with 50,000,000円〜300,000,000円', r.found === '0.5,1,3', r.found);
+  ok('no page errors in midgame tests', errs.length === 0, errs.join(' | '));
 }
 
 async function testGpt5(b) {
@@ -1735,6 +1778,7 @@ async function balance(b) {
     await testLadder2(b);
     await testGpt5(b);
     await testTrader(b);
+    await testMidgame(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
