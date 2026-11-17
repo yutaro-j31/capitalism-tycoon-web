@@ -1857,6 +1857,40 @@ async function testUxFin(b) {
   ok('no page errors in ux/finance tests', errs.length === 0, errs.join(' | '));
 }
 
+async function testUx2(b) {
+  const {p, errs} = await page(b, {...devices['iPhone 13']});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; let S; const $ = q => document.querySelector(q), txt = q => ($(q) || {textContent: ''}).textContent;
+    /* 2: the start screen follows the scenario */
+    A.ui.scen = 'trader'; A.ui.diff = 'normal'; A.showStart(true); out.start = document.body.textContent.includes('元手10,000,000円') && !$('#cname') && !!$('#pname');
+    A.ui.scen = 'std'; A.showStart(true); out.startStd = document.body.textContent.includes('元手3,000,000,000円') && !!$('#cname'); A.closeModal();
+    /* 22 + map: an individual's tabs, and the map folded until opened */
+    A.newGame(9401, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.settings.guide = false; $('#modal').hidden = true; A.renderAll(true);
+    const tabs = [...document.querySelectorAll('#tabs button')].map(x => x.dataset.v); out.tabs = tabs.slice(0, 4).join(',') === 'market,port,pres,cal' && tabs.includes('news') && tabs.includes('inbox');
+    out.mapFolded = $('#mapwrap').classList.contains('folded'); $('#mapfold').click(); out.mapOpens = !$('#mapwrap').classList.contains('folded') && S.settings.map === 'open';
+    /* 18: the ledger records executed trades with realised profit */
+    const c = S.cos.filter(x => !x.priv && !x.ctrl)[2]; A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, .05)), .05); A.execSell('P', c, c.own.P);
+    out.ledger = S.ledger.length === 2 && S.ledger[0].side === '売り' && S.ledger[1].side === '買い' && finite0(S.ledger[0].pnl) && S.ledger[0].pnl < 0;
+    function finite0(x) { return typeof x === 'number' && isFinite(x); }
+    /* 19: results against the consensus, recorded and announced for what you hold */
+    A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, .03)), .03); while (S.week % 13 !== 12) A.step(); A.step(); while (S.week % 13 !== 12) A.step(); A.step();
+    const q = c.qh[c.qh.length - 1]; out.earn = q.est != null && typeof q.sur === 'number' && typeof q.move === 'number' && S.news.some(n => n.t.includes('【決算】' + c.name));
+    /* 23: the schedule lists the next results and taxes */
+    A.ui.tab = 'cal'; A.renderAll(true); out.cal = txt('#pbody').includes('決算発表') && txt('#pbody').includes('四半期の納税');
+    /* 17: portfolio analysis */
+    A.ui.tab = 'port'; A.renderAll(true); out.port = txt('#pbody').includes('ポートフォリオ分析') && txt('#pbody').includes('取引履歴') && txt('#pbody').includes('レバレッジ');
+    /* 16: comparing companies */
+    A.ui.cmp = S.cos.filter(x => !x.priv).slice(0, 3).map(x => x.id); A.showCompare(); out.cmp = document.querySelectorAll('#modal table.cmp tbody tr').length >= 12 && document.querySelectorAll('#modal table.cmp thead th').length === 4; A.closeModal();
+    /* 20: acquisition economics in the TOB panel */
+    A.newGame(9402, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; $('#modal').hidden = true; const t = S.cos.filter(x => !x.priv && !x.ctrl)[4];
+    A.ui.tab = 'market'; A.ui.sel = t.id; A.ui.ctab = 'raid'; A.ui.tMode = 'tob'; A.renderAll(true); out.acq = txt('#pbody').includes('買収の採算') && txt('#pbody').includes('想定MOIC');
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('ux2: start screen per scenario, stage tabs, foldable map, ledger, earnings, schedule, portfolio analysis, comparison, acquisition economics', !fails.length, JSON.stringify(fails));
+  ok('no page errors in ux2 tests', errs.length === 0, errs.join(' | '));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -2042,6 +2076,7 @@ async function balance(b) {
     await testGpt9(b);
     await testExitRoute(b);
     await testUxFin(b);
+    await testUx2(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
