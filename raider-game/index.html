@@ -2714,13 +2714,20 @@ function recordCheck(){ /* a loaded game must give a finite net worth; NaN left 
   for (const f of ((S.pe && S.pe.funds) || [])) for (const k of ['lp', 'gp', 'calledLP', 'calledGP']) if (!finite(f[k])) f[k] = 0;
   if (!finite(netWorth('P'))) throw new Error('net worth is not finite');
 }
+const trVolW = () => (S.ledger || []).filter(x => x.w === S.week && x.at !== 'pers').reduce((a, x) => a + x.amt, 0); /* this week's traded amount */
+function trRepair(){ /* BUG-30: on loading, the base of this week's return must explain today's net worth. A gain that your recorded actions cannot explain is not counted as a trading profit (never invented); losses are kept */
+  const T = S.tr; if (!T) return; const gw = grossWorth(), f = finite(T.flow) ? T.flow : 0;
+  if (!finite(T.mid)) T.mid = 0; T.mid = Math.min(T.mid, 2 * trVolW()); /* your own trades cannot have earned more than twice what you traded this week */
+  if (T.eq1 == null) { T.eq1 = gw - f - T.mid; T.fixN = (T.fixN || 0) + 1; return; } /* no base: this week starts from the loaded value */
+  const res = gw - T.eq1 - f - T.mid; if (res > 1e-6 * Math.max(1, Math.abs(gw))) { T.eq1 += res; T.fix = (T.fix || 0) + res; T.fixN = (T.fixN || 0) + 1; }
+}
 function repairSave(){
   for (const c of S.cos) {
     for (const k in c.own) if (!(c.own[k] >= 0)) delete c.own[k];
     if (c.ctrl === 'P' && c.ctrlW == null) c.ctrlW = Math.max(0, S.week - 104); /* older saves: when control was taken is unknown; the exit guide treats it as two years ago */
     if (c.born != null && c.priv && !c.branch && / [^ ]*法人$/.test(c.name)) { const par = S.cos.find(x => x !== c && c.name.startsWith(x.name + ' ')); if (par) c.branch = par.id; }
   }
-  recomputeCtrl();
+  recomputeCtrl(); if (S.tr) trRepair();
 }
 const ctrlCore = () => ctrlP().filter(c => !c.branch); /* stages and achievements: local subsidiaries from expansion do not count */
 const MIS = {
@@ -3688,7 +3695,7 @@ function nlBox(){
     <p class="note">会員は空き枠×集客力で毎週増え、毎週0.6%が解約します（直近1年がマイナスだと解約が増えます）。${preCo() ? '会社を作ると会員の上限を大きくできます（費用率は30%に）。' : '投資部・法務部・IR部を強くし、オフィスを広げると上限が増えます。'}</p></section>`;
 }
 function trSnap(){ return {eq: S.tr && finite(S.tr.eq1) ? S.tr.eq1 : grossWorth()}; } /* from where the last week ended: trades, fees and price impact between weeks are part of this week's result */
-function trClose(){ if (S.tr) { S.tr.eq1 = grossWorth(); S.tr.flow = 0; S.tr.skip = false; } } /* the end of a week: the base for the next one */
+function trClose(){ if (S.tr) { S.tr.eq1 = grossWorth(); S.tr.flow = 0; S.tr.mid = 0; S.tr.k = (S.tr.k || 0) + 1; S.tr.skip = false; } } /* the end of a week: the base for the next one */
 function trStep(s){ /* the week's trading return: price moves on the account's positions plus dividends, over its equity (no PRNG) */
   S.tr = S.tr || {rets: [], w0: S.week - 1, mc: 0, mcW: null, eq1: null, flow: 0, cum: 1, skip: false, n: 0, pk: 1, mdd: 0};
   if (S.tr.skip) { S.tr.skip = false; return; } /* the account changed hands this week (company failed): no return is recorded */
@@ -3709,7 +3716,8 @@ function trStats(){ /* the track record shown to investors. BUG-30: whole-period
   let j = 1, pj = 1, ddY = 0; const Y = R.slice(-52); for (const r of Y) { j *= 1 + r; pj = Math.max(pj, j); ddY = Math.max(ddY, 1 - j / pj); }
   const mean = R.reduce((a, b) => a + b, 0) / w, sd = Math.sqrt(R.reduce((a, b) => a + (b - mean) ** 2, 0) / w);
   const n = Number.isInteger(T.n) && T.n >= w ? T.n : w, cum = finite(T.cum) ? T.cum : i;
-  return {weeks: n, total: cum - 1, cagr: Math.pow(Math.max(1e-9, cum), 52 / n) - 1, mdd: finite(T.mdd) ? Math.max(T.mdd, dd) : dd, part: !!T.part,
+  const part = !!T.part; /* BUG-48: carried over from a save that kept only 520 weeks: the length (and so CAGR and the whole-period drawdown) is unknown */
+  return {weeks: n, total: cum - 1, cagr: part ? null : Math.pow(Math.max(1e-9, cum), 52 / n) - 1, mdd: part ? null : (finite(T.mdd) ? Math.max(T.mdd, dd) : dd), mddLo: finite(T.mdd) ? Math.max(T.mdd, dd) : dd, part,
     win: w, total10: i - 1, cagr10: Math.pow(Math.max(1e-9, i), 52 / w) - 1, mdd10: dd, sharpe: sd > 1e-9 ? (mean * 52 - .01) / (sd * Math.sqrt(52)) : 0, year: j - 1, ddY, mc: T.mc || 0};
 }
 function mmPeople(){ /* how much money your people can look after: one person alone, or an investment team */
@@ -3847,6 +3855,8 @@ function fmtCheck(o){ /* a current-format save must still hold every debt and co
   return '';
 }
 const ACCT_T = ['indiv', 'co', 'pers', 'sub', 'legacy'];
+const acctOk = x => x.at === 'indiv' ? x.aid === 'P' && x.k === 'P' : x.at === 'co' ? x.aid === 'P#' + x.gen && x.k === 'P' : x.at === 'pers' ? x.aid === 'U' && x.k === 'U' : x.at === 'legacy' ? x.aid === 'P?' && x.k === 'P' : x.at === 'sub' && x.aid === x.k && x.k !== 'P' && x.k !== 'U'; /* BUG-45: an individual's trade is never booked to a company (P and P#0 differ) */
+const FEE_R = .0025; /* every trade pays 0.25%: the amount is the gross ± the fee */
 function ledgerCheck(o){ /* BUG-45: every entry is a real trade (delisted companies are fine: the entry keeps its name) */
   const L = o.ledger; if (L == null) return ''; const wk = o.week, gmax = o.coGen || 0;
   if (!Array.isArray(L) || L.length > 400) return '取引履歴の件数が不正';
@@ -3855,15 +3865,25 @@ function ledgerCheck(o){ /* BUG-45: every entry is a real trade (delisted compan
     if (!x || typeof x !== 'object' || !Number.isInteger(x.w) || x.w < 0 || x.w > wk || (o.ledgerW0 != null && x.w < o.ledgerW0)) return '取引履歴の日付が不正';
     if (!LSIDES.includes(x.side) || typeof x.k !== 'string' || typeof x.cid !== 'string' || typeof x.name !== 'string') return '取引履歴の種類が不正';
     if (!(finite(x.n) && x.n > 0 && finite(x.px) && x.px > 0 && finite(x.amt) && x.amt >= 0 && finite(x.fee) && x.fee >= 0 && (x.pnl === null || x.pnl === undefined || finite(x.pnl)))) return '取引履歴の数量・金額が不正';
-    if (x.aid != null && !(ACCT_T.includes(x.at) && typeof x.aid === 'string' && typeof x.an === 'string' && Number.isInteger(x.gen) && x.gen >= 0 && x.gen <= gmax)) return '取引履歴の名義が不正';
+    if (x.aid != null && !(ACCT_T.includes(x.at) && typeof x.aid === 'string' && typeof x.an === 'string' && Number.isInteger(x.gen) && x.gen >= 0 && x.gen <= gmax && acctOk(x))) return '取引履歴の名義が不正';
   }
   for (let i = 1; i < L.length; i++) if (L[i].w > L[i - 1].w) return '取引履歴の順序が不正';
   if (o.lagg != null) {
     if (typeof o.lagg !== 'object' || Array.isArray(o.lagg)) return '取引の累計が不正';
     for (const a in o.lagg) { const g = o.lagg[a];
       if (!g || !ACCT_T.includes(g.at) || typeof g.an !== 'string' || !Number.isInteger(g.gen) || g.gen < 0 || g.gen > gmax || !Number.isInteger(g.w0) || g.w0 < 0 || g.w0 > wk || !Number.isInteger(g.n) || g.n < 0 || !(finite(g.amt) && g.amt >= 0 && finite(g.fee) && g.fee >= 0 && finite(g.pnl))) return '取引の累計が不正 ' + a; }
-    const by = {}; for (const x of L) if (x.aid) { const b = by[x.aid] = by[x.aid] || {n: 0, amt: 0, fee: 0, pnl: 0}; b.n++; b.amt += x.amt; b.fee += x.fee; b.pnl += x.pnl || 0; }
-    for (const a in by) { const g = o.lagg[a]; if (!g || g.n < by[a].n) return '取引の累計が履歴より少ない ' + a; }
+    const by = {}; for (const x of L) if (x.aid) { const b = by[x.aid] = by[x.aid] || {n: 0, amt: 0, fee: 0, pnl: 0, at: x.at, gen: x.gen}; b.n++; b.amt += x.amt; b.fee += x.fee; b.pnl += x.pnl || 0; if (b.at !== x.at) return '取引履歴の名義が混在 ' + x.aid; }
+    if (o.ldrop != null && !(Number.isInteger(o.ldrop) && o.ldrop >= 0)) return '削除した取引の件数が不正';
+    const tol = v => 1e-6 * Math.max(1, Math.abs(v));
+    let dropN = 0;
+    for (const a in by) { const g = o.lagg[a]; if (!g || g.n < by[a].n) return '取引の累計が履歴より少ない ' + a; if (g.at !== by[a].at) return '取引の累計の名義の種類が履歴と違う ' + a; }
+    for (const a in o.lagg) { const g = o.lagg[a], b = by[a] || {n: 0, amt: 0, fee: 0, pnl: 0}, d = {n: g.n - b.n, amt: g.amt - b.amt, fee: g.fee - b.fee}; /* d: the trades dropped from the list */
+      if (g.at === 'co' && a !== 'P#' + g.gen || g.at === 'indiv' && a !== 'P' || g.at === 'pers' && a !== 'U' || g.at === 'legacy' && a !== 'P?') return '取引の累計の名義が不正 ' + a;
+      if (d.amt < -tol(g.amt) || d.fee < -tol(g.fee)) return '取引の累計が履歴より少ない ' + a;
+      if (d.n > 0 && !(d.amt > 0 && d.fee > 0)) return '削除した取引の金額・手数料がない ' + a;
+      if (Math.abs(d.amt - d.fee / FEE_R) > d.fee + tol(g.amt) + tol(g.fee / FEE_R)) return '取引の累計の金額と手数料が合わない ' + a;
+      dropN += d.n; }
+    if (o.ldrop != null && dropN !== o.ldrop) return '削除した取引の件数が累計と合わない';
     if (o.ldrop === 0 && !o.lpart) { const near = (u, v) => Math.abs(u - v) <= 1e-6 * Math.max(1, Math.abs(u), Math.abs(v)); /* nothing was ever dropped: the totals must equal the list */
       for (const a in o.lagg) { const g = o.lagg[a], b = by[a] || {n: 0, amt: 0, fee: 0, pnl: 0}; if (g.n !== b.n || !near(g.amt, b.amt) || !near(g.fee, b.fee) || !near(g.pnl, b.pnl)) return '取引の累計が履歴と合わない ' + a; } }
   }
@@ -3875,6 +3895,7 @@ function trCheck(o){ /* BUG-30: the track record must be possible (not that it e
   if (T.mc != null && !(Number.isInteger(T.mc) && T.mc >= 0)) return '追証の回数が不正';
   if (T.mcW != null && !(Number.isInteger(T.mcW) && T.mcW <= o.week)) return '追証の日付が不正';
   if (T.skip != null && typeof T.skip !== 'boolean') return '運用実績の記録が不正';
+  if ((T.mid != null && !finite(T.mid)) || (T.k != null && !(Number.isInteger(T.k) && T.k >= 0)) || (T.fix != null && !(finite(T.fix) && T.fix >= 0)) || (T.fixN != null && !(Number.isInteger(T.fixN) && T.fixN >= 0))) return '運用実績の週の途中の記録が不正';
   if (T.n != null) {
     if (!(Number.isInteger(T.n) && T.n >= T.rets.length && finite(T.pk) && finite(T.mdd) && T.mdd >= 0 && T.mdd < 1 && finite(T.cum))) return '運用実績の全期間の記録が不正';
     if (T.pk < 1 - 1e-9 || T.pk < T.cum * (1 - 1e-9) || T.mdd < 1 - T.cum / T.pk - 1e-9) return '運用実績の高値・最大下落が合わない';
@@ -4589,11 +4610,12 @@ function acqModel(c, price, tq, lbo){ /* FIN-ACQ: the purchase's economics from 
   const basis0 = Object.keys(c.own).filter(k => bossOf(k) === 'P').reduce((a, k) => a + costOf(k, c.id), 0); /* what the stake you already hold cost */
   const newDebt = lbo ? tq.cost * LBO_DEBT : 0, cash = tq.cost - newDebt, nd = q.debt - q.cash, nd1 = nd + newDebt;
   const ebitda = q.op + (finite(q.assets) ? q.assets : c.assets) * .05, ev = sh * price + nd; /* EV at the offer price */
-  const debt = q.debt + newDebt, r = (S.econ.rate + rating(c)[2] + (lbo ? 1 : 0)) / 100, intr = debt * r, ds = intr + debt / 7;
+  const rt = (q.v && RATINGS.find(x => x[0] === q.v.rt)) || ratingFor(q.debt, q.op); /* BUG-39: the published rating (or one worked out from the published debt and profit) */
+  const debt = q.debt + newDebt, r = (S.econ.rate + rt[2] + (lbo ? 1 : 0)) / 100, intr = debt * r, ds = intr + debt / 7;
   const evF = q.fe * sh + nd; /* the published fair value as an enterprise value */
-  const cs = [['bad', .8], ['base', 1], ['good', 1.2]].map(([k, f]) => { const eq = evF * f - nd1, addV = add / sh * eq, totV = own * eq;
-    return {k, f, ev: evF * f, eq, addV, mAdd: cash > 1e-9 ? addV / cash : null, mTot: sh0 > 1e-9 && !(basis0 > 1e-9) ? null : (basis0 + cash > 1e-9 ? totV / (basis0 + cash) : null)}; });
-  return {sh0, add, own, basis0, newDebt, cash, nd, nd1, ebitda, ev, debt, intr, cover: intr > 1e-9 ? ebitda / intr : Infinity, dscr: ds > 1e-9 ? Math.max(0, ebitda) / ds : Infinity, evF, cs, w: q.w};
+  const cs = [['bad', .8], ['base', 1], ['good', 1.2]].map(([k, f]) => { const eq0 = evF * f - nd1, eq = Math.max(0, eq0), addV = add / sh * eq, totV = own * eq; /* BUG-47: shareholders' liability is limited: what they get back is never below zero */
+    return {k, f, ev: evF * f, eq, short: Math.max(0, -eq0), addV, mAdd: cash > 1e-9 ? addV / cash : null, mTot: sh0 > 1e-9 && !(basis0 > 1e-9) ? null : (basis0 + cash > 1e-9 ? totV / (basis0 + cash) : null)}; });
+  return {rt: rt[0], rtW: q.w, sh0, add, own, basis0, newDebt, cash, nd, nd1, ebitda, ev, debt, intr, cover: intr > 1e-9 ? ebitda / intr : Infinity, dscr: ds > 1e-9 ? Math.max(0, ebitda) / ds : Infinity, evF, cs, w: q.w};
 }
 function acqBox(c, price, tq, lbo){ /* does the purchase pay? */
   const m = acqModel(c, price, tq, lbo); if (!m) return '';
@@ -4604,10 +4626,10 @@ function acqBox(c, price, tq, lbo){ /* does the purchase pay? */
     ${row('自己資金', fm(m.cash))}${row('買収先に負わせる借入', fm(m.newDebt))}
     ${row('企業価値（買付価格ベース）', fm(m.ev))}${row('EBITDA（簡易推計）', fm(m.ebitda))}${row('EV/EBITDA', m.ebitda > 0 ? (m.ev / m.ebitda).toFixed(1) + '倍' : '—（赤字）')}
     ${row('純有利子負債（買収後）', fm(m.nd1))}${row('借入後の負債/EBITDA', m.ebitda > 0 ? (m.debt / m.ebitda).toFixed(1) + '倍' : '—（赤字）', m.ebitda > 0 && m.debt / m.ebitda > 5 ? 'down' : '')}
-    ${row('年間利息（概算）', fm(m.intr))}${row('利払い倍率', Number.isFinite(m.cover) ? (m.cover < 0 ? '—（赤字）' : m.cover.toFixed(1) + '倍') : '借入なし', m.cover < 1.5 ? 'down' : '')}${row('DSCR（簡易推計・利息＋7年返済）', Number.isFinite(m.dscr) ? m.dscr.toFixed(2) + '倍' : '借入なし', m.dscr < 1.2 ? 'down' : '')}</div>
+    ${row('年間利息（概算）', fm(m.intr))}${row('金利の前提の格付け（公表値）', `${m.rt}（${shortDate(m.rtW)}）`)}${row('利払い倍率', Number.isFinite(m.cover) ? (m.cover < 0 ? '—（赤字）' : m.cover.toFixed(1) + '倍') : '借入なし', m.cover < 1.5 ? 'down' : '')}${row('DSCR（簡易推計・利息＋7年返済）', Number.isFinite(m.dscr) ? m.dscr.toFixed(2) + '倍' : '借入なし', m.dscr < 1.2 ? 'down' : '')}</div>
     <p class="lbl">企業価値のシナリオ（推定理論株価から計算した企業価値 ${fm(m.evF)} を基準）</p>
-    <div class="rows">${m.cs.map(s => `<div class="orow"><span>${{bad: '悪化（企業価値−20%）', base: '基本', good: '好調（企業価値+20%）'}[s.k]}<small class="note">企業価値${fm(s.ev)} − 純有利子負債${fm(m.nd1)} ＝ 株主価値${fm(s.eq)}</small></span><span class="num">今回の買付分 ${X(s.mAdd)}<br><small>持分全体（既存＋今回）${X(s.mTot)}</small></span></div>`).join('')}</div>
-    <p class="note">「今回の買付分」は今回買う株の価値÷自己資金、「持分全体」は持分全体の価値÷（既存の取得原価＋自己資金）。既存の取得原価の記録がないときは「算出不可」。株主価値は企業価値から買収後の純有利子負債（LBO借入を含む）を引いて計算します。EBITDAは営業利益＋償却の目安（資産の5%）。統合費用・シナジーは含みません。予測であって確定した収益ではありません。</p></section>`;
+    <div class="rows">${m.cs.map(s => `<div class="orow"><span>${{bad: '悪化（企業価値−20%）', base: '基本', good: '好調（企業価値+20%）'}[s.k]}<small class="note">企業価値${fm(s.ev)} − 純有利子負債${fm(m.nd1)} ＝ 株主の回収価値${fm(s.eq)}${s.short > 0 ? `（債務超過${fm(s.short)}・株主は出資額まで失い、それ以上は負担しない）` : ''}</small></span><span class="num">今回の買付分 ${X(s.mAdd)}<br><small>持分全体（既存＋今回）${X(s.mTot)}</small></span></div>`).join('')}</div>
+    <p class="note">「今回の買付分」は今回買う株の価値÷自己資金、「持分全体」は持分全体の価値÷（既存の取得原価＋自己資金）。既存の取得原価の記録がないときは「算出不可」。株主の回収価値は企業価値から買収後の純有利子負債（LBO借入を含む）を引いた額で、0円未満にはなりません（有限責任。個人保証などの追加負担はこのゲームにはありません）。自己資金が0円のときの倍率は「算出不可」。金利は公表された格付けと今の政策金利で計算します。EBITDAは営業利益＋償却の目安（資産の5%）。統合費用・シナジーは含みません。予測であって確定した収益ではありません。</p></section>`;
 }
 function earnCard(c){ /* the last four results against the consensus (read-only) */
   const H = (c.qh || []).filter(q => q.est != null).slice(-4).reverse(); if (!H.length || c.priv) return '';
@@ -4748,7 +4770,7 @@ function coRaid(c){
         <p class="lbl">① 買付価格：今の株価（${fp(c.price)}）に何%上乗せするか</p>
         ${stepSlide('tPrem')}<div class="tr-quick">${[.15, .25, .35, .5].map(v => `<button class="btn sm ${Math.abs(ui.tPrem - v) < 1e-9 ? 'on' : ''}" data-act="tprem" data-v="${v}">+${v * 100}%</button>`).join('')}</div>`}
         ${lbo ? '' : `<p class="lbl">② 目標：発行済株式の何%まで集めるか</p>${stepSlide('tTarget')}<div class="tr-quick tr-quick3">${[[.51, '過半数 51%'], [.67, '特別決議 67%'], [1, '全株 100%']].map(([v, l]) => `<button class="btn sm ${ui.tTarget === v ? 'on' : ''}" data-act="ttarget" data-v="${v}">${l}</button>`).join('')}</div>`}
-        <div class="preview">${tq ? `買付価格 ${fp(price)} · 応募見込 ${fsh(tq.total)}<br>費用 ${fm(tq.cost)}${lbo ? `（自己資金 ${fm(need)}・会社の借入 ${fm(tq.cost * LBO_DEBT)}）<br>買収後の格付け ${ratingFor(c.debt + tq.cost * LBO_DEBT, opProfit(c))[0]}${lok ? '' : ` <span class="down">融資の上限（${fm(lboCap(c))}）を超えます</span>`}` : ''}<br>${esc(acctName(k))}の資金 ${fm(funds)} · 締切後のグループ持分 ${pc(tq.after)}${tq.after > .5 ? ' <span class="up">→ 経営権</span>' : ''}${tq.after < Math.min(lbo ? 1 : ui.tTarget, ownCap(c, 'P')) - .001 ? `<br><em>この価格では目標まで集まらない見込み（応じない株主がいます）。価格を上げると応募が増えます。</em>` : ''}<br><em>株は締切（4週後）にまとめて取得します。それまで持分は増えません。</em>${c.ctrl ? `<br><em>${esc(ownerName(c.ctrl))}のグループは公正価値の1.5倍以上でのみ応募</em>` : ''}` : `<em>${ownCap(c, 'P') < 1 && gfrac(c, 'P') >= ownCap(c, 'P') - 1e-6 ? capNote(c) : 'すでに目標の持分を保有しています'}</em>`}</div>
+        <div class="preview">${tq ? `買付価格 ${fp(price)} · 応募見込 ${fsh(tq.total)}<br>費用 ${fm(tq.cost)}${lbo ? `（自己資金 ${fm(need)}・会社の借入 ${fm(tq.cost * LBO_DEBT)}）<br>買収後の格付け（公表値から） ${(r => ratingFor(r.debt + tq.cost * LBO_DEBT, r.op))(repOf(c) || {debt: c.debt, op: opProfit(c)})[0]}${lok ? '' : ` <span class="down">融資の上限（${fm(lboCap(c))}）を超えます</span>`}` : ''}<br>${esc(acctName(k))}の資金 ${fm(funds)} · 締切後のグループ持分 ${pc(tq.after)}${tq.after > .5 ? ' <span class="up">→ 経営権</span>' : ''}${tq.after < Math.min(lbo ? 1 : ui.tTarget, ownCap(c, 'P')) - .001 ? `<br><em>この価格では目標まで集まらない見込み（応じない株主がいます）。価格を上げると応募が増えます。</em>` : ''}<br><em>株は締切（4週後）にまとめて取得します。それまで持分は増えません。</em>${c.ctrl ? `<br><em>${esc(ownerName(c.ctrl))}のグループは公正価値の1.5倍以上でのみ応募</em>` : ''}` : `<em>${ownCap(c, 'P') < 1 && gfrac(c, 'P') >= ownCap(c, 'P') - 1e-6 ? capNote(c) : 'すでに目標の持分を保有しています'}</em>`}</div>
         ${tq ? `<div class="preview">${(() => { const fv = fair(c), base = Math.max(t ? t.ref : c.price, fv * .9), np = tobNeedPrice(k, c, target, t ? t.ref : undefined);
           return `応募のしくみ：一般株主は「今の株価」と「理論株価の90%（${fp(fv * .9)}）」の高いほう＝${fp(base)}を基準に考え、それより十分高ければ応募します。いまの買付価格での市場の応募率 <b>${pc(tq.accept, 0)}</b>（浮動株 ${pc(floatOf(c) / c.shares, 0)}）。大株主は理論株価の約1.3倍以上でないと応じません。<br>${np ? `目標${pc(target, 0)}に届く買付価格の目安：<b>${fp(np)}</b>（今の株価${spc(np / c.price - 1)}）${tq.after < target - 1e-9 ? ` <button class="link" data-act="tneed">この価格にする</button>` : ''}` : (ownCap(c, bossOf(k) || k) < target ? `<span class="down">${IND[c.ind].n}は外資規制の対象で、${isJP(c) ? '海外' : '日本'}の買い手は最大${pc(ownCap(c, bossOf(k) || k), 0)}までしか持てません。目標${pc(target, 0)}には届きません。</span>` : `<span class="down">どの価格でも目標${pc(target, 0)}には届かない見込みです（売らない大株主が多い）。目標を下げるか、市場で買い増してから狙いましょう。</span>`)}`; })()}</div>` : ''}
         ${lbo || t ? '' : `<label class="chk"><input type="checkbox" data-act="tmin" ${ui.tMin !== false ? 'checked' : ''}> 目標に届かなければ買付けない（下限条件）</label><p class="note">${ui.tMin !== false ? `締切時の応募が目標に届かなければTOBは不成立になり、株は1株も買いません（中途半端な持分にならない）。` : '目標に届かなくても、応募があった分だけ買います。'}</p>`}
@@ -5411,7 +5433,9 @@ function tapMap(px, py){
    input handling
    ===================================================================== */
 const NEED = {tender: 'tob', activist: 'activist', proxy: 'proxy', negotiate: 'neg', short: 'short', buyopt: 'options', divsell: 'divest', spinoff: 'divest', holdipo: 'holdipo', research: 'research', tmode: 'tob', pbuy: 'realty', pebid: 'pe', pedd: 'pe', pepriv: 'privatize'};
-function act(a, el){ try { return act0(a, el); } finally { if (!ui.sim && S) save(); } } /* saved at once, whichever way the action returns */
+function act(a, el){ const m = !ui.sim && S && S.tr ? {S0: S, k: S.tr.k || 0, g: grossWorth(), f: S.tr.flow || 0} : null;
+  try { return act0(a, el); } finally { if (m && S === m.S0 && S.tr && (S.tr.k || 0) === m.k) S.tr.mid = (S.tr.mid || 0) + (grossWorth() - m.g) - ((S.tr.flow || 0) - m.f); /* BUG-30: your own actions' effect on net worth this week (trades, fees, price impact), apart from money moved in or out */
+    if (!ui.sim && S) save(); } } /* saved at once, whichever way the action returns */
 function act0(a, el){ LTAG = '';
   if (NEED[a] && !has(NEED[a])) return;
   if (PREV[a] && !ui.sim) { if (el.dataset.ok) closeModal(); else if (setOn('confirm')) { showPreview(a, el); return; } }
@@ -5957,12 +5981,12 @@ function routeStep(){
 }
 function trackBox(){ /* the track record: what investors look at */
   const st = trStats();
-  return `<section class="box"><h4>運用実績 <small>${st ? `${(st.weeks / 52).toFixed(1)}年分` : 'まだ記録がありません'}</small></h4>${st ? `<div class="kv">
-    <div><span>累計リターン（全期間）</span><b class="${st.total >= 0 ? 'up' : 'down'}">${spc(st.total)}</b></div><div><span>年率・複利（全期間）</span><b>${spc(st.cagr)}</b></div>
-    <div><span>最大下落（全期間${st.part ? '・注' : ''}）</span><b class="${st.mdd > .35 ? 'down' : ''}">${pc(st.mdd, 1)}</b></div><div><span>直近1年</span><b class="${st.year >= 0 ? 'up' : 'down'}">${spc(st.year)}</b></div>
-    ${st.weeks > st.win ? `<div><span>直近10年のリターン</span><b>${spc(st.total10)}</b></div><div><span>直近10年の最大下落</span><b>${pc(st.mdd10, 1)}</b></div>` : ''}
+  return `<section class="box"><h4>運用実績 <small>${st ? `${(st.weeks / 52).toFixed(1)}年${st.part ? '以上（正確な期間は不明）' : '分'}` : 'まだ記録がありません'}</small></h4>${st ? `<div class="kv">
+    <div><span>累計リターン（全期間）</span><b class="${st.total >= 0 ? 'up' : 'down'}">${spc(st.total)}</b></div><div><span>年率・複利（全期間）</span><b>${st.cagr == null ? '算出不可' : spc(st.cagr)}</b></div>
+    <div><span>最大下落（全期間${st.part ? '・注' : ''}）</span><b class="${(st.mdd == null ? st.mddLo : st.mdd) > .35 ? 'down' : ''}">${st.mdd == null ? `不明（記録のある期間で${pc(st.mddLo, 1)}）` : pc(st.mdd, 1)}</b></div><div><span>直近1年</span><b class="${st.year >= 0 ? 'up' : 'down'}">${spc(st.year)}</b></div>
+    ${st.weeks > st.win || st.part ? `<div><span>直近10年の年率</span><b>${spc(st.cagr10)}</b></div><div><span>直近10年のリターン</span><b>${spc(st.total10)}</b></div><div><span>直近10年の最大下落</span><b>${pc(st.mdd10, 1)}</b></div>` : ''}
     <div><span>シャープレシオ（直近${st.win >= 520 ? '10年' : (st.win / 52).toFixed(1) + '年'}）</span><b>${st.sharpe.toFixed(2)}</b></div><div><span>追証の回数（全期間）</span><b class="${st.mc ? 'down' : ''}">${st.mc}回</b></div></div>
-    ${st.part ? '<p class="note">注：古い形式のセーブから引き継いだ記録です。週ごとの記録が残っていない期間の最大下落は計算に含めていません（推測で作りません）。</p>' : ''}
+    ${st.part ? '<p class="note">注：古い形式のセーブから引き継いだ記録です。10年より前の週ごとの記録が残っていないため、運用期間・年率・全期間の最大下落は分かりません（推測で作りません）。累計リターンは引き継いだ値です。</p>' : ''}${S.tr.fixN ? `<p class="note">読み込んだセーブで、記録された操作では説明できない純資産の増加（計${fm(S.tr.fix || 0)}）は運用の利益に数えていません。</p>` : ''}
     <p class="note">口座の純資産の週ごとの増減（株・空売り・オプション・利息・手数料・配当・強制決済をすべて含む）を、前の週の純資産で割って計算します。運用委託の報酬・本社の費用・罰金・増資など、運用と関係ないお金の出入りは除きます。1週の記録は−95%〜+200%で頭打ちにしています（記録上の制限で、実際の損益はそのまま純資産に反映されます）。</p>` : '<p class="note">株を持って1週間進めると記録が始まります。</p>'}</section>`;
 }
 function mmBox(){ /* managed money */

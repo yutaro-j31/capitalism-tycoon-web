@@ -2029,6 +2029,76 @@ async function testRev10Layout(b) { /* BUG-46: the map column is one grid item a
   ok('rev10 layout: map + fold button in one column, panel beside (PC) or below (phone), folded map gives the panel the width, no horizontal overflow at 320–1440px (BUG-46)', !bad.length, JSON.stringify(bad.map(x => [x[0], x[2]])));
 }
 
+async function testRev11(b) {
+  const {p, errs} = await page(b, {...devices['iPhone 13']});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; let S; const $ = q => document.querySelector(q);
+    const clone = o => JSON.parse(JSON.stringify(o)), sig = o => { o.chk = A.finSig(o); return o; }, lastR = () => A.S.tr.rets[A.S.tr.rets.length - 1];
+    const trader = seed => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.settings.guide = false; S.settings.confirm = false; $('#modal').hidden = true; };
+    const uiBuy = (c, f) => { A.ui.tab = 'market'; A.ui.sel = c.id; A.ui._trSel = c.id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.ui.tmode = 'cash'; A.renderAll(true); const q = $(`[data-act=tqset][data-v="${f}"]`); if (q) q.click(); const g = $('#tr-go'); if (g && !g.disabled) g.click(); };
+    /* BUG-30: a lowered base (5,000,000円 against 10,000,000円 of cash) or a missing base gives no trading profit */
+    trader(1201); for (let i = 0; i < 3; i++) A.step(); const cash = S.player.cash;
+    for (const eq1 of [cash / 2, null]) { const o = JSON.parse(A.exportText()); o.tr.eq1 = eq1; sig(o); const msg = A.importText(JSON.stringify(o)); S = A.S; const ok = msg == null || msg === true || msg === '' || typeof msg !== 'string' || !msg.includes('読み込めません');
+      A.step(); out['noFake_' + (eq1 == null ? 'null' : 'half')] = ok && Math.abs(lastR()) < 1e-9 && S.tr.fixN >= 1; }
+    { A.ui.tab = 'pres'; A.renderAll(true); out.fixNote = $('#pbody').textContent.includes('説明できない純資産の増加'); }
+    /* normal mid-week trading, fees, founding and moving money in or out survive a save and reload with the same result */
+    const run = reload => { trader(1202); for (let i = 0; i < 4; i++) A.step(); S.player.cash = .5; S.tr.eq1 = A.grossWorth(); /* a clean week base */
+      const L = S.cos.filter(x => !x.priv && !x.ctrl); uiBuy(L[2], '0.25'); uiBuy(L[5], '0.25'); const sell = L[2]; A.ui.sel = sell.id; A.ui.tmode = 'sell'; A.renderAll(true); { const q = $('[data-act=tqset][data-v="0.5"]'); if (q) q.click(); const g = $('#tr-go'); if (g && !g.disabled) g.click(); }
+      A.ui.tab = 'pres'; A.renderAll(true); const f = $('#pbody [data-act=incorp]'); if (f) f.click();
+      if (reload) { const m = A.importText(A.exportText()); S = A.S; }
+      A.step(); return {r: lastR(), founded: S.founded, n: S.ledger.length, fix: S.tr.fixN || 0}; };
+    const a1 = run(false), a2 = run(true); out.midKept = a1.n >= 3 && a1.founded && a2.founded && Math.abs(a1.r - a2.r) < 1e-9 && a2.fix === 0;
+    /* BUG-45: totals beyond the list; accounts kept through founding, failure and founding again */
+    trader(1203); S.player.cash = 50; const c = S.cos.filter(x => !x.priv && !x.ctrl)[1], c2 = S.cos.filter(x => !x.priv && !x.ctrl)[3];
+    const pair = (k, x) => { A.execBuy(k, x, 1, 1); A.execSell(k, x, x.own[k]); };
+    let total = 0; const check = () => { const o = JSON.parse(A.exportText()); const v = A.validSave(clone(o)); const sum = Object.values(S.lagg).reduce((a, g) => a + g.n, 0); return v && sum === S.ledger.length + S.ldrop; };
+    for (let i = 0; i < 100; i++) pair('P', c); out.at200 = check() && S.ldrop === 0;
+    A.incorporate('甲社', 0, {col: 1, logo: 1}); S.player.cash += 50;
+    for (let i = 0; i < 100; i++) pair('P', c2); out.at400 = S.ledger.length === 400 && check() && S.ldrop === 0;
+    A.execBuy('P', c, 1, 1); out.at401 = S.ledger.length === 400 && S.ldrop === 1 && check();
+    for (let i = 0; i < 10; i++) pair('P', c); A.execSell('P', c, c.own.P || 0); out.at422 = check() && S.ldrop >= 21;
+    S.pres.cash = 5; A.execBuy('U', c2, 1, 1); out.personal = S.ledger[0].at === 'pers' && check();
+    const keep = clone(S.lagg);
+    A.restartAsTrader('test'); S.player.cash = Math.max(S.player.cash, 60); A.incorporate('乙社', 0); A.execBuy('P', c, 1, 1);
+    out.regen = S.ledger[0].aid === 'P#1' && S.ledger[0].an.includes('乙社') && JSON.stringify(S.lagg['P#0']) === JSON.stringify(keep['P#0']) && JSON.stringify(S.lagg.P) === JSON.stringify(keep.P) && check();
+    { const m = A.importText(A.exportText()); S = A.S; out.reload = JSON.stringify(S.lagg['P#0']) === JSON.stringify(keep['P#0']) && S.ledger.some(x => x.an.includes('甲社')) && check(); }
+    A.ui.tab = 'port'; A.renderAll(true); out.oldName = $('#pbody').textContent.includes('本体（甲社）（以前の会社）');
+    const o = JSON.parse(A.exportText()), bad = f => { const x = clone(o); f(x); return !A.validSave(sig(x)); };
+    out.rejDrop = bad(x => x.ldrop = -1); out.rejAmt = bad(x => x.lagg['P#0'].amt = 0); out.rejFee = bad(x => x.lagg['P#0'].fee = 0);
+    out.rejKind = bad(x => { const e = x.ledger.find(y => y.at === 'indiv'); e.at = 'co'; }) && bad(x => { const e = x.ledger.find(y => y.at === 'indiv'); if (e) { e.at = 'co'; e.aid = 'P#0'; } else x.ldrop = -5; });
+    out.rejLaggKind = bad(x => { x.lagg.P.at = 'co'; });
+    /* BUG-48: an old save whose weekly list was cut at 520 weeks (600 real weeks of +0.1%) */
+    trader(1204); for (let i = 0; i < 3; i++) A.step();
+    const old = n => { const x = JSON.parse(A.exportText()); x.fmt = 5; const keepN = Math.min(n, 520); x.tr.rets = Array(keepN).fill(.001); x.tr.cum = Math.pow(1.001, n); for (const k of ['n', 'pk', 'mdd', 'part', 'mid', 'k', 'fix', 'fixN']) delete x.tr[k];
+      for (const e of x.ledger) for (const k of ['at', 'aid', 'an', 'gen']) delete e[k]; delete x.lagg; delete x.ldrop; delete x.lpart; sig(x); return x; };
+    for (const n of [519, 520, 600]) { const msg = A.importText(JSON.stringify(old(n))); S = A.S; const st = A.trStats();
+      out['old' + n] = n < 520 ? st.weeks === n && !st.part && Math.abs(st.cagr - (Math.pow(Math.pow(1.001, n), 52 / n) - 1)) < 1e-12 : st.part && st.cagr === null && st.mdd === null && Math.abs(st.total - (Math.pow(1.001, n) - 1)) < 1e-9 && st.weeks >= 520;
+      const m2 = A.importText(A.exportText()); out['old' + n + 'again'] = A.S.tr.part === (n >= 520) && Math.abs(A.trStats().total - (Math.pow(1.001, n) - 1)) < 1e-9; }
+    A.ui.tab = 'pres'; A.renderAll(true); out.oldText = $('#pbody').textContent.includes('算出不可') && $('#pbody').textContent.includes('正確な期間は不明');
+    /* BUG-47: limited liability; BUG-39: the published rating sets the interest */
+    A.newGame(1205, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; $('#modal').hidden = true;
+    const t = S.cos.filter(x => !x.priv && !x.ctrl)[4], q = A.repOf(t); for (const k in t.own) delete t.own[k]; A.recomputeCtrl();
+    q.cash = 0; const set = (debt, fe) => { q.debt = debt; q.fe = fe / t.shares; };
+    set(18, 12); let m = A.acqModel(t, 12 / t.shares, {total: t.shares, cost: 12}, false); out.ex = Math.abs(m.cs[0].mAdd - .5) < 1e-9 && Math.abs(m.cs[2].mAdd - 1.5) < 1e-9;
+    set(28, 2); m = A.acqModel(t, 12 / t.shares, {total: t.shares, cost: 12}, false); /* EV 30: bad 24 < 28 */
+    out.ll = m.cs[0].eq === 0 && m.cs[0].mAdd === 0 && Math.abs(m.cs[0].short - 4) < 1e-9 && m.cs[1].eq >= 0 && Math.abs(m.cs[1].eq - 2) < 1e-9;
+    set(30, 0); m = A.acqModel(t, 12 / t.shares, {total: t.shares, cost: 12}, false); out.evEqNd = m.cs[1].eq === 0 && m.cs[1].short === 0 && m.cs[1].mAdd === 0;
+    set(18, 12); m = A.acqModel(t, 12 / t.shares, {total: t.shares, cost: 12 / .65}, true); out.zeroCash = true;
+    m = A.acqModel(t, 12 / t.shares, {total: t.shares, cost: 0}, false); out.zeroCash = m.cs[1].mAdd === null && m.cs[1].mTot === null;
+    t.own.P = t.shares * .2; A.recomputeCtrl(); S.player.cost[t.id] = 2; m = A.acqModel(t, 12 / t.shares, {total: t.shares * .3, cost: 3.6}, false); out.existing = Math.abs(m.cs[1].mTot - (.5 * 12) / 5.6) < 1e-9;
+    set(18, 12); const i0 = A.acqModel(t, 12 / t.shares, {total: t.shares * .3, cost: 3.6}, true);
+    t.debt *= 4; t.margin = -.2; t.base = -.2; const i1 = A.acqModel(t, 12 / t.shares, {total: t.shares * .3, cost: 3.6}, true);
+    out.pubRating = i0.intr === i1.intr && i0.cover === i1.cover && i0.dscr === i1.dscr && i0.rt === i1.rt;
+    while (S.week % 13 !== 0 || S.week < 2) A.step(); const i2 = A.acqModel(t, t.price, {total: t.shares * .3, cost: t.price * t.shares * .3}, true); out.updates = i2.rtW === S.week && i2.rt === A.repOf(t).v.rt;
+    A.ui.tab = 'market'; A.ui.sel = S.cos.filter(x => !x.priv && !x.ctrl)[6].id; A.ui.ctab = 'raid'; A.ui.actor = 'P'; A.ui.tMode = 'tob'; A.renderAll(true); const tx = $('#pbody').textContent;
+    out.ui = tx.includes('株主の回収価値') && tx.includes('金利の前提の格付け（公表値）') && !/NaN|undefined/.test(tx);
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev11: return base on load (BUG-30), ledger totals and accounts (BUG-45), old saves past 520 weeks (BUG-48), limited liability (BUG-47), published rating in the acquisition model (BUG-39)', !fails.length, JSON.stringify(fails));
+  ok('no page errors in rev11 tests', errs.length === 0, errs.join(' | '));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -2218,6 +2288,7 @@ async function balance(b) {
     await testRev10(b);
     await testRev10b(b);
     await testRev10Layout(b);
+    await testRev11(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
