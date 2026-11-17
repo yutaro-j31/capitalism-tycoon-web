@@ -484,7 +484,7 @@ async function testPE(b) {
     if (c) { A.peExitStart(c); for (let i = 0; i < 6; i++) A.step(); const it = S.inbox.find(i => i.kind === 'peexit' && i.cid === c.id); out.exitBids = it ? it.bids.length : 0;
       if (it) { const cash2 = S.player.cash; const bb = it.bids[it.bids.length - 1]; A.peSell(c, bb); out.sold = (!S.cos.includes(c) || (c.own.P == null && c.ctrl === bb.buyer)) && S.player.cash > cash2 && S.pe.track.length >= 1 && S.pe.track[0].moic > 0; } }
     // take a controlled listed company private
-    const L = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[4]; S.player.cash += 3000; for (let i = 0; i < 10 && L.ctrl !== 'P'; i++) A.execBuy('P', L, L.shares * .3); /* a poison pill can dilute the first buys */
+    const L = S.cos.filter(x => !x.priv && !x.ctrl && !A.activeTob(x) && !Object.keys(x.own).some(k => k !== 'P' && x.own[k] / x.shares >= .05)).sort((a, b) => a.price * a.shares - b.price * b.shares)[4]; /* no tender offer under way and no other large holder */ S.player.cash += 3000; for (let i = 0; i < 10 && L.ctrl !== 'P'; i++) A.execBuy('P', L, L.shares * .3); /* a poison pill can dilute the first buys */
     const tp = L.ctrl === 'P' && A.peTakePrivate(L, 0); out.privatized = !!tp && L.priv && L.own.P === L.shares && !!L.pe; out.tpInfo = {ctrl: L.ctrl, priv: L.priv, tob: S.tobs.some(t => t.cid === L.id), bp: Math.round(A.buyingPower()), cap: Math.round(L.price * L.shares), pe: !!L.pe, own: L.own.P && +(L.own.P / L.shares).toFixed(3)};
     // funds: LP money never counts as the player's
     S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
@@ -1501,17 +1501,21 @@ async function testTrader(b) {
     out.rewards = A.rewScale() === .02;
     /* managed money: management fee, performance fee above the high-water mark */
     S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; out.mmNoRecord = A.mmAccept({amt: .01, who: 'テスト'}) === 0 && S.mm.aum === 0; /* under a year of record: refused */
-    const rets0 = S.tr.rets; S.tr.rets = Array(52).fill(.003); S.tr.mcW = null; S.player.cash = 50; const got = A.mmAccept({amt: 1, who: 'テスト'}); out.mmIn = got === 1 && S.mm.aum === 1 && S.mm.hwm === 1 && S.mm.inv === 1; S.tr.rets = rets0;
+    const rets0 = S.tr.rets; S.tr.rets = Array(52).fill(.003); S.tr.mcW = null; S.player.cash = 50; out.mmNeedsCo = A.mmAccept({amt: 1, who: 'テスト'}) === 0 && S.mm.aum === 0; /* an individual cannot take other people's money */
+    S.founded = true; A.hqInit(); /* the mechanics below are those of a founded company (restored before the founding test) */ const got = A.mmAccept({amt: 1, who: 'テスト'}); out.mmIn = got === 1 && S.mm.aum === 1 && S.mm.hwm === 1 && S.mm.inv === 1; S.tr.rets = rets0;
     S.mm.aum = 1; S.mm.hwm = 1; out.mmCapped = A.mmAccept({amt: 5, who: 'x'}) === 0 || A.mmRoom() >= 0; S.mm = {aum: 1, hwm: 1, fees: 0, perf: 0, inv: 1}; S.player.cash = .1;
     const pc = S.player.cash; S.week = 103; A.mmWeek(0); const fee = 1 * .02 / 52; out.fee = Math.abs(S.mm.fees - fee) < 1e-12 && Math.abs(S.player.cash - pc - fee) < 1e-12;
     S.week = 104; const a0 = S.mm.aum, dr = A.mmDrag(); A.mmWeek(.1); const grown = a0 * (1 + .1 * dr), aft = grown - grown * .02 / 52; out.perf = Math.abs(S.mm.perf - (aft - 1) * .2) < 1e-9 && Math.abs(S.mm.hwm - S.mm.aum) < 1e-12;
     const perf0 = S.mm.perf; S.week = 156; A.mmWeek(-.05); out.hwm = S.mm.perf === perf0; /* below the high-water mark: no performance fee */
     /* investors leave after a bad year */
-    S.tr.rets = Array(52).fill(-.004); const aum1 = S.mm.aum; S.week = 169; A.mmQuarter(); out.out = S.mm.aum < aum1 - 1e-9;
+    /* after a bad stretch they warn first, then give a quarter's notice, then leave; the money goes back to them */
+    S.tr.rets = Array(52).fill(-.004); const aum1 = S.mm.aum, inv1 = S.mm.inv; S.week = 169; A.mmQuarter(); const warned = S.mm.warn === 1 && S.mm.aum === aum1;
+    S.week = 182; A.mmQuarter(); const L1 = A.mmList(), noticed = L1.some(x => x.out === 195) && S.mm.aum === aum1;
+    S.week = 195; A.mmQuarter(); out.out = warned && noticed && S.mm.aum < aum1 - 1e-9 && S.mm.inv === inv1 - 1;
     /* an offer appears after a good year when there is room */
     S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; S.tr.rets = Array(52).fill(.003); S.tr.mcW = null; S.inbox = []; S.player.cash = Math.max(S.player.cash, .2); A.mmQuarter();
     const off = S.inbox.find(i => i.kind === 'mmoffer'); out.offer = !!off && off.amt > 0 && off.amt <= A.mmCap() + 1e-9;
-    S.inbox = []; S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0};
+    S.inbox = []; S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; S.founded = false;
     /* founding: needs 30,000,000円; net worth falls only by the fee; the cash you keep becomes personal */
     S.player.cash = .1; out.noFound = !A.incorporate('X', 0);
     S.player.cash += .4; const nw0 = A.myWorth(); out.found = A.incorporate('テスト商事', .05) && S.founded && !A.preCo() && S.company === 'テスト商事';
@@ -1627,10 +1631,11 @@ async function testGpt7(b) {
     for (let i = 0; i < 6 && !(S.pe.deals || []).length; i++) A.peDealGen(); const deal = (S.pe.deals || [])[0]; if (deal) { deal.bid = {eq: 1, lev: .5, promise: false, owner: 'P', end: S.week + 3, f: 1, co: null, partner: null}; deal.bids = (deal.bids || []).concat([{k: 'P', eq: 1}]); }
     S.player.cash = -5; A.step(); out.peBids = !!deal && !S.founded && !deal.bid && !(deal.bids || []).some(x => x.k === 'P');
     /* tax: newsletter profit is taxed like other income */
-    S.player.pl = Object.assign(S.player.pl || {}, {nl: 1}); const cash0 = S.player.cash; A.corpTax(); out.tax = cash0 - S.player.cash > .2;
+    S.player.pl = Object.assign(S.player.pl || {}, {nl: 1, div: 0, rent: 0, fee: 0, int: 0, hq: 0, rd: 0, pay: 0}); const cash0 = S.player.cash; A.corpTax(); out.tax = Math.abs(cash0 - S.player.cash - .2) < 1e-9; /* back as an individual: income tax of 20% */
     /* managed money beyond what the team can run: clients withdraw the excess over time */
     A.newGame(12348, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 53; i++) A.step(); S.tr.rets = Array(52).fill(.003);
-    S.mm = {aum: 100, hwm: 100, fees: 0, perf: 0, inv: 5}; S.week = 13 * Math.ceil(S.week / 13); A.mmQuarter(); out.overCap = S.mm.aum < 100 && S.mm.aum > A.mmPeople() * 1.5;
+    S.founded = true; A.hqInit(); S.mm = {aum: 100, hwm: 100, fees: 0, perf: 0, inv: 1}; S.week = 13 * Math.ceil(S.week / 13); A.mmQuarter(); const w0 = S.week, gave = A.mmList().some(x => x.out === w0 + 13) && S.mm.aum === 100;
+    S.week = w0 + 13; A.mmQuarter(); out.overCap = gave && S.mm.aum === 0 && S.mm.inv === 0 && S.mm.hwm === 0; /* notice first, then the investor leaves with their money; no money stays without investors */
     /* growth companies trade at ordinary prices */
     out.gmPrices = S.cos.filter(x => x.gm).every(x => x.price >= 5);
     return out;
@@ -1638,6 +1643,48 @@ async function testGpt7(b) {
   const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
   ok('gpt7: trades between weeks count, bad offers and broken newsletter saves are refused, forced buy-backs keep whole shares, PE bids end with the company (BUG-22/23/25/27/28)', !fails.length, JSON.stringify(fails));
   ok('no page errors in gpt7 tests', errs.length === 0, errs.join(' | '));
+}
+
+async function testRealism(b) {
+  const {p, errs} = await page(b, {...devices['iPhone 13']});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(8181, 'normal', 'T', 't', 'trader', false); let S = A.S; S.won = false; S.settings.guide = false; document.querySelector('#modal').hidden = true;
+    /* the rivals start as individual traders too; other scenarios keep their fortunes */
+    out.rivalsSmall = S.rivals.every(r => r.cash > 0 && r.cash < .3);
+    /* an individual: no block-sale desk, no magazine interviews, no managed money */
+    const c = S.cos.filter(x => !x.priv && !x.ctrl)[0]; c.own.P = c.shares * .3; A.recomputeCtrl(); A.ui.tab = 'market'; A.ui.sel = c.id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.renderAll(true);
+    out.noBlockSale = !document.querySelector('main.main').textContent.includes('売却先を探す') && !document.querySelector('.exitbox'); c.own.P = 0; A.recomputeCtrl();
+    for (let i = 0; i < 70; i++) { A.step(); S.inbox = S.inbox.filter(x => x.kind !== 'story'); }
+    out.noStories = !S.news.some(n => /経済誌|【出来事】/.test(n.t));
+    S.tr.rets = Array(60).fill(.004); S.tr.mcW = null; S.inbox = []; S.week = 13 * Math.ceil(S.week / 13); A.mmQuarter(); out.noOfferIndividual = !S.inbox.some(i => i.kind === 'mmoffer');
+    /* an individual's income is taxed at 20% */
+    S.player.pl = Object.assign(S.player.pl || {}, {nl: 1, div: 0, rent: 0, fee: 0, int: 0, hq: 0, rd: 0, pay: 0}); const c0 = S.player.cash; A.corpTax(); out.incomeTax = Math.abs(c0 - S.player.cash - .2) < 1e-9;
+    /* founding: you enter the capital; the rest of the cash stays yours */
+    S.player.cash = .6; A.ui.tab = 'pres'; A.renderAll(true); const F = A.foundRange(); out.capRange = Math.abs(F.hi - (A.grossWorth() - .005)) < 1e-9 && F.lo >= .2 - 1e-9;
+    const box = document.querySelector('[data-kp="lad"][data-a="foundcap"]'); box.click(); const inp = box.querySelector('input.kp-in'); inp.value = '40,000,000'; inp.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter'}));
+    out.keypadCap = Math.abs(A.ui.foundCap - .4) < 1e-9; const g0 = A.grossWorth(); document.querySelector('[data-act=incorp]').click();
+    out.founded = S.founded && Math.abs(A.grossWorth() - .4) < 1e-6 && Math.abs(S.pres.cash - (g0 - .005 - .4)) < 1e-6;
+    /* managed money after founding: an investor list that always adds up; notice before leaving */
+    A.hqInit(); S.tr.rets = Array(60).fill(.004); S.inbox = []; S.week = 13 * Math.ceil((S.week + 1) / 13); A.mmQuarter(); out.offerCompany = S.inbox.some(i => i.kind === 'mmoffer');
+    S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; A.mmAccept({amt: .1, who: 'X'}); A.mmAccept({amt: .1, who: 'Y'}); for (let i = 0; i < 5; i++) A.mmWeek(.01);
+    const L = A.mmList(); out.investors = L.length === 2 && S.mm.inv === 2 && Math.abs(L.reduce((a, x) => a + x.val, 0) - S.mm.aum) < 1e-12 && S.mm.lastFee > 0;
+    A.mmRedeem(L[0]); A.mmRedeem(A.mmList()[0]); out.noGhostMoney = S.mm.aum === 0 && S.mm.inv === 0 && S.mm.hwm === 0;
+    /* published figures change at earnings, not every week */
+    const d = S.cos.filter(x => !x.priv)[2]; A.ui.tab = 'market'; A.ui.sel = d.id; A.ui.ctab = 'info'; while (S.week % 13 !== 1) A.step(); A.renderAll(true);
+    const kv = () => [...document.querySelectorAll('.kv div')].filter(x => /売上（年|純利益（年|推定理論株価/.test(x.textContent)).map(x => x.textContent).join('|'); const t1 = kv(); A.step(); A.renderAll(true); out.quarterly = t1.length > 0 && kv() === t1;
+    /* the trade box: tap the share count and type it */
+    const e = S.cos.filter(x => !x.priv && !x.ctrl && x !== d)[1]; A.ui.sel = e.id; A.ui._trSel = e.id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.ui.tmode = 'cash'; S.player.cash = 5; A.renderAll(true);
+    const q = document.querySelector('[data-kp="tr"]'); q.click(); const i2 = q.querySelector('input.kp-in'); i2.value = '25'; i2.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter'}));
+    out.keypadShares = Math.abs(+document.querySelector('#tr-go').dataset.n - 25e-6) < 1e-12;
+    A.newGame(8182, 'normal', 'T', 't', 'std', false); out.rivalsStd = A.S.rivals.every(r => r.cash > 50);
+    /* listed companies change hands without the rivals: PE funds, founders, carve-outs, peers */
+    A.newGame(31, 'normal', 'T', 't', 'std', false); A.S.won = false; for (let i = 0; i < 260; i++) A.step(); const kinds = ['PEによる買収提案', '創業者MBO', 'カーブアウト上場', '同業による買収提案'].filter(k => A.S.news.some(n => n.t.includes(k)));
+    out.events = kinds.length >= 3 && A.econCheck(A.S) === '' && !!A.parseSave(A.exportText());
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('realism: small rivals, individual limits, entered capital, investor list with notice, quarterly figures, keypad entry, corporate events', !fails.length, JSON.stringify(fails));
+  ok('no page errors in realism tests', errs.length === 0, errs.join(' | '));
 }
 
 async function testGpt5(b) {
@@ -1819,6 +1866,7 @@ async function balance(b) {
     await testTrader(b);
     await testMidgame(b);
     await testGpt7(b);
+    await testRealism(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
