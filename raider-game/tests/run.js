@@ -517,7 +517,7 @@ async function testPE(b) {
   });
   ok('PE: due diligence costs money, takes 4 weeks and takes a found problem off the price', r.ddPaid && r.ddDone && r.ddCheaper, JSON.stringify({p: r.ddPaid, d: r.ddDone, c: r.ddCheaper}));
   ok('PE: an uncontested 10% lowball wins; the company is unlisted, wholly owned and carries the LBO debt', r.bid && r.won && r.lbo, JSON.stringify({bid: r.bid, won: r.won, lbo: r.lbo}));
-  ok('PE: J-curve — fees and the illiquidity discount cost 5–30% of the cheque at once', r.jcurve > .05 && r.jcurve < .3, String(r.jcurve));
+  ok('PE: J-curve — fees and the (5%, since 5.26) illiquidity discount cost 1–30% of the cheque at once', r.jcurve > .01 && r.jcurve < .3, String(r.jcurve));
   ok('PE: a higher rival bid wins the auction', r.lost);
   ok('PE: skipping due diligence lets a hidden problem surface after the deal', r.surprise);
   ok('PE: a dividend recap pays the owner and counts as a distribution', r.recap);
@@ -689,7 +689,7 @@ async function testUIPack(b) {
     /* (1) the price sheet mirrors the valuation exactly */
     out.fair = S.cos.every(c => Math.abs(A.fairParts(c).per - A.fair(c)) < 1e-9 * Math.max(1, A.fair(c)));
     /* (3) screener filters */
-    A.ui.scr = {cheap: true}; out.scr = S.cos.filter(A.scrPass).every(c => A.fair(c) / c.price > 1.2); A.ui.scr = {};
+    A.ui.scr = {cheap: true}; out.scr = S.cos.filter(A.scrPass).every(c => A.fairEst(c) / c.price > 1.2); /* the screener works on the player's estimate */ A.ui.scr = {};
     /* (4) overlay values stay in 0..1 */
     out.ov = ['cheap', 'rival', 'growth', 'mine'].every(k => { A.ui.ov = k; return Object.values(A.ovStats()).every(v => v >= 0 && v <= 1 + 1e-9); }); A.ui.ov = '';
     /* (7) stories never draw from the PRNG and arrive in the inbox */
@@ -918,7 +918,7 @@ async function testCreditMacroControl(b) {
     /* (1) refinancing: a strong company refinances at today's rate; an over-borrowed one is refused and repays from cash */
     const good = S.cos.filter(x => x.debt > 1 && x.ni > 0).sort((a, b) => A.dscr(b) - A.dscr(a))[0]; A.debtInit(good); good.lockR = 2; S.econ.rate = 6; const ni0 = good.ni;
     out.lag = Math.abs(A.niA ? 0 : 0) === 0; good.dueW = S.week; A.refiStep(); out.refi = good.lockR > 2 && good.lockR < 6 && good.dueW === S.week + 26;
-    const bad = S.cos.find(x => x !== good && !x.priv && x.debt > 1); A.debtInit(bad); bad.debt = Math.max(bad.debt, A.mcap ? 0 : 0) + Math.max(5, bad.rev * 3); bad.cash = bad.debt * .1; bad.crisis = null; bad.dueW = S.week; const d0 = bad.debt;
+    const bad = S.cos.find(x => x !== good && !x.priv && x.debt > 1); A.debtInit(bad); bad.debt = Math.max(bad.debt, A.mcap ? 0 : 0) + Math.max(5, bad.rev * 3); bad.cash = bad.debt * .1; bad.crisis = null; bad.dueW = S.week; bad.own = Object.assign({}, bad.own, {P: bad.shares * .01}); /* held by the player, so its news is reported individually */ const d0 = bad.debt;
     A.refiStep(); const fresh = S.news.slice(0, 6).map(n => n.t); out.refused = bad.debt < d0 && fresh.some(t => /借り換え失敗/.test(t) && t.includes(bad.name)) && (!!bad.crisis || fresh.some(t => /危機回避|資金を注入/.test(t))); /* AI-run companies resolve the crisis at once */
     /* (2) inflation follows a raw-material shock and the central bank leans against it; a glut cuts prices */
     S.econ.raw = 1.5; S.econ.infl = 2; for (let i = 0; i < 60; i++) A.econStep(); out.infl = S.econ.infl > 3 && S.econ.rate > 4.5;
@@ -1173,6 +1173,40 @@ async function testGptBugs(b) {
   await ph.ctx.close(); await ctx.close();
 }
 
+async function testBalance2(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(7373, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 300; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    /* estimates stay within their band and are fixed for the quarter */
+    const amp = .04 + .26 * (1 - A.estAcc()); out.est = S.cos.every(c => Math.abs(A.fairEst(c) / A.fair(c) - 1) <= amp + 1e-9) && S.cos.some(c => Math.abs(A.fairEst(c) / A.fair(c) - 1) > 1e-6);
+    /* a controlling stake is worth at least 95% of intrinsic value; the balance sheet agrees */
+    const c = S.cos.find(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom'); c.price = A.fair(c) * .6; c.own = {P: c.shares * .6}; A.recomputeCtrl();
+    out.ctrl = Math.abs(A.ctrlPx('P', c) - A.fair(c) * .95) < 1e-9 && Math.abs(A.bsNow().eq - A.netWorth('P')) < 1e-6;
+    c.own = {}; A.recomputeCtrl();
+    /* a company on autopilot solves its own funding crisis */
+    const d = S.cos.find(x => !x.priv && !x.ctrl && x !== c); d.own = {P: d.shares * .6}; A.recomputeCtrl(); d.dm = 'auto'; d.ni = -1; d.debt = Math.max(d.debt, 5); d.cash = 0; d.crisis = null; d.dueW = S.week; d.debt = d.rev * 10;
+    S.inbox = []; A.refiStep(); out.auto = !S.inbox.some(i => i.kind === 'crisis' && i.cid === d.id);
+    d.own = {}; A.recomputeCtrl();
+    /* new companies are listed after the original list runs out */
+    S.ipo = 999; const n0 = S.cos.length; S.cos = S.cos.filter((x, i) => x.priv || i % 3); const n1 = S.cos.length; S.week = 17 * 40; A.maybeIPO(); out.ipo = S.cos.length === n1 + 1 && /^G\d+/.test(S.cos[S.cos.length - 1].tk);
+    /* crises of small unrelated companies are summarised, not reported one by one */
+    const small = S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0)).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; const nn = S.news.length; A.qnews(small, 'crisis', 'x', 'deal'); out.quiet = S.news.length === nn && S.qn.crisis === 1;
+    /* an alternative goal is awarded once */
+    S.stats.turnarounds = 3; S.routes = {}; A.routeStep(); const w1 = S.routes.fixer; A.routeStep(); out.route = w1 != null && S.routes.fixer === w1;
+    /* dividend income raises the bank limit */
+    const l0 = A.bankLimit(); const e = S.cos.find(x => !x.priv && x.ni > 0 && x.payout > 0 && !x.ctrl); e.own.P = e.shares * .1; out.div = A.divIncomeY() > 0 && A.bankLimit() > l0;
+    return out;
+  });
+  ok('balance2: the theoretical price is shown as an estimate within its accuracy band', r.est);
+  ok('balance2: a controlling stake is valued at intrinsic value (and the balance sheet agrees)', r.ctrl);
+  ok('balance2: a company on autopilot handles its own funding crisis', r.auto);
+  ok('balance2: new companies list after the original IPO list runs out', r.ipo);
+  ok('balance2: unrelated small-company crises are summarised quarterly', r.quiet);
+  ok('balance2: alternative goals are awarded once; dividends raise bank credit', r.route && r.div, JSON.stringify(r));
+  ok('no page errors in balance2 tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1288,6 +1322,7 @@ async function balance(b) {
     await testAC(b);
     await testFeedback12(b);
     await testGptBugs(b);
+    await testBalance2(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
