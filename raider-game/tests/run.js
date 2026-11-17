@@ -1790,6 +1790,36 @@ async function testGpt9(b) {
   ok('no page errors in gpt9 tests', errs.length === 0, errs.join(' | '));
 }
 
+async function testExitRoute(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; let S;
+    /* PE: a 100-day plan right after a buyout, an exit checklist, and a buyer even when no one bids at the market price */
+    A.newGame(7171, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 2; A.incorporate('Z', 0); A.hqInit();
+    for (let i = 0; i < 80 && !S.cos.some(c => c.pe && c.pe.owner === 'P'); i++) { const d = (S.pe.deals || []).filter(x => !x.bid && A.dealEbitda(x, false) > 0 && A.dealAsk(x) < S.player.cash * .6)[0]; if (d) A.peBid(d, .1, 0, false, 'P', 0); A.step(); S.inbox = []; }
+    const c = S.cos.find(x => x.pe && x.pe.owner === 'P'); out.bought = !!c;
+    if (c) { A.ui.tab = 'pe'; A.renderAll(true); out.planBtn = !!document.querySelector('[data-act=pe100]');
+      out.plan = A.pe100(c) && c.pe.p100 === S.week && !A.pe100(c) && S.news.some(n => /100日計画/.test(n.t));
+      const R0 = A.peReady(c); out.checklist = R0.ok.length === 4 && !R0.ready && R0.moic > 0;
+      c.margin = c.base = Math.max(c.base, .15); c.debt = 0; const R1 = A.peReady(c); c.pe.w0 = S.week - 120; const R2 = A.peReady(c); out.ready = R2.ok[0][1] && R2.yrs >= 2 && typeof R2.ready === 'boolean';
+      /* no strategic buyer (every other company unlisted for the check) and too much debt for a normal fund bid: the last-resort fund still bids */
+      const listed = S.cos.filter(x => !x.priv && x !== c); for (const x of listed) x.priv = true; const e = A.ebitda(c), d0 = c.debt; c.debt = e * 7;
+      const bids1 = A.peExitBids(c); c.debt = d0; for (const x of listed) x.priv = false;
+      out.lastResort = bids1.length === 1 && bids1[0].low === true && bids1[0].kind === 'pe'; }
+    /* liquidation: one sweep, nothing of the company left */
+    S.player.cash -= A.grossWorth() + 1; S.pres.cash = 1; A.step(); out.residue = !S.founded && S.restarts === 1 && A.companyResidue().length === 0 && !S.news.some(n => /確認が必要な項目/.test(n.t));
+    /* the individual route: a newsletter that grows with the record, and angel investing */
+    A.newGame(7172, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; const cap0 = A.nlCap(); S.tr.rets = Array(52 * 3).fill(.002); out.nlGrows = cap0 === 800 && Math.abs(A.nlCap() - (800 + 600 * 3)) < 1e-6;
+    A.ui.tab = 'pres'; A.renderAll(true); out.angelLocked = document.body.innerHTML.includes('エンジェル投資') && !document.querySelector('[data-act=vcbuy]');
+    S.player.cash = 6; A.checkStage(); A.vcQuarter(); A.renderAll(true); const btn = document.querySelector('[data-act=vcbuy]'); const cash0 = S.player.cash; if (btn) btn.click();
+    out.angel = !!btn && S.vc.hold.some(h => !h.pres) && S.player.cash < cash0 && A.preCo();
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('exit & route: 100-day plan, exit checklist and last-resort buyer, one-sweep liquidation, individual newsletter growth and angel investing', !fails.length, JSON.stringify(fails));
+  ok('no page errors in exit/route tests', errs.length === 0, errs.join(' | '));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1973,6 +2003,7 @@ async function balance(b) {
     await testMuse(b);
     await testGroup(b);
     await testGpt9(b);
+    await testExitRoute(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

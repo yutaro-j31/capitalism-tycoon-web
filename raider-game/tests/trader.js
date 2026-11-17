@@ -19,8 +19,10 @@ function run([seed, diff, weeks, ms, nomm, indiv, ma]) {
     A.step(); if (S.won) S.won = true;
     for (const it of S.inbox.slice()) if (it.kind === 'mmoffer' && !nomm) A.mmAccept(it);
     if (ma) for (const it of S.inbox) if (it.kind === 'crisis') { const c = S.cos.find(x => x.id === it.cid); if (c) A.resolveCrisis(c, 'equity'); }
+    if (ma) for (const it of S.inbox.slice()) if (it.kind === 'peexit' && S.inbox.includes(it)) { let bi = 0; it.bids.forEach((x, i) => { if (x.eq > it.bids[bi].eq) bi = i; }); A.act('peexit', {dataset: {id: String(it.id), v: String(bi)}}); out.exits = (out.exits || 0) + 1; } /* take the best bid */
     S.inbox = [];
     if (!S.nl && A.trWeeks() >= 26 && S.player.cash > .03) A.nlStart(); /* the research newsletter */
+    if (indiv && A.preCo() && w % 13 === 1 && A.has('tob')) for (const d of (S.vc.deals || []).slice(0, 1)) if (A.buyingPower() > d.val * .01 * 20) A.vcInvest(d.id, .01); /* small angel stakes */
     if (!indiv && A.preCo() && A.myWorth() >= .3) A.incorporate('B社', Math.min(.02, Math.max(0, S.player.cash - .25)));
     if (!A.preCo()) { A.hqInit(); const g = A.grossWorth();
       if (g >= 1 && A.office().lvl < 1) A.setOffice(1, 'tyo');
@@ -31,13 +33,14 @@ function run([seed, diff, weeks, ms, nomm, indiv, ma]) {
       if (g >= 100 && A.office().lvl < 3) A.setOffice(3, 'tyo');
       if (ma && w % 4 === 0 && A.has('pe')) { /* buy profitable small companies with a low failure risk, using up to 40% of cash */
         const d = (S.pe.deals || []).filter(x => !x.bid && A.dealEbitda(x, false) > 0 && A.peQuote(x, A.dealAsk(x), 0, 'P').risk !== '高' && A.dealAsk(x) < S.player.cash * .4).sort((a, b) => A.dealEbitda(b, false) / A.dealAsk(b) - A.dealEbitda(a, false) / A.dealAsk(a))[0];
-        if (d) A.peBid(d, .05, .3, false, 'P', 0); }
+        if (d) A.peBid(d, .05, .3, false, 'P', 0);
+        for (const c of S.cos) if (c.pe && !c.pe.closed && c.pe.owner === 'P' && c.priv) { if (c.pe.p100 == null) A.pe100(c); else if (!c.pe.sale && A.peReady(c).ready) A.peExitStart(c); } } /* the 100-day plan, then sell when ready */
       if (ma) for (const it of S.inbox) if (it.kind === 'crisis') { const c = A.S.cos.find(x => x.id === it.cid); if (c) A.resolveCrisis(c, 'equity'); }
       if (S.dept.inv.on && w % 13 === 0) S.dept.inv.staff = Math.max(S.dept.inv.staff, Math.min([4, 20, 40, 60][A.office().lvl], Math.ceil(g / 8))); /* grow the investment team with the firm */ }
     const nw = A.myWorth(); for (const [v] of ms) if (hit[v] == null && nw >= v) hit[v] = +(S.week / 52).toFixed(1);
     if (S.lost) break;
   }
-  return {hit, nw: A.myWorth(), lost: !!S.lost, aum: S.mm.aum, fees: S.mm.fees + S.mm.perf, restarts: S.restarts || 0, subs: S.cos.filter(c => c.ctrl === 'P').length, nl: S.nl ? Math.round(S.nl.subs) : 0, foundY: S.foundW != null ? +(S.foundW / 52).toFixed(1) : null};
+  return {hit, nw: A.myWorth(), lost: !!S.lost, aum: S.mm.aum, fees: S.mm.fees + S.mm.perf, restarts: S.restarts || 0, exits: out.exits || 0, subs: S.cos.filter(c => c.ctrl === 'P').length, nl: S.nl ? Math.round(S.nl.subs) : 0, foundY: S.foundW != null ? +(S.foundW / 52).toFixed(1) : null};
 }
 
 (async () => {
@@ -47,6 +50,6 @@ function run([seed, diff, weeks, ms, nomm, indiv, ma]) {
   const med = a => { const x = a.slice().sort((p, q) => p - q); return x[Math.floor(x.length / 2)]; };
   console.log(`${DIFF} ${NS} seeds, ${YEARS} years${process.env.NOMM ? ' (no managed money)' : ''}${process.env.INDIV ? ' (individual, never founds)' : ''}${process.env.MA ? ' (+ small acquisitions)' : ''}`);
   for (const [v, l] of MS) { const ys = rs.map(r => r.hit[v] == null ? YEARS + 1 : r.hit[v]); console.log(`  ${l.padEnd(6)} median ${med(ys) > YEARS ? YEARS + '+' : med(ys)}y  reached ${rs.filter(r => r.hit[v] != null).length}/${NS}`); }
-  console.log(`  founded at ${rs.map(r => r.foundY).join(',')}y · final ${rs.map(r => Math.round(r.nw)).join(',')} (億) · managed ${rs.map(r => Math.round(r.aum)).join(',')} · members ${rs.map(r => r.nl).join(',')} · subsidiaries ${rs.map(r => r.subs).join(',')} · restarts ${rs.map(r => r.restarts).join(',')} · lost ${rs.filter(r => r.lost).length}`);
+  console.log(`  founded at ${rs.map(r => r.foundY).join(',')}y · final ${rs.map(r => Math.round(r.nw)).join(',')} (億) · managed ${rs.map(r => Math.round(r.aum)).join(',')} · members ${rs.map(r => r.nl).join(',')} · subsidiaries ${rs.map(r => r.subs).join(',')} · exits ${rs.map(r => r.exits).join(',')} · restarts ${rs.map(r => r.restarts).join(',')} · lost ${rs.filter(r => r.lost).length}`);
   await b.close();
 })();
