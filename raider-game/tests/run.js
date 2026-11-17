@@ -1524,7 +1524,7 @@ async function testTrader(b) {
     out.uBuy = nU > 0 && Math.abs((d.own.U || 0) - nU) < 1e-12 && S.pres.cash < .05 && Math.abs(A.myWorth() - w1) < .01;
     out.econ = A.econCheck(S) === '';
     /* save format 3 round-trip, checksum covers personal cash */
-    const txt = A.exportText(), o = JSON.parse(txt); out.fmt = o.fmt === 3 && !!A.parseSave(txt);
+    const txt = A.exportText(), o = JSON.parse(txt); out.fmt = o.fmt === 4 && !!A.parseSave(txt);
     o.pres.cash += 1; out.tamper = !A.parseSave(JSON.stringify(o));
     /* the company fails but the person still has money: restart as an individual */
     const uH = d.own.U || 0; A.bankrupt('テスト倒産'); out.restart = !S.lost && !S.founded && A.preCo() && S.restarts === 1 && Math.abs((d.own.P || 0) - uH) < 1e-12 && !d.own.U;
@@ -1599,6 +1599,45 @@ async function testMidgame(b) {
   ok('midgame: growth market, individual route (TOB, loan, newsletter), scaled stages, LBO bridge, saves, determinism', !fails.length, JSON.stringify(fails) + ' caps ' + r.caps);
   ok('midgame: a trader founds operating companies with 50,000,000円〜300,000,000円', r.found === '0.5,1,3', r.found);
   ok('no page errors in midgame tests', errs.length === 0, errs.join(' | '));
+}
+
+async function testGpt7(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(12345, 'normal', 'T', 't', 'trader', false); let S = A.S; S.won = false; document.querySelector('#modal').hidden = true;
+    /* BUG-23: a buy and sell between weeks (fees, price impact) is in the next week's return */
+    A.step(); const g0 = A.grossWorth(), c = S.cos.filter(x => !x.priv && !x.ctrl)[0]; A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, .09)), .09); A.execSell('P', c, c.own.P);
+    const g1 = A.grossWorth(), n = S.tr.rets.length; A.step(); out.betweenWeeks = g1 < g0 && Math.abs(S.tr.rets[n] - (g1 / g0 - 1)) < 1e-6;
+    /* BUG-27: a negative or broken offer changes nothing, and a save holding one is refused */
+    S.mm = {aum: .2, hwm: .2, fees: 0, perf: 0, inv: 1}; out.negOffer = [-1, NaN, Infinity, 0].every(x => A.mmAccept({amt: x, who: 'x'}) === 0) && S.mm.aum === .2;
+    S.inbox.push({id: 999, kind: 'mmoffer', amt: -1, who: 'x', exp: S.week + 4}); out.negOfferSave = !A.parseSave(A.exportText()); S.inbox = S.inbox.filter(i => i.id !== 999);
+    /* BUG-28: the newsletter is in the checksum (format 4) and must add up */
+    for (let i = 0; i < 26; i++) A.step(); A.nlStart(); for (let i = 0; i < 4; i++) A.step();
+    const txt = A.exportText(), bad = f => { const o = JSON.parse(txt); f(o); return !A.parseSave(JSON.stringify(o)); };
+    out.fmt4 = JSON.parse(txt).fmt === 4 && !!A.parseSave(txt);
+    out.nlDel = bad(o => { delete o.nl; }); out.nlRev = bad(o => { o.nl.rev = -1; }); out.nlMiss = bad(o => { delete o.nl.cost; }); out.nlEdit = bad(o => { o.nl.subs += 100; });
+    out.nlResigned = bad(o => { o.nl.rev = -1; o.chk = A.finSig(o); }); /* even with a valid checksum, a negative total is refused */
+    { const o = JSON.parse(txt); o.fmt = 3; o.chk = A.finSig(o); const g = A.parseSave(JSON.stringify(o)); out.fmt3Migrates = !!g && g.fmt === 4 && !!g.nl; } /* a format-3 save from before keeps loading */
+    /* BUG-22: a forced buy-back of an individual's short leaves whole shares */
+    A.newGame(12346, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 27; i++) A.step(); S.player.cash = .1;
+    const d = S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0))[3]; S.player.shorts[d.id] = {n: 101e-6, basis: 101e-6 * d.price}; S.player.cash = 101e-6 * d.price * .3; d.price *= 3; A.step();
+    const left = S.player.shorts[d.id] ? S.player.shorts[d.id].n * 1e6 : 0; out.squeezeWhole = Math.abs(left - Math.round(left)) < 1e-6 && left < 101;
+    /* BUG-25: the failed company's bids on unlisted companies are withdrawn */
+    A.newGame(12347, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = .5; A.incorporate('Z', .15);
+    for (let i = 0; i < 6 && !(S.pe.deals || []).length; i++) A.peDealGen(); const deal = (S.pe.deals || [])[0]; if (deal) { deal.bid = {eq: 1, lev: .5, promise: false, owner: 'P', end: S.week + 3, f: 1, co: null, partner: null}; deal.bids = (deal.bids || []).concat([{k: 'P', eq: 1}]); }
+    S.player.cash = -5; A.step(); out.peBids = !!deal && !S.founded && !deal.bid && !(deal.bids || []).some(x => x.k === 'P');
+    /* tax: newsletter profit is taxed like other income */
+    S.player.pl = Object.assign(S.player.pl || {}, {nl: 1}); const cash0 = S.player.cash; A.corpTax(); out.tax = cash0 - S.player.cash > .2;
+    /* managed money beyond what the team can run: clients withdraw the excess over time */
+    A.newGame(12348, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 53; i++) A.step(); S.tr.rets = Array(52).fill(.003);
+    S.mm = {aum: 100, hwm: 100, fees: 0, perf: 0, inv: 5}; S.week = 13 * Math.ceil(S.week / 13); A.mmQuarter(); out.overCap = S.mm.aum < 100 && S.mm.aum > A.mmPeople() * 1.5;
+    /* growth companies trade at ordinary prices */
+    out.gmPrices = S.cos.filter(x => x.gm).every(x => x.price >= 5);
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('gpt7: trades between weeks count, bad offers and broken newsletter saves are refused, forced buy-backs keep whole shares, PE bids end with the company (BUG-22/23/25/27/28)', !fails.length, JSON.stringify(fails));
+  ok('no page errors in gpt7 tests', errs.length === 0, errs.join(' | '));
 }
 
 async function testGpt5(b) {
@@ -1779,6 +1818,7 @@ async function balance(b) {
     await testGpt5(b);
     await testTrader(b);
     await testMidgame(b);
+    await testGpt7(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
