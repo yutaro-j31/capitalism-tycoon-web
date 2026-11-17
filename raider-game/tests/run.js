@@ -724,7 +724,7 @@ async function testUIPack(b) {
     const c = S.cos.filter(c => !c.ctrl && c.ind !== 'air' && c.ind !== 'telecom').sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; A.execBuy('P', c, c.shares * .8); A.ui.sel = c.id; A.ui.ctab = 'info'; return c.id; });
   await q.click('[data-act=tab][data-v=market]');
   await q.click('[data-act=watch]'); const wl = await q.evaluate(id => window.__atlas.S.watch.includes(id), id);
-  await q.click('[data-act=why][data-v=px]'); const pxw = await q.evaluate(() => document.querySelector('#modal').textContent.includes('理論株価')); await q.click('#modal [data-act=close]');
+  await q.click('[data-act=why][data-v=px]'); const pxw = await q.evaluate(() => { const m = document.querySelector('#modal').textContent; return m.includes('推定理論株価') && m.includes('弱気〜基本〜強気') && m.includes('業界の標準PER'); }); /* the estimate range and the breakdown both show */ await q.click('#modal [data-act=close]');
   ok('UI pack: watchlist star and price breakdown work', wl && pxw, JSON.stringify({wl, pxw}));
   await q.evaluate(() => { window.__atlas.ui.ctab = 'ceo'; }); await q.click('[data-act=tab][data-v=market]');
   const before = await q.evaluate(() => JSON.stringify(window.__atlas.S));

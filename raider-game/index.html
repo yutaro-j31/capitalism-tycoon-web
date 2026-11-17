@@ -4973,13 +4973,13 @@ function showWhy(k, c){
     const f0 = fairParts(c), e = estErr(c), sc = 1 + e, f = Object.assign({}, f0, {earn: f0.earn * sc, hold: f0.hold * sc, floor: f0.floor * sc, cashA: f0.cashA * sc, total: f0.total * sc, per: f0.per * sc, pe: f0.pe * sc}), d = c.price / f.per - 1, amp = estAmp();
     h += `<div class="preview">投資部・アナリストの推定：<b>${fp(f.per * (1 - amp))} 〜 ${fp(f.per)} 〜 ${fp(f.per * (1 + amp))}</b>（弱気〜基本〜強気）<br><small>推定の精度 ${pc(estAcc(), 0)}。研究「アナリスト網」と投資部の人数・能力で精度が上がり、幅が狭くなります。推定は四半期ごとに見直されます。</small></div>`;
     t = c.priv ? `${c.name}の評価額のしくみ（非上場）` : `${c.name}の株価のしくみ`;
-    h = wr('純利益（年・予想）', f.ni) + wr('業界の標準PER', f.base.toFixed(1) + '倍', IND[c.ind].n)
+    h += wr('純利益（年・予想）', f.ni) + wr('業界の標準PER', f.base.toFixed(1) + '倍', IND[c.ind].n)
       + wr('成長性の補正', mx(f.mG), `成長率 ${spc(c.growth + c.boost)}（業界 ${spc(IND[c.ind].g)}）`) + wr('市場の地合い', mx(f.sent)) + wr('業種の人気', mx(f.mI)) + wr('金利の補正', mx(f.mR), `政策金利 ${S.econ.rate.toFixed(1)}%`)
       + (f.credit < 1 ? wr('信用力（格付け）', mx(f.credit), rating(c)[0]) : '') + (f.mC < 1 ? wr('経営危機', mx(f.mC)) : '') + wr('適正PER', f.pe.toFixed(1) + '倍', '', 'tot')
       + wr('利益の価値', f.earn, '純利益×適正PER') + (f.hold ? wr('持っている株の価値', f.hold, '時価の85%（持株会社ディスカウント）') : '') + (f.floored ? wr('純資産で下支え', f.floor, '利益が小さいので純資産の55%を下限に') : '')
       + (f.cashA ? wr('余剰資金', f.cashA, '（現金−借入）の25%') : '') + (f.spec > 1 ? wr('買収思惑', mx(f.spec), '20%超の大株主がいる') : '')
-      + wr('推定理論株価（基本）', fp(f.per), `株主価値 ${fm(f.total)} ÷ 株数`, 'tot') + wr('いまの株価', fp(c.price), d < -.2 ? `理論株価より${pc(-d / (1 + d), 0)}安い＝割安` : d > .2 ? `理論株価より${pc(d, 0)}高い＝割高` : '理論株価の近く', '')
-      + wr('株価÷理論株価', `<span class="${d < 0 ? 'pos' : 'neg'}">${spc(d)}</span>`, 'マイナスなら理論株価より安い。株価は毎週、理論株価×市場の気分に向かって動きます')
+      + wr('推定理論株価（基本）', fp(f.per), `株主価値 ${fm(f.total)} ÷ 株数`, 'tot') + wr('いまの株価', fp(c.price), d < -.2 ? `推定理論株価より${pc(-d / (1 + d), 0)}安い＝割安` : d > .2 ? `推定理論株価より${pc(d, 0)}高い＝割高` : '推定理論株価の近く', '')
+      + wr('株価÷推定理論株価', `<span class="${d < 0 ? 'pos' : 'neg'}">${spc(d)}</span>`, 'マイナスなら推定より安い。株価は毎週、本当の理論株価×市場の気分に向かって動きます（推定には誤差があります）')
       + (c.ni <= 0 ? `<p class="down">この会社は赤字です。利益からは価値を計算できないため、純資産の55%を下限にして評価しています。株価がその下限より安いので理論株価との差が大きく見えますが、赤字が続くと純資産が減り、下限も下がります。「割安」タグは付けていません。</p>` : '')
       + `<p class="note">決算で利益が予想を上回ると株価は跳ねます。支配して利益率を上げる・借金を減らすと理論株価が上がります。</p>`;
   } else return;
@@ -5106,7 +5106,7 @@ const ROUTES = [
   ['pemaster', 'PEの巨匠', 'PE投資の累計回収額500億円', () => ((S.pe && S.pe.track) || []).reduce((a, t) => a + (t.ret || 0), 0), 500, fm],
   ['fixer', '再生請負人', '支配した赤字企業を3社黒字化する', () => (S.stats && S.stats.turnarounds) || 0, 3, v => v + '社'],
   ['unicorn', 'ユニコーンハンター', 'ベンチャー投資で10倍以上の回収を1件', () => Math.max(0, ...((S.vc && S.vc.track) || []).map(t => t.x || 0)), 10, v => v.toFixed(1) + '倍'],
-  ['leader', '業界の覇者', 'ひとつの業種で世界の売上の35%をグループで握る', () => Math.max(0, ...Object.keys(IND).map(k => { const all = S.cos.filter(c => c.ind === k).reduce((a, c) => a + c.rev, 0); return all > 0 ? S.cos.filter(c => c.ind === k && c.ctrl === 'P').reduce((a, c) => a + c.rev, 0) / all : 0; })), .35, v => pc(v, 0)],
+  ['leader', '業界の覇者', 'ひとつの業種で3社以上を支配し、世界の売上の50%をグループで握る', () => Math.max(0, ...Object.keys(IND).map(k => { const all = S.cos.filter(c => c.ind === k).reduce((a, c) => a + c.rev, 0), mine = S.cos.filter(c => c.ind === k && c.ctrl === 'P'); return all > 0 && mine.length >= 3 ? mine.reduce((a, c) => a + c.rev, 0) / all : 0; })), .5, v => pc(v, 0)],
 ];
 function routeStep(){
   S.routes = S.routes || {};
