@@ -985,11 +985,14 @@ function ladder(act, value, steps, fmtStep, attrs, sub){
 }
 const amtStep = funds => funds > 300 ? [10, 100] : funds > 30 ? [1, 10] : [.5, 5];
 const pctF = v => `${Math.round(v * 100)}%`;
-const SS_LIM = {tPrem: [0, 1, .01], tTarget: [.05, 1, .01], cRaise: [.05, 1, .01]}; /* min, max, step of the TOB steppers */
+const SS_LIM = {tPrem: [0, 1, .01], tTarget: [.05, 1, .01], cRaise: [.05, 1, .01], peBid: [-.3, .6, .01], peLev: [0, .65, .01], peCo: [0, .45, .01]}; /* min, max, step of the TOB and PE steppers */
 function ssText(key){ /* the number and its sub-line for a TOB stepper */
   const c = ui.sel && coById(ui.sel), v = ui[key], t = c && activeTob(c);
   if (key === 'tPrem') return [`+${Math.round(v * 100)}%`, c ? `1株 ${fp(c.price * (1 + v))}` : ''];
   if (key === 'cRaise') return [`現TOB +${Math.round(v * 100)}%`, t ? `1株 ${fp(t.price * (1 + v))}` : ''];
+  if (key === 'peBid') { const d = ((S.pe && S.pe.deals) || []).find(x => x.id === ui.deal); return [Math.abs(v) < 1e-9 ? '希望額どおり' : `希望額${v > 0 ? '+' : ''}${Math.round(v * 100)}%`, d ? `入札額 ${fm(dealAsk(d) * (1 + v))}` : '']; }
+  if (key === 'peLev') return [v > 1e-9 ? `LBO ${pc(v, 0)}` : 'LBOなし', '有利子負債 ÷ 企業価値'];
+  if (key === 'peCo') return [v > 1e-9 ? `共同投資 ${pc(v, 0)}` : '共同投資なし', 'AIのPEファンドが出す割合'];
   return [`目標 ${pc(v, 0)}`, '発行済株式に対する割合'];
 }
 function stepSlide(key){ /* − value ＋ and a slider, like the trade box; the slider re-renders only when released */
@@ -3656,10 +3659,10 @@ function dealCard(d){
       <div><span>経営陣</span><b>${known ? (d.mq >= 65 ? '優秀' : d.mq >= 45 ? '普通' : '弱い') + `（${d.mq}）` : '未調査'}</b></div><div><span>コスト過剰</span><b>${known ? fm(d.rev * (1 - d.mBase) * PHI[d.ind] * (d.drag - 1)) + '/年' : '未調査'}</b></div><div><span>隠れたリスク</span><b class="${known && d.risk ? 'down' : ''}">${known ? (d.risk ? `${PE_RISK[d.risk.k].n} ${fm(d.risk.cost)}` : 'なし') : '未調査'}</b></div></div>
       ${d.dd === 0 ? `<div class="btnrow"><button class="btn sm" data-act="pedd" data-id="${d.id}" ${S.player.cash >= ddCost(d) ? '' : 'disabled'}>デューデリジェンス（${fm(ddCost(d))}・4週）</button></div><p class="note">調べないと、売り手が盛った数字で高く買ったり、買収後に簿外債務や訴訟が見つかったりします。調査中に他社が先に買うこともあります。</p>` : d.dd === 1 ? `<p class="note">デューデリジェンス中（${shortDate(d.ddEnd)}に完了）</p>` : ''}
       ${d.bid ? `<div class="preview">入札済み：${fm(d.bid.eq)}（${shortDate(d.bid.end)}に結果）${d.bid.promise ? '・雇用維持を約束' : ''}</div>` : `
-      <p class="lbl">入札額（希望価格 ${fm(ask)} に対して）</p><div class="seg">${[-.1, 0, .05, .1].map(v => `<button class="${Math.abs(ui.peBid - v) < 1e-9 ? 'on' : ''}" data-act="pebidf" data-v="${v}">${v ? spc(v) : '希望額'}</button>`).join('')}</div>${ladder('pebidd', ui.peBid ? `希望額${spc(ui.peBid)}` : '希望額どおり', [.01, .05], pctF)}
-      <p class="lbl">LBO（既存の借入も含め、有利子負債を企業価値の何%まで増やすか）</p><div class="seg">${[0, .5, .65].map(v => `<button class="${Math.abs(ui.peLev - v) < 1e-9 ? 'on' : ''}" data-act="pelev" data-v="${v}">${v ? pc(v, 0) : 'なし'}</button>`).join('')}</div>
+      <p class="lbl">入札額（希望価格 ${fm(ask)} に対して）</p>${stepSlide('peBid')}<div class="tr-quick">${[-.1, 0, .05, .1].map(v => `<button class="btn sm ${Math.abs(ui.peBid - v) < 1e-9 ? 'on' : ''}" data-act="pebidf" data-v="${v}">${v ? `${v > 0 ? '+' : ''}${Math.round(v * 100)}%` : '希望額'}</button>`).join('')}</div>
+      <p class="lbl">LBO（既存の借入も含め、有利子負債を企業価値の何%まで増やすか）</p>${stepSlide('peLev')}<div class="tr-quick tr-quick3">${[0, .5, .65].map(v => `<button class="btn sm ${Math.abs(ui.peLev - v) < 1e-9 ? 'on' : ''}" data-act="pelev" data-v="${v}">${v ? pc(v, 0) : 'なし'}</button>`).join('')}</div>
       <div class="field"><label for="peo">買い手</label><select id="peo" data-act-input="peowner">${owners.map(([k, l]) => `<option value="${k}" ${k === ui.peOwner ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
-      ${isCo(ui.peOwner) ? '' : `<p class="lbl">共同投資（AIのPEファンドが少数株主として出資）</p><div class="seg">${[0, .25, .45].map(v => `<button class="${Math.abs(ui.peCo - v) < 1e-9 ? 'on' : ''}" data-act="peco" data-v="${v}">${v ? pc(v, 0) : 'なし'}</button>`).join('')}</div>${co ? `<p class="note">${part ? `${esc(part.n)}が${pc(co, 0)}（${fm(q.out * co)}）を出資します。経営権はあなたが持ち、売却時の代金も持分どおりに分けます。` : '共同出資できるファンドがありません。'}</p>` : ''}`}
+      ${isCo(ui.peOwner) ? '' : `<p class="lbl">共同投資（AIのPEファンドが少数株主として出資）</p>${stepSlide('peCo')}<div class="tr-quick tr-quick3">${[0, .25, .45].map(v => `<button class="btn sm ${Math.abs(ui.peCo - v) < 1e-9 ? 'on' : ''}" data-act="peco" data-v="${v}">${v ? pc(v, 0) : 'なし'}</button>`).join('')}</div>${co ? `<p class="note">${part ? `${esc(part.n)}が${pc(co, 0)}（${fm(q.out * co)}）を出資します。経営権はあなたが持ち、売却時の代金も持分どおりに分けます。` : '共同出資できるファンドがありません。'}</p>` : ''}`}
       <label class="chk"><input type="checkbox" data-act="pepromise" ${ui.pePromise ? 'checked' : ''}> 雇用維持を約束（売り手の評価が上がる代わりに、2年間コスト削減ができない）</label>
       <div class="preview">株式 ${fm(eq)} ＋ 手数料 ${fm(q.fees)} − LBO借入 ${fm(q.acq)}${part && co ? ` − 共同投資 ${fm(q.out * co)}` : ''} = <b>必要な資金 ${fm(mineOut)}</b><br>買収後の有利子負債/EBITDA ${Number.isFinite(q.lev) ? q.lev.toFixed(1) + '倍' : '—（赤字）'}${q.lev > 5 ? ' <span class="down">（返済が重い）</span>' : ''}<br><small>買収直後は手数料と非上場の割引（10%）で評価額が投資額を下回ります（Jカーブ）</small></div>
       <div class="btnrow"><button class="btn buy" data-act="pebid" data-id="${d.id}" ${can && S.week < d.exp ? '' : 'disabled'}>${can ? '入札する' : '資金が足りません'}</button></div>`}`;
@@ -3715,7 +3718,7 @@ function privBoxPE(c){ // take-private offer for a controlled listed company
   const px = c.price * 1.25, n = Object.keys(c.own).filter(k => bossOf(k) !== 'P').reduce((a, k) => a + c.own[k], 0) + floatOf(c), cost = n * px;
   const acq = Math.min(cost * ui.peLev, Math.max(0, ebitda(c) * 5.5 - c.debt)), out = cost * 1.02 - acq;
   return `<section class="box"><h4>非公開化 <small>PE投資先にする</small></h4><p>グループ外の株主から全株を1株${fp(px)}（+25%）で買い取り、上場をやめます。以後は株価に左右されず経営改善に集中でき、PE投資先として売却・再上場（IPO）で回収します。</p>
-    <p class="lbl">LBO</p><div class="seg">${[0, .5, .65].map(v => `<button class="${Math.abs(ui.peLev - v) < 1e-9 ? 'on' : ''}" data-act="pelev" data-v="${v}">${v ? pc(v, 0) : 'なし'}</button>`).join('')}</div>
+    <p class="lbl">LBO</p>${stepSlide('peLev')}<div class="tr-quick tr-quick3">${[0, .5, .65].map(v => `<button class="btn sm ${Math.abs(ui.peLev - v) < 1e-9 ? 'on' : ''}" data-act="pelev" data-v="${v}">${v ? pc(v, 0) : 'なし'}</button>`).join('')}</div>
     <div class="preview">買取総額 ${fm(cost)} ＋ 手数料 − 借入 ${fm(acq)} = 必要な資金 ${fm(out)}</div>
     <div class="btnrow"><button class="btn gold" data-act="pepriv" ${out <= buyingPower() + 1e-9 && !activeTob(c) ? '' : 'disabled'}>非公開化する</button></div></section>`;
 }

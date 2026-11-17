@@ -1445,6 +1445,24 @@ async function testRoadTob(b) {
   await ctx.close();
 }
 
+async function testPeStep(b) {
+  const {p, ctx, errs} = await page(b, {...devices['iPhone 13']});
+  await p.click('[data-act=allu][data-v="1"]'); await p.click('[data-act=newgame]');
+  const ok0 = await p.evaluate(() => { const A = window.__atlas, S = A.S; S.settings.guide = false; S.player.cash = 300; A.hqInit(); S.dept.inv.on = true; S.dept.inv.staff = 1;
+    for (let i = 0; i < 60 && !S.pe.deals.length; i++) { A.step(); S.inbox = []; } A.ui.pendingAward = null; A.ui.pendingUnlock = null; document.querySelector('#modal').hidden = true; A.ui.peLev = .5; A.ui.peCo = 0;
+    A.act('tab', {dataset: {v: 'pe'}}); const h = document.querySelector('.deal-h[data-act=peopen]'); if (!h) return false; h.click(); return true; });
+  if (!ok0) { ok('PE stepper: a deal to open', false, 'no deal appeared'); await ctx.close(); return; }
+  const before = await p.evaluate(() => document.querySelector('.deal .preview, .preview').innerText);
+  const r = await p.evaluate(() => { const A = window.__atlas, el = document.querySelector('[data-act-input=sslide][data-k=peBid]'), sec = el.closest('section') || el.parentElement; el.value = Math.round(.4 / .9 * 1000); el.dispatchEvent(new Event('input', {bubbles: true}));
+    return {bid: A.ui.peBid, lbl: document.querySelector('#ss-peBid').textContent, kept: document.body.contains(el)}; });
+  await p.evaluate(() => document.querySelector('[data-act-input=sslide][data-k=peBid]').dispatchEvent(new Event('change', {bubbles: true})));
+  await p.click('[data-act=sstep][data-k=peLev][data-v="-0.01"]'); await p.click('[data-act=sstep][data-k=peCo][data-v="0.01"]');
+  const after = await p.evaluate(() => ({lev: window.__atlas.ui.peLev, co: window.__atlas.ui.peCo, text: document.querySelector('#ss-peLev').textContent}));
+  ok('PE stepper: the bid slider updates in place and re-prices on release; leverage and co-investment step by 1%', Math.abs(r.bid - .1) < 1e-9 && r.lbl === '希望額+10%' && r.kept && Math.abs(after.lev - .49) < 1e-9 && Math.abs(after.co - .01) < 1e-9 && after.text === 'LBO 49%', JSON.stringify({r, after}));
+  ok('no page errors in PE stepper tests', !errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1581,6 +1599,7 @@ async function balance(b) {
     await testGpt4(b);
     await testTradeTabs(b);
     await testRoadTob(b);
+    await testPeStep(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
