@@ -1120,6 +1120,59 @@ async function testFeedback12(b) {
   await ph.ctx.close(); await ctx.close();
 }
 
+async function testGptBugs(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(6262, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.player.cash = 300; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    /* BUG-07: a fund that is still raising keeps net worth finite */
+    S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+    const f = A.fundRaise('buyout', .05); if (f) { f.lp = 0; f.gp = 0; } out.nan = Number.isFinite(A.netWorth('P')) && Number.isFinite(A.bsNow().eq);
+    /* BUG-09: options with different expiries settle separately */
+    const c = S.cos.find(x => !x.priv && !x.ctrl); S.player.opts = [{id: 901, cid: c.id, type: 'call', k: c.price * .5, n: .01, exp: S.week + 1, cost: .1}, {id: 902, cid: c.id, type: 'call', k: c.price * .5, n: .01, exp: S.week + 5, cost: .1}];
+    S.week += 1; A.optionsStep(); out.opt = S.player.opts.length === 1 && S.player.opts[0].id === 902;
+    /* BUG-04: two companies owning 60% of each other are nobody's */
+    const [a, d] = S.cos.filter(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom').slice(2, 4);
+    a.own = {[d.id]: a.shares * .6}; d.own = {[a.id]: d.shares * .6}; a.ctrl = 'P'; d.ctrl = 'P'; A.recomputeCtrl(); out.circ = a.ctrl === null && d.ctrl === null;
+    a.own = {}; d.own = {}; A.recomputeCtrl();
+    /* a normal pyramid still works: P owns 60% of a, a owns 60% of d */
+    a.own = {P: a.shares * .6}; d.own = {[a.id]: d.shares * .6}; A.recomputeCtrl(); out.pyr = a.ctrl === 'P' && d.ctrl === 'P'; a.own = {}; d.own = {}; A.recomputeCtrl();
+    /* BUG-05: a save with a company in an unknown city is rejected and the game stays */
+    const bad = JSON.parse(JSON.stringify(S)); bad.cos[0].city = 'nowhere'; out.val = A.validSave(bad) === false && A.parseSave(JSON.stringify(bad)) === null;
+    const nw0 = A.netWorth('P'), msg = A.importText(JSON.stringify(bad)); out.imp = !!msg && A.S === S && A.netWorth('P') === nw0;
+    /* BUG-08: no negative repayment */
+    const pr = S.props.find(x => !x.own); pr.own = 'P'; pr.mort = 5; S.player.cash = -2; const r0 = A.repayMort(pr); out.mort = r0 === 0 && pr.mort === 5 && S.player.cash === -2; pr.own = null; pr.mort = 0; S.player.cash = 300;
+    return out;
+  });
+  ok('gpt: a fund still raising keeps net worth finite (BUG-07)', r.nan);
+  ok('gpt: options with different expiries settle one by one (BUG-09)', r.opt);
+  ok('gpt: circular holdings do not keep control; pyramids still work (BUG-04)', r.circ && r.pyr, JSON.stringify(r));
+  ok('gpt: a damaged save is rejected and the current game is kept (BUG-05)', r.val && r.imp);
+  ok('gpt: a mortgage repayment is never negative (BUG-08)', r.mort);
+  const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
+  await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]');
+  const paused = await q.evaluate(() => window.__atlas.ui.speed === 0);
+  /* BUG-02: a bank loan is saved */
+  await q.click('[data-act=tab][data-v=bank]'); await q.evaluate(() => { const A = window.__atlas; A.S.player.cash = 30; const c = A.S.cos.find(x => !x.priv && !x.ctrl); A.execBuy('P', c, A.sharesForMoney(c, 10)); A.renderAll ? 0 : 0; });
+  await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=tab][data-v=bank]');
+  const lt = await q.$('[data-act=loantake]'); if (lt) await lt.click(); await q.waitForTimeout(700);
+  const saved = await q.evaluate(() => { const o = JSON.parse(localStorage.getItem(window.__atlas.SAVE_KEY)); return (o.player.tl || []).length === (window.__atlas.S.player.tl || []).length && (o.player.tl || []).length > 0; });
+  /* BUG-01: the short button either trades or says why */
+  const sh = await q.evaluate(() => { const A = window.__atlas, S = A.S; S.settings.confirm = false; for (const c of S.cos) delete c.own.P; S.player.loan = 0; S.player.cash = 30; const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; A.ui.sel = c.id; A.ui.ctab = 'trade'; A.ui.samt = 50; return c.id; });
+  await q.click('[data-act=tab][data-v=market]'); const n0 = await q.evaluate(() => document.querySelectorAll('#toasts .toast').length); await q.click('[data-act=short]');
+  const shr = await q.evaluate(id => ({pos: !!window.__atlas.S.player.shorts[id], toast: document.querySelector('#toasts').innerText}), sh);
+  /* BUG-06: 0 shares cannot be sold */
+  await q.evaluate(() => { const A = window.__atlas, S = A.S, c = S.cos.find(x => x.id === A.ui.sel); delete S.player.shorts[c.id]; A.execBuy('P', c, c.shares * .01); A.ui.sellF = 0; });
+  await q.click('[data-act=tab][data-v=market]'); const zero = await q.evaluate(() => { const b = [...document.querySelectorAll('[data-act=sell]')].find(x => x.innerText.includes('入力')); return !!b && b.disabled; });
+  /* BUG-10 */
+  await q.evaluate(() => { const A = window.__atlas, c = A.S.cos.find(x => x.id === A.ui.sel); c.price = A.fair(c) * 1.4; A.ui.ctab = 'info'; });
+  await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=why][data-v=px]'); const dear = await q.evaluate(() => document.querySelector('#modal').innerText.includes('割高')); await q.click('#modal [data-act=close]');
+  ok('gpt: a new game starts paused; a bank loan is saved at once (UX-02, BUG-02)', paused && saved, JSON.stringify({paused, saved}));
+  ok('gpt: the short button trades or explains (BUG-01)', shr.pos || /上限|余力/.test(shr.toast), JSON.stringify(shr));
+  ok('gpt: zero shares cannot be sold; a dear stock is called dear (BUG-06, BUG-10)', zero && dear, JSON.stringify({zero, dear}));
+  ok('no page errors in gpt-report tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
+  await ph.ctx.close(); await ctx.close();
+}
+
 async function testHQ(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -1234,6 +1287,7 @@ async function balance(b) {
     await testPitches2(b);
     await testAC(b);
     await testFeedback12(b);
+    await testGptBugs(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
