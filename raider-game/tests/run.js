@@ -1284,7 +1284,7 @@ async function testGpt3(b) {
     out.loanNull = bad(o => { o.player.loan = null; });
     out.tobsGone = bad(o => { delete o.tobs; });
     out.ghost = bad(o => { o.cos[0].own.C9999 = 1; });
-    out.costFill = (() => { const o = JSON.parse(txt); const c = o.cos.find(x => !x.priv); c.own.P = c.shares * .01; delete o.player.cost; delete o.fmt; delete o.chk; /* an older-format save (before format 2) */ const g = A.parseSave(JSON.stringify(o)); return !!g && Math.abs(g.player.cost[c.id] - c.own.P * c.price) < 1e-9; })();
+    out.costFill = (() => { const o = JSON.parse(txt); const c = o.cos.find(x => !x.priv); c.own.P = c.shares * .01; delete o.player.cost; delete o.fmt; delete o.chk; /* an older-format save (before format 2) */ for (const k of ['tr', 'mm', 'founded', 'foundW', 'restarts']) delete o[k]; if (o.pres) delete o.pres.cost; /* a real older save has none of the current-format fields */ const g = A.parseSave(JSON.stringify(o)); return !!g && Math.abs(g.player.cost[c.id] - c.own.P * c.price) < 1e-9; })();
     out.goodOk = !!A.parseSave(txt);
     /* BUG-18: cash-only buying never borrows, even on the stocks where rounding used to overshoot */
     let borrowed = 0; for (const c of S.cos.filter(x => !x.priv)) { const n = A.sharesForMoney(c, 30); const q = n > 0 ? n : 0; if (q) { const qb = A.quoteBuy(c, q), cost = qb.avg * qb.n * 1.0025; if (cost > 30 + 1e-9) borrowed++; } }
@@ -1379,14 +1379,15 @@ async function testGpt4(b) {
     const txt = A.exportText(), t = f => { const o = JSON.parse(txt); f(o); return !A.parseSave(JSON.stringify(o)); };
     out.ok = !!A.parseSave(txt);
     out.strict = [o => delete o.player.bank, o => delete o.player.tl, o => { o.player.shorts = {}; }, o => delete o.player.opts, o => { o.cos[0].own.X9 = 1; }, o => { o.cos[0].price = -1; }, o => { o.cos[0].debt = -5; }, o => { o.player.cash += 10; }].every(t);
-    out.legacy = !t(o => { delete o.fmt; delete o.chk; delete o.player.bank; delete o.player.tl; o.player.loan = 0; });
+    out.legacy = !t(o => { delete o.fmt; delete o.chk; delete o.player.bank; delete o.player.tl; o.player.loan = 0; for (const k of ['tr', 'mm', 'founded', 'foundW', 'restarts']) delete o[k]; if (o.pres) delete o.pres.cost; });
+    out.stripped = t(o => { delete o.fmt; delete o.chk; delete o.player.bank; delete o.player.tl; o.player.loan = 0; }); /* a current save with only its format number and checksum removed is not taken for an old one */
     /* BUG-13: the squeeze keeps buying back until market-value collateral is restored */
     const d = S.cos.find(x => !x.priv && !x.ctrl && x !== c && x.ind !== 'air' && x.ind !== 'telecom'); d.price = A.fair(d) * .3; d.own = {P: d.shares * .6}; A.recomputeCtrl(); S.player.cash = 0;
     c.price *= 6; A.step(); const sl = A.shortLiab(); out.squeeze = sl === 0 || A.nwMkt() >= sl * .45 - 1e-6 || !S.player.shorts[c.id];
     return out;
   });
   ok('gpt4: every amount is shown in full yen (1億円 = 100,000,000円)', r.fm, JSON.stringify(r));
-  ok('gpt4: a current save missing a debt, loan, short, option, holder or with edited money is refused; an older save is migrated (BUG-05/17)', r.ok && r.strict && r.legacy);
+  ok('gpt4: a current save missing a debt, loan, short, option, holder or with edited money is refused; an older save is migrated (BUG-05/17)', r.ok && r.strict && r.legacy && r.stripped, JSON.stringify(r));
   ok('gpt4: a short squeeze stops only when market-value collateral is back (BUG-13)', r.squeeze);
   /* BUG-19: a load that cannot be written says so and keeps retrying */
   const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
@@ -1499,9 +1500,11 @@ async function testTrader(b) {
     out.gate26 = A.has('short') && A.has('options') && !A.has('tob');
     out.rewards = A.rewScale() === .02;
     /* managed money: management fee, performance fee above the high-water mark */
-    S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; A.mmAccept({amt: 1, who: 'テスト'}); out.mmIn = S.mm.aum === 1 && S.mm.hwm === 1 && S.mm.inv === 1;
+    S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; out.mmNoRecord = A.mmAccept({amt: .01, who: 'テスト'}) === 0 && S.mm.aum === 0; /* under a year of record: refused */
+    const rets0 = S.tr.rets; S.tr.rets = Array(52).fill(.003); S.tr.mcW = null; S.player.cash = 50; const got = A.mmAccept({amt: 1, who: 'テスト'}); out.mmIn = got === 1 && S.mm.aum === 1 && S.mm.hwm === 1 && S.mm.inv === 1; S.tr.rets = rets0;
+    S.mm.aum = 1; S.mm.hwm = 1; out.mmCapped = A.mmAccept({amt: 5, who: 'x'}) === 0 || A.mmRoom() >= 0; S.mm = {aum: 1, hwm: 1, fees: 0, perf: 0, inv: 1}; S.player.cash = .1;
     const pc = S.player.cash; S.week = 103; A.mmWeek(0); const fee = 1 * .02 / 52; out.fee = Math.abs(S.mm.fees - fee) < 1e-12 && Math.abs(S.player.cash - pc - fee) < 1e-12;
-    S.week = 104; const a0 = S.mm.aum; A.mmWeek(.1); const grown = a0 * 1.1, aft = grown - grown * .02 / 52; out.perf = Math.abs(S.mm.perf - (aft - 1) * .2) < 1e-9 && Math.abs(S.mm.hwm - S.mm.aum) < 1e-12;
+    S.week = 104; const a0 = S.mm.aum, dr = A.mmDrag(); A.mmWeek(.1); const grown = a0 * (1 + .1 * dr), aft = grown - grown * .02 / 52; out.perf = Math.abs(S.mm.perf - (aft - 1) * .2) < 1e-9 && Math.abs(S.mm.hwm - S.mm.aum) < 1e-12;
     const perf0 = S.mm.perf; S.week = 156; A.mmWeek(-.05); out.hwm = S.mm.perf === perf0; /* below the high-water mark: no performance fee */
     /* investors leave after a bad year */
     S.tr.rets = Array(52).fill(-.004); const aum1 = S.mm.aum; S.week = 169; A.mmQuarter(); out.out = S.mm.aum < aum1 - 1e-9;
@@ -1530,6 +1533,25 @@ async function testTrader(b) {
     out.det = run() === run();
     /* classic games: personal net worth is the goal; no trader state consumes the PRNG */
     A.newGame(88, 'normal', 'T', 't', 'std', false); S = A.S; out.classic = !A.preCo() && A.rewScale() === 1 && Math.abs(A.myWorth() - (A.netWorth('P') + A.presWealth())) < 1e-9;
+    /* report 6 — BUG-22: a percentage sell of an individual's odd lot trades the whole shares shown */
+    A.newGame(4243, 'normal', 'T', 't', 'trader', false); let V = A.S; V.won = false; const e = V.cos.filter(x => !x.priv && !x.ctrl)[0]; e.own.P = 101e-6;
+    A.ui.sel = e.id; A.ui._trSel = e.id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.ui.tmode = 'sell'; A.ui.tf = .5; A.ui.tab = 'market'; A.renderAll(true); const gs = document.querySelector('#tr-go'), shown = Math.round(+gs.dataset.n * 1e6); gs.click();
+    out.sellWhole = shown === 50 && Math.abs(e.own.P * 1e6 - 51) < 1e-6;
+    A.ui.tf = 0; A.renderAll(true); document.querySelector('[data-act=tqs][data-v="10"]').click(); out.plus10 = Math.round(+document.querySelector('#tr-go').dataset.n * 1e6) === 10;
+    /* BUG-23: an option that expires worthless shows as a loss in the record */
+    for (let i = 0; i < 27; i++) A.step(); const d2 = V.cos.filter(x => !x.priv && !x.ctrl && x !== e)[2], op = A.buyOption(d2, 'put', 2, V.player.cash * .9), n0 = V.tr.rets.length, g0 = A.grossWorth();
+    for (let i = 0; i < 4; i++) A.step(); const comp = V.tr.rets.slice(n0).reduce((a, x) => a * (1 + x), 1); /* every change in the account inside the weeks is in the record, options included */
+    out.optLoss = !!op && V.player.opts.length === 0 && Math.abs(comp - A.grossWorth() / g0) < .02 && Math.abs(A.grossWorth() - g0) > .001;
+    /* BUG-24: an old offer cannot push managed money past today's limit */
+    V.tr.rets = Array(52).fill(.003); V.tr.mcW = null; V.mm = {aum: 1, hwm: 1, fees: 0, perf: 0, inv: 1}; out.mmRecheck = A.mmAccept({amt: .59, who: 'x'}) === 0 && V.mm.aum === 1;
+    /* BUG-25/26: an insolvent company fails alone; its venture stakes do not follow you; your own money is kept */
+    A.newGame(4244, 'normal', 'T', 't', 'trader', false); V = A.S; V.won = false; V.player.cash = .5; A.incorporate('Z', .15);
+    V.vc.hold.push({id: 99, name: 'v', stake: .2, val: 1, cost: .2, w: V.week, st: 0, q: .5}); const pr = V.props.find(x => !x.own); pr.own = 'P'; pr.mort = A.propVal(pr); V.mm = {aum: 2, hwm: 2, fees: 0, perf: 0, inv: 1};
+    V.player.cash = -5; out.limited = A.myWorth() >= .15 - 1e-9; A.step();
+    out.liq = !V.lost && !V.founded && V.restarts === 1 && !V.vc.hold.some(h => !h.pres) && pr.own !== 'P' && V.mm.aum === 0 && Math.abs(A.myWorth() - (V.player.cash + A.holdingsMkt('P'))) < 1e-9 && A.myWorth() < .2;
+    /* saves: an unknown future format, or a current save stripped of its format number, is refused; managed money must not be negative */
+    const t2 = A.exportText(), j2 = () => JSON.parse(t2); let x2 = j2(); x2.fmt = 99; out.fmt99 = !A.parseSave(JSON.stringify(x2)); x2 = j2(); delete x2.fmt; delete x2.chk; x2.player.bank = 0; out.noFmt = !A.parseSave(JSON.stringify(x2));
+    x2 = j2(); x2.mm.aum = -1; out.negMM = !!A.econCheck(x2); out.okSave = !!A.parseSave(t2);
     return out;
   });
   const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
