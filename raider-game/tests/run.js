@@ -1529,7 +1529,7 @@ async function testTrader(b) {
     out.uBuy = nU > 0 && Math.abs((d.own.U || 0) - nU) < 1e-12 && S.pres.cash < .05 && Math.abs(A.myWorth() - w1) < .01;
     out.econ = A.econCheck(S) === '';
     /* save format 3 round-trip, checksum covers personal cash */
-    const txt = A.exportText(), o = JSON.parse(txt); out.fmt = o.fmt === 4 && !!A.parseSave(txt);
+    const txt = A.exportText(), o = JSON.parse(txt); out.fmt = o.fmt === 5 && !!A.parseSave(txt); /* format 5 since the track record joined the checksum */
     o.pres.cash += 1; out.tamper = !A.parseSave(JSON.stringify(o));
     /* the company fails but the person still has money: restart as an individual */
     const uH = d.own.U || 0; A.bankrupt('テスト倒産'); out.restart = !S.lost && !S.founded && A.preCo() && S.restarts === 1 && Math.abs((d.own.P || 0) - uH) < 1e-12 && !d.own.U;
@@ -1619,10 +1619,10 @@ async function testGpt7(b) {
     /* BUG-28: the newsletter is in the checksum (format 4) and must add up */
     for (let i = 0; i < 26; i++) A.step(); A.nlStart(); for (let i = 0; i < 4; i++) A.step();
     const txt = A.exportText(), bad = f => { const o = JSON.parse(txt); f(o); return !A.parseSave(JSON.stringify(o)); };
-    out.fmt4 = JSON.parse(txt).fmt === 4 && !!A.parseSave(txt);
+    out.fmt4 = JSON.parse(txt).fmt >= 4 && !!A.parseSave(txt); /* format 4 or later carries the newsletter in the checksum */
     out.nlDel = bad(o => { delete o.nl; }); out.nlRev = bad(o => { o.nl.rev = -1; }); out.nlMiss = bad(o => { delete o.nl.cost; }); out.nlEdit = bad(o => { o.nl.subs += 100; });
     out.nlResigned = bad(o => { o.nl.rev = -1; o.chk = A.finSig(o); }); /* even with a valid checksum, a negative total is refused */
-    { const o = JSON.parse(txt); o.fmt = 3; o.chk = A.finSig(o); const g = A.parseSave(JSON.stringify(o)); out.fmt3Migrates = !!g && g.fmt === 4 && !!g.nl; } /* a format-3 save from before keeps loading */
+    { const o = JSON.parse(txt); o.fmt = 3; o.chk = A.finSig(o); const g = A.parseSave(JSON.stringify(o)); out.fmt3Migrates = !!g && g.fmt === 5 && !!g.nl; } /* a format-3 save from before keeps loading */
     /* BUG-22: a forced buy-back of an individual's short leaves whole shares */
     A.newGame(12346, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 27; i++) A.step(); S.player.cash = .1;
     const d = S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0))[3]; S.player.shorts[d.id] = {n: 101e-6, basis: 101e-6 * d.price}; S.player.cash = 101e-6 * d.price * .3; d.price *= 3; A.step();
@@ -1753,6 +1753,41 @@ async function testGroup(b) {
   const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
   ok('group: small private deals for a trader company; synergies from industry, region and the accounting department; shared brand', !fails.length, JSON.stringify(fails));
   ok('no page errors in group tests', errs.length === 0, errs.join(' | '));
+}
+
+async function testGpt9(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; let S;
+    const trader = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = cash; A.incorporate('Z', 0); A.hqInit(); return S; };
+    /* BUG-33: a failed company's tender offer never comes back to be paid from your personal money */
+    trader(9101, 30); const t0 = S.cos.filter(x => x.gm && !x.ctrl && !A.activeTob(x))[0];
+    A.launchTob('P', t0, t0.price * 1.3, .51); const R1 = S.rivals[0]; R1.cash = 1e4; A.launchTob(R1.id, t0, t0.price * 1.5, .51);
+    S.player.cash = -1e4; S.pres.cash = 20; A.step(); const restarted = !S.founded && S.restarts === 1; R1.cash = 0; const cash0 = S.player.cash;
+    const tob = S.tobs.find(x => x.cid === t0.id); if (tob) tob.end = S.week; A.resolveTobs();
+    out.bug33 = restarted && !(t0.own.P > 0) && Math.abs(S.player.cash - cash0) < 1e-9;
+    /* BUG-29: the failed company's listing plans end with it */
+    trader(9102, 5); const pv = A.foundCompany ? null : null; const sub = S.cos.find(x => x.priv) || S.cos.filter(x => !x.priv)[0]; sub.priv = true; sub.own = {P: sub.shares * .6, Q1: sub.shares * .4}; A.recomputeCtrl(); sub.ipoPlan = {end: S.week + 20};
+    S.player.cash -= A.grossWorth() + 1; S.pres.cash = 1; A.step(); /* the company is insolvent */ out.bug29 = !S.founded && !sub.ipoPlan;
+    /* BUG-34: each client pays a performance fee only on their own gain */
+    trader(9103, 50); S.tr.rets = Array(60).fill(.004); S.tr.mcW = null; S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0};
+    A.mmAccept({amt: 1, who: 'A'}); S.week = 101; A.mmWeek(-.5); A.mmAccept({amt: 1, who: 'B'}); S.week = 103; const [a0, b0] = A.mmList().map(x => x.val); S.week = 104; A.mmWeek(.5);
+    const [xa, xb] = A.mmList(); out.bug34 = xa.hwm === 1 && xa.val < 1 && xb.val < b0 * 1.5 && xb.hwm > 1 && Math.abs(S.mm.perf - (xb.val + S.mm.perf - 1) * .2) < 1e-9; /* only B, on its own gain above 1 */
+    /* BUG-35: a recovery on the notice date stops the redemption */
+    const L = A.mmList(); L[0].out = S.week + 13; S.week += 13; S.tr.rets = Array(60).fill(.004); const aum0 = S.mm.aum; A.mmQuarter(); out.bug35 = S.mm.aum === aum0 && L[0].out == null;
+    /* BUG-36: a client list that does not hold together is refused, even with a matching checksum */
+    const txt = A.exportText(), bad = f => { const o = JSON.parse(txt); f(o); o.chk = A.finSig(o); return !A.parseSave(JSON.stringify(o)); };
+    out.bug36 = bad(o => { o.mm.list[1].id = o.mm.list[0].id; }) && bad(o => { o.mm.list[0].w = '5'; }) && bad(o => { o.mm.inv = 900; }) && !!A.parseSave(txt);
+    /* BUG-30: the track record is in the checksum (format 5) and must be sane */
+    { const o = JSON.parse(txt); o.tr.eq1 = (o.tr.eq1 || 1) / 2; out.bug30sig = !A.parseSave(JSON.stringify(o)); } out.bug30 = bad(o => { o.tr.rets.push(5); }) && bad(o => { o.tr.eq1 = 'x'; }) && JSON.parse(txt).fmt === 5;
+    /* BUG-23: trades in the very first week are in the record */
+    A.newGame(9104, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; const g0 = A.grossWorth(), c = S.cos.filter(x => !x.priv && !x.ctrl)[0];
+    A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, .09)), .09); A.execSell('P', c, c.own.P); const g1 = A.grossWorth(); A.step(); out.bug23 = g1 < g0 && Math.abs(S.tr.rets[0] - (g1 / g0 - 1)) < 1e-6;
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('gpt9: failed-company bids and listings end with it, per-client fees, recovery on the notice date, client list and record checks, first-week record (BUG-23/29/30/33/34/35/36)', !fails.length, JSON.stringify(fails));
+  ok('no page errors in gpt9 tests', errs.length === 0, errs.join(' | '));
 }
 
 async function testGpt5(b) {
@@ -1937,6 +1972,7 @@ async function balance(b) {
     await testRealism(b);
     await testMuse(b);
     await testGroup(b);
+    await testGpt9(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
