@@ -1190,9 +1190,9 @@ async function testBalance2(b) {
     /* new companies are listed after the original list runs out */
     S.ipo = 999; const n0 = S.cos.length; S.cos = S.cos.filter((x, i) => x.priv || i % 3); const n1 = S.cos.length; S.week = 17 * 40; A.maybeIPO(); out.ipo = S.cos.length === n1 + 1 && /^G\d+/.test(S.cos[S.cos.length - 1].tk);
     /* crises of small unrelated companies are summarised, not reported one by one */
-    const small = S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0)).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; const nn = S.news.length; A.qnews(small, 'crisis', 'x', 'deal'); out.quiet = S.news.length === nn && S.qn.crisis === 1;
+    const small = S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0)).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; const nn = S.news.length; A.qnews(small, 'crisis', 'x', 'deal'); out.quiet = S.news.length === nn && S.qn.crisis.length === 1 && S.qn.crisis[0] === small.id; /* counted by company */
     /* an alternative goal is awarded once */
-    S.stats.turnarounds = 3; S.routes = {}; A.routeStep(); const w1 = S.routes.fixer; A.routeStep(); out.route = w1 != null && S.routes.fixer === w1;
+    S.stats.fixed = {a: 1, b: 2, c: 3}; S.routes = {}; A.routeStep(); /* three different companies turned round */ const w1 = S.routes.fixer; A.routeStep(); out.route = w1 != null && S.routes.fixer === w1;
     /* dividend income raises the bank limit */
     const l0 = A.bankLimit(); const e = S.cos.find(x => !x.priv && x.ni > 0 && x.payout > 0 && !x.ctrl); e.own.P = e.shares * .1; out.div = A.divIncomeY() > 0 && A.bankLimit() > l0;
     return out;
@@ -1205,6 +1205,71 @@ async function testBalance2(b) {
   ok('balance2: alternative goals are awarded once; dividends raise bank credit', r.route && r.div, JSON.stringify(r));
   ok('no page errors in balance2 tests', !errs.length, errs.slice(0, 3).join(' | '));
   await ctx.close();
+}
+
+async function testGpt2(b) {
+  const {p, ctx, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; A.newGame(4141, 'normal', 'T', 't', 'std', true); const S = A.S; S.won = S.lost = true; S.tut = {buy: 1, big: 1, tob: 1, ctrl: 1, run: 1, vert: 1};
+    for (let i = 0; i < 20; i++) A.step();
+    /* BUG-05: missing history/message lists are rebuilt and the game still plays; impossible values are refused; nothing changes in the running game */
+    const txt = JSON.stringify(S), rs0 = S.rs, w0 = S.week;
+    out.repair = ['inbox', 'nwHist', 'news', 'idxHist'].every(k => { const o = JSON.parse(txt); delete o[k]; return !!A.parseSave(JSON.stringify(o)); });
+    out.refuse = [o => { o.week = -100; }, o => { o.week = 3.5; }, o => { o.cos[0].city = 'zz'; }, o => { o.player.cash = 'x'; }].every(f => { const o = JSON.parse(txt); f(o); return !A.parseSave(JSON.stringify(o)); });
+    out.untouched = A.S === S && S.rs === rs0 && S.week === w0 && !A.ui.sim;
+    /* a save that breaks only when the game runs is refused before it replaces anything */
+    const o = JSON.parse(txt); o.cos[3].own = null; const nw0 = A.netWorth('P'); out.trial = !!A.importText(JSON.stringify(o)) && A.S === S && A.netWorth('P') === nw0;
+    /* BUG-10: 30% below the estimate is a 30% discount (43% upside) */
+    const c = S.cos.find(x => !x.priv && !x.ctrl && x.ni > 0); c.price = A.fairEst(c) * .7;
+    /* BUG-13: the control premium raises net worth but not the credit lines */
+    const t = S.cos.find(x => !x.priv && !x.ctrl && x !== c && x.ind !== 'air' && x.ind !== 'telecom'); t.price = A.fair(t) * .6;
+    t.own = {P: t.shares * .3}; A.recomputeCtrl(); const bp0 = A.buyingPower(), bl0 = A.bankLimit(), nwA = A.netWorth('P'), dv0 = A.divIncomeY();
+    t.own.P = t.shares * .45; A.recomputeCtrl();
+    const ctrl = t.ctrl === 'P', extra = t.shares * .15 * t.price; out.collat = ctrl && A.holdingsValue('P') > A.holdingsMkt('P') + 1e-6 && A.buyingPower() - bp0 <= extra * 1.5 + 1e-6 && A.bankLimit() - bl0 <= extra * .45 + (A.divIncomeY() - dv0) * 4 + 1e-6 && A.netWorth('P') > nwA + extra * 1.5; /* only the market value of the extra 15% adds credit; the premium adds net worth */
+    t.own = {}; A.recomputeCtrl();
+    /* BUG-12: the same company turned round twice counts once */
+    const f = S.cos.find(x => !x.priv && !x.ctrl && x.ind !== 'air' && x.ind !== 'telecom' && x !== c); f.own = {P: f.shares * .6}; A.recomputeCtrl(); S.stats.fixed = {};
+    for (let i = 0; i < 3; i++) { f.ni = -1; f.wasLoss = true; f.ni = 5; S.cos.filter(x => x.ctrl === 'P' && x !== f).forEach(x => { x.wasLoss = false; }); A.quarter(); }
+    out.fixer = Object.keys(S.stats.fixed).length === 1 && S.stats.turnarounds === 1;
+    f.own = {}; A.recomputeCtrl();
+    /* BUG-14: a down round dilutes and offers a follow-on, like an up round */
+    S.vc.hold.push({id: 'tv', name: 'T', val: 20, stake: .1, cost: 2, st: 0, q: .5, w: S.week, ind: 'tech'}); const h = S.vc.hold[S.vc.hold.length - 1]; S.inbox = [];
+    A.vcRound(h, .6, .3, 'ダウンラウンド'); out.down = Math.abs(h.stake - .07) < 1e-9 && Math.abs(h.val - 12) < 1e-9 && S.inbox.some(i => i.kind === 'vcfollow' && i.hid === 'tv');
+    A.vcRound(h, 2, .2, 'x'); out.oneOffer = S.inbox.filter(i => i.kind === 'vcfollow' && i.hid === 'tv').length === 1;
+    S.vc.hold = S.vc.hold.filter(x => x !== h); S.inbox = [];
+    /* BUG-15: the same small company twice is one company */
+    const sm = S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0)).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; S.qn = {};
+    A.qnews(sm, 'crisis', 'x', 'deal'); A.qnews(sm, 'crisis', 'x', 'deal'); A.newsQuarter(); out.qn = S.news.some(n => /【金融まとめ】.*資金繰り危機1社/.test(n.t));
+    out.cid = c.id;
+    return out;
+  });
+  ok('gpt2: missing history or message lists are rebuilt; impossible values are refused (BUG-05)', r.repair && r.refuse && r.untouched, JSON.stringify(r));
+  ok('gpt2: a save that fails when played is refused before it replaces the game (BUG-05)', r.trial);
+  ok('gpt2: the control premium counts toward net worth, not toward margin or bank credit (BUG-13)', r.collat);
+  ok('gpt2: turning the same company round again does not count twice (BUG-12)', r.fixer);
+  ok('gpt2: a down round dilutes and offers a single follow-on (BUG-14)', r.down && r.oneOffer);
+  ok('gpt2: the quarterly summary counts companies, not events (BUG-15)', r.qn);
+  /* UI: discount wording, cash-only max, immediate save and the warning clearing while paused */
+  const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
+  await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]');
+  const cid = await q.evaluate(() => { const A = window.__atlas, S = A.S; S.settings.guide = false; S.player.cash = 26; S.player.loan = 0; const c = S.cos.find(x => !x.priv && !x.ctrl && x.ni > 0); c.price = A.fairEst(c) * .7; A.ui.sel = c.id; A.ui.ctab = 'info'; return c.id; });
+  await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=why][data-v=px]');
+  const disc = await q.evaluate(() => document.querySelector('#modal').innerText); await q.click('#modal [data-act=close]');
+  ok('gpt2: 30% below the estimate reads as a 30% discount with 43% upside (BUG-10)', /30%安い＝割安（上昇余地 43%）/.test(disc), disc.slice(0, 0));
+  await q.evaluate(() => { const A = window.__atlas; A.ui.ctab = 'trade'; A.ui.cashOnly = true; const c = A.S.cos.find(x => x.id === A.ui.sel); const d = A.S.cos.find(x => !x.priv && !x.ctrl && x !== c); A.execBuy('P', d, A.sharesForMoney(d, 2)); A.ui.amt = 5; }); /* some shares held, so margin room exceeds cash */
+  await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=amt][data-v=max]');
+  const cm = await q.evaluate(() => { const A = window.__atlas, btn = document.querySelector('[data-act=buy]'); return {amt: A.ui.amt, cash: A.S.player.cash, borrow: document.querySelector('.cashsplit').innerText, dis: btn.disabled}; });
+  ok('gpt2: in cash-only mode the max button uses cash and no margin is previewed (BUG-11)', cm.amt <= cm.cash + 1e-9 && cm.amt > 0 && !cm.dis, JSON.stringify(cm));
+  await q.click('[data-act=buy]');
+  const imm = await q.evaluate(() => { const o = JSON.parse(localStorage.getItem(window.__atlas.SAVE_KEY)); return Math.abs(o.player.cash - window.__atlas.S.player.cash) < 1e-9; });
+  ok('gpt2: a trade is saved at once, without waiting (BUG-02)', imm);
+  await q.evaluate(() => { const ls = Object.getPrototypeOf(localStorage); window.__set = ls.setItem; ls.setItem = function(){ throw new Error('full'); }; window.__atlas.ui.speed = 0; });
+  await q.click('[data-act=tab][data-v=port]'); const warn = await q.evaluate(() => !!document.querySelector('[data-act=unsaved]'));
+  await q.evaluate(() => { Object.getPrototypeOf(localStorage).setItem = window.__set; }); await q.waitForTimeout(2600);
+  const cleared = await q.evaluate(() => !document.querySelector('[data-act=unsaved]'));
+  ok('gpt2: the unsaved warning clears by itself once storage works again, even while paused (BUG-03)', warn && cleared, JSON.stringify({warn, cleared}));
+  ok('no page errors in gpt2 tests', !errs.length && !ph.errs.length, errs.concat(ph.errs).slice(0, 3).join(' | '));
+  await ph.ctx.close(); await ctx.close();
 }
 
 async function testHQ(b) {
@@ -1323,6 +1388,7 @@ async function balance(b) {
     await testFeedback12(b);
     await testGptBugs(b);
     await testBalance2(b);
+    await testGpt2(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
