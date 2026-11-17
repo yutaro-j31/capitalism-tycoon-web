@@ -1164,7 +1164,7 @@ async function testGptBugs(b) {
   await q.evaluate(() => { const A = window.__atlas, S = A.S, c = S.cos.find(x => x.id === A.ui.sel); delete S.player.shorts[c.id]; A.execBuy('P', c, c.shares * .01); A.ui.sellF = 0; });
   await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=trmode][data-v=sell]'); const zero = await q.evaluate(() => { const b = document.querySelector('#tr-go'); return !!b && b.dataset.act === 'sell' && b.disabled && window.__atlas.ui.tf === 0; });
   /* BUG-10 */
-  await q.evaluate(() => { const A = window.__atlas, c = A.S.cos.find(x => x.id === A.ui.sel); c.price = A.fair(c) * 1.4; A.ui.ctab = 'info'; });
+  await q.evaluate(() => { const A = window.__atlas, c = A.S.cos.find(x => x.id === A.ui.sel); c.price = A.repFair(c) * 1.4; A.ui.ctab = 'info'; }); /* the published estimate (BUG-39) */
   await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=why][data-v=px]'); const dear = await q.evaluate(() => document.querySelector('#modal').innerText.includes('割高')); await q.click('#modal [data-act=close]');
   ok('gpt: a new game starts paused; a bank loan is saved at once (UX-02, BUG-02)', paused && saved, JSON.stringify({paused, saved}));
   ok('gpt: the short button trades or explains (BUG-01)', shr.pos || /上限|余力/.test(shr.toast), JSON.stringify(shr));
@@ -1221,7 +1221,7 @@ async function testGpt2(b) {
     /* a save that breaks only when the game runs is refused before it replaces anything */
     const o = JSON.parse(txt); o.cos[3].own = null; const nw0 = A.netWorth('P'); out.trial = !!A.importText(JSON.stringify(o)) && A.S === S && A.netWorth('P') === nw0;
     /* BUG-10: 30% below the estimate is a 30% discount (43% upside) */
-    const c = S.cos.find(x => !x.priv && !x.ctrl && x.ni > 0); c.price = A.fairEst(c) * .7;
+    const c = S.cos.find(x => !x.priv && !x.ctrl && A.pubNi(x) > 0); c.price = A.repFair(c) * .7; /* the published estimate (BUG-39) */
     /* BUG-13: the control premium raises net worth but not the credit lines */
     const t = S.cos.find(x => !x.priv && !x.ctrl && x !== c && x.ind !== 'air' && x.ind !== 'telecom'); t.price = A.fair(t) * .6;
     t.own = {P: t.shares * .3}; A.recomputeCtrl(); const bp0 = A.buyingPower(), bl0 = A.bankLimit(), nwA = A.netWorth('P'), dv0 = A.divIncomeY();
@@ -1253,7 +1253,7 @@ async function testGpt2(b) {
   /* UI: discount wording, cash-only max, immediate save and the warning clearing while paused */
   const ph = await page(b, {...devices['iPhone 13']}); const q = ph.p;
   await q.click('[data-act=allu][data-v="1"]'); await q.click('[data-act=newgame]');
-  const cid = await q.evaluate(() => { const A = window.__atlas, S = A.S; S.settings.guide = false; S.player.cash = 26; S.player.loan = 0; const c = S.cos.find(x => !x.priv && !x.ctrl && x.ni > 0); c.price = A.fairEst(c) * .7; A.ui.sel = c.id; A.ui.ctab = 'info'; return c.id; });
+  const cid = await q.evaluate(() => { const A = window.__atlas, S = A.S; S.settings.guide = false; S.player.cash = 26; S.player.loan = 0; const c = S.cos.find(x => !x.priv && !x.ctrl && A.pubNi(x) > 0); c.price = A.repFair(c) * .7; /* the published estimate (BUG-39) */ A.ui.sel = c.id; A.ui.ctab = 'info'; return c.id; });
   await q.click('[data-act=tab][data-v=market]'); await q.click('[data-act=why][data-v=px]');
   const disc = await q.evaluate(() => document.querySelector('#modal').innerText); await q.click('#modal [data-act=close]');
   ok('gpt2: 30% below the estimate reads as a 30% discount with 43% upside (BUG-10)', /30%安い＝割安（上昇余地 43%）/.test(disc), disc.slice(0, 0));
@@ -1502,7 +1502,7 @@ async function testTrader(b) {
     out.rewards = A.rewScale() === .02;
     /* managed money: management fee, performance fee above the high-water mark */
     S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; out.mmNoRecord = A.mmAccept({amt: .01, who: 'テスト'}) === 0 && S.mm.aum === 0; /* under a year of record: refused */
-    const rets0 = S.tr.rets; S.tr.rets = Array(52).fill(.003); S.tr.mcW = null; S.player.cash = 50; out.mmNeedsCo = A.mmAccept({amt: 1, who: 'テスト'}) === 0 && S.mm.aum === 0; /* an individual cannot take other people's money */
+    const rets0 = S.tr.rets; A.trSet(Array(52).fill(.003)); S.tr.mcW = null; S.player.cash = 50; out.mmNeedsCo = A.mmAccept({amt: 1, who: 'テスト'}) === 0 && S.mm.aum === 0; /* an individual cannot take other people's money */
     S.founded = true; A.hqInit(); /* the mechanics below are those of a founded company (restored before the founding test) */ const got = A.mmAccept({amt: 1, who: 'テスト'}); out.mmIn = got === 1 && S.mm.aum === 1 && S.mm.hwm === 1 && S.mm.inv === 1; S.tr.rets = rets0;
     S.mm.aum = 1; S.mm.hwm = 1; out.mmCapped = A.mmAccept({amt: 5, who: 'x'}) === 0 || A.mmRoom() >= 0; S.mm = {aum: 1, hwm: 1, fees: 0, perf: 0, inv: 1}; S.player.cash = .1;
     const pc = S.player.cash; S.week = 103; A.mmWeek(0); const fee = 1 * .02 / 52; out.fee = Math.abs(S.mm.fees - fee) < 1e-12 && Math.abs(S.player.cash - pc - fee) < 1e-12;
@@ -1510,11 +1510,11 @@ async function testTrader(b) {
     const perf0 = S.mm.perf; S.week = 156; A.mmWeek(-.05); out.hwm = S.mm.perf === perf0; /* below the high-water mark: no performance fee */
     /* investors leave after a bad year */
     /* after a bad stretch they warn first, then give a quarter's notice, then leave; the money goes back to them */
-    S.tr.rets = Array(52).fill(-.004); const aum1 = S.mm.aum, inv1 = S.mm.inv; S.week = 169; A.mmQuarter(); const warned = S.mm.warn === 1 && S.mm.aum === aum1;
+    A.trSet(Array(52).fill(-.004)); const aum1 = S.mm.aum, inv1 = S.mm.inv; S.week = 169; A.mmQuarter(); const warned = S.mm.warn === 1 && S.mm.aum === aum1;
     S.week = 182; A.mmQuarter(); const L1 = A.mmList(), noticed = L1.some(x => x.out === 195) && S.mm.aum === aum1;
     S.week = 195; A.mmQuarter(); out.out = warned && noticed && S.mm.aum < aum1 - 1e-9 && S.mm.inv === inv1 - 1;
     /* an offer appears after a good year when there is room */
-    S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; S.tr.rets = Array(52).fill(.003); S.tr.mcW = null; S.inbox = []; S.player.cash = Math.max(S.player.cash, .2); A.mmQuarter();
+    S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; A.trSet(Array(52).fill(.003)); S.tr.mcW = null; S.inbox = []; S.player.cash = Math.max(S.player.cash, .2); A.mmQuarter();
     const off = S.inbox.find(i => i.kind === 'mmoffer'); out.offer = !!off && off.amt > 0 && off.amt <= A.mmCap() + 1e-9;
     S.inbox = []; S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; S.founded = false;
     /* founding: needs 30,000,000円; net worth falls only by the fee; the cash you keep becomes personal */
@@ -1529,7 +1529,7 @@ async function testTrader(b) {
     out.uBuy = nU > 0 && Math.abs((d.own.U || 0) - nU) < 1e-12 && S.pres.cash < .05 && Math.abs(A.myWorth() - w1) < .01;
     out.econ = A.econCheck(S) === '';
     /* save format 3 round-trip, checksum covers personal cash */
-    const txt = A.exportText(), o = JSON.parse(txt); out.fmt = o.fmt === 5 && !!A.parseSave(txt); /* format 5 since the track record joined the checksum */
+    const txt = A.exportText(), o = JSON.parse(txt); out.fmt = o.fmt === 6 && !!A.parseSave(txt); /* format 6 since the whole track record and the ledger joined the checksum */
     o.pres.cash += 1; out.tamper = !A.parseSave(JSON.stringify(o));
     /* the company fails but the person still has money: restart as an individual */
     const uH = d.own.U || 0; A.bankrupt('テスト倒産'); out.restart = !S.lost && !S.founded && A.preCo() && S.restarts === 1 && Math.abs((d.own.P || 0) - uH) < 1e-12 && !d.own.U;
@@ -1548,7 +1548,7 @@ async function testTrader(b) {
     for (let i = 0; i < 4; i++) A.step(); const comp = V.tr.rets.slice(n0).reduce((a, x) => a * (1 + x), 1); /* every change in the account inside the weeks is in the record, options included */
     out.optLoss = !!op && V.player.opts.length === 0 && Math.abs(comp - A.grossWorth() / g0) < .02 && Math.abs(A.grossWorth() - g0) > .001;
     /* BUG-24: an old offer cannot push managed money past today's limit */
-    V.tr.rets = Array(52).fill(.003); V.tr.mcW = null; V.mm = {aum: 1, hwm: 1, fees: 0, perf: 0, inv: 1}; out.mmRecheck = A.mmAccept({amt: .59, who: 'x'}) === 0 && V.mm.aum === 1;
+    A.trSet(Array(52).fill(.003)); V.tr.mcW = null; V.mm = {aum: 1, hwm: 1, fees: 0, perf: 0, inv: 1}; out.mmRecheck = A.mmAccept({amt: .59, who: 'x'}) === 0 && V.mm.aum === 1;
     /* BUG-25/26: an insolvent company fails alone; its venture stakes do not follow you; your own money is kept */
     A.newGame(4244, 'normal', 'T', 't', 'trader', false); V = A.S; V.won = false; V.player.cash = .5; A.incorporate('Z', .15);
     V.vc.hold.push({id: 99, name: 'v', stake: .2, val: 1, cost: .2, w: V.week, st: 0, q: .5}); const pr = V.props.find(x => !x.own); pr.own = 'P'; pr.mort = A.propVal(pr); V.mm = {aum: 2, hwm: 2, fees: 0, perf: 0, inv: 1};
@@ -1575,7 +1575,7 @@ async function testMidgame(b) {
     /* the research newsletter: 26 weeks of record and 2,000,000円 first; members bring cash that is not counted as investment return */
     out.nlEarly = !A.nlStart();
     for (let i = 0; i < 26; i++) A.step(); for (const c of S.cos) if (c.own.P) A.execSell('P', c, c.own.P);
-    out.nlGo = A.nlStart() && Math.abs(S.nl.subs) < 1e-12; S.tr.rets = Array(52).fill(.004); const n0 = S.tr.rets.length, c0 = S.player.cash;
+    out.nlGo = A.nlStart() && Math.abs(S.nl.subs) < 1e-12; A.trSet(Array(52).fill(.004)); const n0 = S.tr.rets.length, c0 = S.player.cash;
     for (let i = 0; i < 26; i++) A.step(); out.nlGrow = S.nl.subs > 20 && S.nl.subs <= A.nlCap() && S.player.cash > c0 && S.nl.rev > 0;
     out.nlFlow = S.tr.rets.slice(n0).every(x => Math.abs(x) < 1e-9); /* no shares held: the newsletter's money is not a trading gain */
     out.mmIndiv = Math.abs(A.mmPeople() - Math.min(20, 3 + 4 * A.trWeeks() / 52)) < 1e-9;
@@ -1622,7 +1622,7 @@ async function testGpt7(b) {
     out.fmt4 = JSON.parse(txt).fmt >= 4 && !!A.parseSave(txt); /* format 4 or later carries the newsletter in the checksum */
     out.nlDel = bad(o => { delete o.nl; }); out.nlRev = bad(o => { o.nl.rev = -1; }); out.nlMiss = bad(o => { delete o.nl.cost; }); out.nlEdit = bad(o => { o.nl.subs += 100; });
     out.nlResigned = bad(o => { o.nl.rev = -1; o.chk = A.finSig(o); }); /* even with a valid checksum, a negative total is refused */
-    { const o = JSON.parse(txt); o.fmt = 3; o.chk = A.finSig(o); const g = A.parseSave(JSON.stringify(o)); out.fmt3Migrates = !!g && g.fmt === 5 && !!g.nl; } /* a format-3 save from before keeps loading */
+    { const o = JSON.parse(txt); o.fmt = 3; o.chk = A.finSig(o); const g = A.parseSave(JSON.stringify(o)); out.fmt3Migrates = !!g && g.fmt === 6 && !!g.nl; } /* a format-3 save from before keeps loading */
     /* BUG-22: a forced buy-back of an individual's short leaves whole shares */
     A.newGame(12346, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 27; i++) A.step(); S.player.cash = .1;
     const d = S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0))[3]; S.player.shorts[d.id] = {n: 101e-6, basis: 101e-6 * d.price}; S.player.cash = 101e-6 * d.price * .3; d.price *= 3; A.step();
@@ -1634,7 +1634,7 @@ async function testGpt7(b) {
     /* tax: newsletter profit is taxed like other income */
     S.player.pl = Object.assign(S.player.pl || {}, {nl: 1, div: 0, rent: 0, fee: 0, int: 0, hq: 0, rd: 0, pay: 0}); const cash0 = S.player.cash; A.corpTax(); out.tax = Math.abs(cash0 - S.player.cash - .2) < 1e-9; /* back as an individual: income tax of 20% */
     /* managed money beyond what the team can run: clients withdraw the excess over time */
-    A.newGame(12348, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 53; i++) A.step(); S.tr.rets = Array(52).fill(.003);
+    A.newGame(12348, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 53; i++) A.step(); A.trSet(Array(52).fill(.003));
     S.founded = true; A.hqInit(); S.mm = {aum: 100, hwm: 100, fees: 0, perf: 0, inv: 1}; S.week = 13 * Math.ceil(S.week / 13); A.mmQuarter(); const w0 = S.week, gave = A.mmList().some(x => x.out === w0 + 13) && S.mm.aum === 100;
     S.week = w0 + 13; A.mmQuarter(); out.overCap = gave && S.mm.aum === 0 && S.mm.inv === 0 && S.mm.hwm === 0; /* notice first, then the investor leaves with their money; no money stays without investors */
     /* growth companies trade at ordinary prices */
@@ -1657,7 +1657,7 @@ async function testRealism(b) {
     out.noBlockSale = !document.querySelector('main.main').textContent.includes('売却先を探す') && !document.querySelector('.exitbox'); c.own.P = 0; A.recomputeCtrl();
     for (let i = 0; i < 70; i++) { A.step(); S.inbox = S.inbox.filter(x => x.kind !== 'story'); }
     out.noStories = !S.news.some(n => /経済誌|【出来事】/.test(n.t));
-    S.tr.rets = Array(60).fill(.004); S.tr.mcW = null; S.inbox = []; S.week = 13 * Math.ceil(S.week / 13); A.mmQuarter(); out.noOfferIndividual = !S.inbox.some(i => i.kind === 'mmoffer');
+    A.trSet(Array(60).fill(.004)); S.tr.mcW = null; S.inbox = []; S.week = 13 * Math.ceil(S.week / 13); A.mmQuarter(); out.noOfferIndividual = !S.inbox.some(i => i.kind === 'mmoffer');
     /* an individual's income is taxed at 20% */
     S.player.pl = Object.assign(S.player.pl || {}, {nl: 1, div: 0, rent: 0, fee: 0, int: 0, hq: 0, rd: 0, pay: 0}); const c0 = S.player.cash; A.corpTax(); out.incomeTax = Math.abs(c0 - S.player.cash - .2) < 1e-9;
     /* founding: you enter the capital; the rest of the cash stays yours */
@@ -1666,7 +1666,7 @@ async function testRealism(b) {
     out.keypadCap = Math.abs(A.ui.foundCap - .4) < 1e-9; const g0 = A.grossWorth(); document.querySelector('[data-act=incorp]').click();
     out.founded = S.founded && Math.abs(A.grossWorth() - .4) < 1e-6 && Math.abs(S.pres.cash - (g0 - .005 - .4)) < 1e-6;
     /* managed money after founding: an investor list that always adds up; notice before leaving */
-    A.hqInit(); S.tr.rets = Array(60).fill(.004); S.inbox = []; S.week = 13 * Math.ceil((S.week + 1) / 13); A.mmQuarter(); out.offerCompany = S.inbox.some(i => i.kind === 'mmoffer');
+    A.hqInit(); A.trSet(Array(60).fill(.004)); S.inbox = []; S.week = 13 * Math.ceil((S.week + 1) / 13); A.mmQuarter(); out.offerCompany = S.inbox.some(i => i.kind === 'mmoffer');
     S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; A.mmAccept({amt: .1, who: 'X'}); A.mmAccept({amt: .1, who: 'Y'}); for (let i = 0; i < 5; i++) A.mmWeek(.01);
     const L = A.mmList(); out.investors = L.length === 2 && S.mm.inv === 2 && Math.abs(L.reduce((a, x) => a + x.val, 0) - S.mm.aum) < 1e-12 && S.mm.lastFee > 0;
     A.mmRedeem(L[0]); A.mmRedeem(A.mmList()[0]); out.noGhostMoney = S.mm.aum === 0 && S.mm.inv === 0 && S.mm.hwm === 0;
@@ -1770,16 +1770,16 @@ async function testGpt9(b) {
     trader(9102, 5); const pv = A.foundCompany ? null : null; const sub = S.cos.find(x => x.priv) || S.cos.filter(x => !x.priv)[0]; sub.priv = true; sub.own = {P: sub.shares * .6, Q1: sub.shares * .4}; A.recomputeCtrl(); sub.ipoPlan = {end: S.week + 20};
     S.player.cash -= A.grossWorth() + 1; S.pres.cash = 1; A.step(); /* the company is insolvent */ out.bug29 = !S.founded && !sub.ipoPlan;
     /* BUG-34: each client pays a performance fee only on their own gain */
-    trader(9103, 50); S.tr.rets = Array(60).fill(.004); S.tr.mcW = null; S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0};
+    trader(9103, 50); A.trSet(Array(60).fill(.004)); S.tr.mcW = null; S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0};
     A.mmAccept({amt: 1, who: 'A'}); S.week = 101; A.mmWeek(-.5); A.mmAccept({amt: 1, who: 'B'}); S.week = 103; const [a0, b0] = A.mmList().map(x => x.val); S.week = 104; A.mmWeek(.5);
     const [xa, xb] = A.mmList(); out.bug34 = xa.hwm === 1 && xa.val < 1 && xb.val < b0 * 1.5 && xb.hwm > 1 && Math.abs(S.mm.perf - (xb.val + S.mm.perf - 1) * .2) < 1e-9; /* only B, on its own gain above 1 */
     /* BUG-35: a recovery on the notice date stops the redemption */
-    const L = A.mmList(); L[0].out = S.week + 13; S.week += 13; S.tr.rets = Array(60).fill(.004); const aum0 = S.mm.aum; A.mmQuarter(); out.bug35 = S.mm.aum === aum0 && L[0].out == null;
+    const L = A.mmList(); L[0].out = S.week + 13; S.week += 13; A.trSet(Array(60).fill(.004)); const aum0 = S.mm.aum; A.mmQuarter(); out.bug35 = S.mm.aum === aum0 && L[0].out == null;
     /* BUG-36: a client list that does not hold together is refused, even with a matching checksum */
     const txt = A.exportText(), bad = f => { const o = JSON.parse(txt); f(o); o.chk = A.finSig(o); return !A.parseSave(JSON.stringify(o)); };
     out.bug36 = bad(o => { o.mm.list[1].id = o.mm.list[0].id; }) && bad(o => { o.mm.list[0].w = '5'; }) && bad(o => { o.mm.inv = 900; }) && !!A.parseSave(txt);
     /* BUG-30: the track record is in the checksum (format 5) and must be sane */
-    { const o = JSON.parse(txt); o.tr.eq1 = (o.tr.eq1 || 1) / 2; out.bug30sig = !A.parseSave(JSON.stringify(o)); } out.bug30 = bad(o => { o.tr.rets.push(5); }) && bad(o => { o.tr.eq1 = 'x'; }) && JSON.parse(txt).fmt === 5;
+    { const o = JSON.parse(txt); o.tr.eq1 = (o.tr.eq1 || 1) / 2; out.bug30sig = !A.parseSave(JSON.stringify(o)); } out.bug30 = bad(o => { o.tr.rets.push(5); }) && bad(o => { o.tr.eq1 = 'x'; }) && JSON.parse(txt).fmt === 6;
     /* BUG-23: trades in the very first week are in the record */
     A.newGame(9104, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; const g0 = A.grossWorth(), c = S.cos.filter(x => !x.priv && !x.ctrl)[0];
     A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, .09)), .09); A.execSell('P', c, c.own.P); const g1 = A.grossWorth(); A.step(); out.bug23 = g1 < g0 && Math.abs(S.tr.rets[0] - (g1 / g0 - 1)) < 1e-6;
@@ -1809,7 +1809,7 @@ async function testExitRoute(b) {
     /* liquidation: one sweep, nothing of the company left */
     S.player.cash -= A.grossWorth() + 1; S.pres.cash = 1; A.step(); out.residue = !S.founded && S.restarts === 1 && A.companyResidue().length === 0 && !S.news.some(n => /確認が必要な項目/.test(n.t));
     /* the individual route: a newsletter that grows with the record, and angel investing */
-    A.newGame(7172, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; const cap0 = A.nlCap(); S.tr.rets = Array(52 * 3).fill(.002); out.nlGrows = cap0 === 800 && Math.abs(A.nlCap() - (800 + 600 * 3)) < 1e-6;
+    A.newGame(7172, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; const cap0 = A.nlCap(); A.trSet(Array(52 * 3).fill(.002)); out.nlGrows = cap0 === 800 && Math.abs(A.nlCap() - (800 + 600 * 3)) < 1e-6;
     A.ui.tab = 'pres'; A.renderAll(true); out.angelLocked = document.body.innerHTML.includes('エンジェル投資') && !document.querySelector('[data-act=vcbuy]');
     S.player.cash = 6; A.checkStage(); A.vcQuarter(); A.renderAll(true); const btn = document.querySelector('[data-act=vcbuy]'); const cash0 = S.player.cash; if (btn) btn.click();
     out.angel = !!btn && S.vc.hold.some(h => !h.pres) && S.player.cash < cash0 && A.preCo();
@@ -1883,12 +1883,150 @@ async function testUx2(b) {
     A.ui.cmp = S.cos.filter(x => !x.priv).slice(0, 3).map(x => x.id); A.showCompare(); out.cmp = document.querySelectorAll('#modal table.cmp tbody tr').length >= 12 && document.querySelectorAll('#modal table.cmp thead th').length === 4; A.closeModal();
     /* 20: acquisition economics in the TOB panel */
     A.newGame(9402, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; $('#modal').hidden = true; const t = S.cos.filter(x => !x.priv && !x.ctrl)[4];
-    A.ui.tab = 'market'; A.ui.sel = t.id; A.ui.ctab = 'raid'; A.ui.tMode = 'tob'; A.renderAll(true); out.acq = txt('#pbody').includes('買収の採算') && txt('#pbody').includes('想定MOIC');
+    A.ui.tab = 'market'; A.ui.sel = t.id; A.ui.ctab = 'raid'; A.ui.tMode = 'tob'; A.renderAll(true); out.acq = txt('#pbody').includes('買収の採算') && txt('#pbody').includes('今回の買付分'); /* FIN-ACQ: the new purchase and the whole stake are shown apart */
     return out;
   });
   const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
   ok('ux2: start screen per scenario, stage tabs, foldable map, ledger, earnings, schedule, portfolio analysis, comparison, acquisition economics', !fails.length, JSON.stringify(fails));
   ok('no page errors in ux2 tests', errs.length === 0, errs.join(' | '));
+}
+
+async function testRev10(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; let S;
+    /* BUG-44: a small company bought this week has its people on record, and the 100-day plan is all-or-nothing */
+    const buy = () => { A.newGame(7171, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 2; A.incorporate('Z', 0); A.hqInit();
+      for (let i = 0; i < 80 && !S.cos.some(c => c.pe && c.pe.owner === 'P'); i++) { const d = (S.pe.deals || []).filter(x => !x.bid && A.dealEbitda(x, false) > 0 && A.dealAsk(x) < S.player.cash * .6)[0]; if (d) A.peBid(d, .1, 0, false, 'P', 0); A.step(); S.inbox = []; }
+      return S.cos.find(x => x.pe && x.pe.owner === 'P'); };
+    let c = buy(); out.bought = !!c;
+    out.hrAtBuy = !!(c && c.ex && c.ex.CEO && c.cult && c.wage != null);
+    /* an old-style record without people: the plan sets them up instead of failing */
+    delete c.ex; out.noEx = A.pe100(c) === true && A.S.cos.find(x => x.id === c.id).pe.p100 === A.S.week && !!A.S.cos.find(x => x.id === c.id).ex;
+    /* an unexpected error halfway (a broken candidate record) rolls everything back */
+    c = buy(); const ceo = A.person(c.ex.CEO); ceo.sk.gen = 10; c.margin = c.base * .5; c.pe.promise = 0;
+    S.hr.people.HXX = {id: 'HXX'}; S.hr.pool.unshift('HXX');
+    const before = JSON.stringify(S), ce = console.error; console.error = () => {};
+    let threw = false, failRet; try { failRet = A.pe100(c); } catch (e) { threw = true; } console.error = ce;
+    const after = A.S, errsRec = after.errs || []; delete after.errs;
+    out.rollback = !threw && failRet === false && JSON.stringify(after) === before && errsRec.length === 1 && errsRec[0].k === '100日計画';
+    const c2 = after.cos.find(x => x.id === c.id); out.retry = c2.pe.p100 == null;
+    /* once the broken record is gone it runs, once */
+    after.hr.pool = after.hr.pool.filter(x => x !== 'HXX'); delete after.hr.people.HXX; const cash0 = c2.cash;
+    out.runOnce = A.pe100(c2) === true && A.pe100(c2) === false && c2.pe.p100r && c2.pe.p100r.done.length > 0 && Array.isArray(c2.pe.p100r.skip);
+    /* BUG-39 + FIN-QH: one published snapshot per results, used by the rationale; internals changing afterwards change nothing on screen */
+    A.newGame(5151, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; document.querySelector('#modal').hidden = true;
+    out.pubAtStart = S.cos.every(x => A.repOf(x) && x.pub0 && x.pub0.v && x.pub0.fe === x.pub0.v.per);
+    let L = S.cos.filter(x => !x.priv && !x.ctrl);
+    while (S.week !== 25) A.step(); /* the first consensus is set at the first results */ const est0 = {}; for (const x of L) est0[x.id] = x.est; A.step(); L = L.filter(x => S.cos.includes(x) && !x.priv); /* some may have been merged away */
+    out.snapOne = L.every(x => { const q = x.qh[x.qh.length - 1]; return q.w === S.week && q.v && q.ni === q.v.ni && q.fe === q.v.per && Math.abs(q.v.total / q.v.sh - q.fe) < 1e-9 + (q.fe === .05 ? 1 : 0) && !x.pub0; });
+    out.consensusFixed = L.every(x => { const q = x.qh[x.qh.length - 1]; return q.est === est0[x.id] && Math.abs(q.sur - (q.ni - q.est) / Math.max(Math.abs(q.est), q.rev * .01)) < 1e-9; });
+    while (S.week % 13 !== 0 || S.week < 26) A.step(); L = L.filter(x => S.cos.includes(x) && !x.priv);
+    out.oldNoBreakdown = L.every(x => x.qh.slice(0, -1).every(q => !q.v) && x.qh[x.qh.length - 1].v);
+    const k3 = L[3], body = () => document.querySelector('#modal').textContent;
+    A.showWhy('px', k3); const t0 = body();
+    const keep = {m: k3.margin, g: k3.growth, b: k3.boost, r: S.econ.rate, d: k3.debt, cash: k3.cash};
+    k3.margin *= 2; k3.growth += .2; k3.boost = .1; S.econ.rate += 3; k3.debt *= 3; k3.cash *= .1;
+    A.showWhy('px', k3); out.whyFrozen = body() === t0 && t0.includes('アナリストの見方') && t0.includes('上昇余地') && t0.includes('割安度');
+    Object.assign(k3, {margin: keep.m, growth: keep.g, boost: keep.b, debt: keep.d, cash: keep.cash}); S.econ.rate = keep.r;
+    /* 700 against 1,000: 30% below the estimate, 42.86% upside */
+    const q = k3.qh[k3.qh.length - 1], px0 = k3.price; q.fe = q.v.per = 10; k3.price = 7; A.showWhy('px', k3);
+    out.discUp = /割安度[^%]*\+30\.0%/.test(body()) && /上昇余地[^%]*\+42\.9%/.test(body());
+    A.ui.cmp = [k3.id]; A.showCompare(); const rows = [...document.querySelectorAll('#modal table.cmp tbody tr')].map(r => r.textContent);
+    out.cmpDiscUp = rows.some(r => r.startsWith('推定割安度') && r.includes('30.0%')) && rows.some(r => r.startsWith('上昇余地') && r.includes('+42.9%'));
+    k3.price = px0; A.closeModal();
+    /* the history labels say the figures are annualised */
+    A.ui.tab = 'market'; A.ui.sel = k3.id; A.ui.ctab = 'info'; A.renderAll(true); out.annual = document.querySelector('#pbody').textContent.includes('損益は年換算');
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev10: 100-day plan (BUG-44); published snapshot and rationale (BUG-39, FIN-QH)', !fails.length, JSON.stringify(fails) + JSON.stringify(r));
+  ok('no page errors in rev10 tests', errs.length === 0, errs.join(' | '));
+}
+
+async function testRev10b(b) {
+  const {p, errs} = await page(b, {...devices['iPhone 13']});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; let S; const $ = q => document.querySelector(q);
+    const sig = o => { o.chk = A.finSig(o); return o; }, clone = o => JSON.parse(JSON.stringify(o)), valid = o => A.validSave(sig(clone(o)));
+    /* BUG-30: the whole track record is in the checksum and checked for sense */
+    A.newGame(6161, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; $('#modal').hidden = true;
+    const c = S.cos.filter(x => !x.priv && !x.ctrl)[2]; A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, .05)), .05);
+    for (let i = 0; i < 30; i++) A.step();
+    const o = clone(A.stamp()); out.fmt6 = o.fmt === 6 && A.SAVE_FMT === 6 && A.validSave(clone(o));
+    const T = o.tr; out.trFields = Number.isInteger(T.n) && T.n === T.rets.length && T.pk >= 1 && T.mdd >= 0 && typeof T.skip === 'boolean';
+    { const x = clone(o); x.tr.cum *= 1.5; out.cumInSig = !A.validSave(x); } /* tampering with tr.cum alone breaks the checksum */
+    { const x = clone(o); x.tr.cum *= 1.5; out.cumSense = !valid(x); } /* re-signed, it no longer matches the weekly record */
+    { const x = clone(o); x.tr.cum = -1; out.cumPos = !valid(x); }
+    { const x = clone(o); x.tr.mdd = 0; x.tr.rets[3] = -.5; out.mddSense = !valid(x); }
+    { const x = clone(o); delete x.tr.n; out.trRequired = !valid(x); }
+    { const x = clone(o); x.tr.eq1 = 12345; out.eq1Free = valid(x); } /* eq1 is not forced to equal today's net worth */
+    /* 520-week window vs the whole period */
+    { A.trSet(Array(520).fill(.001)); S.tr.n = 700; S.tr.cum = Math.pow(1.001, 700); S.tr.pk = S.tr.cum; S.tr.mdd = .2; const st = A.trStats();
+      out.whole = st.weeks === 700 && Math.abs(st.total - (Math.pow(1.001, 700) - 1)) < 1e-9 && st.mdd === .2 && st.win === 520 && Math.abs(st.total10 - (Math.pow(1.001, 520) - 1)) < 1e-9 && Math.abs(st.cagr - (Math.pow(Math.pow(1.001, 700), 52 / 700) - 1)) < 1e-12 && A.trWeeks() === 700;
+      A.ui.tab = 'pres'; A.renderAll(true); const tx = $('#pbody').textContent; out.labels = tx.includes('累計リターン（全期間）') && tx.includes('直近10年の最大下落') && tx.includes('最大下落（全期間）'); }
+    /* BUG-43/42/45: the account is fixed at execution; totals survive the 400 cap; bad entries are refused */
+    A.newGame(6162, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 50;
+    const d = S.cos.filter(x => !x.priv && !x.ctrl)[1]; A.execBuy('P', d, A.roundSh(A.sharesForMoney(d, 1)), 1);
+    out.indivAcct = S.ledger[0].at === 'indiv' && S.ledger[0].an === '個人口座' && S.ledger[0].gen === 0;
+    A.incorporate('Z社', 0); A.execSell('P', d, d.own.P);
+    out.coAcct = S.ledger[0].at === 'co' && S.ledger[0].aid === 'P#0' && S.ledger[0].an.includes('Z社') && S.ledger[1].an === '個人口座';
+    A.ui.tab = 'port'; A.renderAll(true); out.ledgerShown = $('#pbody').textContent.includes('個人口座') && $('#pbody').textContent.includes('本体（Z社）');
+    let fee = 0, pnl = 0, n0 = 0; for (let i = 0; i < 230; i++) { const q = A.execBuy('P', d, 1, 1); const r = A.execSell('P', d, d.own.P); if (q) n0++; if (r) n0++; }
+    const G = S.lagg['P#0'], sum = S.ledger.filter(x => x.aid === 'P#0'); out.cap = S.ledger.length === 400 && S.ldrop > 0 && G.n === n0 + 1 && G.n > sum.length;
+    out.aggKept = G.fee > sum.reduce((a, x) => a + x.fee, 0) + 1e-9;
+    const o2 = clone(A.stamp()); out.valid2 = A.validSave(clone(o2));
+    const bad = f => { const x = clone(o2); f(x); return !valid(x); };
+    out.rejects = bad(x => x.ledger[0].n = -1) && bad(x => x.ledger[0].amt = NaN) && bad(x => x.ledger[0].w = x.week + 5) && bad(x => x.ledger[0].side = '贈与') && bad(x => x.ledger[0].gen = 9) && bad(x => x.ledger.push(x.ledger[0])) && bad(x => x.ledger[0].fee = -1) && bad(x => x.lagg['P#0'].fee = -1) && bad(x => x.lagg['P#0'].n = 1);
+    { const x = clone(o2); x.ledger[0].px *= 2; out.ledgerInSig = !A.validSave(x); }
+    { const x = clone(o2); x.lagg['P#0'].pnl += 5; out.laggInSig = !A.validSave(x); }
+    { const x = clone(o2); x.ledger[5].cid = 'C9999'; out.delistedOk = valid(x); } /* a company that no longer exists is fine */
+    /* migration from format 5: nothing invented, record kept */
+    { const x = clone(o2); x.fmt = 5; for (const e of x.ledger) for (const k of ['at', 'aid', 'an', 'gen']) delete e[k]; delete x.lagg; delete x.ldrop; delete x.lpart; for (const k of ['n', 'pk', 'mdd', 'part']) delete x.tr[k]; x.ledger = x.ledger.slice(0, 120);
+      sig(x); const m = A.migrate(clone(x)); out.mig = !!m && m.fmt === 6 && m.ledger.length === 120 && m.ledger.every(e => e.aid) && m.ledger[0].at === 'legacy' && !m.lpart && Object.values(m.lagg).reduce((a, g) => a + g.n, 0) === 120 && m.tr.n === m.tr.rets.length && A.validSave(sig(clone(m)));
+      const y = clone(x); y.ledger = clone(o2.ledger).map(e => { for (const k of ['at', 'aid', 'an', 'gen']) delete e[k]; return e; }); sig(y); const m2 = A.migrate(y); out.migPart = !!m2 && m2.lpart === true && Object.values(m2.lagg).every(g => g.part); }
+    /* FIN-ACQ: existing stake apart from the purchase; EV-based cases (EV 30, net debt 18, equity 12 → 1.0 / 0.5 / 1.5) */
+    A.newGame(6163, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; $('#modal').hidden = true;
+    const t = S.cos.filter(x => !x.priv && !x.ctrl)[4], q = A.repOf(t);
+    q.debt = 18; q.cash = 0; q.fe = 12 / t.shares; t.own = {}; for (const k in t.own) delete t.own[k]; A.recomputeCtrl();
+    const tq = {total: t.shares, cost: 12}; let m = A.acqModel(t, 12 / t.shares, tq, false);
+    out.acqCases = Math.abs(m.evF - 30) < 1e-9 && Math.abs(m.cs[1].mAdd - 1) < 1e-9 && Math.abs(m.cs[0].mAdd - .5) < 1e-9 && Math.abs(m.cs[2].mAdd - 1.5) < 1e-9;
+    t.own.P = t.shares * .2; A.recomputeCtrl(); S.player.cost = S.player.cost || {}; delete S.player.cost[t.id];
+    m = A.acqModel(t, 12 / t.shares, {total: t.shares * .3, cost: 3.6}, false); out.acqNoBasis = m.cs[1].mTot === null && Math.abs(m.cs[1].mAdd - (.3 * 12) / 3.6) < 1e-9;
+    S.player.cost[t.id] = 2; m = A.acqModel(t, 12 / t.shares, {total: t.shares * .3, cost: 3.6}, false); out.acqTot = Math.abs(m.cs[1].mTot - (.5 * 12) / (2 + 3.6)) < 1e-9;
+    m = A.acqModel(t, 12 / t.shares, {total: t.shares * .3, cost: 3.6}, true); out.acqLbo = Math.abs(m.cs[1].eq - (30 - 18 - 3.6 * .65)) < 1e-9;
+    const t2 = S.cos.filter(x => !x.priv && !x.ctrl)[6]; A.ui.actor = 'P'; A.ui.tMode = 'tob'; A.ui.tab = 'market'; A.ui.sel = t2.id; A.ui.ctab = 'raid'; A.renderAll(true); const tx = $('#pbody').textContent; /* an untouched company */
+    out.acqTx = tx.indexOf('買収の採算') < 0 ? tx.slice(0, 1500) : tx.slice(tx.indexOf('買収の採算'), tx.indexOf('買収の採算') + 900); out.acqUi = tx.includes('今回の買付分') && tx.includes('EBITDA（簡易推計）') && tx.includes('DSCR（簡易推計') && !/NaN|undefined|Infinity/.test(out.acqTx); if (out.acqUi) delete out.acqTx;
+    /* UX-FOUND: colour and logo chosen at founding; nothing changes until you found */
+    A.newGame(6164, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 200; $('#modal').hidden = true; A.ui.tab = 'pres'; A.renderAll(true);
+    const col0 = S.color, logo0 = S.logo;
+    const sw = $('#pbody [data-act=fcol][data-v="3"]'); out.pickers = !!sw && !!$('#pbody [data-act=flogo][data-v="2"]');
+    if (out.pickers) { sw.click(); $('#pbody [data-act=flogo][data-v="2"]').click(); /* the panel is redrawn after each tap */ out.tempOnly = S.color === col0 && S.logo === logo0 && A.ui.fcol === 3 && A.ui.flogo === 2;
+      $('#pbody [data-act=incorp]').click(); out.applied = S.founded && S.color === A.S.color && S.logo === 2 && A.ui.fcol == null; }
+    A.ui.scen = 'trader'; A.showStart(true); const st = $('#modal').textContent; out.startText = st.includes('会社名・カラー・ロゴは、会社を設立するときに決めます') && !st.includes('運用を任され、会社を設立し'); A.closeModal();
+    return out;
+  });
+  const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev10b: save format 6 (BUG-30/42/43/45), acquisition model (FIN-ACQ), founding colour and logo (UX-FOUND)', !fails.length, JSON.stringify(fails) + (r.acqUi ? '' : r.acqTx));
+  ok('no page errors in rev10b tests', errs.length === 0, errs.join(' | '));
+}
+
+async function testRev10Layout(b) { /* BUG-46: the map column is one grid item at every width */
+  const res = [];
+  for (const w of [320, 375, 390, 430, 768, 899, 900, 1024, 1280, 1440]) {
+    const {p, errs} = await page(b, {viewport: {width: w, height: 860}});
+    const r = await p.evaluate(() => { const A = window.__atlas; A.newGame(6165, 'normal', 'T', 't', 'std', true); A.S.won = A.S.lost = true; document.querySelector('#modal').hidden = true; A.S.settings.map = 'open'; A.renderAll(true);
+      const kids = [...document.querySelector('.main').children].map(e => e.className.split(' ')[0]), box = s => document.querySelector(s).getBoundingClientRect();
+      const m = box('#mapwrap'), b = box('#mapfold'), pn = box('.panel'), vw = document.documentElement.clientWidth, over = document.documentElement.scrollWidth > vw + 1;
+      const open = {kids: kids.join(','), mapUnderBtn: m.top >= b.bottom - 1 && Math.abs(m.left - b.left) < 2 && m.width > 200 && m.height > 150, side: vw >= 900 ? pn.left >= m.right - 1 && Math.abs(pn.top - b.top) < 2 : pn.top >= m.bottom - 1, over};
+      document.querySelector('#mapfold').click(); const f = box('#mapfold'), p2 = box('.panel');
+      const folded = {hidden: document.querySelector('#mapwrap').classList.contains('folded'), panelBelow: p2.top >= f.bottom - 1 && p2.width >= vw * (vw >= 900 ? .9 : .85), over: document.documentElement.scrollWidth > vw + 1};
+      return {open, folded}; });
+    res.push([w, r.open.kids === 'mapcol,panel' && r.open.mapUnderBtn && r.open.side && !r.open.over && r.folded.hidden && r.folded.panelBelow && !r.folded.over, r, errs.length]);
+    await p.close();
+  }
+  const bad = res.filter(x => !x[1] || x[3]);
+  ok('rev10 layout: map + fold button in one column, panel beside (PC) or below (phone), folded map gives the panel the width, no horizontal overflow at 320–1440px (BUG-46)', !bad.length, JSON.stringify(bad.map(x => [x[0], x[2]])));
 }
 
 async function testGpt5(b) {
@@ -2077,6 +2215,9 @@ async function balance(b) {
     await testExitRoute(b);
     await testUxFin(b);
     await testUx2(b);
+    await testRev10(b);
+    await testRev10b(b);
+    await testRev10Layout(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
