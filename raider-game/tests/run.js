@@ -1635,8 +1635,9 @@ async function testGpt7(b) {
     S.player.pl = Object.assign(S.player.pl || {}, {nl: 1, div: 0, rent: 0, fee: 0, int: 0, hq: 0, rd: 0, pay: 0}); const cash0 = S.player.cash; A.corpTax(); out.tax = Math.abs(cash0 - S.player.cash - .2) < 1e-9; /* back as an individual: income tax of 20% */
     /* managed money beyond what the team can run: clients withdraw the excess over time */
     A.newGame(12348, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 53; i++) A.step(); A.trSet(Array(52).fill(.003));
-    S.founded = true; A.hqInit(); S.mm = {aum: 100, hwm: 100, fees: 0, perf: 0, inv: 1}; S.week = 13 * Math.ceil(S.week / 13); A.mmQuarter(); const w0 = S.week, gave = A.mmList().some(x => x.out === w0 + 13) && S.mm.aum === 100;
-    S.week = w0 + 13; A.mmQuarter(); out.overCap = gave && S.mm.aum === 0 && S.mm.inv === 0 && S.mm.hwm === 0; /* notice first, then the investor leaves with their money; no money stays without investors */
+    S.founded = true; A.hqInit(); S.mm = {aum: 100, hwm: 100, fees: 0, perf: 0, inv: 1}; S.week = 13 * Math.ceil(S.week / 13); A.mmQuarter(); const warned = A.mmList().every(x => x.out == null) && S.mm.capWarn === 1; /* a warning first */
+    S.week += 13; A.mmQuarter(); const w0 = S.week, cap = A.mmPeople(), x0 = A.mmList().find(x => x.out === w0 + 13), gave = !!x0 && x0.why === 'cap' && Math.abs(x0.outAmt - (100 - cap * 1.2)) < 1e-9 && S.mm.aum === 100; /* then a notice for the excess only */
+    S.week = w0 + 13; A.mmQuarter(); out.overCap = warned && gave && Math.abs(S.mm.aum - cap * 1.2) < 1e-9 && S.mm.inv === 1; /* only the excess leaves; the client stays with what the team can run */
     /* growth companies trade at ordinary prices */
     out.gmPrices = S.cos.filter(x => x.gm).every(x => x.price >= 5);
     return out;
@@ -2278,6 +2279,62 @@ async function testFeedback14(b) {
   ok('no page errors in feedback tests', errs.length === 0, errs.join(' | '));
 }
 
+async function testFeedback15(b) {
+  const {p, errs} = await page(b, {...devices['iPhone 13']});
+  const r = await p.evaluate(async () => {
+    const A = window.__atlas, out = {}, info = {}; const $ = q => document.querySelector(q), txt = q => ($(q) || {textContent: ''}).textContent;
+    const std = seed => { A.newGame(seed, 'normal', 'T', 't', 'std', true); A.S.won = A.S.lost = true; A.S.settings.confirm = false; $('#modal').hidden = true; return A.S; };
+    /* 1: an MBO pays your shares into cash and the trade ledger; failures and block trades are recorded too */
+    let S = std(5601); const L = S.cos.filter(x => !x.priv && !x.ctrl); const m = L[3]; A.execBuy('P', m, A.roundSh(A.sharesForMoney(m, 3)), 3);
+    const n = m.own.P, cost = S.player.cost[m.id], cash0 = S.player.cash, px = m.price * 1.3; A.delist(m, px, `【MBO】${m.name}の経営陣がファンドと組んで全株を買い取り、非上場化`);
+    const e = S.ledger[0]; info.mbo = {got: +(S.player.cash - cash0).toFixed(3), pnl: e && +e.pnl.toFixed(3)};
+    out.mboCash = Math.abs(S.player.cash - cash0 - n * px) < 1e-9; out.mboLedger = e.side === '清算売り' && e.why === 'MBO' && Math.abs(e.pnl - (n * px - cost)) < 1e-9 && e.fee === 0;
+    out.mboNews = S.news.some(x => x.t.startsWith('【入金】') && x.t.includes(m.name));
+    const f = L[5], g2 = L[6]; A.execBuy('P', f, A.roundSh(A.sharesForMoney(f, 1)), 1); A.execShort(g2, A.roundSh(A.sharesForShort(g2, 1))); const sb = S.player.shorts[g2.id].basis;
+    f.forceBk = true; g2.forceBk = true; A.step(); out.bankrupt = S.ledger.some(x => x.cid === f.id && x.side === '清算売り' && x.px === 0 && x.pnl < 0) && S.ledger.some(x => x.cid === g2.id && x.side === '清算買戻し' && Math.abs(x.pnl - sb) < 1e-9);
+    const bl = L[8], rv = Object.keys(bl.own).find(k => /^R/.test(k) && bl.own[k] > 0) || Object.keys(bl.own).find(k => k !== 'P');
+    if (rv) { A.transferShares(rv, 'P', bl, Math.min(bl.own[rv], bl.shares * .01), bl.price * 1.2); A.transferShares('P', rv, bl, bl.own.P / 2, bl.price * 1.1); out.block = S.ledger[0].side === '相対売り' && S.ledger[1].side === '相対買い'; } else out.block = 'no holder';
+    out.mboLoads = !!A.parseSave(A.exportText());
+    /* 2: a passed proposal says what changed */
+    const ac = L[10], w1 = A.applyAct(ac, 'div'), w2 = A.applyAct(ac, 'buyback'), w3 = A.applyAct(ac, 'sell'); info.act = [w1, w2, w3];
+    out.proposal = /配当性向を\d+%から\d+%に/.test(w1) && w2.includes('自社株買い') && w3.includes('特別配当');
+    /* 3: no shady tipster */
+    out.noTipster = !A.STORIES.find(x => x.id === 'tipster').ok();
+    /* 4: officers' names: from the company's country, foreign names in katakana; older saves converted */
+    const P = Object.values(S.hr.people), latin = P.filter(x => /[A-Za-z]/.test(x.n)).length;
+    const os = S.cos.filter(c => !c.priv && !A.isJP(c)), jpC = S.cos.filter(c => !c.priv && A.isJP(c));
+    const share = (cs, pred) => { let a = 0, t = 0; for (const c of cs) for (const id of Object.values(c.ex || {})) { const q = A.person(id); if (q) { t++; if (pred(q.n)) a++; } } return t ? a / t : 1; };
+    info.names = {latin, overseasForeign: +share(os, x => x.includes('・')).toFixed(2), japanJapanese: +share(jpC, x => !x.includes('・')).toFixed(2), sample: os.slice(0, 2).map(c => A.person(c.ex.CEO).n)};
+    out.names = latin === 0 && share(os, x => x.includes('・')) > .8 && share(jpC, x => !x.includes('・')) > .8;
+    { const q = A.person(os[0].ex.CFO || os[0].ex.CEO); q.n = 'Souza 千尋'; S.hr.nameV = 0; A.namesV2(); out.namesOld = !/[A-Za-z]/.test(q.n) && q.n.includes('・'); }
+    /* 5/6: the account shows cash and margin both, and pressing max changes neither */
+    A.ui.tab = 'market'; A.ui.sel = L[12].id; A.ui._trSel = L[12].id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.ui.tmode = 'cash'; A.ui.tf = 0; A.renderAll(true);
+    const lab = () => (document.body.textContent.match(/本体（現金[^）]*）/) || [''])[0]; const l0 = lab(); const mx = [...document.querySelectorAll('#pbody [data-act=tqset]')].find(x => x.dataset.v === '1'); if (mx) mx.click(); const l1 = lab();
+    out.acctLabel = l0 === l1 && l0.includes('現金') && l0.includes('信用込み'); if (!out.acctLabel) info.lbl = [l0, l1];
+    /* 7: managed money — a warning before a capacity notice, only the excess goes, and a recovery stops a performance notice */
+    A.newGame(5602, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; $('#modal').hidden = true; S.player.cash = 60; A.incorporate('甲社', 0); A.trSet(Array(60).fill(.003)); S.tr.mcW = null; S.inbox = [];
+    const cap = A.mmPeople(); A.mmAccept({amt: .01, who: 'A'}); A.mmAccept({amt: .01, who: 'B'}); for (const x of A.mmList()) { x.val = cap * .9; x.hwm = cap * .9; } S.mm.aum = S.mm.hwm = cap * 1.8; /* the money grew to 1.8× what the team can run */
+    info.mm = {cap, n: A.mmList().length};
+    S.week = 13 * Math.ceil((S.week + 1) / 13); A.mmQuarter(); const L1 = A.mmList(); out.capWarnFirst = L1.every(x => x.out == null) && S.mm.capWarn === 1;
+    S.week += 13; A.mmQuarter(); const xo = A.mmList().find(x => x.out != null); if (!xo) return {out: Object.assign(out, {capNotice: false}), info}; out.capNotice = !!xo && xo.why === 'cap' && xo.outAmt < xo.val && Math.abs(xo.outAmt - (S.mm.aum - A.mmPeople() * 1.2)) < 1e-6;
+    const aum0 = S.mm.aum, amtOut = xo && xo.outAmt; S.week = xo.out; A.mmQuarter(); out.capPartial = A.mmList().length === 2 && Math.abs(S.mm.aum - (aum0 - amtOut)) < 1e-6;
+    { const y = A.mmList()[0]; y.out = S.week + 13; delete y.why; A.trSet(Array(60).fill(.0005)); S.week += 13; A.mmQuarter(); out.perfRecovers = A.mmList().length === 2 && A.mmList().every(x => x.out == null || x.why === 'cap'); } /* +2.6% a year is enough to stay */
+    /* 8: save to a file and continue from it */
+    let dl = 0; const origClick = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download) dl++; };
+    A.saveToFile(); HTMLAnchorElement.prototype.click = origClick; out.fileSave = dl === 1;
+    const wk = S.week, file = new File([A.exportText()], 'atlas.json', {type: 'application/json'}); A.newGame(5603, 'normal', 'T', 't', 'std', true); A.loadFromFile(file); await new Promise(r => setTimeout(r, 300)); out.fileLoad = A.S.week === wk && A.S.company === '甲社';
+    A.ui.scen = 'std'; A.showStart(true); out.startFile = !!$('#modal #savefile'); A.closeModal();
+    /* 9: round mission targets */
+    S = std(5604); S.player.cash = 70.0273; S.missions = []; let ok9 = true; for (let i = 0; i < 30; i++) { S.missions = []; const g = A.genMission ? null : null; }
+    for (let i = 0; i < 12; i++) { S.missions = []; A.S.misSeq = (A.S.misSeq || 1); const mm = (A.fillMissions && (A.fillMissions(), A.S.missions)) || []; for (const x of mm) if (x.kind === 'nw' || x.kind === 'divs') { const t = x.target, mag = Math.pow(10, Math.floor(Math.log10(t))); if (Math.abs(t / (mag / 2) - Math.round(t / (mag / 2))) > 1e-9) ok9 = false; } A.step(); }
+    out.missions = ok9 && A.niceUp(70.0273) === 75 && A.niceUp(7.002733339) === 7.5;
+    return {out, info};
+  });
+  const fails = Object.entries(r.out).filter(([, v]) => v !== true && typeof v !== 'string').map(([k]) => k);
+  ok('feedback 2: MBO pay-outs in cash and ledger, proposal changes in the news, no tipster, officers named by country, account label, managed-money notices, file save/load, round missions', !fails.length, JSON.stringify(fails) + ' ' + JSON.stringify(r.info));
+  ok('no page errors in feedback 2 tests', errs.length === 0, errs.join(' | '));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -2471,6 +2528,7 @@ async function balance(b) {
     await testRev12(b);
     await testRev13(b);
     await testFeedback14(b);
+    await testFeedback15(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
