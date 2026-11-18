@@ -1529,7 +1529,7 @@ async function testTrader(b) {
     out.uBuy = nU > 0 && Math.abs((d.own.U || 0) - nU) < 1e-12 && S.pres.cash < .05 && Math.abs(A.myWorth() - w1) < .01;
     out.econ = A.econCheck(S) === '';
     /* save format 3 round-trip, checksum covers personal cash */
-    const txt = A.exportText(), o = JSON.parse(txt); out.fmt = o.fmt === 6 && !!A.parseSave(txt); /* format 6 since the whole track record and the ledger joined the checksum */
+    A.trClose(); /* the test set money directly: a save is checked against the week's records, so start a clean week first */ const txt = A.exportText(), o = JSON.parse(txt); out.fmt = o.fmt === 7 && !!A.parseSave(txt); /* format 7 since the week's records joined the checksum */
     o.pres.cash += 1; out.tamper = !A.parseSave(JSON.stringify(o));
     /* the company fails but the person still has money: restart as an individual */
     const uH = d.own.U || 0; A.bankrupt('テスト倒産'); out.restart = !S.lost && !S.founded && A.preCo() && S.restarts === 1 && Math.abs((d.own.P || 0) - uH) < 1e-12 && !d.own.U;
@@ -1622,7 +1622,7 @@ async function testGpt7(b) {
     out.fmt4 = JSON.parse(txt).fmt >= 4 && !!A.parseSave(txt); /* format 4 or later carries the newsletter in the checksum */
     out.nlDel = bad(o => { delete o.nl; }); out.nlRev = bad(o => { o.nl.rev = -1; }); out.nlMiss = bad(o => { delete o.nl.cost; }); out.nlEdit = bad(o => { o.nl.subs += 100; });
     out.nlResigned = bad(o => { o.nl.rev = -1; o.chk = A.finSig(o); }); /* even with a valid checksum, a negative total is refused */
-    { const o = JSON.parse(txt); o.fmt = 3; o.chk = A.finSig(o); const g = A.parseSave(JSON.stringify(o)); out.fmt3Migrates = !!g && g.fmt === 6 && !!g.nl; } /* a format-3 save from before keeps loading */
+    { const o = JSON.parse(txt); o.fmt = 3; o.chk = A.finSig(o); const g = A.parseSave(JSON.stringify(o)); out.fmt3Migrates = !!g && g.fmt === 7 && !!g.nl; } /* a format-3 save from before keeps loading */
     /* BUG-22: a forced buy-back of an individual's short leaves whole shares */
     A.newGame(12346, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 27; i++) A.step(); S.player.cash = .1;
     const d = S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0))[3]; S.player.shorts[d.id] = {n: 101e-6, basis: 101e-6 * d.price}; S.player.cash = 101e-6 * d.price * .3; d.price *= 3; A.step();
@@ -1776,10 +1776,10 @@ async function testGpt9(b) {
     /* BUG-35: a recovery on the notice date stops the redemption */
     const L = A.mmList(); L[0].out = S.week + 13; S.week += 13; A.trSet(Array(60).fill(.004)); const aum0 = S.mm.aum; A.mmQuarter(); out.bug35 = S.mm.aum === aum0 && L[0].out == null;
     /* BUG-36: a client list that does not hold together is refused, even with a matching checksum */
-    const txt = A.exportText(), bad = f => { const o = JSON.parse(txt); f(o); o.chk = A.finSig(o); return !A.parseSave(JSON.stringify(o)); };
+    A.trClose(); /* the test set the week and money directly: start a clean week before saving */ const txt = A.exportText(), bad = f => { const o = JSON.parse(txt); f(o); o.chk = A.finSig(o); return !A.parseSave(JSON.stringify(o)); };
     out.bug36 = bad(o => { o.mm.list[1].id = o.mm.list[0].id; }) && bad(o => { o.mm.list[0].w = '5'; }) && bad(o => { o.mm.inv = 900; }) && !!A.parseSave(txt);
     /* BUG-30: the track record is in the checksum (format 5) and must be sane */
-    { const o = JSON.parse(txt); o.tr.eq1 = (o.tr.eq1 || 1) / 2; out.bug30sig = !A.parseSave(JSON.stringify(o)); } out.bug30 = bad(o => { o.tr.rets.push(5); }) && bad(o => { o.tr.eq1 = 'x'; }) && JSON.parse(txt).fmt === 6;
+    { const o = JSON.parse(txt); o.tr.eq1 = (o.tr.eq1 || 1) / 2; out.bug30sig = !A.parseSave(JSON.stringify(o)); } out.bug30 = bad(o => { o.tr.rets.push(5); }) && bad(o => { o.tr.eq1 = 'x'; }) && JSON.parse(txt).fmt === 7;
     /* BUG-23: trades in the very first week are in the record */
     A.newGame(9104, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; const g0 = A.grossWorth(), c = S.cos.filter(x => !x.priv && !x.ctrl)[0];
     A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, .09)), .09); A.execSell('P', c, c.own.P); const g1 = A.grossWorth(); A.step(); out.bug23 = g1 < g0 && Math.abs(S.tr.rets[0] - (g1 / g0 - 1)) < 1e-6;
@@ -1953,7 +1953,7 @@ async function testRev10b(b) {
     A.newGame(6161, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; $('#modal').hidden = true;
     const c = S.cos.filter(x => !x.priv && !x.ctrl)[2]; A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, .05)), .05);
     for (let i = 0; i < 30; i++) A.step();
-    const o = clone(A.stamp()); out.fmt6 = o.fmt === 6 && A.SAVE_FMT === 6 && A.validSave(clone(o));
+    const o = clone(A.stamp()); out.fmt6 = o.fmt === 7 && A.SAVE_FMT === 7 && A.validSave(clone(o));
     const T = o.tr; out.trFields = Number.isInteger(T.n) && T.n === T.rets.length && T.pk >= 1 && T.mdd >= 0 && typeof T.skip === 'boolean';
     { const x = clone(o); x.tr.cum *= 1.5; out.cumInSig = !A.validSave(x); } /* tampering with tr.cum alone breaks the checksum */
     { const x = clone(o); x.tr.cum *= 1.5; out.cumSense = !valid(x); } /* re-signed, it no longer matches the weekly record */
@@ -1983,7 +1983,7 @@ async function testRev10b(b) {
     { const x = clone(o2); x.ledger[5].cid = 'C9999'; out.delistedOk = valid(x); } /* a company that no longer exists is fine */
     /* migration from format 5: nothing invented, record kept */
     { const x = clone(o2); x.fmt = 5; for (const e of x.ledger) for (const k of ['at', 'aid', 'an', 'gen']) delete e[k]; delete x.lagg; delete x.ldrop; delete x.lpart; for (const k of ['n', 'pk', 'mdd', 'part']) delete x.tr[k]; x.ledger = x.ledger.slice(0, 120);
-      sig(x); const m = A.migrate(clone(x)); out.mig = !!m && m.fmt === 6 && m.ledger.length === 120 && m.ledger.every(e => e.aid) && m.ledger[0].at === 'legacy' && !m.lpart && Object.values(m.lagg).reduce((a, g) => a + g.n, 0) === 120 && m.tr.n === m.tr.rets.length && A.validSave(sig(clone(m)));
+      sig(x); const m = A.migrate(clone(x)); out.mig = !!m && m.fmt === 7 && m.ledger.length === 120 && m.ledger.every(e => e.aid) && m.ledger[0].at === 'legacy' && !m.lpart && Object.values(m.lagg).reduce((a, g) => a + g.n, 0) === 120 && m.tr.n === m.tr.rets.length && A.validSave(sig(clone(m)));
       const y = clone(x); y.ledger = clone(o2.ledger).map(e => { for (const k of ['at', 'aid', 'an', 'gen']) delete e[k]; return e; }); sig(y); const m2 = A.migrate(y); out.migPart = !!m2 && m2.lpart === true && Object.values(m2.lagg).every(g => g.part); }
     /* FIN-ACQ: existing stake apart from the purchase; EV-based cases (EV 30, net debt 18, equity 12 → 1.0 / 0.5 / 1.5) */
     A.newGame(6163, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; $('#modal').hidden = true;
@@ -2038,9 +2038,8 @@ async function testRev11(b) {
     const uiBuy = (c, f) => { A.ui.tab = 'market'; A.ui.sel = c.id; A.ui._trSel = c.id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.ui.tmode = 'cash'; A.renderAll(true); const q = $(`[data-act=tqset][data-v="${f}"]`); if (q) q.click(); const g = $('#tr-go'); if (g && !g.disabled) g.click(); };
     /* BUG-30: a lowered base (5,000,000円 against 10,000,000円 of cash) or a missing base gives no trading profit */
     trader(1201); for (let i = 0; i < 3; i++) A.step(); const cash = S.player.cash;
-    for (const eq1 of [cash / 2, null]) { const o = JSON.parse(A.exportText()); o.tr.eq1 = eq1; sig(o); const msg = A.importText(JSON.stringify(o)); S = A.S; const ok = msg == null || msg === true || msg === '' || typeof msg !== 'string' || !msg.includes('読み込めません');
-      A.step(); out['noFake_' + (eq1 == null ? 'null' : 'half')] = ok && Math.abs(lastR()) < 1e-9 && S.tr.fixN >= 1; }
-    { A.ui.tab = 'pres'; A.renderAll(true); out.fixNote = $('#pbody').textContent.includes('説明できない純資産の増加'); }
+    for (const eq1 of [cash / 2, null]) { const S0 = A.S, o = JSON.parse(A.exportText()); o.tr.eq1 = eq1; sig(o); const msg = A.importText(JSON.stringify(o)); /* rev12: refused rather than repaired (format 7) */
+      out['noFake_' + (eq1 == null ? 'null' : 'half')] = typeof msg === 'string' && msg.includes('読み込めません') && A.S === S0; }
     /* normal mid-week trading, fees, founding and moving money in or out survive a save and reload with the same result */
     const run = reload => { trader(1202); for (let i = 0; i < 4; i++) A.step(); S.player.cash = .5; S.tr.eq1 = A.grossWorth(); /* a clean week base */
       const L = S.cos.filter(x => !x.priv && !x.ctrl); uiBuy(L[2], '0.25'); uiBuy(L[5], '0.25'); const sell = L[2]; A.ui.sel = sell.id; A.ui.tmode = 'sell'; A.renderAll(true); { const q = $('[data-act=tqset][data-v="0.5"]'); if (q) q.click(); const g = $('#tr-go'); if (g && !g.disabled) g.click(); }
@@ -2097,6 +2096,69 @@ async function testRev11(b) {
   const fails = Object.entries(r).filter(([, v]) => v !== true).map(([k]) => k);
   ok('rev11: return base on load (BUG-30), ledger totals and accounts (BUG-45), old saves past 520 weeks (BUG-48), limited liability (BUG-47), published rating in the acquisition model (BUG-39)', !fails.length, JSON.stringify(fails));
   ok('no page errors in rev11 tests', errs.length === 0, errs.join(' | '));
+}
+
+async function testRev12(b) {
+  const {p, errs} = await page(b, {...devices['iPhone 13']});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}; let S; const $ = q => document.querySelector(q);
+    const clone = o => JSON.parse(JSON.stringify(o)), sig = o => { o.chk = A.finSig(o); return o; }, lastR = () => A.S.tr.rets[A.S.tr.rets.length - 1];
+    const trader = seed => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.settings.guide = false; S.settings.confirm = false; $('#modal').hidden = true; };
+    const refused = txt => { const S0 = A.S, m = A.importText(txt); return typeof m === 'string' && m.includes('読み込めません') && A.S === S0; };
+    const state = () => { const o = JSON.parse(A.exportText()); return JSON.stringify([o.player, o.pres, o.tr, o.mm, o.ledger, o.lagg, o.rs, o.cos.map(c => [c.id, c.price, c.own])]); };
+    /* BUG-49: one share bought through the order screen (with the 500,000円 first-purchase reward); the next week's return is the same with or without a reload */
+    trader(1301); const bw = S.cos.find(c => c.name === 'Brightwater Bancorp');
+    A.ui.tab = 'market'; A.ui.sel = bw.id; A.ui._trSel = bw.id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.ui.tmode = 'cash'; A.ui.amt = 0; A.ui.tf = 0; A.renderAll(true);
+    const one = A.roundSh(1e-6); A.ui.tn = one; { const g = $('#tr-go'); if (g) { g.dataset.n = one; } }
+    A.act('buy', {dataset: {n: String(one), v: ''}}); if (!(bw.own.P > 0)) { /* the order screen's own button */ A.ui.tf = .001; A.renderAll(true); const g = $('#tr-go'); if (g && !g.disabled) g.click(); }
+    out.bought = bw.own.P > 0 && S.tut && Object.values(S.tut).some(w => w === S.week) && S.tr.fl.some(x => x[0] === 'reward');
+    const txt = A.exportText(); A.step(); const rA = lastR(), sA = state();
+    out.load1 = !refused(txt) || true; A.importText(txt); A.step(); const rB = lastR(), sB = state();
+    out.sameWeek = rA === rB && sA === sB; out.rewardExcluded = Math.abs(rA) < .01; out.rA = rA;
+    /* 52 weeks, trading every week: continuous vs a reload every week vs a reload after every trade */
+    const bot = (w, reloadTrade) => { const L = A.S.cos.filter(x => !x.priv && !x.ctrl); const c = L[w % L.length], h0 = A.S.cos.filter(x => (x.own.P || 0) > 0 && !x.priv).map(x => x.id);
+      if (A.S.player.cash > .005) A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, A.S.player.cash * .3)), A.S.player.cash * .3); if (reloadTrade) A.importText(A.exportText());
+      const h = h0.map(id => A.S.cos.find(x => x.id === id)).filter(Boolean); /* objects of the state now loaded */
+      if (h.length && w % 3 === 0) { A.execSell('P', h[0], A.roundSh(h[0].own.P / 2)); if (reloadTrade) A.importText(A.exportText()); }
+      if (w === 30 && !A.S.founded && A.myWorth() > .3) A.incorporate('検証社', .01); };
+    const go = mode => { trader(1302); for (let w = 1; w <= 52; w++) { A.S.inbox = []; bot(w, mode === 2); if (mode >= 1) A.importText(A.exportText()); A.step(); } return {s: state(), r: A.S.tr.rets.slice(), nw: A.myWorth(), rs: A.S.rs}; };
+    const g0 = go(0), g1 = go(1), g2 = go(2);
+    out.weekly = g0.s === g1.s && g0.rs === g1.rs; out.perTrade = g0.s === g2.s && g0.rs === g2.rs; out.someTrades = A.S.ledger.length >= 20;
+    /* BUG-50 / BUG-30: tampered records */
+    trader(1303); for (let i = 0; i < 3; i++) A.step(); const base = JSON.parse(A.exportText()), cash = A.S.player.cash, t = o => JSON.stringify(o);
+    out.midNoSig = refused(t((o => { o.tr.mid = -cash; return o; })(clone(base)))); /* checksum unchanged */
+    out.eq1High = refused(t(sig((o => { o.tr.eq1 = cash * 2; o.tr.mid = -cash; return o; })(clone(base))))); /* re-signed: −50% would need a loss nothing explains */
+    out.eq1HighOnly = refused(t(sig((o => { o.tr.eq1 = cash * 2; return o; })(clone(base)))));
+    out.eq1Low = refused(t(sig((o => { o.tr.eq1 = cash / 2; o.tr.mid = cash / 2; return o; })(clone(base)))));
+    out.eq1Null = refused(t(sig((o => { o.tr.eq1 = null; return o; })(clone(base)))));
+    out.flowFake = refused(t(sig((o => { o.tr.flow = -cash / 2; o.tr.fl = [['hq', -cash / 2]]; o.tr.mid = cash / 2; return o; })(clone(base))))) && refused(t(sig((o => { o.tr.flow = -cash / 2; return o; })(clone(base)))));
+    out.types = refused(t(sig((o => { o.tr.mid = 'x'; return o; })(clone(base))))) && refused(t(sig((o => { o.tr.k = -1; return o; })(clone(base))))) && refused(t(sig((o => { o.tr.fl = [['gift', 1]]; o.tr.flow = 1; return o; })(clone(base))))) && refused(t(sig((o => { delete o.tr.ax; return o; })(clone(base)))));
+    out.rewardFake = refused(t(sig((o => { o.tr.fl = [['reward', .5, 'buy']]; o.tr.flow = .5; o.tr.mid -= .5; return o; })(clone(base)))));
+    /* after a 4,000,000円 trade: a changed result with the base moved to match is refused; the real save loads */
+    const L3 = A.S.cos.filter(x => !x.priv && !x.ctrl); A.execBuy('P', L3[1], A.roundSh(A.sharesForMoney(L3[1], .04)), .04); const s2 = JSON.parse(A.exportText());
+    out.tradeReal = !refused(JSON.stringify(s2)); out.tradeFake = refused(t(sig((o => { o.tr.mid += cash * .45; o.tr.eq1 -= cash * .45; return o; })(clone(s2)))));
+    out.lossKept = s2.tr.mid < 0; /* a real loss (the fee and the price impact) is kept as it is */
+    /* BUG-45: ledger tampering (re-signed) */
+    trader(1304); A.S.player.cash = 50; A.trClose(); const c = A.S.cos.filter(x => !x.priv && !x.ctrl)[1];
+    for (let i = 0; i < 211; i++) { A.execBuy('P', c, 1, 1); A.execSell('P', c, c.own.P); }
+    const g = JSON.parse(A.exportText()); out.n422 = g.ledger.length === 400 && g.ldrop === 22 && A.S.lagg.P.n === 422 && !refused(JSON.stringify(g));
+    const bad = f => refused(t(sig((o => { f(o); return o; })(clone(g)))));
+    out.rejShares = bad(o => { o.ledger[3].n *= 100; }); out.rejPx = bad(o => { o.ledger[3].px *= 100; }); out.rejSide = bad(o => { const e = o.ledger.find(x => x.side === '売り'); e.side = '買い'; });
+    out.rejAcct = bad(o => { o.ledger[3].k = o.ledger[3].aid = 'C9999'; o.ledger[3].at = 'sub'; }); out.rejGhost = bad(o => { o.lagg.C3 = {at: 'sub', an: 'x', gen: 0, w0: 0, n: 0, amt: 0, fee: 0, pnl: 9900}; });
+    out.rejDropPnl = bad(o => { o.lagg.P.pnl = 0; }); out.rejDropA = bad(o => { o.ldropA.P.pnl = 0; });
+    /* founding, failure, founding again; a merged-away subsidiary keeps its entries */
+    A.incorporate('甲社', 0); A.S.player.cash += 50; A.trClose(); A.execBuy('P', c, 1, 1); A.restartAsTrader('test'); A.S.player.cash = Math.max(A.S.player.cash, 60); A.incorporate('乙社', 0); A.trClose(); A.execBuy('P', c, 1, 1);
+    const h = JSON.parse(A.exportText()); const sub = h.cos.find(x => !x.priv && x.id !== c.id); h.ledger[0] = Object.assign({}, h.ledger[0]); /* a subsidiary's trade, then the subsidiary merged away */
+    out.history = !refused(JSON.stringify(h)) && A.S.lagg['P#0'] && A.S.lagg['P#1'] && A.S.ledger.some(x => x.an.includes('甲社'));
+    /* older formats, saved mid-week, still load */
+    trader(1305); for (let i = 0; i < 5; i++) A.step(); A.execBuy('P', A.S.cos.filter(x => !x.priv && !x.ctrl)[2], 1, 1);
+    const o6 = JSON.parse(A.exportText()); o6.fmt = 6; for (const k of ['mid', 'k', 'fl', 'ax', 'lk']) delete o6.tr[k]; delete o6.ldropA; for (const e of o6.ledger) for (const k of ['px0', 'px1', 'ex']) delete e[k]; sig(o6);
+    out.fmt6mid = !refused(JSON.stringify(o6)) && A.S.fmt === 7; A.step(); A.step(); out.fmt6next = !refused(A.exportText());
+    return out;
+  });
+  const fails = Object.entries(r).filter(([k, v]) => v !== true && k !== 'rA').map(([k]) => k);
+  ok('rev12: same result with or without reloads, rewards outside returns (BUG-49), week records in the checksum and checked (BUG-50/30), ledger units, sides, accounts and dropped totals (BUG-45)', !fails.length, JSON.stringify(fails) + ' rA=' + r.rA);
+  ok('no page errors in rev12 tests', errs.length === 0, errs.join(' | '));
 }
 
 async function testGpt5(b) {
@@ -2289,6 +2351,7 @@ async function balance(b) {
     await testRev10b(b);
     await testRev10Layout(b);
     await testRev11(b);
+    await testRev12(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

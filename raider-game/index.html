@@ -788,7 +788,7 @@ function newGame(seed, diff, company, pname, scen, allU){
   for (const c of S.cos) c.hist = c.hist.slice(-8);
   mkInit(); hrInit(); for (const c of S.cos) hrEnsure(c); poolStep(); pubInit();
   recordNW(); fillMissions();
-  S.tr = S.tr || {rets: [], w0: 0, mc: 0, mcW: null, eq1: null, flow: 0, cum: 1, skip: false, n: 0, pk: 1, mdd: 0}; S.ledger = S.ledger || []; S.lagg = S.lagg || {}; S.ldrop = S.ldrop || 0; S.tr.eq1 = grossWorth(); S.tr.flow = 0; /* BUG-23: the first week is measured from the starting money, so trades before it count */
+  S.tr = S.tr || {rets: [], w0: 0, mc: 0, mcW: null, eq1: null, flow: 0, cum: 1, skip: false, n: 0, pk: 1, mdd: 0}; S.ledger = S.ledger || []; S.lagg = S.lagg || {}; S.ldrop = S.ldrop || 0; S.ldropA = S.ldropA || {}; S.tr.eq1 = grossWorth(); S.tr.flow = 0; S.tr.fl = []; S.tr.ax = []; S.tr.mid = 0; S.tr.k = 0; /* BUG-23: the first week is measured from the starting money, so trades before it count */
   news(`${S.company}設立（社長：${S.pname}・難易度：${D.n}・シナリオ：${SCEN[S.scen].n}）。アトラス証券取引所へようこそ。元手${fm(S.player.cash)}で${S.scen === 'trader' ? '個人トレーダーとして始め、' : ''}世界の企業を買い集め、純資産100,000,000,000円を目指せ。`, 'you');
 }
 
@@ -962,16 +962,16 @@ function execShort(c, n){
   const pos = S.player.shorts[c.id] || {n: 0, basis: 0};
   n = Math.min(n, c.shares * shortCap() - pos.n); const q = quoteSell(c, n); if (!q) return null;
   const proceeds = q.avg * q.n * .9975;
-  S.player.cash += proceeds; pos.n += q.n; pos.basis += proceeds; S.player.shorts[c.id] = pos; c.price = q.mp;
-  ledgerAdd('P', c, '空売り', q.n, q.avg, proceeds, q.avg * q.n * .0025, null);
+  const p0 = c.price; S.player.cash += proceeds; pos.n += q.n; pos.basis += proceeds; S.player.shorts[c.id] = pos; c.price = q.mp;
+  ledgerAdd('P', c, '空売り', q.n, q.avg, proceeds, q.avg * q.n * .0025, null, p0);
   return {n: q.n, proceeds};
 }
 function execCover(c, n){ // buy back from the market; thin float means a squeeze
   const pos = S.player.shorts[c.id]; if (!pos) return null; n = Math.min(n, pos.n); if (n <= 1e-9) return null;
   const np = c.price * (1 + 1.1 * n / liq(c)), cost = (c.price + np) / 2 * n * 1.0025;
   const basis = pos.basis * n / pos.n; playerPay(cost); pos.basis *= 1 - n / pos.n; pos.n -= n; if (pos.n < 1e-7) delete S.player.shorts[c.id];
-  ledgerAdd('P', c, '買い戻し', n, (c.price + np) / 2, cost, (c.price + np) / 2 * n * .0025, basis - cost);
-  c.price = c.price + (np - c.price) * IMPACT_KEEP;
+  const le = ledgerAdd('P', c, '買い戻し', n, (c.price + np) / 2, cost, (c.price + np) / 2 * n * .0025, basis - cost, c.price);
+  c.price = c.price + (np - c.price) * IMPACT_KEEP; ledgerFin(c, le);
   return {n, cost};
 }
 let LTAG = ''; /* why the next trades happen when it is not your own order (forced sale, squeeze); reset each week and each action */
@@ -983,11 +983,15 @@ function ledgerAcct(k){ /* BUG-43: which account traded, fixed when the trade is
 }
 const LSIDES = ['買い', '売り', '空売り', '買い戻し'];
 function laggAdd(a, x){ const g = S.lagg[a.aid] = S.lagg[a.aid] || {at: a.at, an: a.an, gen: a.gen, w0: x.w, n: 0, amt: 0, fee: 0, pnl: 0}; g.an = a.an; g.n++; g.amt += x.amt; g.fee += x.fee; g.pnl += x.pnl || 0; } /* BUG-42: all-time totals, kept beyond the 400-entry list */
-function ledgerAdd(k, c, side, n, px, amt, fee, pnl){ /* one executed trade of yours or your group's (no PRNG; the list keeps the last 400, the totals keep everything) */
-  if (!S || !(bossOf(k) === 'P' || k === 'U')) return; S.ledger = S.ledger || []; S.lagg = S.lagg || {}; if (S.ledgerW0 == null) S.ledgerW0 = S.week;
-  const a = ledgerAcct(k), x = Object.assign({w: S.week, cid: c.id, name: c.name, side, k, n, px, amt, fee, pnl: pnl == null ? null : pnl, why: LTAG || ''}, a);
-  S.ledger.unshift(x); if (S.ledger.length > 400) { S.ledger.length = 400; S.ldrop = (S.ldrop || 0) + 1; } laggAdd(a, x);
+function ledgerAdd(k, c, side, n, px, amt, fee, pnl, p0){ /* one executed trade of yours or your group's (no PRNG; the list keeps the last 400, the totals keep everything) */
+  if (!S || !(bossOf(k) === 'P' || k === 'U')) return null; S.ledger = S.ledger || []; S.lagg = S.lagg || {}; S.ldropA = S.ldropA || {}; if (S.ledgerW0 == null) S.ledgerW0 = S.week;
+  const a = ledgerAcct(k), x = Object.assign({w: S.week, cid: c.id, name: c.name, side, k, n, px, amt, fee, pnl: pnl == null ? null : pnl, why: LTAG || '', px0: p0, px1: c.price, ex: 0}, a);
+  S.ledger.unshift(x); laggAdd(a, x); ledgerFin(c, x);
+  while (S.ledger.length > 400) { const o = S.ledger.pop(); S.ldrop = (S.ldrop || 0) + 1; const d = S.ldropA[o.aid] = S.ldropA[o.aid] || {n: 0, amt: 0, fee: 0, pnl: 0}; d.n++; d.amt += o.amt; d.fee += o.fee; d.pnl += o.pnl || 0; if (o.w === S.week && o.at !== 'pers' && S.tr) S.tr.dI = (S.tr.dI || 0) + ledgerI(o) + o.fee; } /* BUG-45: what leaves the list is summed per account (and this week's trades still count when a save is checked) */
+  return x;
 }
+const ledgerI = x => finite(x.px0) ? Math.abs(x.px1 - x.px0) * x.ex + x.n * Math.abs(x.px - x.px1) : x.amt; /* how far one trade can move your net worth beyond its fee */
+function ledgerFin(c, x){ if (!x) return; /* only the entry of this very trade (another investor's trade in the same stock is not yours) */ x.px1 = c.price; x.ex = groupSh(c, 'P') + x.n + ((S.player.shorts[c.id] || {}).n || 0); } /* the price after the trade and the shares exposed to its move */
 const lAcctName = x => x.an ? x.an + (x.at === 'co' && x.gen !== (S.coGen || 0) ? '（以前の会社）' : '') : x.k === 'P' ? (S.scen === 'trader' ? '本体または個人口座（旧形式の記録）' : '本体') : x.k === 'U' ? '個人' : (coById(x.k) || {name: '子会社'}).name;
 function snapshotFracs(c){ const o = {}; for (const k in c.own) o[k] = c.own[k] / c.shares; return o; }
 function buyRoom(k, c){ const boss = bossOf(k) || k; return Math.max(0, ownCap(c, boss) * c.shares - groupSh(c, boss)); }
@@ -1004,7 +1008,7 @@ function execBuy(k, c, n, maxCost){ /* maxCost: the most this purchase may cost 
   if (bossOf(k) === 'P') markInsider(c);
   const before = snapshotFracs(c), cost = q.avg * q.n * 1.0025;
   debit(k, cost); addCost(k, c.id, cost);
-  c.own[k] = (c.own[k] || 0) + q.n; c.price = q.mp; ledgerAdd(k, c, '買い', q.n, q.avg, cost, q.avg * q.n * .0025, null);
+  const p0 = c.price; c.own[k] = (c.own[k] || 0) + q.n; c.price = q.mp; ledgerAdd(k, c, '買い', q.n, q.avg, cost, q.avg * q.n * .0025, null, p0);
   afterOwn(c, before);
   return {n: q.n, cost};
 }
@@ -1012,11 +1016,11 @@ function execSell(k, c, n){
   if (!finite(n)) return null; /* not a finite number: change nothing */
   n = Math.min(n, c.own[k] || 0); const q = quoteSell(c, n); if (!q) return null;
   const before = snapshotFracs(c), proceeds = q.avg * q.n * .9975, held = c.own[k] || 0, basis = held > 0 ? costOf(k, c.id) * q.n / held : 0;
-  cutCost(k, c, q.n); ledgerAdd(k, c, '売り', q.n, q.avg, proceeds, q.avg * q.n * .0025, proceeds - basis);
+  cutCost(k, c, q.n); const le = ledgerAdd(k, c, '売り', q.n, q.avg, proceeds, q.avg * q.n * .0025, proceeds - basis, c.price);
   credit(k, proceeds); if (c.pe && k === c.pe.owner) peFlow(c, proceeds);
   c.own[k] -= q.n; if (c.own[k] < 1e-7) delete c.own[k];
   if (c.pe && k === c.pe.owner && !c.own[k]) peClose(c, c.priv ? '売却' : 'IPO後に売却完了');
-  c.price = q.mp;
+  c.price = q.mp; ledgerFin(c, le);
   afterOwn(c, before);
   return {n: q.n, proceeds};
 }
@@ -2593,7 +2597,7 @@ function foundBrand(){ const ci = BRAND_COL.indexOf(S.color); return {col: ui.fc
 function incorporate(name, keep, brand){ /* the whole trading account (shares, loans, positions) goes into the company as an in-kind contribution; you keep the cash you choose */
   if (!preCo() || myWorth() < FOUND_MIN - 1e-9) return false;
   keep = clamp(+keep || 0, 0, Math.max(0, S.player.cash - FOUND_FEE)); if (grossWorth() - keep - FOUND_FEE < CAP_MIN - 1e-9) return false;
-  S.player.cash -= FOUND_FEE + keep; S.pres.cash += keep; if (S.tr) S.tr.flow = (S.tr.flow || 0) - FOUND_FEE - keep; /* moving money to yourself and the fee are not trading losses */ S.founded = true; S.foundW = S.week; S.company = (name || '').trim().slice(0, 20) || S.coName || DEF_CO;
+  S.player.cash -= FOUND_FEE + keep; S.pres.cash += keep; if (S.tr) trFlow('found', -FOUND_FEE - keep); /* moving money to yourself and the fee are not trading losses */ S.founded = true; S.foundW = S.week; S.company = (name || '').trim().slice(0, 20) || S.coName || DEF_CO;
   if (brand && BRAND_COL[brand.col] && LOGOS[brand.logo] != null) { S.color = BRAND_COL[brand.col]; S.logo = brand.logo; applyBrand(); }
   hqInit(); fillMissions(); news(`【会社設立】${S.company}を設立。口座の株と借入はすべて会社へ現物出資し、手元に${fm(keep)}を残しました（設立費${fm(FOUND_FEE)}）。あなたが株式の100%を持ちます`, 'you');
   celebrate(true); return true;
@@ -2714,12 +2718,21 @@ function recordCheck(){ /* a loaded game must give a finite net worth; NaN left 
   for (const f of ((S.pe && S.pe.funds) || [])) for (const k of ['lp', 'gp', 'calledLP', 'calledGP']) if (!finite(f[k])) f[k] = 0;
   if (!finite(netWorth('P'))) throw new Error('net worth is not finite');
 }
-const trVolW = () => (S.ledger || []).filter(x => x.w === S.week && x.at !== 'pers').reduce((a, x) => a + x.amt, 0); /* this week's traded amount */
-function trRepair(){ /* BUG-30: on loading, the base of this week's return must explain today's net worth. A gain that your recorded actions cannot explain is not counted as a trading profit (never invented); losses are kept */
-  const T = S.tr; if (!T) return; const gw = grossWorth(), f = finite(T.flow) ? T.flow : 0;
-  if (!finite(T.mid)) T.mid = 0; T.mid = Math.min(T.mid, 2 * trVolW()); /* your own trades cannot have earned more than twice what you traded this week */
-  if (T.eq1 == null) { T.eq1 = gw - f - T.mid; T.fixN = (T.fixN || 0) + 1; return; } /* no base: this week starts from the loaded value */
-  const res = gw - T.eq1 - f - T.mid; if (res > 1e-6 * Math.max(1, Math.abs(gw))) { T.eq1 += res; T.fix = (T.fix || 0) + res; T.fixN = (T.fixN || 0) + 1; }
+function trBaseCheck(fmt){ /* BUG-30/50 (format 7, run on the loaded state): never changes anything */
+  const T = S.tr; if (!T || (fmt || 0) < 7 || T.lk === T.k) return ''; /* older formats: nothing to compare against until the next weekly close */
+  const gw = grossWorth(), tol = 1e-6 * Math.max(1, Math.abs(gw), Math.abs(T.eq1));
+  if (Math.abs(gw - T.eq1 - T.flow - T.mid) > tol) return '運用実績の基準額・資金移動・損益が今の純資産と合わない';
+  const seen = new Set(); for (const x of T.fl) if (x[0] === 'reward') { const st = STEPS.find(s => s[0] === x[2]); if (!st || S.tut[x[2]] !== S.week || seen.has(x[2]) || Math.abs(x[1] - st[3] * stepScale()) > 1e-9) return '報酬の記録が不正'; seen.add(x[2]); }
+  let I = 0, F = 0; for (const x of S.ledger || []) { if (x.w !== S.week) break; if (x.at === 'pers') continue; F += x.fee; I += ledgerI(x); } /* a trade can move your net worth by its fee plus the price move on the shares exposed */
+  const X = T.ax.reduce((a, x) => a + Math.abs(x[1]), 0), B = 1.5 * (I + (T.dI || 0)) + F + X + tol;
+  if (Math.abs(T.mid) > B) return '今週の運用損益が記録された取引・操作で説明できない';
+  return '';
+}
+function trRepair(){ /* BUG-49: a valid save loads unchanged. Only what older formats did not record is filled in, from the loaded state (this week's result then counts from the loaded value) */
+  const T = S.tr; if (!T) return; const gw = grossWorth();
+  if (!Array.isArray(T.fl)) T.fl = finite(T.flow) && T.flow ? [['legacy', T.flow]] : []; if (!Array.isArray(T.ax)) T.ax = []; if (!finite(T.flow)) T.flow = 0;
+  if (T.eq1 == null) T.eq1 = gw - T.flow;
+  if (!finite(T.mid)) T.mid = gw - T.eq1 - T.flow;
 }
 function repairSave(){
   for (const c of S.cos) {
@@ -2800,7 +2813,7 @@ const stepScale = () => isTrader() ? .005 : 1; /* the beginner steps pay about 5
 function stepCheck(){
   S.tut = S.tut || {};
   if (S.tut._m) { delete S.tut._m; for (const [id, , , , fn] of STEPS) if (fn()) S.tut[id] = S.week; return; } // older saves: record silently, no rewards
-  for (const [id, n, , reward0, fn] of STEPS) if (S.tut[id] == null && fn()) { const reward = reward0 * stepScale(); S.tut[id] = S.week; S.player.cash += reward; news(`【はじめの一歩】「${n}」を達成。報酬${fm(reward)}`, 'you'); toast(`はじめの一歩：${n}（報酬 ${fm(reward)}）`); celebrate(); }
+  for (const [id, n, , reward0, fn] of STEPS) if (S.tut[id] == null && fn()) { const reward = reward0 * stepScale(); S.tut[id] = S.week; S.player.cash += reward; trFlow('reward', reward, id); /* BUG-49: a beginner's reward is not an investment return */ news(`【はじめの一歩】「${n}」を達成。報酬${fm(reward)}`, 'you'); toast(`はじめの一歩：${n}（報酬 ${fm(reward)}）`); celebrate(); }
 }
 
 /* ---------- endless goals after the first win (Phase 5) ---------- */
@@ -3589,7 +3602,7 @@ function propOffer(p, f){ // f: share of the asking price offered
 
 const PL_ITEMS = [['div', '受取配当'], ['rent', '不動産の賃料（ローン利息控除後）'], ['fee', 'ファンドの管理報酬・成功報酬'], ['nl', '投資レポート事業（会費−費用）'], ['int', '信用借入の利息・貸株料'], ['hq', '本社経費（幹部・オフィス・スタッフ・ファンド運営）'], ['rd', '研究開発'], ['pay', '役員報酬（社長）'], ['fine', '罰金・課徴金'], ['tax', '法人税等']];
 function plCur(){ if (!S.player.pl) S.player.pl = plOpenRec(); return S.player.pl; }
-function plAdd(k, v){ if (!S || !v) return; if (S.tr && TR_FLOW[k]) S.tr.flow = (S.tr.flow || 0) + v; plCur(); for (const key of ['pl', 'plW', 'plY']) { if (!S.player[key]) S.player[key] = plOpenRec(); S.player[key][k] = (S.player[key][k] || 0) + v; } } // the holding company's income and costs (week, quarter, year)
+function plAdd(k, v){ if (!S || !v) return; if (S.tr && TR_FLOW[k]) trFlow(k, v); plCur(); for (const key of ['pl', 'plW', 'plY']) { if (!S.player[key]) S.player[key] = plOpenRec(); S.player[key][k] = (S.player[key][k] || 0) + v; } } // the holding company's income and costs (week, quarter, year)
 function plClose(){ plCloseKey('pl', 'plHist', 8); }
 function offsetLoan(){ const p = S.player, a = Math.min(Math.max(0, p.cash), p.loan); if (a > 0) { p.cash -= a; p.loan -= a; } } // cash in the margin account pays the loan down automatically
 function playerWeekly(){
@@ -3670,6 +3683,9 @@ function recordNW(){
 }
 const MM_INV = ['地元の資産家', '開業医のグループ', 'ファミリーオフィス', '年金基金の小口枠', '海外の富裕層', '大学の基金', '元経営者の個人投資家'];
 const TR_FLOW = {nl: 1, fee: 1, fine: 1, hq: 1, odiv: 1, pay: 1, raise: 1, rd: 1, tax: 1}; /* income and costs that are not investment results */
+const FL_T = Object.assign({found: 1, reward: 1, legacy: 1}, TR_FLOW); /* BUG-49/30: rewards and founding are money moved in or out, not investment results */
+function trAx(a, d){ const X = S.tr.ax = S.tr.ax || []; X.push([String(a), d]); if (X.length > 200) { const s = X.splice(0, X.length - 199).reduce((u, x) => u + Math.abs(x[1]), 0); X.unshift(['*', s]); } } /* kept short: older entries are summed (their size still counts) */
+function trFlow(type, amt, id){ if (!S.tr || !finite(amt) || !amt) return; S.tr.flow = (S.tr.flow || 0) + amt; (S.tr.fl = S.tr.fl || []).push(id != null ? [type, amt, id] : [type, amt]); }
 /* the research newsletter: a business that is not money management. Members pay 5,000円 a month for your analysis; they come for a good record and leave after a bad one (no PRNG) */
 const NL_FEE = .0006, NL_START = .02, NL_WEEKS = 26; /* 60,000円 a year per member; 2,000,000円 to launch; 26 weeks of record first */
 function nlCap(){ /* how many members you can serve: one person alone, or a team */
@@ -3695,7 +3711,7 @@ function nlBox(){
     <p class="note">会員は空き枠×集客力で毎週増え、毎週0.6%が解約します（直近1年がマイナスだと解約が増えます）。${preCo() ? '会社を作ると会員の上限を大きくできます（費用率は30%に）。' : '投資部・法務部・IR部を強くし、オフィスを広げると上限が増えます。'}</p></section>`;
 }
 function trSnap(){ return {eq: S.tr && finite(S.tr.eq1) ? S.tr.eq1 : grossWorth()}; } /* from where the last week ended: trades, fees and price impact between weeks are part of this week's result */
-function trClose(){ if (S.tr) { S.tr.eq1 = grossWorth(); S.tr.flow = 0; S.tr.mid = 0; S.tr.k = (S.tr.k || 0) + 1; S.tr.skip = false; } } /* the end of a week: the base for the next one */
+function trClose(){ if (S.tr) { S.tr.eq1 = grossWorth(); S.tr.flow = 0; S.tr.fl = []; S.tr.ax = []; S.tr.dI = 0; S.tr.mid = 0; S.tr.k = (S.tr.k || 0) + 1; S.tr.skip = false; } } /* the end of a week: the base for the next one (eq1 = net worth of the trading account: cash, shares, options, property, ventures and fund stakes, less margin, bank debt and short positions) */
 function trStep(s){ /* the week's trading return: price moves on the account's positions plus dividends, over its equity (no PRNG) */
   S.tr = S.tr || {rets: [], w0: S.week - 1, mc: 0, mcW: null, eq1: null, flow: 0, cum: 1, skip: false, n: 0, pk: 1, mdd: 0};
   if (S.tr.skip) { S.tr.skip = false; return; } /* the account changed hands this week (company failed): no return is recorded */
@@ -3831,13 +3847,14 @@ function save(){ // returns true when the game was written; warns once if storag
 function saveSoon(){ if (ui.sim) return; clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); }
 function backupSave(){ try { const cur = localStorage.getItem(SAVE_KEY); if (cur && parseSave(cur)) { localStorage.setItem(BAK_KEY, cur); return true; } return false; } catch (e) { return false; } } /* a backup is only ever a save that loads */
 const finite = v => typeof v === 'number' && isFinite(v);
-const SAVE_FMT = 6; /* 2: debts and contracts are always present; 3: the personal account (cash, shares' cost, managed money) is part of the checksum; 4: so is the research newsletter; 5: the track record; 6: the whole track record and the trade ledger with its all-time totals. Older saves are migrated once; current ones must be complete */
+const SAVE_FMT = 7; /* 7: the week's flows, actions and investment result, and the ledger's dropped totals and prices (BUG-50/45). 2: debts and contracts are always present; 3: the personal account (cash, shares' cost, managed money) is part of the checksum; 4: so is the research newsletter; 5: the track record; 6: the whole track record and the trade ledger with its all-time totals. Older saves are migrated once; current ones must be complete */
 const finSig = o => { const p = o.player, base = [p.cash, p.loan, p.bank, p.tl, p.shorts, p.opts, (o.vc && o.vc.hold) || null];
   const b3 = (o.fmt || 0) >= 3 ? base.concat([o.pres ? o.pres.cash : null, (o.pres && o.pres.cost) || null, o.mm || null, !!o.founded]) : base;
   const b4 = (o.fmt || 0) >= 4 ? b3.concat([o.nl || null]) : b3;
   const b5 = (o.fmt || 0) >= 5 ? b4.concat([o.tr ? [o.tr.eq1 == null ? null : o.tr.eq1, o.tr.flow || 0, o.tr.rets, o.tr.mc || 0, o.tr.mcW == null ? null : o.tr.mcW] : null]) : b4;
-  return hashStr(JSON.stringify((o.fmt || 0) >= 6 ? b5.concat([o.tr ? [o.tr.cum, o.tr.skip, o.tr.n, o.tr.pk, o.tr.mdd, !!o.tr.part] : null, o.ledger || null, o.lagg || null, o.ledgerW0 == null ? null : o.ledgerW0, o.ldrop == null ? null : o.ldrop, !!o.lpart]) : b5)); }; /* 5: the track record too: it decides what investors offer */ /* a checksum of the player's money and contracts */
-function stamp(){ S.chk = finSig(S); return S; } /* written into every save and export */
+  const b6x = (o.fmt || 0) >= 7 ? [o.tr ? [o.tr.mid, o.tr.k, o.tr.fl, o.tr.ax, o.tr.fix == null ? null : o.tr.fix, o.tr.fixN == null ? null : o.tr.fixN, o.tr.lk == null ? null : o.tr.lk, o.tr.dI || 0] : null, o.ldropA || null] : [];
+  return hashStr(JSON.stringify((o.fmt || 0) >= 6 ? b5.concat([o.tr ? [o.tr.cum, o.tr.skip, o.tr.n, o.tr.pk, o.tr.mdd, !!o.tr.part] : null, o.ledger || null, o.lagg || null, o.ledgerW0 == null ? null : o.ledgerW0, o.ldrop == null ? null : o.ldrop, !!o.lpart], b6x) : b5)); }; /* 5: the track record too: it decides what investors offer */ /* a checksum of the player's money and contracts */
+function stamp(){ if (S.tr && finite(S.tr.eq1)) S.tr.mid = grossWorth() - S.tr.eq1 - (S.tr.flow || 0); S.chk = finSig(S); return S; } /* written into every save and export. tr.mid: this week's investment result so far (net worth − base − money moved) */
 function fmtCheck(o){ /* a current-format save must still hold every debt and contract it was written with */
   const p = o.player;
   if ((o.fmt || 0) >= 3 && !(o.pres && finite(o.pres.cash))) return '個人の口座の記録がない';
@@ -3852,10 +3869,16 @@ function fmtCheck(o){ /* a current-format save must still hold every debt and co
     if (!Array.isArray(o.ledger) || !o.lagg || typeof o.lagg !== 'object' || Array.isArray(o.lagg) || !Number.isInteger(o.ldrop)) return '取引履歴の記録がない';
     if (o.ledger.some(x => !x.aid)) return '取引履歴の名義の記録がない';
   }
+  if ((o.fmt || 0) >= 7) { const T = o.tr; /* BUG-50: the week's records are required and typed */
+    const old = T.lk === T.k; /* the week a save was carried over from an older format: what it did not record is filled in on loading */
+    if (!(finite(T.mid) || (old && T.mid === null)) || !Number.isInteger(T.k) || T.k < 0 || !Array.isArray(T.fl) || !Array.isArray(T.ax) || !(finite(T.eq1) || (old && T.eq1 === null))) return '運用実績の週の記録がない';
+    if (!o.ldropA || typeof o.ldropA !== 'object' || Array.isArray(o.ldropA)) return '削除した取引の集計がない';
+  }
   return '';
 }
 const ACCT_T = ['indiv', 'co', 'pers', 'sub', 'legacy'];
 const acctOk = x => x.at === 'indiv' ? x.aid === 'P' && x.k === 'P' : x.at === 'co' ? x.aid === 'P#' + x.gen && x.k === 'P' : x.at === 'pers' ? x.aid === 'U' && x.k === 'U' : x.at === 'legacy' ? x.aid === 'P?' && x.k === 'P' : x.at === 'sub' && x.aid === x.k && x.k !== 'P' && x.k !== 'U'; /* BUG-45: an individual's trade is never booked to a company (P and P#0 differ) */
+const subIdOk = (o, id) => /^C\d+$/.test(id) && +id.slice(1) < (o.nextId || Infinity); /* a company of this game (one sold or merged since keeps its entries) */
 const FEE_R = .0025; /* every trade pays 0.25%: the amount is the gross ± the fee */
 function ledgerCheck(o){ /* BUG-45: every entry is a real trade (delisted companies are fine: the entry keeps its name) */
   const L = o.ledger; if (L == null) return ''; const wk = o.week, gmax = o.coGen || 0;
@@ -3865,7 +3888,14 @@ function ledgerCheck(o){ /* BUG-45: every entry is a real trade (delisted compan
     if (!x || typeof x !== 'object' || !Number.isInteger(x.w) || x.w < 0 || x.w > wk || (o.ledgerW0 != null && x.w < o.ledgerW0)) return '取引履歴の日付が不正';
     if (!LSIDES.includes(x.side) || typeof x.k !== 'string' || typeof x.cid !== 'string' || typeof x.name !== 'string') return '取引履歴の種類が不正';
     if (!(finite(x.n) && x.n > 0 && finite(x.px) && x.px > 0 && finite(x.amt) && x.amt >= 0 && finite(x.fee) && x.fee >= 0 && (x.pnl === null || x.pnl === undefined || finite(x.pnl)))) return '取引履歴の数量・金額が不正';
-    if (x.aid != null && !(ACCT_T.includes(x.at) && typeof x.aid === 'string' && typeof x.an === 'string' && Number.isInteger(x.gen) && x.gen >= 0 && x.gen <= gmax && acctOk(x))) return '取引履歴の名義が不正';
+    { const g = x.n * x.px, buy = x.side === '買い' || x.side === '買い戻し', near = (u, v) => Math.abs(u - v) <= 1e-9 * Math.max(1e-9, Math.abs(v)); /* BUG-45: shares × price, the fee and the amount agree, in the direction of the trade */
+      if (!near(x.fee, g * FEE_R) || !near(x.amt, g * (buy ? 1 + FEE_R : 1 - FEE_R))) return '取引履歴の数量・単価・金額・手数料が合わない';
+      const closes = x.side === '売り' || x.side === '買い戻し'; if (closes !== finite(x.pnl)) return '取引履歴の実現損益の有無が売買の種類と合わない';
+      if (x.side === '売り' && x.pnl > x.amt * (1 + 1e-9)) return '売却益が売却代金を超える'; if (x.side === '買い戻し' && x.pnl < -x.amt * (1 + 1e-9)) return '買い戻しの損失が代金を超える';
+      if (x.px0 != null) { const up = x.px1 - x.px0; if (!(finite(x.px0) && x.px0 > 0 && finite(x.px1) && x.px1 > 0 && finite(x.ex) && x.ex >= x.n * (1 - 1e-9))) return '取引履歴の価格の記録が不正';
+        if (buy ? up < -1e-12 : up > 1e-12) return '取引の方向と価格の動きが合わない';
+        if (Math.abs(x.px - (x.px0 + up / (2 * IMPACT_KEEP))) > 1e-9 * x.px0) return '約定単価が値動きと合わない'; } }
+    if (x.aid != null && !(ACCT_T.includes(x.at) && typeof x.aid === 'string' && typeof x.an === 'string' && Number.isInteger(x.gen) && x.gen >= 0 && x.gen <= gmax && acctOk(x) && (x.at !== 'sub' || subIdOk(o, x.aid)))) return '取引履歴の名義が不正';
   }
   for (let i = 1; i < L.length; i++) if (L[i].w > L[i - 1].w) return '取引履歴の順序が不正';
   if (o.lagg != null) {
@@ -3878,12 +3908,18 @@ function ledgerCheck(o){ /* BUG-45: every entry is a real trade (delisted compan
     let dropN = 0;
     for (const a in by) { const g = o.lagg[a]; if (!g || g.n < by[a].n) return '取引の累計が履歴より少ない ' + a; if (g.at !== by[a].at) return '取引の累計の名義の種類が履歴と違う ' + a; }
     for (const a in o.lagg) { const g = o.lagg[a], b = by[a] || {n: 0, amt: 0, fee: 0, pnl: 0}, d = {n: g.n - b.n, amt: g.amt - b.amt, fee: g.fee - b.fee}; /* d: the trades dropped from the list */
-      if (g.at === 'co' && a !== 'P#' + g.gen || g.at === 'indiv' && a !== 'P' || g.at === 'pers' && a !== 'U' || g.at === 'legacy' && a !== 'P?') return '取引の累計の名義が不正 ' + a;
+      if (g.at === 'co' && a !== 'P#' + g.gen || g.at === 'indiv' && a !== 'P' || g.at === 'pers' && a !== 'U' || g.at === 'legacy' && a !== 'P?' || g.at === 'sub' && !subIdOk(o, a)) return '取引の累計の名義が不正 ' + a;
+      if (g.n === 0 && (g.amt || g.fee || g.pnl)) return '取引のない名義に損益がある ' + a;
+      if (Math.abs(g.pnl) > g.amt * (1 + 1e-9) + 1e-12) return '累計の実現損益が取引代金を超える ' + a;
+      if (o.ldropA) { const q = o.ldropA[a] || {n: 0, amt: 0, fee: 0, pnl: 0}; /* BUG-45: list + what left the list = the totals, for every account */
+        if (!(Number.isInteger(q.n) && q.n >= 0 && finite(q.amt) && q.amt >= 0 && finite(q.fee) && q.fee >= 0 && finite(q.pnl) && Math.abs(q.pnl) <= q.amt * (1 + 1e-9) + 1e-12) || (q.n === 0 && (q.amt || q.fee || q.pnl))) return '削除した取引の集計が不正 ' + a;
+        if (g.n !== b.n + q.n || Math.abs(g.amt - b.amt - q.amt) > tol(g.amt) || Math.abs(g.fee - b.fee - q.fee) > tol(g.fee) || Math.abs(g.pnl - b.pnl - q.pnl) > tol(g.amt)) return '取引の累計が履歴と削除分の合計と合わない ' + a; }
       if (d.amt < -tol(g.amt) || d.fee < -tol(g.fee)) return '取引の累計が履歴より少ない ' + a;
       if (d.n > 0 && !(d.amt > 0 && d.fee > 0)) return '削除した取引の金額・手数料がない ' + a;
       if (Math.abs(d.amt - d.fee / FEE_R) > d.fee + tol(g.amt) + tol(g.fee / FEE_R)) return '取引の累計の金額と手数料が合わない ' + a;
       dropN += d.n; }
     if (o.ldrop != null && dropN !== o.ldrop) return '削除した取引の件数が累計と合わない';
+    if (o.ldropA) for (const a in o.ldropA) if (!o.lagg[a]) return '削除した取引の名義が累計にない ' + a;
     if (o.ldrop === 0 && !o.lpart) { const near = (u, v) => Math.abs(u - v) <= 1e-6 * Math.max(1, Math.abs(u), Math.abs(v)); /* nothing was ever dropped: the totals must equal the list */
       for (const a in o.lagg) { const g = o.lagg[a], b = by[a] || {n: 0, amt: 0, fee: 0, pnl: 0}; if (g.n !== b.n || !near(g.amt, b.amt) || !near(g.fee, b.fee) || !near(g.pnl, b.pnl)) return '取引の累計が履歴と合わない ' + a; } }
   }
@@ -3895,6 +3931,9 @@ function trCheck(o){ /* BUG-30: the track record must be possible (not that it e
   if (T.mc != null && !(Number.isInteger(T.mc) && T.mc >= 0)) return '追証の回数が不正';
   if (T.mcW != null && !(Number.isInteger(T.mcW) && T.mcW <= o.week)) return '追証の日付が不正';
   if (T.skip != null && typeof T.skip !== 'boolean') return '運用実績の記録が不正';
+  if (T.fl != null && !(Array.isArray(T.fl) && T.fl.length <= 2000 && T.fl.every(x => Array.isArray(x) && FL_T[x[0]] && finite(x[1]) && (x[0] !== 'legacy' || T.lk === T.k) && (x[0] !== 'reward' || (x[1] > 0 && typeof x[2] === 'string'))) && Math.abs(T.fl.reduce((a, x) => a + x[1], 0) - (T.flow || 0)) <= 1e-6 * Math.max(1, Math.abs(T.flow || 0)))) return '運用実績の資金移動の記録が不正';
+  if (T.dI != null && !(finite(T.dI) && T.dI >= 0)) return '運用実績の削除した取引の記録が不正';
+  if (T.ax != null && !(Array.isArray(T.ax) && T.ax.length <= 200 && T.ax.every(x => Array.isArray(x) && typeof x[0] === 'string' && finite(x[1])))) return '運用実績の操作の記録が不正';
   if ((T.mid != null && !finite(T.mid)) || (T.k != null && !(Number.isInteger(T.k) && T.k >= 0)) || (T.fix != null && !(finite(T.fix) && T.fix >= 0)) || (T.fixN != null && !(Number.isInteger(T.fixN) && T.fixN >= 0))) return '運用実績の週の途中の記録が不正';
   if (T.n != null) {
     if (!(Number.isInteger(T.n) && T.n >= T.rets.length && finite(T.pk) && finite(T.mdd) && T.mdd >= 0 && T.mdd < 1 && finite(T.cum))) return '運用実績の全期間の記録が不正';
@@ -3953,11 +3992,16 @@ function migrate6(o){ /* format 6: whole-period track record and ledger totals f
   for (const e of o.ledger) if (!e.aid) Object.assign(e, e.k === 'U' ? {at: 'pers', aid: 'U', an: '個人', gen} : e.k === 'P' ? (o.scen === 'trader' ? {at: 'legacy', aid: 'P?', an: '本体または個人口座（旧形式の記録）', gen: 0} : {at: 'co', aid: 'P#0', an: `本体（${o.company || DEF_CO}）`, gen: 0}) : {at: 'sub', aid: e.k, an: co(e.k) || '子会社', gen: 0});
   for (const e of o.ledger.slice().reverse()) { const g = o.lagg[e.aid] = o.lagg[e.aid] || {at: e.at, an: e.an, gen: e.gen, w0: e.w, n: 0, amt: 0, fee: 0, pnl: 0, part: o.lpart}; g.n++; g.amt += e.amt; g.fee += e.fee; g.pnl += e.pnl || 0; }
 }
+function migrate7(o){ /* format 7: the week's records start empty; what this week already holds is accepted as it is until the next weekly close (it cannot be checked) */
+  const T = o.tr; T.k = Number.isInteger(T.k) ? T.k : 0; T.lk = T.k; T.fl = finite(T.flow) && T.flow ? [['legacy', T.flow]] : []; T.ax = []; T.mid = null;
+  o.ldropA = {}; const rem = {}; for (const e of o.ledger) { const b = rem[e.aid] = rem[e.aid] || {n: 0, amt: 0, fee: 0, pnl: 0}; b.n++; b.amt += e.amt; b.fee += e.fee; b.pnl += e.pnl || 0; }
+  for (const a in o.lagg) { const g = o.lagg[a], b = rem[a] || {n: 0, amt: 0, fee: 0, pnl: 0}; if (g.n > b.n) o.ldropA[a] = {n: g.n - b.n, amt: Math.max(0, g.amt - b.amt), fee: Math.max(0, g.fee - b.fee), pnl: g.pnl - b.pnl, part: true}; } /* from the totals as they were saved (not rebuilt from guesses) */
+}
 function migrate(o){ // brings any older v1 save up to the current shape without discarding data
   if (!validSave(o)) return null;
   const legacy = (o.fmt || 0) < 2; /* only saves from before format 2 may have these filled in; a current save missing them was refused above */
   if (legacy) { const p = o.player; if (p.bank == null) p.bank = 0; if (!Array.isArray(p.tl)) p.tl = []; }
-  if ((o.fmt || 0) < SAVE_FMT) { if (o.pres && !o.pres.cost) o.pres.cost = {}; if ((o.fmt || 0) < 6) migrate6(o); o.fmt = SAVE_FMT; } /* checked under its own format above; from here on stamped as format 3 */
+  if ((o.fmt || 0) < SAVE_FMT) { if (o.pres && !o.pres.cost) o.pres.cost = {}; if ((o.fmt || 0) < 6) migrate6(o); if ((o.fmt || 0) < 7) migrate7(o); o.fmt = SAVE_FMT; } /* checked under its own format above; from here on stamped as format 3 */
   /* lists that may be missing are rebuilt empty (history and messages only; nothing that holds money) */
   for (const k of ['news', 'inbox', 'tips', 'reports', 'missions']) if (!Array.isArray(o[k])) o[k] = [];
   if (!o.player.cost || typeof o.player.cost !== 'object') { o.player.cost = {}; for (const c of o.cos) if (c.own.P > 0) o.player.cost[c.id] = c.own.P * c.price; } /* lost cost basis: today's value, so no fake gain appears */
@@ -3970,11 +4014,11 @@ function migrate(o){ // brings any older v1 save up to the current shape without
 }
 let trialErr = ''; /* why the last save was refused (for support and tests) */
 function trialLoad(o){ /* a save is accepted only if it opens, draws every tab and plays two weeks on a copy (nothing is kept) */
-  const S0 = S, u0 = Object.assign({}, ui);
-  try { S = JSON.parse(JSON.stringify(o)); ui.sim = true; if (!S.mk) mkInit(); repairSave(); hqInit(); hrReady(); recordCheck(); tasks();
+  const S0 = S, u0 = Object.assign({}, ui), L0 = LTAG;
+  try { S = JSON.parse(JSON.stringify(o)); ui.sim = true; if (!S.mk) mkInit(); repairSave(); hqInit(); hrReady(); { const e = trBaseCheck(o.fmt); if (e) throw new Error(e); } recordCheck(); tasks();
     const P = panels(); for (const k in P) { ui.tab = k; P[k](); } for (let i = 0; i < 2; i++) step(); recordCheck(); const e = econCheck(S); if (e) throw new Error(e); for (const k in P) { ui.tab = k; P[k](); } return true; }
   catch (e) { trialErr = String(e && e.stack || e).slice(0, 400); return false; }
-  finally { S = S0; for (const k of Object.keys(ui)) if (!(k in u0)) delete ui[k]; Object.assign(ui, u0); ui.sim = false; }
+  finally { S = S0; GS = null; LTAG = L0; for (const k of Object.keys(ui)) if (!(k in u0)) delete ui[k]; Object.assign(ui, u0); ui.sim = false; } /* BUG-49: the trial leaves nothing behind (the group cache and the forced-sale tag are global) */
 }
 function parseSave(text){ try { const o = migrate(JSON.parse(text)); return o && trialLoad(o) ? o : null; } catch (e) { return null; } }
 function loadSave(){
@@ -5434,7 +5478,7 @@ function tapMap(px, py){
    ===================================================================== */
 const NEED = {tender: 'tob', activist: 'activist', proxy: 'proxy', negotiate: 'neg', short: 'short', buyopt: 'options', divsell: 'divest', spinoff: 'divest', holdipo: 'holdipo', research: 'research', tmode: 'tob', pbuy: 'realty', pebid: 'pe', pedd: 'pe', pepriv: 'privatize'};
 function act(a, el){ const m = !ui.sim && S && S.tr ? {S0: S, k: S.tr.k || 0, g: grossWorth(), f: S.tr.flow || 0} : null;
-  try { return act0(a, el); } finally { if (m && S === m.S0 && S.tr && (S.tr.k || 0) === m.k) S.tr.mid = (S.tr.mid || 0) + (grossWorth() - m.g) - ((S.tr.flow || 0) - m.f); /* BUG-30: your own actions' effect on net worth this week (trades, fees, price impact), apart from money moved in or out */
+  try { return act0(a, el); } finally { if (m && S === m.S0 && S.tr && (S.tr.k || 0) === m.k) { const d = (grossWorth() - m.g) - ((S.tr.flow || 0) - m.f); if (Math.abs(d) > 1e-9) trAx(a, d); } /* BUG-30: every action that changed net worth this week (trades, options, deals, events), for checking a save */
     if (!ui.sim && S) save(); } } /* saved at once, whichever way the action returns */
 function act0(a, el){ LTAG = '';
   if (NEED[a] && !has(NEED[a])) return;
@@ -6111,10 +6155,10 @@ function pvSnap(cid){
 }
 function showPreview(a, el){
   const cid = el.dataset.id && coById(el.dataset.id) ? el.dataset.id : ui.sel, c0 = cid && coById(cid), before = pvSnap(cid);
-  const S0 = S, u0 = Object.assign({}, ui); let after = null;
+  const S0 = S, u0 = Object.assign({}, ui), L0 = LTAG; let after = null;
   try { S = JSON.parse(JSON.stringify(S0)); ui.sim = true; act(a, el); after = pvSnap(cid); }
   catch (e) { after = null; }
-  finally { S = S0; for (const k of Object.keys(ui)) if (!(k in u0)) delete ui[k]; Object.assign(ui, u0); ui.sim = false; }
+  finally { S = S0; GS = null; LTAG = L0; for (const k of Object.keys(ui)) if (!(k in u0)) delete ui[k]; Object.assign(ui, u0); ui.sim = false; } /* the preview leaves nothing behind */
   renderAll(true);
   const same = after && Math.abs(after.nw - before.nw) < 1e-9 && Math.abs(after.cash - before.cash) < 1e-9 && (!before.c || (after.c && Math.abs(after.c.cash - before.c.cash) < 1e-9 && Math.abs(after.c.gf - before.c.gf) < 1e-9));
   const row = (l, b, x, f) => `<tr><td>${l}</td><td>${b == null ? '—' : f(b)}</td><td>${x == null ? '—' : f(x)}</td><td class="${x != null && b != null ? (x - b > 1e-9 ? 'up' : x - b < -1e-9 ? 'down' : '') : ''}">${x != null && b != null && Math.abs(x - b) > 1e-9 ? (x > b ? '+' : '−') + f(Math.abs(x - b)) : ''}</td></tr>`;
@@ -6273,7 +6317,7 @@ function boot(){
   showStart();
   if (ui.restored) { save(); toast('セーブデータが壊れていたため、バックアップから復元しました（壊れたデータは別に保管しています）', true); } /* the backup slot is left as it was */
 }
-window.__atlas = {get S(){ return S; }, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, incorporate, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, isCheap, bankBorrow, bankRepay, bankLimit, showBank, showIPO, UW, peTransfer, peBuySecondary, marketFor, hrStep, peIPO, routeStep, ROUTES, hasR, DIFF, ddCost, lboOK, fundsOf, costOf, pmiStep, exitInfo, SAVE_FMT, fmtCheck, fm, has, traderView, roadList, myWorth, worthOf, preCo, isTrader, foundCompany, restartAsTrader, trStats, mmCap, mmAccept, mmOk, mmRoom, foundBrand, pubNi, trSet, acqModel, ledgerAcct, trCheck, ledgerCheck, migrate6, pubSnap, pubVal, pubInit, showStart, showCompare, showWhy, closeModal, repCheap, SCR, marginRate, yoyTxt, stepScale, execShort, sharesForShort, shortLiab, stepCheck, takeLoan, pe100, peReady, peExitBids, peExitStart, companyResidue, vcQuarter, opProfit, grpSyn, peScale, dealEbitda, aiCrisis, foundRange, corpEvents, repOf, repFair, mmList, mmRedeem, finSig, trClose, corpTax, mmQuarter, nlStart, nlStep, nlCap, nlAppeal, stageFor, stageNW, makeGrowthCo, bankLimit, launchTob, tobPrice, activeTob, ctrlP, indivName, checkStage, mmPeople, mmDrag, mmLiq, buyOption, mmWeek, trStep, mmQuarter, roundSh, wholeSh, trWeeks, presWealth, rewScale, roadNext, ROAD, deptOn, stepSlide, peDesk, tradeModel, TMODES, sharesForShort, execShort, takeLoan, bankBorrow, finSig, stamp, exportText, bsaleBase, playerCrisisAuto, RIVAL_CAP, quoteBuy, shortLiab, act, renderAll, econCheck, nwMkt, shortRoom, loadSave, backupSave, boot, migrate, get trialErr(){ return trialErr; }, holdingsMkt, trialLoad, parseSave, tradeFunds, vcRound, divIncomeY, maybeIPO, qnews, fairEst, estAcc, ctrlPx, bankrupt, settleOne, optionsStep, validSave, parseSave, importText, repayMort, liquidate, renderBank, ceoAmtOf, gradeTxt, takeLoan, loanOffers, payoffLoan, bankDebt, termDebt, bankStep, corpTax, newsQuarter, wlv, welfareCost, perShare, showExec, dlgStep, vcFind, vcTranches, presWealth, vcValue, showPortfolio, expoStep, showExpo, mktCards, applyBrand, logoSVG, grossWorth, isJP, niA, pitchMore, bankRate, advertise, trainExec, trainGain, bsaleBids, bsaleExec, bsaleStep, pitchStep, pitchDo, startIPO, quarter, ctrlRule, ownCap, dscr, dscrNeed, refiStep, econStep, macroGlut, debtInit, gradOffer, gradStep, deptEff, deptCost, gradJoinW, vcInvest, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, sharesForMoney, holdingsValue, callLine, playerWeekly, overdraftStep, coverOverdraft, setOffice, activeTob, tenderQuote, tobNeedPrice, resolveTobs, startIPO, ipoStep, needOf, staffNeed, vcQuarter, showVC, ui};
+window.__atlas = {get S(){ return S; }, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, incorporate, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, isCheap, bankBorrow, bankRepay, bankLimit, showBank, showIPO, UW, peTransfer, peBuySecondary, marketFor, hrStep, peIPO, routeStep, ROUTES, hasR, DIFF, ddCost, lboOK, fundsOf, costOf, pmiStep, exitInfo, SAVE_FMT, fmtCheck, fm, has, traderView, roadList, myWorth, worthOf, preCo, isTrader, foundCompany, restartAsTrader, trStats, mmCap, mmAccept, mmOk, mmRoom, foundBrand, pubNi, trSet, trBaseCheck, trFlow, migrate7, acqModel, ledgerAcct, trCheck, ledgerCheck, migrate6, pubSnap, pubVal, pubInit, showStart, showCompare, showWhy, closeModal, repCheap, SCR, marginRate, yoyTxt, stepScale, execShort, sharesForShort, shortLiab, stepCheck, takeLoan, pe100, peReady, peExitBids, peExitStart, companyResidue, vcQuarter, opProfit, grpSyn, peScale, dealEbitda, aiCrisis, foundRange, corpEvents, repOf, repFair, mmList, mmRedeem, finSig, trClose, corpTax, mmQuarter, nlStart, nlStep, nlCap, nlAppeal, stageFor, stageNW, makeGrowthCo, bankLimit, launchTob, tobPrice, activeTob, ctrlP, indivName, checkStage, mmPeople, mmDrag, mmLiq, buyOption, mmWeek, trStep, mmQuarter, roundSh, wholeSh, trWeeks, presWealth, rewScale, roadNext, ROAD, deptOn, stepSlide, peDesk, tradeModel, TMODES, sharesForShort, execShort, takeLoan, bankBorrow, finSig, stamp, exportText, bsaleBase, playerCrisisAuto, RIVAL_CAP, quoteBuy, shortLiab, act, renderAll, econCheck, nwMkt, shortRoom, loadSave, backupSave, boot, migrate, get trialErr(){ return trialErr; }, holdingsMkt, trialLoad, parseSave, tradeFunds, vcRound, divIncomeY, maybeIPO, qnews, fairEst, estAcc, ctrlPx, bankrupt, settleOne, optionsStep, validSave, parseSave, importText, repayMort, liquidate, renderBank, ceoAmtOf, gradeTxt, takeLoan, loanOffers, payoffLoan, bankDebt, termDebt, bankStep, corpTax, newsQuarter, wlv, welfareCost, perShare, showExec, dlgStep, vcFind, vcTranches, presWealth, vcValue, showPortfolio, expoStep, showExpo, mktCards, applyBrand, logoSVG, grossWorth, isJP, niA, pitchMore, bankRate, advertise, trainExec, trainGain, bsaleBids, bsaleExec, bsaleStep, pitchStep, pitchDo, startIPO, quarter, ctrlRule, ownCap, dscr, dscrNeed, refiStep, econStep, macroGlut, debtInit, gradOffer, gradStep, deptEff, deptCost, gradJoinW, vcInvest, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, sharesForMoney, holdingsValue, callLine, playerWeekly, overdraftStep, coverOverdraft, setOffice, activeTob, tenderQuote, tobNeedPrice, resolveTobs, startIPO, ipoStep, needOf, staffNeed, vcQuarter, showVC, ui};
 boot();
 })();
 </script>
