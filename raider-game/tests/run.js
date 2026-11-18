@@ -1544,7 +1544,7 @@ async function testTrader(b) {
     out.sellWhole = shown === 50 && Math.abs(e.own.P * 1e6 - 51) < 1e-6;
     A.ui.tf = 0; A.renderAll(true); document.querySelector('[data-act=tqs][data-v="10"]').click(); out.plus10 = Math.round(+document.querySelector('#tr-go').dataset.n * 1e6) === 10;
     /* BUG-23: an option that expires worthless shows as a loss in the record */
-    for (let i = 0; i < 27; i++) A.step(); const d2 = V.cos.filter(x => !x.priv && !x.ctrl && x !== e)[2], op = A.buyOption(d2, 'put', 2, V.player.cash * .9), n0 = V.tr.rets.length, g0 = A.grossWorth();
+    for (let i = 0; i < 27; i++) A.step(); const d2 = V.cos.filter(x => !x.priv && !x.ctrl && x !== e)[2], op = A.buyOption(d2, 'put', 2, V.player.cash * .9), n0 = V.tr.rets.length, g0 = V.tr.eq1; /* the record starts from last week's close, so the dealer's spread on the purchase is part of it */
     for (let i = 0; i < 4; i++) A.step(); const comp = V.tr.rets.slice(n0).reduce((a, x) => a * (1 + x), 1); /* every change in the account inside the weeks is in the record, options included */
     out.optLoss = !!op && V.player.opts.length === 0 && Math.abs(comp - A.grossWorth() / g0) < .02 && Math.abs(A.grossWorth() - g0) > .001;
     /* BUG-24: an old offer cannot push managed money past today's limit */
@@ -2230,6 +2230,54 @@ async function testRev13(b) {
   console.log('INFO  rev13 ' + JSON.stringify(r.info));
 }
 
+async function testFeedback14(b) {
+  const {p, errs} = await page(b, {...devices['iPhone 13']});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const $ = q => document.querySelector(q), txt = q => ($(q) || {textContent: ''}).textContent;
+    /* 1: officers in every company, by industry (no CMO/CTO where the industry has no use for one); nothing changes in the numbers */
+    A.newGame(5501, 'normal', 'T', 't', 'std', true); let S = A.S; S.won = S.lost = true; S.settings.confirm = false; $('#modal').hidden = true;
+    const need = {CFO: () => true, COO: () => true, CMO: i => ['tech', 'auto', 'retail', 'pharma', 'food', 'telecom', 'air', 'bank'].includes(i), CTO: i => ['tech', 'auto', 'pharma', 'telecom', 'energy'].includes(i)};
+    out.officers = S.cos.filter(c => !c.priv).every(c => c.ex && c.ex.CEO && Object.keys(need).every(r => !!c.ex[r] === need[r](c.ind)));
+    const bank = S.cos.find(c => c.ind === 'bank' && !c.priv), steel = S.cos.find(c => c.ind === 'steel' && !c.priv); out.byIndustry = !!bank.ex.CMO && !bank.ex.CTO && !steel.ex.CMO && !steel.ex.CTO;
+    { const x = S.cos.find(c => c.ex.CFO && !c.ctrl), m = [x.margin, x.base, x.fixed], cfo = x.ex.CFO; delete x.ex.CFO; A.hrEnsure(x); out.neutral = x.ex.CFO && x.ex.CFO !== cfo && x.margin === m[0] && x.base === m[1] && x.fixed === m[2]; } /* a new officer for a company you do not run changes none of its numbers */
+    A.ui.tab = 'market'; A.ui.sel = bank.id; A.ui.ctab = 'info'; A.renderAll(true); out.exCard = txt('#pbody').includes('経営陣') && txt('#pbody').includes('CFO');
+    /* 2: your holding's acquisition cost on the company page */
+    const c = S.cos.filter(x => !x.priv && !x.ctrl)[3]; A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, 2)), 2); A.ui.sel = c.id; A.renderAll(true);
+    out.cost = txt('#pbody').includes('あなたの保有') && txt('#pbody').includes('取得金額') && txt('#pbody').includes(A.fm(S.player.cost[c.id]));
+    /* 5: shorts in the holdings tab, right after your shares */
+    const d = S.cos.filter(x => !x.priv && !x.ctrl)[6]; A.execShort(d, A.roundSh(A.sharesForShort(d, 1))); A.ui.tab = 'port'; A.renderAll(true); const pb = txt('#pbody');
+    out.shorts = pb.includes('空売り 1') && pb.indexOf('空売り 1') < pb.indexOf('取引履歴') && pb.includes('平均売り単価');
+    A.ui.tab = 'market'; A.ui.sel = d.id; A.ui.ctab = 'info'; A.renderAll(true); out.shortOnPage = txt('#pbody').includes('空売り（');
+    /* 6/7/8: options are paid in cash (no margin call right after a max purchase), logged, and the payoff lands in cash */
+    A.newGame(5502, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; S.settings.confirm = false; $('#modal').hidden = true;
+    const o = S.cos.filter(x => !x.priv && !x.ctrl)[2]; A.ui.tab = 'market'; A.ui.sel = o.id; A.ui._trSel = o.id; A.ui.ctab = 'trade'; A.ui.actor = 'P'; A.ui.tmode = 'opt'; A.ui.oType = 'call'; A.ui.oWks = 4; A.ui.tf = 1; A.renderAll(true);
+    const loan0 = S.player.loan, cash0 = S.player.cash; const g = $('#tr-go'); if (g && !g.disabled) g.click();
+    info.opt = {bought: S.player.opts.length, loan: S.player.loan, cash: +S.player.cash.toFixed(3), cost: S.player.opts[0] && +S.player.opts[0].cost.toFixed(3)};
+    out.optCash = S.player.opts.length === 1 && S.player.loan === loan0 && S.player.cash >= -1e-9 && Math.abs(cash0 - S.player.cash - S.player.opts[0].cost) < 1e-9 && !A.marginNear();
+    out.optLogBuy = (S.optLog || [])[0] && S.optLog[0].kind === '購入';
+    o.price *= 1.5; const c1 = S.player.cash, v = A.closeOption(S.player.opts[0].id); out.optPayoff = v > 0 && Math.abs(S.player.cash - c1 - v) < 1e-9 && S.optLog[0].kind === '決済（売却）' && S.optLog[0].pnl > 0;
+    A.ui.tab = 'port'; A.ui.lgF = 'opt'; A.renderAll(true); out.optHistory = txt('#pbody').includes('オプション取引') && txt('#pbody').includes('決済（売却）'); A.ui.lgF = 'all';
+    { const o2 = S.cos.filter(x => !x.priv && !x.ctrl)[4]; A.S.player.cash = 5; const x = A.buyOption(o2, 'put', 2, 100); out.optNoMargin = !!x && S.player.cash >= -1e-9 && S.player.loan === loan0; }
+    /* 3: the tax note says what was taxed */
+    A.newGame(5503, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; $('#modal').hidden = true; const e = S.cos.filter(x => !x.priv && !x.ctrl && x.payout > 0)[0]; A.execBuy('P', e, A.roundSh(A.sharesForMoney(e, .05)), .05);
+    for (let i = 0; i < 26; i++) A.step(); const tx = S.news.find(n => n.t.includes('【納税】')); info.tax = tx && tx.t; out.tax = !!tx && !tx.t.includes('レポート事業') && tx.t.includes('受取配当の半分');
+    /* 4: a TOB by a peer on a stock you hold: tender, decline or counter, from the inbox */
+    A.newGame(5504, 'normal', 'T', 't', 'std', true); S = A.S; S.won = S.lost = true; S.settings.confirm = false; $('#modal').hidden = true;
+    const tg = S.cos.filter(x => !x.priv && !x.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[2], bidder = S.cos.filter(x => !x.priv && !x.ctrl && x !== tg).sort((u, w) => w.price * w.shares - u.price * u.shares)[0];
+    A.execBuy('P', tg, A.roundSh(tg.shares * .025)); const n0 = tg.own.P; A.launchTob(bidder.id, tg, tg.price * 1.41, .67);
+    const it = S.inbox.find(i => i.kind === 'tender' && i.cid === tg.id); out.tenderInbox = !!it;
+    A.ui.tab = 'inbox'; A.renderAll(true); const ib = txt('#pbody'); out.tenderButtons = ib.includes('応募する') && ib.includes('応募しない') && ib.includes('対抗TOBを検討');
+    const cb = $('#pbody [data-act=tobcounter]'); if (cb) cb.click(); out.counterOpens = A.ui.tab === 'market' && A.ui.sel === tg.id && A.ui.ctab === 'raid';
+    const btn = [...document.querySelectorAll('#pbody [data-act=inbox]')]; A.ui.tab = 'inbox'; A.renderAll(true); const acc = [...document.querySelectorAll('#pbody [data-act=inbox][data-v="1"]')].find(x => +x.dataset.id === it.id); const cash1 = S.player.cash; if (acc) acc.click();
+    out.tendered = !(tg.own.P > 0) && S.player.cash > cash1 + n0 * tg.price * 1.3; info.tob = {n0, cash: +(S.player.cash - cash1).toFixed(3)};
+    out.loads = !!A.parseSave(A.exportText());
+    return {out, info};
+  });
+  const fails = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('feedback: officers by industry, acquisition cost on the company page, tax note, TOB tender/counter from the inbox, shorts with your shares, cash-paid options with history and payoff', !fails.length, JSON.stringify(fails) + ' ' + JSON.stringify(r.info));
+  ok('no page errors in feedback tests', errs.length === 0, errs.join(' | '));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -2422,6 +2470,7 @@ async function balance(b) {
     await testRev11(b);
     await testRev12(b);
     await testRev13(b);
+    await testFeedback14(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
