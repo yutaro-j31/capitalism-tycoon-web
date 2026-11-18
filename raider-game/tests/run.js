@@ -2161,6 +2161,75 @@ async function testRev12(b) {
   ok('no page errors in rev12 tests', errs.length === 0, errs.join(' | '));
 }
 
+async function testRev13(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const $ = q => document.querySelector(q); let stage = 'start';
+    try {
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); A.save(); const ok2 = !!A.loadSave(); const S0 = A.S, m = A.importText(txt); const ok3 = !(typeof m === 'string' && m.includes('読み込めません')) && A.S !== S0; const e = A.econCheck(A.S); if (!(ok1 && ok2 && ok3 && e === '')) (info.fail = info.fail || []).push([ok1, ok2, ok3, e, A.trialErr.slice(0, 120)]); return ok1 && ok2 && ok3 && e === ''; };
+    const std = seed => { A.newGame(seed, 'normal', 'T', 't', 'std', true); A.S.won = A.S.lost = true; A.S.settings.confirm = false; $('#modal').hidden = true; };
+    const tobLoss = (k, c) => { if (!c) return {held: 0}; const px = c.price * 3, cash0 = A.S.player.cash; A.launchTob(k, c, px, .2, false); for (let i = 0; i < 5 && A.S.tobs.some(t => t.cid === c.id); i++) A.step();
+      const cost = A.S.player.cost[c.id] || 0, held = c.own[k] || 0; const res = A.execSell(k, c, held); const e = A.S.ledger[0]; return {cost, held, proceeds: res && res.proceeds, pnl: e && e.pnl, cb: e && e.cb, cashOk: Math.abs(A.S.player.cash - (cash0 - cost + (res ? res.proceeds : 0))) < .5}; };
+    stage = 'A:';
+    /* A: the 13th QA case — Huangpu Motor Works, TOB at +200% for 20%, sold at a large loss */
+    let a = {held: 0}, seedA = 0; for (let sd = 4242; sd < 4290 && !(a.held > 0); sd++) { std(sd); seedA = sd; a = tobLoss('P', A.S.cos.find(c => c.name === 'Huangpu Motor Works')); } /* some seeds end in a rival's white-knight merger instead */
+    info.A = {seed: seedA, cost: +a.cost.toFixed(2), proceeds: +(a.proceeds || 0).toFixed(2), pnl: +(a.pnl || 0).toFixed(2)};
+    out.A_trade = a.held > 0 && a.proceeds > 0 && a.pnl < -a.proceeds && Math.abs(a.pnl - (a.proceeds - a.cost)) < 1e-6 && Math.abs(a.cb - a.cost) < 1e-6;
+    out.A_load = loads(); A.step(); out.A_next = loads();
+    stage = 'B:';
+    /* B: gains and losses at the edges (artificial cost basis; the trade itself is a normal sale) */
+    std(4243); const L = A.S.cos.filter(x => !x.priv && !x.ctrl); const edge = [];
+    for (const [i, m] of [[2, 1.2], [3, .5], [4, 0], [5, -.1], [6, -.5], [7, -.75], [8, -.9], [9, -.999]].map(([i, m]) => [i, m])) { const c = L[i]; A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, 2)), 2); const q = c.own.P * c.price * .99; A.S.player.cost[c.id] = q / (1 + m); A.execSell('P', c, c.own.P); edge.push(+(A.S.ledger[0].pnl / A.S.ledger[0].cb).toFixed(3)); }
+    info.B = edge; out.B_gainsLosses = loads();
+    { const c = A.S.cos.find(x => x.id === L[10].id); /* the state was reloaded: look the company up again */ A.execShort(c, A.roundSh(A.sharesForShort(c, 1))); c.price *= 3; A.trClose(); /* the price was set by the test: start a clean week */ const pos = A.S.player.shorts[c.id]; A.execCover(c, pos.n); const e = A.S.ledger[0]; info.Bshort = {proceeds: +e.cb.toFixed(3), cost: +e.amt.toFixed(3), pnl: +e.pnl.toFixed(3)}; out.B_squeeze = e.pnl < -e.cb && loads(); }
+    stage = 'C:';
+    /* C: more than 400 trades, then a TOB loss */
+    std(4244); A.S.player.cash = 60; A.trClose(); const c4 = A.S.cos.filter(x => !x.priv && !x.ctrl)[1]; let pnl = 0, fee = 0, n = 0;
+    const tally = () => { const e = A.S.ledger[0]; pnl += e.pnl || 0; fee += e.fee; n++; };
+    for (let i = 0; i < 230; i++) { if (A.execBuy('P', c4, 1, 1)) tally(); if (A.execSell('P', c4, c4.own.P)) tally(); }
+    let c = {held: 0}; for (let i = 5; i < 16 && !(c.held > 0); i++) c = tobLoss('P', A.S.cos.filter(x => !x.priv && !x.ctrl && x !== c4)[i]); if (c.pnl != null) { pnl += c.pnl; fee += A.S.ledger[0].fee; n++; }
+    const G = A.S.lagg['P#0'], D = A.S.ldropA['P#0'];
+    out.C = A.S.ldrop > 0 && G.n === n && Math.abs(G.pnl - pnl) < 1e-6 && Math.abs(G.fee - fee) < 1e-9 && D.n === A.S.ldrop && c.pnl < -c.proceeds && loads();
+    stage = 'D:';
+    /* D: every account: an individual and a company (TOB losses), the personal account, a subsidiary, an earlier company */
+    A.newGame(4245, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 30; A.trClose();
+    const T1 = A.S.cos.filter(x => !x.priv && !x.ctrl); let d1 = {held: 0}; for (let i = 3; i < 14 && !(d1.held > 0); i++) d1 = tobLoss('P', A.S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0)).sort((u, v) => u.price * u.shares - v.price * v.shares)[i - 3]); info.d1 = {held: d1.held, pnl: d1.pnl}; out.D_indiv = (A.S.ledger[0] || {}).at === 'indiv' && d1.pnl < -d1.proceeds && loads();
+    A.incorporate('甲社', 1); A.trClose(); let d2 = {held: 0}; for (let i = 6; i < 18 && !(d2.held > 0); i++) d2 = tobLoss('P', A.S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0)).sort((u, v) => u.price * u.shares - v.price * v.shares)[i - 3]); out.D_co = (A.S.ledger[0] || {}).aid === 'P#0' && d2.pnl < -d2.proceeds && loads();
+    { const c = A.S.cos.find(x => x.id === T1[8].id); A.execBuy('U', c, A.roundSh(A.sharesForMoney(c, .5)), .5); c.price *= .1; A.trClose(); A.execSell('U', c, c.own.U); out.D_personal = (A.S.ledger[0] || {}).at === 'pers' && (A.S.ledger[0] || {}).pnl < 0 && loads(); }
+    A.restartAsTrader('test'); A.S.player.cash = Math.max(A.S.player.cash, 40); A.incorporate('乙社', 1); A.trClose(); let d3 = {held: 0}; for (let i = 9; i < 20 && !(d3.held > 0); i++) d3 = tobLoss('P', A.S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0)).sort((u, v) => u.price * u.shares - v.price * v.shares)[i - 3]); out.D_oldGen = A.S.lagg['P#0'].pnl < 0 && (A.S.ledger[0] || {}).aid === 'P#1' && loads();
+    stage = 'a subsidi';
+    /* a subsidiary: a controlled company buys a block (相対) and sells it at a loss */
+    std(4246); { const L2 = A.S.cos.filter(x => !x.priv && !x.ctrl); const sub = L2[2]; A.execTender('P', sub, sub.price * 1.6, .6, undefined, false); A.recomputeCtrl(); const tg = A.S.cos.filter(x => !x.priv && !x.ctrl && x !== sub)[6];
+      out.D_subCtrl = sub.ctrl === 'P'; sub.cash += 20; A.trClose(); A.execBuy('P', tg, A.roundSh(A.sharesForMoney(tg, 2)), 2); const n = tg.own.P; A.transferShares('P', sub.id, tg, n, tg.price * 2); /* a block sold inside the group at twice the price */
+      A.execSell(sub.id, tg, tg.own[sub.id]); const e = A.S.ledger[0]; out.D_sub = e.at === 'sub' && e.pnl < -e.amt && loads(); }
+    stage = '4-3:';
+    /* 4-3: other ways shares arrive, then a sale */
+    std(4247); const L3 = A.S.cos.filter(x => !x.priv && !x.ctrl); const path = {};
+    const sellCheck = (name, c) => { const h = c.own.P || 0; if (!(h > 1e-6)) { path[name] = 'no shares'; return; } A.execSell('P', c, h); path[name] = loads(); };
+    const cur = i => A.S.cos.find(x => x.id === L3[i].id); /* after each reload */
+    A.execBuy('P', cur(1), A.roundSh(A.sharesForMoney(cur(1), 3)), 3); sellCheck('cash', cur(1));
+    A.S.player.cash = 1; A.trClose(); A.execBuy('P', cur(2), A.roundSh(A.sharesForMoney(cur(2), 3)), 3); info.marginLoan = +A.S.player.loan.toFixed(2); A.S.player.cash = 30; A.trClose(); sellCheck('margin', cur(2)); /* cash set by the test: clean weeks around it */
+    { let c = null; const C = A.S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0)).sort((u, v) => u.price * u.shares - v.price * v.shares).filter(x => A.lboOK(x, x.price * 1.5 * x.shares * .3)).map(x => x.id);
+      for (const id of C.slice(0, 10)) { const x = A.S.cos.find(y => y.id === id); if (!x || x.priv) continue; A.launchTob('P', x, x.price * 1.5, .3, true); for (let i = 0; i < 5 && A.S.tobs.some(t => t.cid === x.id); i++) A.step(); if ((x.own.P || 0) > 0) { c = x; break; } } /* some end in a white-knight merger */
+      A.trClose(); if (c) sellCheck('lbo', c); else path.lbo = 'every LBO met a white knight'; }
+    { const c = A.S.cos.filter(x => !x.priv && !x.ctrl).find(x => Object.keys(x.own).some(k => k !== 'P' && /^R/.test(k) && x.own[k] > 0)), rv = c && Object.keys(c.own).find(k => k !== 'P' && /^R/.test(k) && c.own[k] > 0); if (rv) { A.transferShares(rv, 'P', c, Math.min(c.own[rv], c.shares * .02), c.price * 2.5); sellCheck('block', c); } else path.block = 'no holder'; }
+    for (let i = 0; i < 6 && !(A.S.pe.deals || []).some(x => A.dealEbitda(x, false) > 0); i++) A.peDealGen(); A.trClose(); /* deals for sale (normally offered as the game goes on) */
+    { const d = (A.S.pe.deals || []).find(x => A.dealEbitda(x, false) > 0); if (d) { const co = A.peAcquire(d, 'P', A.dealAsk(d), 0, false); const ok = !!A.peIPO(co); for (let i = 0; i < 6 && co.priv; i++) A.step(); if (!co.priv) sellCheck('peIpo', co); else path.peIpo = 'not listed (' + ok + ')'; } else path.peIpo = 'no deal'; }
+    /* shares moved into the company at founding, then sold by the company */
+    A.newGame(4248, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.trClose(); { const c = A.S.cos.filter(x => !x.priv && !x.ctrl)[4]; A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, 3)), 3); A.incorporate('丙社', 0); c.price *= .3; A.trClose(); A.execSell('P', c, c.own.P); const e = A.S.ledger[0]; path.found = e.aid === 'P#0' && e.pnl < -e.amt && loads(); }
+    /* shares carried over from an older save (cost basis as the save had it), then sold at a loss */
+    std(4249); { const c = A.S.cos.filter(x => !x.priv && !x.ctrl)[3]; A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, 3)), 3); A.trClose(); const o = JSON.parse(A.exportText()); o.fmt = 5; for (const k of ['mid', 'k', 'fl', 'ax', 'lk', 'dI', 'seen', 'n', 'pk', 'mdd', 'part']) delete o.tr[k]; delete o.ldropA; delete o.lagg; delete o.ldrop; delete o.lpart; o.ledger = []; o.chk = A.finSig(o);
+      A.importText(JSON.stringify(o)); const c2 = A.S.cos.find(x => x.id === c.id); c2.price *= .2; A.trClose(); A.execSell('P', c2, c2.own.P); const e = A.S.ledger[0]; path.oldSave = A.S.fmt === 7 && e.pnl < -e.amt && loads(); }
+    info.paths = path; out.paths = Object.values(path).every(v => v === true || typeof v === 'string');
+    } catch (e) { out['crash@' + stage] = e.message; }
+    return {out, info};
+  });
+  const fails = Object.entries(r.out).filter(([k, v]) => v !== true && (typeof v !== 'string' || k.startsWith('crash'))).map(([k]) => k);
+  ok('rev13 (BUG-51): TOB loss sale loads (A), edge gains/losses and a squeeze (B), 400+ trades then a loss (C), every account (D), acquisition routes', !fails.length, JSON.stringify(fails) + ' ' + JSON.stringify(r.info) + ' ' + JSON.stringify(Object.fromEntries(Object.entries(r.out).filter(([, v]) => typeof v === 'string'))));
+  ok('no page errors in rev13 tests', errs.length === 0, errs.join(' | '));
+  console.log('INFO  rev13 ' + JSON.stringify(r.info));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -2352,6 +2421,7 @@ async function balance(b) {
     await testRev10Layout(b);
     await testRev11(b);
     await testRev12(b);
+    await testRev13(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
