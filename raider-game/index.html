@@ -6315,6 +6315,7 @@ function showUnlock(){
   openModal(`<h1 style="font-size:22px">新しい機能が解放されました</h1><p class="lede">${esc(S.company)}の成長に合わせて、使える手が増えました。</p>${blocks.join('')}${b < 4 ? `<p class="note">次の段階「${STAGES[b + 1].n}」：${STAGES[b + 1].cond}</p>` : ''}<div class="btnrow"><button class="btn gold" data-act="unlockgo" data-v="${go[0]}">${go[1]}</button><button class="btn" data-act="close">閉じる</button></div>`);
 }
 function showHelp(){ openModal(`<h1 style="font-size:22px">遊び方と設定</h1><p class="lede">${dateOf(S.week)}・純資産 ${fm(myWorth())}</p>${settingsHTML()}${HOWTO}<div class="btnrow"><button class="btn gold" data-act="close">ゲームに戻る</button><button class="btn" data-act="savemgr">セーブ管理</button><button class="btn" data-act="restart">最初からやり直す</button></div>`); }
+const inFrame = () => { try { return window.top !== window; } catch (e) { return true; } }; /* inside a viewer that does not allow downloads, the save stays in this browser */
 function saveToFile(){ /* the share sheet on iPhone (save to Files), a download elsewhere */
   const txt = exportText(), d = dateOf(S.week).replace(/[^0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''), name = `atlas-capital-${d}.json`;
   const dl = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], {type: 'application/json'})); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); toast('セーブファイルを書き出しました'); };
@@ -6328,7 +6329,7 @@ function showSaveMgr(msg){
   ${msg ? `<div class="preview">${msg}</div>` : ''}
   <h3 class="mh">ファイルで保存・続きから</h3>
   <p class="note">iPhoneの「ファイル」アプリからHTMLを開いて遊ぶと、閉じたときにセーブが消えることがあります。「ファイルに保存」でセーブファイルを作っておけば、次に開いたとき「ファイルから続きを遊ぶ」で続きから遊べます。</p>
-  <div class="btnrow"><button class="btn gold" data-act="filesave">ファイルに保存</button><label class="btn filebtn">ファイルから続きを遊ぶ<input type="file" id="savefile" accept=".json,.txt,application/json,text/plain" hidden></label></div>
+  <div class="btnrow">${inFrame() ? '' : '<button class="btn gold" data-act="filesave">ファイルに保存</button>'}<label class="btn filebtn">ファイルから続きを遊ぶ<input type="file" id="savefile" accept=".json,.txt,application/json,text/plain" hidden></label></div>
   <h3 class="mh">書き出し（テキスト）</h3>
   <div class="btnrow"><button class="btn" data-act="exportsave">セーブをコピー</button></div>
   <textarea id="savetext-out" class="savetext" readonly hidden></textarea>
