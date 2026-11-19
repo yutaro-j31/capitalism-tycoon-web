@@ -571,9 +571,12 @@ async function testTalent(b) {
     A.hireInto(star, c.id, 'CEO', 'fixed', 'inside'); // back to the star
     // delegation: approval mode sends a proposal; approving runs it
     c.dm = 'approve'; c.deleg = 'cash'; c.payout = 0; c.lim = {ad: .02, rt: 'BBB'};
-    for (let i = 0; i < 4; i++) { A.step(); S.inbox = S.inbox.filter(x => x.kind === 'prop'); }
-    const prop = S.inbox.find(x => x.kind === 'prop' && x.cid === c.id); out.prop = !!prop && prop.acts.length > 0;
-    if (prop) { for (const a of prop.acts) A.doAction(c, a); } out.approved = c.payout === .8;
+    // a weaker executive can miss an item in a given month (planActions), so approve each month's proposal until the payout item has come and run
+    let prop = null, sawPay = false;
+    for (let m = 0; m < 6 && !sawPay; m++) { for (let i = 0; i < 4; i++) { A.step(); S.inbox = S.inbox.filter(x => x.kind === 'prop'); }
+      const p1 = S.inbox.find(x => x.kind === 'prop' && x.cid === c.id); if (!p1) continue; prop = prop || p1; sawPay = p1.acts.some(a => a.k === 'payout');
+      for (const a of p1.acts) A.doAction(c, a); S.inbox = S.inbox.filter(x => x !== p1); }
+    out.prop = !!prop && prop.acts.length > 0; out.approved = sawPay && c.payout === .8;
     c.dm = 'manual'; const pay0 = c.payout; c.payout = .1; for (let i = 0; i < 8; i++) { A.step(); S.inbox = []; } out.manualKeeps = c.payout === .1;
     // head office: an operating partner sent to the company lifts the margin; capacity for fund companies grows
     const op = A.genPerson('test:op', {level: 80, focus: 'ops', ind: c.ind}); S.hr.pool.push(op.id); const cap0 = A.peCapacity();
