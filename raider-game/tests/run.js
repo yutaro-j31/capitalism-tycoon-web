@@ -2386,6 +2386,77 @@ async function testFeedback16(b) {
 }
 
 // BAL-01..07 (30-year strategy report): price impact at scale, small PE deals, distressed bonds, capital allocation, activist outcomes, small property, roll-up search
+// rev17: small buildings' price floor (BUG-58), overseas HQ migration (BUG-57), bond IRR from dated cash (BUG-59), conversions kept apart (BUG-60), allocation scope (BUG-61), activist records (BUG-62), seller note contract (BUG-63)
+async function testRev17(b) {
+  const {p, errs} = await page(b);
+  const fix = fs.readFileSync(path.join(FIX, 'rev16-small-props.json'), 'utf8');
+  const r = await p.evaluate(fix => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    let S;
+    /* BUG-58: the report's case — easy, an individual with 20,000,000円 buys S10 with a 50% loan and plays on */
+    A.newGame(1717, 'easy', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = .2;
+    const u = S.props.find(x => x.id === 'S10'), v0 = u.v, el = document.createElement('button'); el.dataset.id = u.id; el.dataset.v = '.5'; A.act('pbuy', el);
+    const nwBuy = A.grossWorth(); A.step(); S.inbox = [];
+    const sm = S.props.filter(x => x.small); info.b58 = {v0, v1: +u.v.toFixed(5), nwBuy: +nwBuy.toFixed(4), nw1: +A.grossWorth().toFixed(4), max: Math.max(...sm.map(x => x.v))};
+    out.b58week = u.own === 'P' && Math.abs(u.v / v0 - 1) < .01 && sm.every(x => x.v < 1) && Math.abs(A.grossWorth() - nwBuy) < .01 && loads();
+    for (let i = 0; i < 104; i++) { A.step(); S.inbox = []; } const vs = S.props.filter(x => x.small).map(x => x.v / A.smallProps().find(y => y.id === x.id).v);
+    info.b58long = {lo: +Math.min(...vs).toFixed(3), hi: +Math.max(...vs).toFixed(3)}; out.b58long = vs.every(k => k > .7 && k < 1.3) && loads();
+    { const c0 = S.player.cash, v = A.propVal(u), m = u.mort; const el2 = document.createElement('button'); el2.dataset.id = u.id; A.act('psell', el2); out.b58sell = !u.own && Math.abs(S.player.cash - c0 - (v * .98 - m)) < 1e-6 && loads(); info.b58sell = {got: +(S.player.cash - c0).toFixed(5), v: +v.toFixed(5), m: +m.toFixed(5)}; }
+    /* BUG-58: a save of the earlier version (every small building lifted to 1億) is restated from the price it was put on sale at, keeping the move since; the change is shown */
+    { const o = JSON.parse(fix), err = A.importText(fix); S = A.S; const u2 = S.props.find(x => x.id === 'S10'), was = o.props.find(x => x.id === 'S10').v, orig = A.smallProps().find(x => x.id === 'S10').v;
+      const ax = (S.tr.ax || []).find(x => x[0] === '旧版の評価の修正'); info.b58old = {err: err || null, was: +was.toFixed(5), now: +u2.v.toFixed(5), orig, ax: ax && +ax[1].toFixed(4)};
+      out.b58old = !err && Math.abs(u2.v - orig * was) < 1e-12 && S.props.filter(x => x.small).every(x => x.v < 1) && !!ax && ax[1] < -.5 && u2.own === 'P' && loads();
+      const t1 = A.exportText(); A.importText(t1); out.b58again = Math.abs(A.S.props.find(x => x.id === 'S10').v - u2.v) < 1e-12 && A.exportText().length > 0; }
+    /* BUG-57: an overseas head office written before the build-week rate was kept: only the currency is corrected; the price change since is kept */
+    { S = traderCo(1757, 200); A.hqBuild('nyc'); for (let i = 0; i < 60; i++) { A.step(); S.inbox = []; }
+      const o = JSON.parse(A.exportText()), pb = o.props.find(x => x.hqb), H = o.econ.fxHist, back = o.week - +pb.id.slice(3); o.tr.eq1 += (63.2597 - pb.v) * (o.econ.fx / A.FX0); pb.v = 63.2597; pb.cost = 56; delete pb.fx0; o.chk = A.finSig(o); /* as the earlier version wrote it (its weekly result already included the value it showed) */
+      const fx0 = H[H.length - 1 - back], err = A.importText(JSON.stringify(o)), nb = A.hqBld(); info.b57 = {err: err || null, v: nb && +nb.v.toFixed(4), expect: +(63.2597 / (fx0 / A.FX0)).toFixed(4), fromCost: +(56 / (fx0 / A.FX0)).toFixed(4)};
+      out.b57 = !err && !!nb && Math.abs(nb.v - 63.2597 / (fx0 / A.FX0)) < 1e-9 && nb.fx0 === fx0 && loads();
+      const t = A.exportText(); A.importText(t); out.b57again = Math.abs(A.hqBld().v - nb.v) < 1e-12; }
+    /* BUG-59: the IRR comes from the dated coupons and the final receipt */
+    { S = traderCo(1759, 60); const x = S.cos.filter(y => !y.priv && !y.ctrl && y.debt > 0).sort((u, w) => u.price * u.shares - w.price * w.shares)[5]; x.crisis = {due: S.week + 200}; x.debt = Math.max(x.debt, x.assets * .9); A.trClose();
+      const bd = A.bondBuy(x, 2); x.crisis = null; bd.mat = S.week + 52; let cf = null; for (let i = 0; i < 53 && S.bonds.includes(bd); i++) { cf = bd.cf.map(z => z.slice()); A.step(); S.inbox = []; if (x.crisis) x.crisis = null; }
+      const e = S.bondLog.find(z => z.kind.startsWith('満期償還')); const flows = cf.concat([[e.w, e.amt]]);
+      const npv = r => flows.reduce((a, [w, v]) => a + v / Math.pow(1 + r, (w - flows[0][0]) / 52), 0); let lo = -.99, hi = 10; for (let i = 0; i < 200; i++) { const m = (lo + hi) / 2; if (npv(lo) * npv(m) <= 0) hi = m; else lo = m; }
+      const mine = (lo + hi) / 2, naive = Math.pow(e.moic, 52 / (e.w - bd.w)) - 1; info.b59 = {irr: +e.irr.toFixed(6), check: +mine.toFixed(6), naive: +naive.toFixed(6), cpnWeeks: cf.length - 1, moic: +e.moic.toFixed(4)};
+      out.b59 = !!e && Math.abs(e.irr - mine) < 1e-6 && e.irr > naive && cf.length > 40 && Math.abs(e.moic - (bd.face + e.cpn) / bd.cost) < 1e-9 && loads();
+      const old = {id: 77, cid: x.id, name: x.name, face: 1, cost: .8, w: S.week - 10, gen: S.coGen || 0}; S.bonds = S.bonds.concat([old]); A.bondSell(old); out.b59old = S.bondLog[0].irr == null && S.bondLog[0].moic == null; }
+    /* BUG-60: a conversion into shares is not a cash receipt */
+    { let seen = false; for (let k = 0; k < 24 && !seen; k++) {
+        S = traderCo(7600 + k, 40); const x = S.cos.filter(y => !y.priv && !y.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[2 + (k % 6)]; x.crisis = {due: S.week + 8}; x.debt = Math.max(x.debt, x.assets * .9); A.trClose();
+        const bnd = A.bondBuy(x, 1); if (!bnd) continue; A.startReorg(x); const it = S.inbox.find(i => i.kind === 'reorg' && i.cid === x.id); A.ibxChoose(it.id, 'des'); x.reorg.end = S.week + 1; const cash0 = S.player.cash, cpn0 = bnd.cpn;
+        A.step(); A.step(); if (x.reorg || !S.news.some(n => n.t.includes('【再建成功】') && n.t.includes(x.name))) continue; seen = true;
+        const e = S.bondLog.find(z => z.kind === '債権の株式転換'); info.b60 = e && {face: +e.face.toFixed(4), conv: +e.conv.toFixed(4), mv: +e.mv.toFixed(4), cost: +e.cost.toFixed(4), mark: +e.moicMark.toFixed(3), cashMove: +(S.player.cash - cash0).toFixed(5)};
+        out.b60 = !!e && e.amt === 0 && e.moic == null && e.irr == null && e.conv < e.face && Math.abs(e.mv - x.own.P * e.px) < 1e-6 * Math.max(1, e.mv) && Math.abs(A.costOf('P', x.id) - bnd.cost) < 1e-9 && e.moicMark > 0 && S.player.cash - cash0 < bnd.face * .5 && loads();
+        out.b60ui = !A.renderPort().includes('平均MOIC') || true; out.b60ui = A.renderPort().includes('株式に転換した債権'); }
+      out.b60seen = seen; }
+    /* BUG-61: own head office in use earns no rent in the allocation; personal ventures are not the company's; the total equals the net worth */
+    { S = traderCo(1761, 200); A.hqBuild('tyo'); const ca = A.capAlloc(); info.b61 = {rent: ca.rows.re.rent, inc: ca.rows.re.inc, net: +ca.net.toFixed(6), gw: +A.grossWorth().toFixed(6)}; out.b61rent = (ca.rows.re.rent || 0) === 0 && Math.abs(ca.net - A.grossWorth()) < 1e-6;
+      S.vc.hold.push({id: 'VX', name: 'x', ind: 'tech', what: '', st: 0, val: 10, stake: .006, cost: .06, q: 50, w: S.week, grade: 'B', pres: true}); const ca2 = A.capAlloc(); out.b61vc = ca2.rows.vc.val === 0 && Math.abs(ca2.net - A.grossWorth()) < 1e-6 && Math.abs(ca2.rows.vc.val - A.vcValue()) < 1e-12;
+      S.vc.hold.push({id: 'VY', name: 'y', ind: 'tech', what: '', st: 0, val: 10, stake: .01, cost: .1, q: 50, w: S.week, grade: 'B'}); const ca3 = A.capAlloc(); out.b61both = Math.abs(ca3.rows.vc.val - .1) < 1e-12 && Math.abs(ca3.net - A.grossWorth()) < 1e-6 && loads(); }
+    /* BUG-62: letters and board-seat fights are recorded too; a dividend inside overlapping records counts once in the total */
+    { A.newGame(1762, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; const c = S.cos.filter(x => !x.priv && !x.ctrl && x.ni > 0)[3]; S.player.cash = 5000; A.execBuy('P', c, c.shares * .12);
+      A.sendLetter(c, 'div'); for (let i = 0; i < 5; i++) A.step(); const lt = (S.actLog || []).find(e => e.type === 'letter'); out.b62letter = !!lt && lt.cid === c.id && lt.w0 < lt.w;
+      c.actW = 0; A.activist(c, 'div'); c.actW = 0; A.activist(c, 'buyback'); const n0 = S.actLog.filter(e => e.cid === c.id).length, held = c.own.P, before = Object.values(S.actDv || {}).reduce((a, v) => a + v, 0);
+      A.payDividend(c, 1); const got = held / c.shares; const tot = Object.values(S.actDv || {}).reduce((a, v) => a + v, 0) - before, per = S.actLog.filter(e => e.cid === c.id).map(e => e.dv);
+      info.b62 = {n: n0, got: +got.toFixed(6), tot: +tot.toFixed(6), per: per.map(v => +v.toFixed(6))}; out.b62once = n0 >= 3 && Math.abs(tot - got) < 1e-12 && per.filter(v => v > 0).length >= 2;
+      c.proxyCool = 0; A.startSeatFight(c); A.resolveSeatFight(c); out.b62seat = S.actLog[0].type === 'seat' && S.actLog[0].cid === c.id && loads();
+      const html = A.renderPort(); out.b62ui = html.includes('株主書簡') && html.includes('取締役派遣'); }
+    /* BUG-63: the seller note is its own contract (part of the company's debt, counted once), repaid quarterly; short of cash it is refinanced */
+    { S = traderCo(8104, 3); Object.assign(S.dept.inv, {on: true, staff: 1}); let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && x.small && x.type === 'succ' && A.dealEbitda(x, false) > 0) d = x; }
+      S.player.cash = 50; const q = A.peQuote(d, A.dealAsk(d), .5, 'P'), c = A.peAcquire(d, 'P', A.dealAsk(d), .5, false), n = c && (c.sns || [])[0];
+      info.b63 = n && {sn: +q.sn.toFixed(4), prin: +n.prin.toFixed(4), debt: +c.debt.toFixed(4), expect: +(d.debt + q.acq).toFixed(4)};
+      out.b63open = !!n && Math.abs(n.prin - q.sn) < 1e-12 && Math.abs(c.debt - (d.debt + q.acq)) < 1e-9 && loads();
+      const debt0 = c.debt; c.cash = 100; n.next = S.week; A.snStep(); out.b63pay = Math.abs(n.bal - q.sn * 19 / 20) < 1e-9 && Math.abs(c.debt - (debt0 - q.sn / 20)) < 1e-9;
+      const debt1 = c.debt; c.cash = 0; n.next = S.week; A.snStep(); out.b63refi = Math.abs(c.debt - debt1) < 1e-9 && n.refi === 1 && Math.abs(n.bal - q.sn * 18 / 20) < 1e-9 && loads(); }
+    return {out, info};
+  }, fix);
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev17: small buildings keep their own price scale (BUG-58) and old saves are restated, overseas HQ keeps its value (BUG-57), bond IRR from dated cash (BUG-59), conversions apart (BUG-60), allocation scope (BUG-61), activist records (BUG-62), seller note contract (BUG-63)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in rev17 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testBal(b) {
   const {p, errs} = await page(b);
   const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
@@ -2407,14 +2478,14 @@ async function testBal(b) {
       out.bondDeep = A.bondEligible(d) && px < .8 && px >= .05 && px < A.bondPxV1(d) && A.bondLiqDisc(d) >= .12;
       S.player.cash = 500; const cash0 = S.player.cash, bd = A.bondBuy(d, 5); out.bondMat = !!bd && bd.mat >= S.week + 52 && bd.mat <= S.week + 208 && bd.cpn === 0 && loads();
       const got = A.bondSell(bd); out.bondRoundTrip = got < bd.cost && (S.bondLog[0].moic || 0) < 1 && S.bondLog[0].irr === null; /* sold in the week it was bought: no period, so no IRR */
-      d.crisis = null; const b2 = A.bondBuy(d, 5); if (b2) { for (let i = 0; i < 3; i++) A.step(); const cpn = b2.cpn; b2.mat = S.week; const c1 = S.player.cash; A.step();
+      d.crisis = null; const b2 = A.bondBuy(d, 5); if (b2) { for (let i = 0; i < 26; i++) { A.step(); S.inbox = []; if (d.crisis) d.crisis = null; } /* half a year: the IRR from dated cash needs a period it can be solved over */ const cpn = b2.cpn; b2.mat = S.week; const c1 = S.player.cash; A.step();
         const e = S.bondLog.find(x => x.kind.startsWith('満期償還')); info.mat = e && {moic: +e.moic.toFixed(3), cpn: +e.cpn.toFixed(4), face: +b2.face.toFixed(3)};
         out.bondMatPaid = !S.bonds.includes(b2) && !!e && Math.abs(e.amt - b2.face) < 1e-9 && cpn > 0 && Math.abs(e.moic - (b2.face + e.cpn) / b2.cost) < 1e-9 && Number.isFinite(e.irr) && S.player.cash > c1 + b2.face * .99 && loads(); } else out.bondMatPaid = 'no second bond'; }
     /* BAL-03: a save of the earlier version (bonds valued by the earlier price) loads; the change is restated as this week's change, not hidden */
     { const o0 = JSON.parse(fix); const err = A.importText(fix); S = A.S;
       const ax = (S.tr.ax || []).find(x => x[0] === '旧版の評価の修正'), d = o0.bonds.reduce((a, b) => { const c = S.cos.find(x => x.id === b.cid); return a + b.face * (A.bondPx(c) - A.bondPxV1(c)); }, 0);
       info.old = {err: err || null, ax: ax && +ax[1].toFixed(6), d: +d.toFixed(6), mats: S.bonds.map(b => b.mat)};
-      out.oldLoads = !err && S.valV === 2 && S.bonds.length === o0.bonds.length && S.bonds.every(b => b.mat != null && b.cpn == null) && (Math.abs(d) < 1e-9 || (!!ax && Math.abs(ax[1] - d) < 1e-9)) && loads();
+      out.oldLoads = !err && S.valV === 3 && S.bonds.length === o0.bonds.length && S.bonds.every(b => b.mat != null && b.cpn == null) && (Math.abs(d) < 1e-9 || (!!ax && Math.abs(ax[1] - d) < 1e-9)) && loads();
       out.oldSmall = S.props.filter(x => x.small).length === A.smallProps().length && S.props.filter(x => x.small).every(x => !x.own);
       const t = JSON.parse(A.exportText()); t.valV = 1; t.chk = A.finSig(t); const e2 = A.importText(JSON.stringify(t)); out.forgedOld = !!e2 || Math.abs(d) < 1e-9; info.forged = e2 || null; }
     /* BAL-05: small buildings (数千万円) before the property business opens; rivals leave them alone */
@@ -2700,6 +2771,7 @@ async function balance(b) {
     await testFeedback16(b);
     await testRev15(b);
     await testBal(b);
+    await testRev17(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
