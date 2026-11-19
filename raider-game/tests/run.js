@@ -2835,6 +2835,42 @@ async function testRev21(b) {
 }
 
 // playtest 25: applicants placed in a head-office department (and sent out from there); pay packages — options, performance bonus and long-term pay where each officer works
+async function testBal09(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    const fundCo = (seed, strat, mode) => { const S = traderCo(seed, 5000); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.inv, {on: true, staff: 3}); S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const pp = S.hr.people[S.hr.pool[0]]; for (const k in pp.sk) pp.sk[k] = 70; A.hireInto(pp, 'HQ', 'PEH', 'fixed', null); const f = A.fundRaise(strat || 'buyout', .05, pp.id); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } S.pe.deals = []; f.cfg.mode = mode || 'auto'; return {S, f, lead: pp}; };
+    const deal = (pred) => { let d = null; for (let i = 0; i < 200 && !d; i++) { const x = A.peDealGen(); if (x && pred(x)) d = x; else if (x) A.S.pe.deals = A.S.pe.deals.filter(y => y !== x); } return d; };
+    const click = (act, id, v) => { const el = document.createElement('button'); el.dataset.id = id; el.dataset.v = v; el.dataset.ok = '1'; A.act(act, el); };
+    let S;
+    /* a fund's own search: its kind of deal, paid by the GP, with a cooldown and at most six a year; in proposal mode only after approval */
+    { let f, lead; ({S, f, lead} = fundCo(2391, 'turn')); const c0 = S.player.cash, cost = A.fundSrchCost(f); const d = A.fundSourceDo(f, lead); out.search = !!d && d.type === 'turn' && d.src === f.id && Math.abs(c0 - S.player.cash - cost) < 1e-9 && d.exp >= S.week + 12;
+      const n = f.srchN; S.week += 1; A.fundSource(f, lead); out.cooldown = f.srchN === n; f.cfg.mode = 'propose'; S.week += 20; S.inbox = []; A.fundSource(f, lead); out.searchAsk = f.srchN === n && S.inbox.some(i => i.kind === 'fundact' && i.act === 'search'); }
+    /* a year without buying: the fund asks you; shortening the investment period; early wind-down only once, releasing the unpaid commitment */
+    { let f, lead; ({S, f, lead} = fundCo(2392, 'buyout')); S.week = f.w0 + 56; S.week = Math.ceil(S.week / 4) * 4; S.inbox = []; A.fundIdle(f); const it = S.inbox.find(i => i.kind === 'fundrev'); out.idle = !!it && A.fundRevCard(it).includes('早期に清算');
+      const d = deal(x => A.dealEbitda(x, false) > 0 && x.type !== 'turn'); d.dd = 2; d.risk = null; const c = A.peAcquire(d, f.id, A.dealAsk(d), .3, false); const fees0 = f.fees, gp0 = S.player.cash, k0 = f.calledLP + f.calledGP;
+      click('fundrev', it.id, 'wind'); info.wind = {closed: f.closed, lp: f.lp, called: f.calledLP, rel: f.relLP, own: c.own[f.id] || 0, inCos: A.S.cos.includes(c)};
+      out.wind = f.closed && Math.abs(f.lp - f.calledLP) < 1e-9 && Math.abs(f.gp - f.calledGP) < 1e-9 && f.relLP > 0 && !A.S.cos.includes(c) && f.distLP > 0; const st = JSON.stringify([f.lp, f.gp, f.calledLP, f.calledGP, f.fees, f.distLP]);
+      for (let i = 0; i < 8; i++) { A.step(); S.inbox = []; } out.windOnce = JSON.stringify([f.lp, f.gp, f.calledLP, f.calledGP, f.fees, f.distLP]) === st && !A.fundWind(f) && loads();
+      let g; ({S, f: g} = fundCo(2393, 'buyout')); out.short = A.fundShorten(g) && g.invEnd === S.week && A.fundDry(g) === 0 && !A.fundShorten(g); }
+    /* a roll-up: the platform first, then bolt-ons paid by the fund (reserved), integration costs stated, merged into the platform and recorded */
+    { let f, lead; ({S, f, lead} = fundCo(2394, 'rollup')); const d = deal(x => A.dealEbitda(x, false) > 0 && x.type === 'succ'); d.dd = 2; d.risk = null; const P = A.peAcquire(d, f.id, A.dealAsk(d), .3, false); P.cash += 5;
+      let b2 = null; for (let i = 0; i < 400 && !b2; i++) { const x = A.peDealGen({type: 'succ', ind: P.ind, scale: P.rev * .3}); if (x && A.fundEvalBolt(f, x, P, lead).ok) b2 = x; else if (x) S.pe.deals = S.pe.deals.filter(y => y !== x); }
+      if (b2) { b2.dd = 2; b2.n = 0; b2.ai = 0; b2.bids = []; b2.exp = S.week + 20; S.pe.deals = [b2]; S.week = Math.ceil((S.week + 1) / 4) * 4; A.fundInvest(f, lead, [P]); const res = A.fundRes(f), need = b2.bid && b2.bid.need;
+        info.bolt = {bid: !!b2.bid, fund: b2.bid && b2.bid.fund, need, res, integ: b2.integ}; out.boltBid = !!b2.bid && b2.bid.fund === f.id && b2.bid.owner === P.id && Math.abs(res - need) < 1e-9 && b2.integ > 0;
+        const rev0 = P.rev, k0 = f.calledLP + f.calledGP; for (let i = 0; i < 5; i++) { A.step(); S.inbox = []; } info.bolt.log = (P.boltLog || []).length; out.boltDone = (P.boltLog || []).length === 1 && P.rev > rev0 && f.calledLP + f.calledGP > k0 && A.fundRes(f) === 0 && loads(); }
+      else { out.boltBid = out.boltDone = 'no bolt-on found'; } }
+    /* sizing: the GP's share must fit half its free cash */
+    { const S2 = traderCo(2395, 40); S2.allUnlocked = true; S2.stage = 4; Object.assign(S2.dept.inv, {on: true, staff: 3}); S2.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const f = A.fundRaise('buyout', .1); info.size = f && f.size; out.sizeCap = !!f && f.size * .1 <= 40 * .5 + 1e-9; }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('BAL-09: fund search (kind, cost, cooldown, approval), idle fund review, shortening, one-time wind-down, roll-up bolt-ons paid by the fund, sizing within the GP cash', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in BAL-09 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testRev23(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -2925,7 +2961,7 @@ async function testBal08(b) {
       const d2 = deal(x => A.dealEbitda(x, false) > 0 && x.type !== 'turn' && x !== d); d2.dd = 2; d2.risk = null; const c2 = A.peAcquire(d2, f.id, A.dealAsk(d2), .3, false); c2.cash = c2.rev * .06; A.fundPlan(c2); out.planFloor = c2.pe.p100 != null && c2.cash >= c2.rev * .05 - 1e-9; info.plan = c2.pe.p100r; }
     /* a turnaround: no new debt; the plan pays down enough old debt for the books and the bank's test to hold */
     { let f, lead; ({S, f, lead} = fundCo(2806)); f.strat = 'turn'; const d = deal(x => x.type === 'turn' && A.dealEbitda(x, false) > 0); if (d) { const v = A.fundEval(f, d, lead); info.turn = {ok: v.ok, why: v.why, recap: v.recap && +v.recap.toFixed(2)};
-      out.turnPlan = !v.ok || (v.lev === 0 && v.recap >= 0 && d.assets + d.cash - (d.debt - v.recap) >= .1 * d.assets - 1e-9 && Math.abs(v.out - v.q.out - v.recap) < 1e-9); } else out.turnPlan = true; }
+      out.turnPlan = !v.ok || (v.lev === 0 && v.recap >= 0 && d.assets + d.cash - (d.debt - v.recap) >= .1 * d.assets - 1e-9 && Math.abs(v.out - v.q.out - v.recap - v.wc) < 1e-9 && v.wc > 0); } /* rev23: the budget also holds a safety margin for working capital and the cost of the cost cuts */ else out.turnPlan = true; }
     /* with no lead, nothing runs */
     { let f, lead; ({S, f, lead} = fundCo(2805)); S.hr.hq.PEH = null; lead.at = null; lead.role = null; f.mgr = null; const d = deal(x => A.dealEbitda(x, false) > 0); d.dd = 2; d.exp = S.week + 20; S.week = Math.ceil((S.week + 1) / 4) * 4; A.fundAuto8(f); out.noLead = !d.bid && !A.fundLead(f) && !S.inbox.some(i => i.kind === 'fundact'); }
     return {out, info};
@@ -3353,6 +3389,7 @@ async function balance(b) {
     await testRev22(b);
     await testBal08(b);
     await testRev23(b);
+    await testBal09(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
