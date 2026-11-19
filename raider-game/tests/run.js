@@ -2562,6 +2562,53 @@ async function testPlay19(b) {
   ok('no page errors in playtest-19 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 
+// margin shares carry no votes; priority 5 (group management: policies, limits, approvals, log); priority 6 (property: refurbishment, rent, borrowing, new supply)
+async function testPri56(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    let S;
+    /* margin: no proposals, no control; settling (現引き) gives the votes back; selling closes the margin first; repaid loan clears it */
+    { S = traderCo(5601, 0); S.allUnlocked = true; const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[2]; S.player.cash = .2; /* nearly all on margin */
+      const big = c.shares * .6, r1 = A.execBuy('P', c, big); A.recomputeCtrl(); info.mg = {bought: r1 && +(r1.n / c.shares).toFixed(3), mg: +(A.mgOf(c) / c.shares).toFixed(3), loan: +S.player.loan.toFixed(2), ctrl: c.ctrl, gfrac: +A.gfrac(c, 'P').toFixed(3)};
+      out.mgNoCtrl = !!r1 && A.mgOf(c) > c.shares * .5 && c.ctrl !== 'P' && A.gfrac(c, 'P') < .1;
+      out.mgNoAct = A.activist(c, 'div') === null && !A.sendLetter(c, 'div');
+      S.player.cash = S.player.loan + 10; const n = A.mgSettle(c); info.mgSettle = {n: +(n / c.shares).toFixed(3), loan: +S.player.loan.toFixed(3), ctrl: c.ctrl}; out.mgSettle = n > 0 && A.mgOf(c) < 1e-9 && c.ctrl === 'P' && loads(); }
+    { S = traderCo(5602, 0); const c = S.cos.filter(x => !x.priv && !x.ctrl)[5]; S.player.cash = 2; A.execBuy('P', c, A.sharesForMoney(c, 2)); const cashSh = c.own.P; A.execBuy('P', c, A.sharesForMoney(c, 3)); const mg0 = A.mgOf(c);
+      A.execSell('P', c, mg0 * .5); out.mgSellFirst = Math.abs(A.mgOf(c) - mg0 * .5) < 1e-9 && Math.abs(c.own.P - (cashSh + mg0 * .5)) < 1e-6;
+      const t = A.exportText(); A.importText(t); S = A.S; const c2 = S.cos.find(x => x.id === c.id); out.mgSaved = Math.abs(A.mgOf(c2) - mg0 * .5) < 1e-9;
+      S.player.cash += S.player.loan; S.player.loan = 0; A.step(); S.inbox = []; out.mgCleared = A.mgOf(c2) === 0 && loads(); }
+    /* priority 5: a financial-repair policy repays down to a cash floor; layoffs wait for approval; in a crisis proposals only; everything is logged */
+    { S = traderCo(5603, 500); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.debt > 0 && x.ni > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; A.execBuy('P', c, c.shares * .6); A.recomputeCtrl(); A.hqInit();
+      c.dm = 'auto'; c.deleg = 'fix'; c.lim = {ad: .02, rt: 'BB', cash: .05}; c.cash = c.rev * .2 + 1; const d0 = c.debt; while (S.week % 4) A.step(); S.inbox = []; c.dlW = null; A.delegateStep(c);
+      const lg = (S.dlog || [])[0]; info.fix = {d0: +d0.toFixed(3), d1: +c.debt.toFixed(3), cash: +c.cash.toFixed(3), keep: +(c.rev * .05).toFixed(3), log: lg && lg.acts.map(a => a.k)};
+      out.fixRepay = c.debt < d0 && c.cash >= c.rev * .05 - 1e-6 && !!lg && lg.cid === c.id && loads();
+      c.deleg = 'turn'; c.margin = Math.min(c.margin, .001); c.base = c.margin; const ex = A.ceoOf ? A.ceoOf(c) : null; S.inbox = []; c.dlW = null; S.week += 4 - S.week % 4; A.delegateStep(c);
+      const prop = S.inbox.find(i => i.kind === 'prop' && i.cid === c.id); info.turn = prop && prop.acts.map(a => a.k); out.turnNeedsApproval = !!prop && prop.acts.some(a => a.k === 'restr') && !(c.rsW > S.week);
+      S.inbox = []; c.crisis = {due: S.week + 8}; c.dlW = null; S.week += 4; const cash1 = c.cash; A.delegateStep(c); const p2 = S.inbox.find(i => i.kind === 'prop' && i.cid === c.id); out.crisisPropose = (!p2 || p2.why.includes('提案のみ')) && c.cash === cash1;
+      const html = A.groupView(); out.dashMgmt = html.includes('財務改善') && html.includes('経営の記録'); }
+    /* priority 6: an individual with no outside money buys a small building, refurbishes, sets the rent, borrows, sells */
+    { A.newGame(5604, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = .5; const u = S.props.filter(x => x.small && !x.own).sort((a, b) => a.v - b.v)[0]; A.buyProp('P', u, 0);
+      A.step(); S.inbox = []; out.floor58 = u.v < 1 && u.v > .1;
+      const q = A.renoQuote(u), nw0 = A.grossWorth(), cash0 = S.player.cash; const ok1 = A.propReno(u); out.renoNow = ok1 && A.propRentY(u) === 0 && Math.abs(cash0 - S.player.cash - q.cost) < 1e-12;
+      const y0 = u.y; for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } info.reno = {cost: +q.cost.toFixed(4), y0, y1: u.y, pay: +q.pay.toFixed(1)}; out.renoDone = u.y > y0 && A.propRentY(u) > 0 && loads();
+      const r0 = A.propRentY(u); u.rl = 1; const r1 = A.propRentY(u); u.rl = -1; const r2 = A.propRentY(u); u.rl = 0; info.rl = {r0: +r0.toFixed(5), up: +r1.toFixed(5), down: +r2.toFixed(5), occ: +A.occ0(u).toFixed(3)}; out.rentTradeoff = r1 !== r0 && r2 !== r0 && A.occ(Object.assign({}, u, {rl: 1})) < A.occ0(u) + 1e-12;
+      const c1 = S.player.cash, got = A.propRefi(u, .5); const ok50 = got > 0 && S.player.cash > c1 && Math.abs(u.mort / u.v - .5) < 1e-6; A.propRefi(u, .9); out.refi = ok50 && u.mort <= u.v * .6 + 1e-9 && Math.abs(u.mort / u.v - .6) < 1e-6; /* never above 60% */
+      const third = u.renoN; A.propReno(u); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } out.renoCap = !A.propReno(u) && A.renoQuote(u) === null && third === 1;
+      const nwB = A.grossWorth(), cB = S.player.cash; A.sellProp(u); out.sold = !u.own && S.player.cash > cB && A.grossWorth() < nwB && loads(); }
+    /* no arbitrage: refurbish and sell at once loses money */
+    { A.newGame(5605, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 2; const u = S.props.filter(x => x.small)[1]; A.buyProp('P', u, 0); const nw0 = A.grossWorth(); A.propReno(u); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } A.sellProp(u); info.arb = {nw0: +nw0.toFixed(4), nw1: +A.grossWorth().toFixed(4)}; out.noArb = A.grossWorth() < nw0; }
+    /* new supply: twice a year, deterministic, at most 8 unsold */
+    { const run = () => { A.newGame(5606, 'normal', 'B', 'b', 'std', true); const S = A.S; S.won = true; for (let i = 0; i < 520; i++) { A.step(); S.inbox = []; } return S.props.filter(x => /^N\d+$/.test(x.id)).map(x => x.id + ':' + x.v).join(','); };
+      const a = run(), b2 = run(); S = A.S; const unsold = S.props.filter(x => /^N\d+$/.test(x.id) && !x.own).length; info.sup = {n: a.split(',').filter(Boolean).length, unsold}; out.supply = a === b2 && a.length > 0 && unsold <= 8 && loads(); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('margin shares carry no votes; priority 5 policies, limits, approvals and log; priority 6 refurbishment, rent, borrowing, supply, no arbitrage', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in margin/priority 5-6 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testBal(b) {
   const {p, errs} = await page(b);
   const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
@@ -2879,6 +2926,7 @@ async function balance(b) {
     await testRev17(b);
     await testRev18(b);
     await testPlay19(b);
+    await testPri56(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
