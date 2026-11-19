@@ -1022,6 +1022,7 @@ function ledgerAcct(k){ /* BUG-43: which account traded, fixed when the trade is
   const gen = S.coGen || 0;
   if (k === 'U') return {at: 'pers', aid: 'U', an: '個人', gen};
   if (k === 'P') return preCo() ? {at: 'indiv', aid: 'P', an: '個人口座', gen} : {at: 'co', aid: 'P#' + gen, an: `本体（${S.company}）`, gen};
+  if (isFund(k)) { const f = fundBy(k); return {at: 'fund', aid: k, an: f ? f.n : k, gen}; } /* rev24: a fund is not a company */
   const c = coById(k); return {at: 'sub', aid: k, an: c ? c.name : k, gen};
 }
 const LSIDES = ['買い', '売り', '空売り', '買い戻し', '清算売り', '清算買戻し', '相対買い', '相対売り']; /* the last four: an MBO, merger, sale or failure that pays out your shares (or ends your short), and block trades. No fee */
@@ -1792,26 +1793,34 @@ function coPartner(d, co){ // the AI firm with the most cash that is not bidding
 function peBid(d, f, lev, promise, owner, co, cash){
   if (!d || d.bid || S.week >= d.exp) return false;
   co = clamp(+co || 0, 0, .45);
-  const eq = dealAsk(d) * (1 + f), q = peQuote(d, eq, lev, owner), part = coPartner(d, co), via = d.fundPay && isFund(d.fundPay.f) ? fundBy(d.fundPay.f) : null; d.fundPay = null;
+  const eq = dealAsk(d) * (1 + f), q = peQuote(d, eq, lev, owner), part = coPartner(d, co), via = d.fundPay && isFund(d.fundPay.f) ? fundBy(d.fundPay.f) : null, ex = d.fExtra || {}; d.fundPay = null; d.fExtra = null;
+  const F = via || (isFund(owner) ? fundBy(owner) : null), parts = F ? {buy: q.out * (1 - co), integ: +ex.integ || 0, recap: +ex.recap || 0, wc: +ex.wc || 0} : null, total = parts ? parts.buy + parts.integ + parts.recap + parts.wc : 0; /* rev24 BUG-85/86: one sum for everything the fund will pay for this deal (purchase, integration, debt paydown, working capital) */
   if (co && (!part || part.cash < q.out * co)) return false;
-  if (via) { const amt = q.out + (via && d.integ || 0); if (amt > fundDry(via) + 1e-9 || peCashGate(via.id, amt)) return false; } /* BAL-08: a bolt-on paid by the fund into its platform company */
+  if (F) { if (peCashGate(F.id, total)) return false; } /* the fund's free commitment and the GP's free cash, after every other reservation */
   else { if (q.out * (1 - co) > peFunds(owner) + 1e-9) return false;
   if (peCashGate(owner, q.out * (1 - co), cash)) return false; }
   if (isFund(owner) && S.cos.filter(c => c.pe && !c.pe.closed && isFund(c.pe.owner)).length >= peCapacity()) return false; // not enough people to look after another company
-  d.bid = {eq, lev, promise: !!promise, owner, end: Math.min(d.exp, S.week + 3), f, co, partner: part ? part.id : null, gen: S.coGen || 0, cash: !!cash, gpNeed: isFund(owner) ? q.out * (1 - co) * gpRatio(fundBy(owner)) : 0, need: isFund(owner) ? q.out * (1 - co) : 0}; /* BUG-74/75: how it is paid, and the GP cash held for it. BUG-80: and the fund's money it holds */
-  if (via) { d.bid.fund = via.id; d.bid.need = q.out + (d.integ || 0); d.bid.gpNeed = d.bid.need * gpRatio(via); }
+  d.bid = {eq, lev, promise: !!promise, owner, end: Math.min(d.exp, S.week + 3), f, co, partner: part ? part.id : null, gen: S.coGen || 0, cash: !!cash, gpNeed: F ? total * gpRatio(F) : 0, need: F ? total : 0}; /* BUG-74/75: how it is paid, and the GP cash held for it. BUG-80: and the fund's money it holds */
+  if (F) { S.resSeq = (S.resSeq || 0) + 1; Object.assign(d.bid, {fid: F.id, rid: S.resSeq, parts}); if (via) d.bid.fund = via.id; if (ex.ok) d.bid.recapOk = true; } /* the reservation: its id, the fund that pays, and what it is for */
   news(`【入札】${S.company}が${d.name}に${fm(eq)}で入札（締切${shortDate(d.bid.end)}）`, 'you', d.city);
   return true;
 }
-function peCashGate(owner, out, cashOnly){ /* BUG-74/75: who pays what, from which money. A bid marked cash-only, and the GP's share of a fund's call, come from free cash only (never borrowed on margin) */
-  if (isFund(owner)) { const f = fundBy(owner); if (!f) return '対象のファンドがありません'; const need = out * gpRatio(f), pend = (S.pe.deals || []).filter(d => d.bid && isFund(d.bid.owner) && d.bid.gpNeed).reduce((a, d) => a + d.bid.gpNeed, 0);
-    if (out > fundDry(f) + 1e-9) return `ファンドの未払込枠（${fm(fundDry(f))}）が足りません`; if (freeCash() < need + pend - 1e-9) return `GPの払込（${fm(need)}${pend ? `・他の入札の${fm(pend)}` : ''}）に使える現金（${fm(freeCash())}）が足りません`; return ''; }
+const bidFund = b => b ? (b.fid ? fundBy(b.fid) : b.fund ? fundBy(b.fund) : isFund(b.owner) ? fundBy(b.owner) : null) : null; /* rev24 BUG-85: the fund that actually pays (a bolt-on's owner is the platform company) */
+function gpRes(skipDeal, skipCid){ /* rev24: GP cash already promised — open fund bids of every kind and the planned recapitalisations of funds still running */
+  let t = 0; for (const d of ((S.pe && S.pe.deals) || [])) { if (d === skipDeal || !d.bid || !bidFund(d.bid)) continue; t += +d.bid.gpNeed || 0; }
+  for (const c of ((S && S.cos) || [])) { const p = c.pe; if (!p || p.closed || c.id === skipCid || !isFund(p.owner) || !((p.recap || 0) + (p.wc || 0) > 0)) continue; const F = fundBy(p.owner); if (F && !F.closed) t += ((p.recap || 0) + (p.wc || 0)) * gpRatio(F); }
+  return t; }
+function peCashGate(owner, out, cashOnly, skipDeal){ /* BUG-74/75: who pays what, from which money. A bid marked cash-only, and the GP's share of a fund's call, come from free cash only (never borrowed on margin) */
+  if (isFund(owner)) { const f = fundBy(owner); if (!f) return '対象のファンドがありません'; const need = out * gpRatio(f), pend = gpRes(skipDeal);
+    if (out > fundDry(f, skipDeal) + 1e-9) return `ファンドの未払込枠（${fm(fundDry(f, skipDeal))}）が足りません`; if (freeCash() < need + pend - 1e-9) return `GPの払込（${fm(need)}${pend ? `・他の入札の${fm(pend)}` : ''}）に使える現金（${fm(freeCash())}）が足りません`; return ''; }
   if (owner === 'P' && cashOnly && freeCash() < out - 1e-9) return `現金のみの入札に使える現金（${fm(freeCash())}）が必要資金（${fm(out)}）に足りません`;
   return ''; }
 function peResolve(d){ // the seller weighs the best bid against the player's, reputation and pledges
   const b = d.bid, floor = dealAsk(d) * .9, best = Math.max(d.ai, floor);
   if (b.eq >= best * (1 - peSlack(d))) {
-    const out = peQuote(d, b.eq, b.lev, b.owner).out * (1 - (b.co || 0)); if (b.gpNeed) b.gpNeed = 0; if (b.need) b.need = 0; /* the reservations are released now (never counted twice against itself); checked again at today's figures */
+    const out = peQuote(d, b.eq, b.lev, b.owner).out * (1 - (b.co || 0)), F = bidFund(b), pt = b.parts || {}, total = out + (pt.integ || 0) + (pt.recap || 0) + (pt.wc || 0);
+    if (F) { const g = peCashGate(F.id, total, false, d); if (g) { news(`${d.name}の買収は資金が足りず辞退（${g}）`, 'warn', d.city); return 'fail'; } d.fRecap = (pt.recap || 0) + (pt.wc || 0) > 1e-9 ? {f: F.id, amt: pt.recap || 0, wc: pt.wc || 0, ok: !!b.recapOk} : null; d.integ = pt.integ || d.integ || 0; } /* rev24 BUG-86: the whole sum, at today's figures, before anything moves; the recapitalisation passes to the company as its own reservation */
+    if (b.gpNeed) b.gpNeed = 0; if (b.need) b.need = 0; /* this bid's reservation only (never counted twice against itself) */
     if (b.fund) { const F = fundBy(b.fund), P = coById(b.owner), amt = out + (d.integ || 0), no = !F || !P ? '対象がありません' : fundInjOk(F, P, amt); if (no) { news(`${d.name}の追加買収は辞退（${no}）`, 'warn', d.city); return 'fail'; } fundInject(F, P, amt, `${d.name}の追加買収（統合費用${fm(d.integ || 0)}を含む）`); } /* BAL-08: the fund's money goes into the platform, which pays the seller */
     const gate = peCashGate(b.owner, out, b.cash); if (peFunds(b.owner) + 1e-9 < out || gate) { news(`${d.name}の買収は資金が足りず辞退${gate ? `（${gate}）` : ''}`, 'warn', d.city); return 'fail'; }
     const c = peAcquire(d, b.owner, b.eq, b.lev, b.promise, b.co, b.partner);
@@ -2037,10 +2046,10 @@ const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 /* BUG-80: management fees are called inside the commitment. What is left of it (fundRoom) pays fees and, in the investment period, new deals; open bids hold their money (fundRes) and the next four weeks of fees are kept back. An old save that called more than the commitment keeps what happened, shows the overrun and calls nothing more */
 const fundCommit = f => (+f.lp || 0) + (+f.gp || 0), fundCalled = f => (+f.calledLP || 0) + (+f.calledGP || 0);
 const fundRoom = f => Math.max(0, fundCommit(f) - fundCalled(f)), fundOver = f => Math.max(0, fundCalled(f) - fundCommit(f));
-const fundRes = (f, skip, cid) => ((S.pe && S.pe.deals) || []).filter(d => d !== skip && d.bid && (d.bid.owner === f.id || d.bid.fund === f.id)).reduce((a, d) => a + (+d.bid.need || 0), 0)
+const fundRes = (f, skip, cid) => ((S.pe && S.pe.deals) || []).filter(d => d !== skip && d.bid && (d.bid.fid ? d.bid.fid === f.id : (d.bid.owner === f.id || d.bid.fund === f.id))).reduce((a, d) => a + (+d.bid.need || 0), 0)
   + ((S && S.cos) || []).filter(c => c.id !== cid && c.pe && !c.pe.closed && c.pe.owner === f.id && (c.pe.recap > 0 || c.pe.wc > 0)).reduce((a, c) => a + (c.pe.recap || 0) + (c.pe.wc || 0), 0); /* open bids (also bolt-ons paid by the fund) and a turnaround's planned recapitalisation hold their money */
 const fundFeeRes = f => S.week < f.invEnd ? fundCommit(f) * .02 / 52 * 4 : 0;
-const fundDry = (f, skip) => f.closed || S.week >= f.invEnd || f.raising ? 0 : Math.max(0, fundRoom(f) - fundRes(f, skip) - Math.min(fundRoom(f), fundFeeRes(f)));
+const fundDry = (f, skip) => f.closed || f.winding || S.week >= f.invEnd || f.raising ? 0 : Math.max(0, fundRoom(f) - fundRes(f, skip) - Math.min(fundRoom(f), fundFeeRes(f)));
 const fundNAV = f => S.cos.reduce((a, c) => a + (c.own[f.id] || 0) * c.price, 0);
 const gpRatio = f => { const t = (+f.lp || 0) + (+f.gp || 0); return t > 0 ? (+f.gp || 0) / t : 0; }; /* a fund still raising has no commitments yet */
 function fundCall(f, amt){ // capital call: LPs and the GP pay in pro rata to their commitments (the GP's share from free cash: checked by the caller, never borrowed here)
@@ -2059,24 +2068,27 @@ function fundDistribute(f, amt){ // waterfall: capital back, 8% preferred return
 }
 function fundStats(f){
   const PI = f.calledLP + f.calledGP, nav = fundNAV(f), dist = f.distLP + f.distGP + f.carry;
-  return {PI, nav, dist, dpi: PI ? dist / PI : 0, tvpi: PI ? (dist + nav) / PI : 0, irr: irr(f.flowsLP, nav * (1 - gpRatio(f)), S.week), dry: fundDry(f)};
+  return {PI, nav, dist, dpi: PI ? dist / PI : null, tvpi: PI ? (dist + nav) / PI : null, irr: irr(f.flowsLP, nav * (1 - gpRatio(f)), S.week), dry: fundDry(f)};
 }
 function fundRecord(){ // what LPs look at: realised deals and the previous funds
   const t = S.pe.track, inv = t.reduce((a, r) => a + r.inv, 0), ret = t.reduce((a, r) => a + r.ret, 0);
   return {n: t.length, inv, moic: inv > 0 ? ret / inv : 0, wins: t.filter(r => r.moic >= 1.3).length};
 }
+const fundOrig = f => (f.lp0 != null ? f.lp0 : (+f.lp || 0) + (+f.relLP || 0)) + (f.gp0 != null ? f.gp0 : (+f.gp || 0) + (+f.relGP || 0)); /* rev24: the fund's original size (an older save: today's commitment plus what a wind-down released, as recorded) */
+function fundRaiseWhy(gpPct){ const ck = fundCanRaise(); if (!ck.ok) return ck.why; const gpMax = Math.max(0, freeCash() * .5 - S.pe.funds.filter(x => !x.closed).reduce((a, x) => a + Math.max(0, x.gp - x.calledGP), 0) - gpRes()), size = Math.min(fundTarget(), Math.floor(gpMax / Math.max(.01, gpPct || .05) / 10) * 10);
+  return size >= 10 ? '' : `GPの出資（募集額の${pc(gpPct || .05, 0)}）に使える現金が足りません（自由な現金の半分 ${fm(Math.max(0, freeCash() * .5))}から、ほかのファンドへの未払込と予約を差し引いて ${fm(gpMax)}）`; }
 function fundCanRaise(){
   if (S.pe.funds.some(f => f.raising)) return {ok: false, why: '募集中のファンドがあります'};
   const last = S.pe.funds[S.pe.funds.length - 1], r = fundRecord();
   if (!last && (r.n < 2 || r.moic < 1.3) && !(r.n >= 1 && r.moic >= 2)) return {ok: false, why: '直接投資の実績が足りません（EXIT 2件・平均1.3倍以上、または1件で2倍以上）'};
-  if (last && S.week < last.invEnd && last.calledLP + last.calledGP < (last.lp + last.gp) * .6) return {ok: false, why: `${last.n}の投資が6割に達するか、投資期間（${shortDate(last.invEnd)}）が終わると次の募集ができます`};
+  if (last && !last.closed && !last.winding && S.week < last.invEnd && last.calledLP + last.calledGP < (last.lp + last.gp) * .6) return {ok: false, why: `${last.n}の投資が6割に達するか、投資期間（${shortDate(last.invEnd)}）が終わると次の募集ができます`};
   return {ok: true};
 }
 function fundTarget(){ // size LPs are willing to back
   const last = S.pe.funds[S.pe.funds.length - 1], r = fundRecord(), rep = S.player.rep == null ? .5 : S.player.rep;
-  const dep = last && !last.raising && S.week >= last.invEnd ? clamp(((last.invT || 0) + (last.injT || 0)) / Math.max(1e-9, last.lp + last.gp), 0, 1) : 1; /* BAL-09: a fund that put little of its money to work raises less next time */
-  const perf = (last ? clamp(1 + (fundStats(last).tvpi - 1) * 1.6, .6, 2.5) : clamp(.7 + (r.moic - 1) * .6, .7, 1.6)) * (dep < .4 ? .6 + dep : 1);
-  const base = last ? last.lp + last.gp : Math.max(80, r.inv * 3, Math.max(0, netWorth('P')) * 1.2);
+  const dep = last && !last.raising && (S.week >= last.invEnd || last.closed) ? clamp(((last.invT || 0) + (last.injT || 0)) / Math.max(1e-9, fundOrig(last)), 0, 1) : 1; /* BAL-09: a fund that put little of its money to work raises less next time */
+  const tv = last ? fundStats(last).tvpi : null, perf = (last ? (tv == null ? 1 : clamp(1 + (tv - 1) * 1.6, .6, 2.5)) : clamp(.7 + (r.moic - 1) * .6, .7, 1.6)) * (dep < .4 ? .6 + dep : 1); /* rev24: a fund that never called money has no return to judge (not a zero) */
+  const base = last ? fundOrig(last) : Math.max(80, r.inv * 3, Math.max(0, netWorth('P')) * 1.2); /* rev24 BUG-88: the original size, not what was left after a wind-down */
   return Math.round(base * perf * (last ? 1.4 : 1) * S.econ.sent * (.8 + rep * .4) / 10) * 10;
 }
 const fundMgrs = () => Object.values(S.hr.people).filter(p => p.at === 'HQ' && p.role && p.role !== 'VCX').sort((a, b) => b.sk.deal - a.sk.deal); /* head-office officers who can run a fund */
@@ -2084,7 +2096,7 @@ const fundMgrEff = f => { const p = f && person(f.mgr); return p && p.at === 'HQ
 function fundRaise(strat, gpPct, mgr){
   const ck = fundCanRaise(); if (!ck.ok) return null;
   if (strat === 'growth' && !S.pe.funds.length) return null;
-  const no = S.pe.funds.length + 1, gpMax = Math.max(0, freeCash() * .5 - S.pe.funds.filter(x => !x.closed).reduce((a, x) => a + Math.max(0, x.gp - x.calledGP), 0)), size = Math.min(fundTarget(), Math.floor(gpMax / Math.max(.01, gpPct) / 10) * 10), gp = size * gpPct; /* BAL-09: the GP's share must fit half its free cash, after what it still owes other funds */
+  const no = S.pe.funds.length + 1, gpMax = Math.max(0, freeCash() * .5 - S.pe.funds.filter(x => !x.closed).reduce((a, x) => a + Math.max(0, x.gp - x.calledGP), 0) - gpRes()), size = Math.min(fundTarget(), Math.floor(gpMax / Math.max(.01, gpPct) / 10) * 10), gp = size * gpPct; /* BAL-09: the GP's share must fit half its free cash, after what it still owes other funds */
   if (!(size >= 10)) return null;
   const f = {id: 'F' + no, no, n: `${S.company} PE Fund ${ROMAN[no - 1] || no}`, strat, size, gpPct, lp: 0, gp: 0, calledLP: 0, calledGP: 0, distLP: 0, distGP: 0, carry: 0, fees: 0,
     w0: S.week, raising: S.week + 13, invEnd: 0, end: 0, flowsLP: [], cost: {}, closed: false, mgr: mgr && person(mgr) ? mgr : null, cfg: {mode: 'auto', lev: 'mid', dd: true, ops: true}};
@@ -2096,7 +2108,7 @@ function fundRaise(strat, gpPct, mgr){
 function fundClose(f){ // LP demand at the close decides the final size
   const me = fundMgrEff(f), demand = clamp(S.econ.sent * (.8 + ((S.player.rep == null ? .5 : S.player.rep)) * .4) * (.85 + rnd() * .3) * (1 + (f.gpPct - .05) * 1.5) * (1 + (me ? me.deal * .12 : 0)), .5, 1.3); /* LPs commit more when the GP puts in more of its own money, and to a strong manager */
   const tot = Math.round(f.size * demand / 10) * 10;
-  f.gp = tot * f.gpPct; f.lp = tot - f.gp; f.size = tot; f.raising = 0; f.w0 = S.week; f.invEnd = S.week + 260; f.end = S.week + 520;
+  f.gp = tot * f.gpPct; f.lp = tot - f.gp; f.size = tot; f.lp0 = f.lp; f.gp0 = f.gp; /* rev24 BUG-88: the commitments at the close, kept apart from what is still callable */ f.raising = 0; f.w0 = S.week; f.invEnd = S.week + 260; f.end = S.week + 520;
   news(`【ファンド組成】${f.n}が${fm(tot)}で締め切り（LP ${fm(f.lp)}・あなたの出資 ${fm(f.gp)}）。投資期間は5年、運用期間は10年`, 'you');
   toast(`${f.n}が${fm(tot)}で組成されました`);
 }
@@ -2116,11 +2128,17 @@ function fundAutoOld(f){ /* (older saves) every four weeks in the investment per
 }
 /* BAL-08: how a fund's team invests and runs what it owns. It sees only what a buyer can see (the seller's figures, then what due diligence finds), sizes the debt to what the company can carry, writes a plan when it buys, reviews each company every quarter and sells on returns, health, time held and time left */
 const FUND_LEV = {low: 2.5, mid: 3.5, high: 4.5}, FUND_LEVN = {low: '低め（2.5倍）', mid: '標準（3.5倍）', high: '高め（4.5倍）'};
-function fundBidRestore(){ /* BUG-83: an open fund bid saved before reservations existed gets them back, from its own saved terms (bid price, LBO share, co-investor) with the same cost calculation as settlement; done once (a bid that has them is left alone). If the terms cannot be priced, the rest of the commitment is held and the bid is marked for a look, so no uncertain money is shown as free */
-  for (const d of ((S.pe && S.pe.deals) || [])) { const b = d.bid; if (!b || !isFund(b.owner) || b.need != null) continue; const f = fundBy(b.owner); if (!f || f.closed) continue;
+function fundBidRestore(){ /* BUG-83 / rev24: an open fund bid saved without a full reservation gets it back from its own saved terms (bid price, LBO share, co-investor, integration cost, recapitalisation) with the same calculation as settlement. The GP share always matches the total. Done once: a bid with its parts is left alone. Terms that cannot be priced hold the rest of the commitment and are marked for a look */
+  for (const d of ((S.pe && S.pe.deals) || [])) { const b = d.bid; if (!b || b.parts) continue; const f = b.fund ? fundBy(b.fund) : isFund(b.owner) ? fundBy(b.owner) : null; if (!f || f.closed) continue;
     let out = null; try { const q = peQuote(d, b.eq, b.lev, b.owner); out = q && Number.isFinite(q.out) ? q.out * (1 - (b.co || 0)) : null; } catch (e) { out = null; }
-    if (out == null || !(out >= 0)) { b.need = fundRoom(f); b.needChk = true; } else b.need = out;
-    if (b.gpNeed == null || !(b.gpNeed > 0)) b.gpNeed = b.need * gpRatio(f); b.needFix = S.week; } }
+    const integ = b.fund ? +d.integ || 0 : 0, rc = d.fRecap && d.fRecap.f === f.id ? {recap: +d.fRecap.amt || 0, wc: +d.fRecap.wc || 0} : {recap: 0, wc: 0};
+    if (out == null || !(out >= 0)) { b.need = Math.max(+b.need || 0, fundRoom(f)); b.needChk = true; b.parts = {buy: b.need, integ: 0, recap: 0, wc: 0}; }
+    else { b.parts = {buy: out, integ, recap: rc.recap, wc: rc.wc}; b.need = out + integ + rc.recap + rc.wc; }
+    b.gpNeed = b.need * gpRatio(f); b.fid = f.id; S.resSeq = (S.resSeq || 0) + 1; b.rid = S.resSeq; if (d.fRecap && d.fRecap.ok) b.recapOk = true; b.needFix = S.week; } }
+function fundRepair(){ /* rev24 on loading (done once per fund): the original size of an older fund from its records; a fund an older version closed while it still held something goes back to winding down until that is sold */
+  for (const f of ((S.pe && S.pe.funds) || [])) { if (f.raising || f.id === undefined) continue;
+    if (f.lp0 == null && (f.lp > 0 || f.relLP > 0)) { f.lp0 = (+f.lp || 0) + (+f.relLP || 0); f.gp0 = (+f.gp || 0) + (+f.relGP || 0); if (f.relLP > 0 || f.relGP > 0) f.origSrc = '早期清算の解除額の記録から復元'; }
+    if (f.closed && !f.winding && S.cos.some(c => (c.own[f.id] || 0) > 1e-9)) { f.closed = false; f.winding = f.wound != null ? 'early' : 'end'; f.reopenW = S.week; } } }
 function fundPass(f, d, why){ d.fseen = d.fseen || {}; if (d.fseen[f.id] === why) return; if (!d.fseen[f.id]) f.passN = (f.passN || 0) + 1; d.fseen[f.id] = why; f.pass = [{w: S.week, name: d.name, why}].concat((f.pass || []).filter(x => x.name !== d.name)).slice(0, 6); }
 function fundEvalBolt(f, d, P, lead){ /* read-only: a bolt-on for the platform, bought with the fund's money (no new debt), judged on the combined company */
   const e = dealEbitda(d, d.dd !== 2), fin = (lead.sk.fin - 50) / 50, r = (S.econ.rate + 3) / 100, maxL = (FUND_LEV[f.cfg.lev] || 3.5) + .5 * fin; if (!(e > 0)) return {ok: false, why: `EBITDAが赤字（${fm(e)}）`};
@@ -2151,7 +2169,7 @@ function fundEval(f, d, lead){ /* read-only: the team's view of one deal. Uses t
 function fundInjOk(f, c, amt){ /* a top-up from the fund's own remaining commitment into a company it owns outright (never the parent's or your personal money); the GP pays its share from free cash */
   if (!f || !c || !c.pe || c.pe.closed || c.pe.owner !== f.id || !c.priv || Math.abs((c.own[f.id] || 0) - c.shares) > 1e-9 || !(amt > 0)) return '対象外';
   if (amt > fundRoom(f) - fundRes(f, null, c.id) - Math.min(fundRoom(f), fundFeeRes(f)) + 1e-9) return 'ファンドの未払込枠が足りない';
-  const pend = (S.pe.deals || []).filter(d => d.bid && d.bid.gpNeed).reduce((a, d) => a + d.bid.gpNeed, 0); if (freeCash() < amt * gpRatio(f) + pend - 1e-9) return 'GPの払込に使える現金が足りない'; return ''; }
+  const pend = gpRes(null, c.id); if (freeCash() < amt * gpRatio(f) + pend - 1e-9) return 'GPの払込に使える現金が足りない'; return ''; }
 function fundInject(f, c, amt, why){ if (fundInjOk(f, c, amt)) return false;
   fundCall(f, amt); c.cash += amt; peFlow(c, -amt); addCost(f.id, c.id, amt); c.pe.inj = (c.pe.inj || 0) + amt; f.injT = (f.injT || 0) + amt; /* follow-on money is invested principal too */
   if (c.crisis && c.crisis.short > 0) { const x = Math.min(c.crisis.short, c.cash, c.debt); c.cash -= x; c.debt -= x; snSync(c); c.crisis.short = c.debt > 1e-9 ? c.crisis.short - x : 0; } /* never more than the debt there is */ /* the loan the bank would not roll over is repaid */
@@ -2189,12 +2207,13 @@ function fundActDo(it){ /* runs one approved proposal, at most what was approved
   const no = fundActWhy(it); if (no) return no; const f = fundBy(it.fid), lead = fundLead(f), c = it.cid && coById(it.cid), d = it.did && (S.pe.deals || []).find(x => x.id === it.did); let r = '実行できませんでした';
   atomic('ファンドの承認', () => {
     if (it.act === 'dd') { if (d.dd) r = '調査済みです'; else if (ddCost(d) > it.amt + 1e-9) r = '費用が承認額を超えます'; else if (freeCash() < ddCost(d)) r = '現金が足りません'; else if (peDD(d)) { f.ddN = (f.ddN || 0) + 1; r = ''; } }
-    else if (it.act === 'bid' && it.bolt) { const P = coById(it.bolt), q = P && peQuote(d, dealAsk(d) * (1 + it.prem), 0, P.id); if (!P || !P.pe || P.pe.closed || P.pe.owner !== f.id) r = '統合先がありません'; else if (q.out > it.out * 1.001 + 1e-9) r = '必要資金が承認額を超えます'; else { d.integ = it.integ; d.fundPay = {f: f.id}; r = peBid(d, it.prem, 0, false, P.id) ? '' : '入札できません（ファンドの資金・GPの現金を確認）'; } }
+    else if (it.act === 'bid' && it.bolt) { const P = coById(it.bolt), q = P && peQuote(d, dealAsk(d) * (1 + it.prem), 0, P.id); if (!P || !P.pe || P.pe.closed || P.pe.owner !== f.id) r = '統合先がありません'; else if (q.out > it.out * 1.001 + 1e-9) r = '必要資金が承認額を超えます'; else { d.integ = it.integ; d.fundPay = {f: f.id}; d.fExtra = {integ: it.integ || 0}; r = peBid(d, it.prem, 0, false, P.id) ? '' : (peCashGate(f.id, q.out + (it.integ || 0)) || '入札できません（人員を確認）'); } }
     else if (it.act === 'search') { if (fundSrchCost(f) > it.amt + 1e-9) r = '費用が承認額を超えます'; else { const x = fundSourceDo(f, lead); r = x === null && freeCash() < fundSrchCost(f) ? '現金が足りません' : ''; } }
-    else if (it.act === 'bid') { const q = peQuote(d, dealAsk(d) * (1 + it.prem), it.lev, f.id); if (q.out > it.out * 1.001 + 1e-9) r = '必要資金が承認額を超えます'; else { const rc = (it.recap || 0) + (it.wc || 0); d.fRecap = rc > 1e-6 ? {f: f.id, amt: it.recap || 0, wc: it.wc || 0, ok: true} : null; if (peBid(d, it.prem, it.lev, false, f.id)) { if (rc > 1e-6) d.bid.need += rc; r = ''; } else { d.fRecap = null; r = peCashGate(f.id, q.out) || '入札できません（資金・人員を確認）'; } } }
+    else if (it.act === 'bid') { const q = peQuote(d, dealAsk(d) * (1 + it.prem), it.lev, f.id); if (q.out > it.out * 1.001 + 1e-9) r = '必要資金が承認額を超えます'; else { const rc = (it.recap || 0) + (it.wc || 0); d.fExtra = {recap: it.recap || 0, wc: it.wc || 0, ok: true}; if (peBid(d, it.prem, it.lev, false, f.id)) r = ''; else r = peCashGate(f.id, q.out + rc) || '入札できません（人員を確認）'; } } /* rev24: the recapitalisation you approve is part of the bid's reservation, and of its permission */
     else if (it.act === 'plan') { if (!pe100Plan(c).ok) r = pe100Plan(c).why.join('・'); else { fundPlanRun(f, c, lead); r = ''; } }
     else if (it.act === 'review') { const n = fundReviewDo(f, c, lead, it.acts || [], it.amt || 0); r = n ? '' : 'いまは必要な施策がありません'; }
-    else if (it.act === 'inj' || it.act === 'recap') { const amt = it.act === 'recap' && it.pay == null ? Math.min(it.amt, c.debt) : it.amt; const no2 = fundInjOk(f, c, amt); if (no2) r = no2; else if (fundInject(f, c, amt, it.why || FACT[it.act])) { if (it.act === 'recap') { repay(c, Math.min(it.pay == null ? amt : it.pay, c.debt)); c.pe.recap = 0; c.pe.wc = 0; } r = ''; } }
+    else if (it.act === 'recap' && !((c.pe.recap || 0) + (c.pe.wc || 0) > 1e-9)) r = '再建計画の予約がありません';
+    else if (it.act === 'inj' || it.act === 'recap') { const amt = it.act === 'recap' ? Math.min(it.amt, (c.pe.recap || 0) + (c.pe.wc || 0)) : it.amt; /* never more than what the plan reserved */ const no2 = fundInjOk(f, c, amt); if (no2) r = no2; else if (fundInject(f, c, amt, it.why || FACT[it.act])) { if (it.act === 'recap') { repay(c, Math.min(it.pay == null ? amt : it.pay, amt, c.debt)); c.pe.recap = 0; c.pe.wc = 0; } r = ''; } }
     else if (it.act === 'exit') { if (c.pe.sale || c.ipoPlan || !c.priv) r = 'すでに手続き中です'; else if (peExitStart(c)) r = ''; }
     return true; });
   return r; }
@@ -2225,7 +2244,7 @@ function fundReview(f, c, lead){ /* BUG-84: every 13 weeks from the purchase, on
   if (e <= 0) warn.push('EBITDAが赤字'); else if (c.debt > 0 && e / (c.debt * r) < 1.5) warn.push('利払いの余裕が小さい');
   if (equity(c) < -.15 * c.assets) warn.push('自己資本が破綻ラインに近い'); if (c.cash < c.rev * .01) warn.push('手元資金が少ない'); if (c.debt > .5 && dscr(c) < dscrNeed()) warn.push('借り換えの審査（DSCR）を下回る');
   p.rv = {w: S.week, e, cover: c.debt > 0 && e > 0 ? e / (c.debt * r) : null, warn}; (p.rvLog = p.rvLog || []).push({w: S.week, e: +e.toFixed(4), cash: +c.cash.toFixed(4), debt: +c.debt.toFixed(4)}); if (p.rvLog.length > 12) p.rvLog.shift();
-  if (p.type === 'turn' && p.rvN >= 4 && e <= 0 && p.rvLog.length >= 4 && p.rvLog[p.rvLog.length - 1].e <= p.rvLog[p.rvLog.length - 4].e) p.stopInj = S.week; /* a turnaround not recovering after a year: no more money in; it is put up for sale */
+  if (p.type === 'turn' && p.rvN >= 4 && e <= 0 && p.rvLog.length >= 4 && p.rvLog[p.rvLog.length - 1].e <= p.rvLog[p.rvLog.length - 4].e) { p.stopInj = S.week; p.recap = 0; p.wc = 0; S.inbox = S.inbox.filter(i => !(i.kind === 'fundact' && i.cid === c.id && (i.act === 'recap' || i.act === 'inj'))); } /* the plan is dropped: its reservation and open proposals go */ /* a turnaround not recovering after a year: no more money in; it is put up for sale */
   if (!lead || fundMode(f) === 'manual' || f.cfg.ops === false || !c.priv || c.ctrl !== 'P' || S.week - p.w0 < 13) return;
   const R = fundReviewActs(c, lead); if (!R.acts.length) return;
   if (fundGate(f, 'review', {cid: c.id, name: c.name, acts: R.acts, amt: R.amt})) fundReviewDo(f, c, lead, R.acts, R.amt); }
@@ -2233,7 +2252,7 @@ function fundReview(f, c, lead){ /* BUG-84: every 13 weeks from the purchase, on
 const fundSrchCost = f => Math.max(.2, fundCommit(f) * .0004), fundSrchGap = lead => lead.sk.deal >= 70 ? 4 : lead.sk.deal >= 45 ? 8 : 12;
 const fundPlat = f => S.cos.filter(c => c.pe && !c.pe.closed && c.pe.owner === f.id && c.priv && c.ctrl === 'P').sort((a, b) => b.rev - a.rev || (a.id < b.id ? -1 : 1))[0] || null;
 function fundSourceDo(f, lead){ /* pays an adviser (the GP's cash) to find a deal of the fund's kind and size; one search at a time, at most six a year */
-  const cost = fundSrchCost(f), pend = (S.pe.deals || []).filter(x => x.bid && x.bid.gpNeed).reduce((a, x) => a + x.bid.gpNeed, 0); if (freeCash() < cost + pend) return null;
+  const cost = fundSrchCost(f), pend = gpRes(); if (freeCash() < cost + pend) return null;
   const C = fundCommit(f), P = f.strat === 'rollup' ? fundPlat(f) : null, n = f.srchN || 0;
   const want = f.strat === 'turn' ? {type: 'turn', scale: C * .06} : f.strat === 'growth' ? {type: 'growth', scale: C * .1} : f.strat === 'rollup' ? (P ? {type: 'succ', ind: P.ind, scale: C * .04} : {type: 'succ', scale: C * .12}) : {type: n % 2 ? 'carve' : 'succ', scale: C * .18};
   playerPay(cost); plAdd('hq', -cost); f.srchW = S.week; f.srchN = n + 1; f.srchL = (f.srchL || []).filter(w => w > S.week - 52).concat([S.week]); f.srchCost = (f.srchCost || 0) + cost;
@@ -2246,25 +2265,33 @@ function fundIdle(f){ /* a year without a purchase in the investment period: the
   f.idleW = S.week; addInbox({kind: 'fundrev', fid: f.id, exp: S.week + 8}); news(`【ファンド】${f.n}は1年以上新しい投資がありません。進め方を決めてください（受信箱）`, 'warn'); }
 function fundShorten(f){ if (f.closed || S.week >= f.invEnd) return false; f.invEnd = S.week; for (const d of (S.pe.deals || [])) if (d.bid && (d.bid.owner === f.id || d.bid.fund === f.id)) d.bid = null;
   S.inbox = S.inbox.filter(i => !(i.kind === 'fundact' && i.fid === f.id && (i.act === 'bid' || i.act === 'dd' || i.act === 'search'))); news(`【ファンド】${f.n}の投資期間を終了しました。以後の管理報酬は投資元本に対してかかります`, 'you'); return true; }
-function fundWind(f){ /* early wind-down, only on your explicit approval: open bids are withdrawn, what it owns is sold, the unpaid commitments are released, no more fees. Fees already paid stay paid. Done once */
-  if (!f || f.closed || f.raising) return false;
-  for (const d of (S.pe.deals || [])) if (d.bid && (d.bid.owner === f.id || d.bid.fund === f.id)) d.bid = null;
-  for (const c of S.cos.slice()) if ((c.own[f.id] || 0) > 0) { if (c.priv) { if (c.pe) c.pe.why = '早期清算で売却'; delist(c, peMark(c) * .9, `【早期清算】${f.n}の清算に伴い${c.name}を売却`); } else execSell(f.id, c, c.own[f.id]); }
-  const rel = fundRoom(f); f.relLP = (f.lp - f.calledLP > 0 ? f.lp - f.calledLP : 0); f.relGP = (f.gp - f.calledGP > 0 ? f.gp - f.calledGP : 0); f.lp = Math.min(f.lp, f.calledLP); f.gp = Math.min(f.gp, f.calledGP);
-  S.inbox = S.inbox.filter(i => !((i.kind === 'fundact' || i.kind === 'fundrev' || i.kind === 'fundprop' || i.kind === 'fundinj') && i.fid === f.id)); f.closed = true; f.wound = S.week; const st = fundStats(f);
-  news(`【ファンド早期清算】${f.n}を清算。未払込の約束額${fm(rel)}を解除し、保有資産を売却して分配（DPI ${st.dpi.toFixed(2)}倍）。管理報酬は停止`, 'you'); return true; }
+function fundSellAll(f, how){ /* tries to sell what the fund still owns; returns what is left (a listed company in restructuring cannot be traded until it ends) */
+  for (const c of S.cos.slice()) if ((c.own[f.id] || 0) > 0) { if (c.priv) { if (c.reorg) continue; if (c.pe) c.pe.why = how === 'end' ? '満期で売却' : '早期清算で売却'; delist(c, peMark(c) * .9, how === 'end' ? `【満期売却】${f.n}の満期に伴い${c.name}をセカンダリー売却` : `【早期清算】${f.n}の清算に伴い${c.name}を売却`); } else execSell(f.id, c, c.own[f.id]); }
+  return S.cos.filter(c => (c.own[f.id] || 0) > 1e-9); }
+function fundFinish(f){ /* the one and only close: nothing left to sell */ if (f.closed) return false; f.closed = true; f.winding = null; const st = fundStats(f);
+  news(f.wound != null ? `【ファンド早期清算】${f.n}の清算が完了（DPI ${st.dpi == null ? '未評価（払込なし）' : st.dpi.toFixed(2) + '倍'}・成功報酬累計${fm(f.carry)}）` : `【ファンド満期】${f.n}が終了。DPI ${st.dpi == null ? '未評価（払込なし）' : st.dpi.toFixed(2) + '倍'}・成功報酬累計${fm(f.carry)}`, 'you'); return true; }
+function fundWindStep(f){ /* rev24 BUG-89: winding down — no new investment and no fees; sales are tried every week until nothing is left; nothing is forced past a trading halt */
+  const left = fundSellAll(f, f.winding); f.windLeft = left.map(c => ({id: c.id, name: c.name, nav: (c.own[f.id] || 0) * c.price, why: c.reorg ? '再建手続き中で売買停止' : '売却できず'}));
+  if (!left.length) fundFinish(f); else if (!f.windNote || S.week - f.windNote >= 13) { f.windNote = S.week; news(`【ファンド清算中】${f.n}：${f.windLeft.map(x => `${x.name}（${x.why}）`).join('・')}がまだ売却できません。毎週売却を試み、すべて売れた時点で終了します`, 'warn'); } }
+function fundWind(f){ /* early wind-down, only on your explicit approval: open bids are withdrawn, the unpaid commitments are released, fees stop, what it owns is sold; the fund closes only when everything is sold. Fees already paid stay paid. Done once */
+  if (!f || f.closed || f.raising || f.winding) return false;
+  for (const d of (S.pe.deals || [])) if (d.bid && bidFund(d.bid) === f) d.bid = null;
+  for (const c of S.cos) if (c.pe && !c.pe.closed && c.pe.owner === f.id) { c.pe.recap = 0; c.pe.wc = 0; } /* no more money goes in */
+  const rel = fundRoom(f); f.relLP = (f.lp - f.calledLP > 0 ? f.lp - f.calledLP : 0); f.relGP = (f.gp - f.calledGP > 0 ? f.gp - f.calledGP : 0); if (f.lp0 == null) { f.lp0 = f.lp; f.gp0 = f.gp; } f.lp = Math.min(f.lp, f.calledLP); f.gp = Math.min(f.gp, f.calledGP);
+  S.inbox = S.inbox.filter(i => !((i.kind === 'fundact' || i.kind === 'fundrev' || i.kind === 'fundprop' || i.kind === 'fundinj') && i.fid === f.id)); f.wound = S.week; f.winding = 'early';
+  news(`【ファンド早期清算】${f.n}の清算を開始。未払込の約束額${fm(rel)}を解除し、管理報酬を停止。保有資産を売却して分配します`, 'you'); fundWindStep(f); return true; }
 function fundRevCard(it){ const f = fundBy(it.fid); if (!f || f.closed) return ''; const lead = fundLead(f);
   return `<div class="offer"><p><b>🏦 ${esc(f.n)}：投資が進んでいません</b> <small class="note">（${shortDate(it.exp)}まで）</small></p><p>1年以上新しい投資がありません。払込 ${fm(fundCalled(f))}／約束額 ${fm(fundCommit(f))}（投資元本 ${fm((f.invT || 0) + (f.injT || 0))}・管理報酬 ${fm(f.fees)}）。${(f.pass || []).length ? `最近の見送り理由：${esc(f.pass[0].why)}。` : ''}</p>
     <div class="btnrow"><button class="btn sm" data-act="fundrev" data-id="${it.id}" data-v="search" ${lead && freeCash() >= fundSrchCost(f) ? '' : 'disabled'}>追加で案件を探す（${fm(fundSrchCost(f))}）</button><button class="btn sm" data-act="fundrev" data-id="${it.id}" data-v="short">投資期間を終える</button></div>
     <div class="btnrow"><button class="btn sm" data-act="fundrev" data-id="${it.id}" data-v="wind">早期に清算する（保有を売却・未払込を解除・報酬停止）</button><button class="btn sm" data-act="fundrev" data-id="${it.id}" data-v="keep">このまま続ける</button></div></div>`; }
 function fundAuto8(f){
-  if (f.closed || f.raising) return; const lead = fundLead(f), cfg = f.cfg, mode = fundMode(f), held = S.cos.filter(c => c.pe && !c.pe.closed && c.pe.owner === f.id && c.ctrl === 'P');
+  if (f.closed || f.raising || f.winding) return; const lead = fundLead(f), cfg = f.cfg, mode = fundMode(f), held = S.cos.filter(c => c.pe && !c.pe.closed && c.pe.owner === f.id && c.ctrl === 'P');
   for (const c of held) fundReview(f, c, lead);
   if (!lead || mode === 'manual') return;
   /* weekly: a planned recapitalisation, the plan after buying, money troubles (each once; deadlines of their own) */
   for (const c of held) { const p = c.pe; if (!c.priv) continue;
     if (p.recap > 1e-6 || p.wc > 1e-6) { const pay = Math.min(p.recap || 0, c.debt), amt = pay + (p.wc || 0); const ok = mode === 'auto' || (p.recapOk > 0 && amt <= p.recapOk + 1e-9); /* a recapitalisation stated in a bid you approved needs no second approval, up to that amount */
-      if (amt > 1e-6 && ok && !fundInjOk(f, c, amt)) { fundInject(f, c, amt, '再建計画：借入の返済と運転資金'); repay(c, pay); p.recap = 0; p.wc = 0; } else if (amt > 1e-6) { if (fundAsk(f, 'recap', {cid: c.id, name: c.name, amt, pay, why: '再建計画：借入の返済と運転資金'})) { p.recap = 0; p.wc = 0; } } else { p.recap = 0; p.wc = 0; } }
+      if (amt > 1e-6 && ok && !fundInjOk(f, c, amt)) { fundInject(f, c, amt, '再建計画：借入の返済と運転資金'); repay(c, pay); p.recap = 0; p.wc = 0; } else if (amt > 1e-6) fundAsk(f, 'recap', {cid: c.id, name: c.name, amt, pay, why: '再建計画：借入の返済と運転資金'}); else { p.recap = 0; p.wc = 0; } } /* rev24 BUG-87: while it waits for your approval (or after you decline), the plan keeps its reservation; only paying it, or dropping the plan, releases it */
     if (!p.stopInj && (c.crisis || (c.cash < c.rev * .015 && c.ni < 0))) fundTopUp(f, c, lead, c.crisis ? '資金繰り危機の回避' : '手元資金が運転資金の下限を下回った');
     if (cfg.ops !== false && p.p100 == null && S.week - p.w0 <= 15 && S.week - p.w0 >= (lead.sk.ops >= 60 ? 0 : lead.sk.ops >= 45 ? 4 : 8) && pe100Plan(c).ok) { /* a weaker operator is slower to act */
       const e = ebitda(c); if (fundGate(f, 'plan', {cid: c.id, name: c.name, pol: e > 0 && c.debt / e > 3 ? 'fix' : e <= 0 ? 'fix' : 'bal', what: fundThesis(c), exp: Math.min(S.week + 4, p.w0 + 15)})) { fundPlanRun(f, c, lead); if (c.cash < c.rev * .04 && !p.stopInj) fundTopUp(f, c, lead, '100日計画の後の運転資金'); } } }
@@ -2289,31 +2316,28 @@ function fundInvest(f, lead, held){ const cfg = f.cfg, auto = fundMode(f) === 'a
   L.sort((a, b) => b[1].score - a[1].score || (a[0].id < b[0].id ? -1 : 1));
   if (!L.length) { fundSource(f, lead); return; }
   for (const [d, v] of L) {
-    if (cfg.dd !== false && d.dd !== 2) { const t = hqEff('PEH') > .3 ? 2 : 4; if (!d.dd && d.exp - S.week >= t + 3 && freeCash() >= ddCost(d) + (S.pe.deals || []).filter(x => x.bid && x.bid.gpNeed).reduce((a, x) => a + x.bid.gpNeed, 0) && fundGate(f, 'dd', {did: d.id, name: d.name, amt: ddCost(d), exp: Math.min(S.week + 4, d.exp - t - 1)}) && peDD(d)) { f.ddN = (f.ddN || 0) + 1; news(`【ファンド】${f.n}が${d.name}のデューデリジェンスを開始（費用${fm(ddCost(d))}）`, 'you', d.city); } if (!auto) return; continue; } /* wait for the findings */
+    if (cfg.dd !== false && d.dd !== 2) { const t = hqEff('PEH') > .3 ? 2 : 4; if (!d.dd && d.exp - S.week >= t + 3 && freeCash() >= ddCost(d) + gpRes() && fundGate(f, 'dd', {did: d.id, name: d.name, amt: ddCost(d), exp: Math.min(S.week + 4, d.exp - t - 1)}) && peDD(d)) { f.ddN = (f.ddN || 0) + 1; news(`【ファンド】${f.n}が${d.name}のデューデリジェンスを開始（費用${fm(ddCost(d))}）`, 'you', d.city); } if (!auto) return; continue; } /* wait for the findings */
     if (peCashGate(f.id, v.out)) { fundPass(f, d, peCashGate(f.id, v.out)); continue; }
     const prem = (lead.sk.deal - 50) / 1000;
     if (v.bolt) { d.integ = v.integ; if (!auto) { fundAsk(f, 'bid', {did: d.id, name: d.name, lev: 0, prem, out: peQuote(d, dealAsk(d) * (1 + prem), 0, v.bolt).out, bolt: v.bolt, integ: v.integ, exp: Math.min(d.exp - 1, S.week + 3)}); return; }
-      d.fundPay = {f: f.id}; if (peBid(d, prem, 0, false, v.bolt)) { news(`【ファンド】${f.n}が${coById(v.bolt).name}への追加買収として${d.name}に入札（ファンドから${fm(d.bid.need)}・統合費用${fm(v.integ)}を含む）`, 'you'); return; } continue; }
+      d.fundPay = {f: f.id}; d.fExtra = {integ: v.integ}; if (peBid(d, prem, 0, false, v.bolt)) { news(`【ファンド】${f.n}が${coById(v.bolt).name}への追加買収として${d.name}に入札（ファンドから${fm(d.bid.need)}・統合費用${fm(v.integ)}を含む）`, 'you'); return; } continue; }
     if (!auto) { fundAsk(f, 'bid', {did: d.id, name: d.name, lev: v.lev, prem, out: peQuote(d, dealAsk(d) * (1 + prem), v.lev, f.id).out, recap: v.recap, wc: v.wc, exp: Math.min(d.exp - 1, S.week + 3)}); return; }
-    d.fRecap = v.recap + v.wc > 1e-6 ? {f: f.id, amt: v.recap, wc: v.wc} : null;
-    if (peBid(d, prem, v.lev, false, f.id)) { if (v.recap + v.wc > 1e-6) d.bid.need += v.recap + v.wc; news(`【ファンド】${f.n}の責任者${lead.n}が${d.name}に入札（必要資金${fm(v.q.out)}・LBO${pc(v.lev, 0)}${v.recap > 1e-6 ? `・買収後に${fm(v.recap)}を出資して借入を返済する再建計画` : ''}${d.dd === 2 ? '・DD済み' : ''}）`, 'you'); return; } else d.fRecap = null; }
+    d.fExtra = {recap: v.recap, wc: v.wc};
+    if (peBid(d, prem, v.lev, false, f.id)) { news(`【ファンド】${f.n}の責任者${lead.n}が${d.name}に入札（必要資金${fm(v.q.out)}・LBO${pc(v.lev, 0)}${v.recap > 1e-6 ? `・買収後に${fm(v.recap)}を出資して借入を返済する再建計画` : ''}${d.dd === 2 ? '・DD済み' : ''}）`, 'you'); return; } }
 }
 function fundPropCard(it){ const f = fundBy(it.fid), d = (S.pe.deals || []).find(x => x.id === it.did); if (!f || !d) return '';
   return `<div class="offer"><p><b>🏦 ファンドの入札提案：${esc(d.name)}</b> <small class="note">（${shortDate(it.exp)}まで）</small></p><p>${esc(f.n)}の責任者が、${esc(d.name)}（${IND[d.ind].n}・売上${fm(d.rev)}${d.dd === 2 ? '・DD済み' : ''}）へ入札を提案しています。必要資金${fm(it.out)}・LBO${pc(it.lev, 0)}${it.recap > 1e-6 ? `。買収後にファンドから${fm(it.recap)}を出資して借入を返済する再建計画を含みます` : ''}。</p>
     <div class="btnrow"><button class="btn gold" data-act="fundprop" data-id="${it.id}" data-v="ok">入札する</button><button class="btn" data-act="fundprop" data-id="${it.id}" data-v="no">見送る</button></div></div>`; }
 function fundWeekly(f){
   if (f.closed) return;
+  if (f.winding) { fundWindStep(f); return; } /* rev24 BUG-89 */
   if (f.raising) { if (S.week >= f.raising) fundClose(f); return; }
   fundAutoStep(f);
   const base = S.week < f.invEnd ? f.lp + f.gp : Object.values(f.cost).reduce((a, x) => a + x, 0);
   const fee0 = base * .02 / 52, fee = Math.min(fee0, fundRoom(f)); if (fee0 - fee > 1e-12) f.feeShort = (f.feeShort || 0) + fee0 - fee; /* BUG-80: only what is left of the commitment */ f.fees += fee; f.calledLP += fee * (1 - gpRatio(f)); f.calledGP += fee * gpRatio(f); S.player.cash += fee * (1 - gpRatio(f)); plAdd('fee', fee * (1 - gpRatio(f))); // the GP's own share of the fee nets out
   pushQ(f.flowsLP, -fee * (1 - gpRatio(f)));
   playerPay((f.lp + f.gp) * .008 / 52); plAdd('hq', -(f.lp + f.gp) * .008 / 52); // the GP's people, offices and research
-  if (S.week >= f.end) { // end of life: whatever is left is sold to secondary buyers
-    for (const c of S.cos.slice()) if ((c.own[f.id] || 0) > 0) { if (c.priv) { if (c.pe) c.pe.why = '満期で売却'; delist(c, peMark(c) * .9, `【満期売却】${f.n}の満期に伴い${c.name}をセカンダリー売却`); } else execSell(f.id, c, c.own[f.id]); }
-    f.closed = true; const st = fundStats(f);
-    news(`【ファンド満期】${f.n}が終了。DPI ${st.dpi.toFixed(2)}倍・成功報酬累計${fm(f.carry)}`, 'you');
-  }
+  if (S.week >= f.end) { f.winding = 'end'; for (const d of (S.pe.deals || [])) if (d.bid && bidFund(d.bid) === f) d.bid = null; fundWindStep(f); } // end of life: whatever is left is sold to secondary buyers; the fund closes once it is all sold
 }
 function peStep(){ // weekly: deal flow, auctions, due diligence, hidden problems, management quality, exits, funds
   for (const c of S.cos) if (c.pe && !c.pe.closed && !((c.own[c.pe.owner] || 0) > 1e-9)) peClose(c, '持分がなくなった');
@@ -3320,7 +3344,7 @@ function propRepair(){ /* BUG-52/56: buildings written by the earlier version */
   }
 }
 function repairSave(){
-  fundBidRestore();
+  fundBidRestore(); fundRepair();
   for (const c of S.cos) {
     for (const k in c.own) if (!(c.own[k] >= 0)) delete c.own[k];
     if (c.ctrl === 'P' && c.ctrlW == null) c.ctrlW = Math.max(0, S.week - 104); /* older saves: when control was taken is unknown; the exit guide treats it as two years ago */
@@ -4667,8 +4691,9 @@ function fmtCheck(o){ /* a current-format save must still hold every debt and co
   }
   return '';
 }
-const ACCT_T = ['indiv', 'co', 'pers', 'sub', 'legacy'];
-const acctOk = x => x.at === 'indiv' ? x.aid === 'P' && x.k === 'P' : x.at === 'co' ? x.aid === 'P#' + x.gen && x.k === 'P' : x.at === 'pers' ? x.aid === 'U' && x.k === 'U' : x.at === 'legacy' ? x.aid === 'P?' && x.k === 'P' : x.at === 'sub' && x.aid === x.k && x.k !== 'P' && x.k !== 'U'; /* BUG-45: an individual's trade is never booked to a company (P and P#0 differ) */
+const ACCT_T = ['indiv', 'co', 'pers', 'sub', 'legacy', 'fund']; /* rev24: a fund's own trades (selling listed shares) are booked to the fund */
+const fundIdOk = (o, id) => /^F\d+$/.test(id) && ((o.pe && o.pe.funds) || []).some(f => f.id === id);
+const acctOk = x => x.at === 'indiv' ? x.aid === 'P' && x.k === 'P' : x.at === 'co' ? x.aid === 'P#' + x.gen && x.k === 'P' : x.at === 'pers' ? x.aid === 'U' && x.k === 'U' : x.at === 'legacy' ? x.aid === 'P?' && x.k === 'P' : x.at === 'fund' ? x.aid === x.k && /^F\d+$/.test(x.k) : x.at === 'sub' && x.aid === x.k && x.k !== 'P' && x.k !== 'U'; /* BUG-45: an individual's trade is never booked to a company (P and P#0 differ) */
 const subIdOk = (o, id) => /^C\d+$/.test(id) && +id.slice(1) < (o.nextId || Infinity); /* a company of this game (one sold or merged since keeps its entries) */
 const FEE_R = .0025; /* every trade pays 0.25%: the amount is the gross ± the fee */
 function ledgerCheck(o){ /* BUG-45: every entry is a real trade (delisted companies are fine: the entry keeps its name) */
@@ -4687,7 +4712,7 @@ function ledgerCheck(o){ /* BUG-45: every entry is a real trade (delisted compan
       if (x.px0 != null && mkt) { const up = x.px1 - x.px0; if (!(finite(x.px0) && x.px0 > 0 && finite(x.px1) && x.px1 > 0 && finite(x.ex) && x.ex >= x.n * (1 - 1e-9))) return '取引履歴の価格の記録が不正';
         if (buy ? up < -1e-12 : up > 1e-12) return '取引の方向と価格の動きが合わない';
         if (Math.abs(x.px - (x.px0 + up / (2 * IMPACT_KEEP))) > 1e-9 * x.px0) return '約定単価が値動きと合わない'; } }
-    if (x.aid != null && !(ACCT_T.includes(x.at) && typeof x.aid === 'string' && typeof x.an === 'string' && Number.isInteger(x.gen) && x.gen >= 0 && x.gen <= gmax && acctOk(x) && (x.at !== 'sub' || subIdOk(o, x.aid)))) return '取引履歴の名義が不正';
+    if (x.aid != null && !(ACCT_T.includes(x.at) && typeof x.aid === 'string' && typeof x.an === 'string' && Number.isInteger(x.gen) && x.gen >= 0 && x.gen <= gmax && acctOk(x) && (x.at !== 'sub' || subIdOk(o, x.aid)) && (x.at !== 'fund' || fundIdOk(o, x.aid)))) return '取引履歴の名義が不正';
   }
   for (let i = 1; i < L.length; i++) if (L[i].w > L[i - 1].w) return '取引履歴の順序が不正';
   if (o.lagg != null) {
@@ -4700,7 +4725,7 @@ function ledgerCheck(o){ /* BUG-45: every entry is a real trade (delisted compan
     let dropN = 0;
     for (const a in by) { const g = o.lagg[a]; if (!g || g.n < by[a].n) return '取引の累計が履歴より少ない ' + a; if (g.at !== by[a].at) return '取引の累計の名義の種類が履歴と違う ' + a; }
     for (const a in o.lagg) { const g = o.lagg[a], b = by[a] || {n: 0, amt: 0, fee: 0, pnl: 0}, d = {n: g.n - b.n, amt: g.amt - b.amt, fee: g.fee - b.fee}; /* d: the trades dropped from the list */
-      if (g.at === 'co' && a !== 'P#' + g.gen || g.at === 'indiv' && a !== 'P' || g.at === 'pers' && a !== 'U' || g.at === 'legacy' && a !== 'P?' || g.at === 'sub' && !subIdOk(o, a)) return '取引の累計の名義が不正 ' + a;
+      if (g.at === 'co' && a !== 'P#' + g.gen || g.at === 'indiv' && a !== 'P' || g.at === 'pers' && a !== 'U' || g.at === 'legacy' && a !== 'P?' || g.at === 'sub' && !subIdOk(o, a) || g.at === 'fund' && !fundIdOk(o, a)) return '取引の累計の名義が不正 ' + a;
       if (g.n === 0 && (g.amt || g.fee || g.pnl)) return '取引のない名義に損益がある ' + a;
       if (o.ldropA) { const q = o.ldropA[a] || {n: 0, amt: 0, fee: 0, pnl: 0}; /* BUG-45: list + what left the list = the totals, for every account */
         if (!(Number.isInteger(q.n) && q.n >= 0 && finite(q.amt) && q.amt >= 0 && finite(q.fee) && q.fee >= 0 && finite(q.pnl)) || (q.n === 0 && (q.amt || q.fee || q.pnl))) return '削除した取引の集計が不正 ' + a;
@@ -4811,6 +4836,8 @@ function migrate(o){ // brings any older v1 save up to the current shape without
   for (const c of o.cos) if (!Array.isArray(c.hist) || !c.hist.length) c.hist = [c.price];
   if (o.vc && Array.isArray(o.vc.hold)) { const L = vcAlign(o.vc, '読み込み時の補正', o.expo && o.expo.deals); if (L.length) o.vc.fixLog = (o.vc.fixLog || []).concat(L.map(x => Object.assign(x, {at: o.week}))).slice(-40); } /* BUG-76: older saves with two valuations of one venture; recorded, done once (aligned values are left alone next time) */
   for (const p of Object.values((o.hr && o.hr.people) || {})) if (p && Array.isArray(p.so) && p.so.filter(x => !x.id).length > 1) for (const x of p.so) if (!x.id) x.chk = true; /* BUG-81: older saves may hold grants repeated by moves; kept (they cannot be told apart from real ones) and marked for a look */
+  for (const e of (Array.isArray(o.ledger) ? o.ledger : [])) if (e && e.at === 'sub' && /^F\d+$/.test(e.aid || '')) e.at = 'fund'; /* rev24: a fund's trades booked as a company's by older versions (such a save could not be opened) */
+  for (const a in (o.lagg || {})) { const g = o.lagg[a]; if (g && g.at === 'sub' && /^F\d+$/.test(a)) g.at = 'fund'; }
   for (const h of (Array.isArray(o.acqHist) ? o.acqHist : [])) if (h && !h.v && h.pe) { /* BUG-78: an older PE result is corrected only from its own track record (same company name and closing week); otherwise it is shown as old and unverified */
     const t = ((o.pe && o.pe.track) || []).filter(r => r && r.name === h.name && r.w1 === h.endW); h.v = 2;
     if (t.length === 1) { const r = t[0]; h.pe = {inv: r.inv, ret: r.ret, nav: 0, moic: r.moic, irr: r.irr, done: true}; h.old = '旧版の記録をPE台帳の確定値で補正'; } else h.old = '旧版の記録（算出根拠を確認できないため参考値）'; }
@@ -5021,11 +5048,12 @@ function fundCtl(f){ /* BAL-08: how the fund is run, and what its team is doing 
 function fundCard(f){
   if (f.raising) return `<div class="deal"><div class="deal-h static"><b>${esc(f.n)}</b><small>募集中・${shortDate(f.raising)}締切・目標${fm(f.size)}</small></div></div>`;
   const s = fundStats(f);
-  return `<div class="deal"><div class="deal-h static"><b>${esc(f.n)}</b><small>${FUND_STRAT[f.strat].n}・${f.closed ? '満期終了' : S.week < f.invEnd ? `投資期間 ${shortDate(f.invEnd)}まで` : `回収期間 ${shortDate(f.end)}まで`}</small></div>
-    ${f.closed ? '' : f.cfg ? fundCtl(f) : `<div class="setrow"><span>自動運用（旧ルール）<br><small class="note">${fundLead(f) ? `${esc(fundLead(f).n)}が4週ごとに戦略に合う案件へ入札し（未投資の範囲で・LBO50%）、2倍に育った会社や投資期間後4年たった会社を売ります` : '責任者かPE投資責任者がいないと動きません（下で責任者を選ぶか、本社でPE投資責任者を採用）'}</small></span><button class="btn sm ${fundAuto(f) ? 'on' : ''}" data-act="fundauto" data-id="${f.id}">${f.auto === false ? 'オフ' : 'オン'}</button></div><div class="btnrow"><button class="btn sm" data-act="fundmode" data-id="${f.id}" data-v="${f.auto === false ? 'manual' : 'auto'}">新しい運用ルールに切り替える（審査・100日計画・四半期レビュー）</button></div>`}
+  return `<div class="deal"><div class="deal-h static"><b>${esc(f.n)}</b><small>${FUND_STRAT[f.strat].n}・${f.closed ? (f.wound != null ? '早期清算で終了' : '満期終了') : f.winding ? `清算中（${f.winding === 'end' ? '満期' : '早期清算'}・新規投資と管理報酬は停止）` : S.week < f.invEnd ? `投資期間 ${shortDate(f.invEnd)}まで` : `回収期間 ${shortDate(f.end)}まで`}</small></div>
+    ${f.winding ? `<p class="note warn">売却待ちの資産：${(f.windLeft || []).map(x => `${esc(x.name)} ${fm(x.nav)}（${x.why}）`).join('・') || 'なし'}。毎週売却を試み、すべて売れた時点でファンドを終了します（分配は売れた分ごと）。</p>` : ''}
+    ${f.closed || f.winding ? '' : f.cfg ? fundCtl(f) : `<div class="setrow"><span>自動運用（旧ルール）<br><small class="note">${fundLead(f) ? `${esc(fundLead(f).n)}が4週ごとに戦略に合う案件へ入札し（未投資の範囲で・LBO50%）、2倍に育った会社や投資期間後4年たった会社を売ります` : '責任者かPE投資責任者がいないと動きません（下で責任者を選ぶか、本社でPE投資責任者を採用）'}</small></span><button class="btn sm ${fundAuto(f) ? 'on' : ''}" data-act="fundauto" data-id="${f.id}">${f.auto === false ? 'オフ' : 'オン'}</button></div><div class="btnrow"><button class="btn sm" data-act="fundmode" data-id="${f.id}" data-v="${f.auto === false ? 'manual' : 'auto'}">新しい運用ルールに切り替える（審査・100日計画・四半期レビュー）</button></div>`}
     ${f.closed ? '' : `<p class="note">責任者：${person(f.mgr) ? `${esc(person(f.mgr).n)}（M&A ${Math.round(person(f.mgr).sk.deal)}・事業運営 ${Math.round(person(f.mgr).sk.ops)}）` : '未定'} ${fundMgrs().filter(p => p.id !== f.mgr).slice(0, 3).map(p => `<button class="btn sm" data-act="fundmgr" data-id="${f.id}" data-v="${p.id}">${esc(p.n)}に替える</button>`).join('')}</p>`}
     <div class="kv"><div><span>総額（うちあなた）</span><b>${fm(f.lp + f.gp)}（${fm(f.gp)}）</b></div><div><span>払込済み</span><b>${fm(s.PI)}</b></div><div><span>未投資</span><b>${fm(s.dry)}</b></div><div><span>未払込の約束額</span><b>${fm(fundRoom(f))}${fundRes(f) > 1e-9 ? `（入札で予約 ${fm(fundRes(f))}）` : ''}</b></div>
-    <div><span>評価額（NAV）</span><b>${fm(s.nav)}</b></div><div><span>分配済み</span><b>${fm(s.dist)}</b></div><div><span>DPI・TVPI</span><b class="${s.tvpi >= 1 ? 'up' : 'down'}">${xf(s.dpi)} · ${xf(s.tvpi)}</b></div>
+    <div><span>評価額（NAV）</span><b>${fm(s.nav)}</b></div><div><span>分配済み</span><b>${fm(s.dist)}</b></div><div><span>DPI・TVPI</span><b class="${s.tvpi != null && s.tvpi >= 1 ? 'up' : 'down'}">${s.dpi == null ? '未評価（払込なし）' : `${xf(s.dpi)} · ${xf(s.tvpi)}`}</b></div>
     <div><span>LPのIRR</span><b>${ipc(s.irr)}</b></div><div><span>管理報酬 累計</span><b>${fm(f.fees * (1 - gpRatio(f)))}</b></div><div><span>成功報酬 累計</span><b class="up">${fm(f.carry)}</b></div></div>${f.feeShort > 1e-6 ? `<p class="note">約束額を使い切ったため、管理報酬 ${fm(f.feeShort)}は受け取れていません（未回収）。</p>` : ''}${fundOver(f) > 1e-6 ? `<p class="note warn">旧版で約束額を${fm(fundOver(f))}超えて払い込まれていました。記録はそのまま残し、これ以上の払込はしません。</p>` : ''}</div>`;
 }
 function rollupBox(){ /* BAL-06: search for bolt-ons in the industries you already own, and the record of each platform */
@@ -6703,7 +6731,7 @@ function act0(a, el){ LTAG = '';
     case 'fundprop': { const it = S.inbox.find(i => i.id === +el.dataset.id); if (!it) break; S.inbox = S.inbox.filter(i => i !== it); const d = (S.pe.deals || []).find(x => x.id === it.did);
       if (v === 'ok') toast(d && S.week <= it.exp && peBid(d, it.prem, it.lev, false, it.fid) ? '入札しました' : '入札できませんでした（期限・資金・人員を確認）', !(d && d.bid)); else toast('見送りました'); } break;
     case 'fundmgr': { const f = fundBy(el.dataset.id); if (f && person(v)) { f.mgr = v; toast(`${f.n}の責任者を${person(v).n}に`); } } break;
-    case 'fraise': { const f = fundRaise(ui.fStrat, ui.fGp, ui.fMgr); if (f) toast(`${f.n}の募集を始めました（13週）`); } break;
+    case 'fraise': { const f = fundRaise(ui.fStrat, ui.fGp, ui.fMgr); if (f) toast(`${f.n}の募集を始めました（13週）`); else toast(`募集できません：${fundRaiseWhy(ui.fGp) || 'グロース型は2号ファンド以降です'}`, true); } break;
     case 'task': if (v === 'expo') { showExpo(); return; } if (v === 'od') { showOD(); return; } if (v === 'bank') { showBank(); return; } if (v.startsWith('why:')) { showWhy(v.slice(4)); return; } if (v.startsWith('C')) { ui.sel = v; ui.tab = 'market'; ui.ctab = 'info'; } else { ui.tab = v; ui.sel = null; } break;
     case 'labor': { const it = S.inbox.find(i => i.id === +el.dataset.id), x = it && coById(it.cid); S.inbox = S.inbox.filter(i => i !== it); if (x && x.laborPick) { x.laborPick = {choice: v, d: it.d, w: S.week + 1}; toast(`${x.name}の交渉方針を伝えました（来週結果）`); } } break;
     case 'auth': if (c && isCEO(c)) { c.auth = Object.assign({}, c.auth); c.auth[v] = c.auth[v] === false; } break;
@@ -7460,7 +7488,7 @@ function boot(){
   showStart();
   if (ui.restored) { save(); toast('セーブデータが壊れていたため、バックアップから復元しました（壊れたデータは別に保管しています）', true); } /* the backup slot is left as it was */
 }
-window.__atlas = {get S(){ return S; }, fundSourceDo, fundSource, fundIdle, fundShorten, fundWind, fundRevCard, fundEvalBolt, fundPlat, fundSrchCost, fundInvest, gpRatio, fundActCard, fundActDo, fundActWhy, fundGate, fundAsk, fundReview, fundReviewActs, fundBidRestore, fundEval, fundAuto8, fundInject, fundInjOk, fundTopUp, fundPlan, fundMode, fundCtl, fundPropCard, fundInjCard, dscrNeed, dscr, fundCard, fundRoom, fundRes, fundOver, fundWeekly, peResolve, peClose, acqEnd, acqPE, vcHold, vcAlign, compStart, compQuarter, ltipVest, deptEff, ipoWhy, holdWhy, peCashGate, vcPeers, vcEvent, hireOdds, firmPull, succCard, succCands, exitAlert, appStep, appSlots, applicantCard, hqBuildBox, coRow, fundAutoStep, fundAuto, fundLead, payBonus, bonusBox, qProfit, renderMarket, debtBox, vcFollowOn, vcSecond, vcBoost, vcQ, vcAskCard, vcRelease, fundMgrs, fundMgrEff, fundClose, fundBy, peExitStart, bsaleStep, pitchAlt, pitchCard, showSecond, secondTo, injectDo, injectBox, pePolSet, pePolCard, optVest, buyRoom, econSh, mortRate, coInfo, acqFlush, planOk, mgRecord, gfrac, mgOf, mgSync, mgSettle, planActions, delegateStep, dlogAdd, propReno, renoQuote, renoStep, propRefi, propSupply, occ, occ0, propMgmt, sellProp, sendLetter, jrStep, roadState, roadDone, roadNext, roadRec, roadBox, guideNow, showUnlock, groupView, grpAlerts, planSet, planDel, planClose, planBox, PLAN_K, acqSnap, jrList, jrReady, gradCands, dlgStep, offTag, officeSection, floorView, cashNote, renderInbox, personLine, hirePanel, gradBox, events, get trialErr(){ return trialErr; }, repay, snSync, snSyncAll, snStep, snOpen, letterStep, resolveSeatFight, irr, propFloor, propLet, get FX0(){ return FX0; }, activist, renderPort, liq, floatOf, payDividend, actLogStep, rollupBox, capAlloc, capAllocBox, peSearch, peSearchCost, actOutcome, actLogBox, bondPxV1, bondMat, bondRecov, bondLiqDisc, smallProps, propOpen, impUp, impDn, quoteSell, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, incorporate, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, isCheap, bankBorrow, bankRepay, bankLimit, showBank, showIPO, UW, peTransfer, peBuySecondary, marketFor, hrStep, peIPO, routeStep, ROUTES, hasR, DIFF, ddCost, lboOK, fundsOf, costOf, pmiStep, exitInfo, SAVE_FMT, fmtCheck, fm, has, traderView, roadList, myWorth, worthOf, preCo, isTrader, foundCompany, restartAsTrader, trStats, mmCap, mmAccept, mmOk, mmRoom, showUnlock, get PROPY(){ return PROP.office.y; }, setOffice, companyResidue, propRepair, dipsValue, propRentY, propVal, propFx, bondsStep, bondRepayAll, reorgStep, LIQUIDATE, bondBuy, bondSell, bondPx, bondsValue, bondEligible, startReorg, reorgChoose, reorgOdds, sendLetter, startSeatFight, seatsOn, letterOdds, defend, pillOnBid, ibxChoose, newInboxCard, hqBuild, hqBld, hqbCost, ic, icState, icDemand, icStep, fillMissions, genMission, niceUp, applyAct, ledgerEvent, payOut, delist, mmRedeemPart, namesV2, saveToFile, loadFromFile, foundBrand, pubNi, closeOption, transferShares, execCover, trSet, trBaseCheck, trFlow, migrate7, acqModel, ledgerAcct, trCheck, ledgerCheck, migrate6, pubSnap, pubVal, pubInit, showStart, showCompare, showWhy, closeModal, repCheap, SCR, marginRate, yoyTxt, stepScale, execShort, sharesForShort, shortLiab, stepCheck, takeLoan, pe100, peReady, peExitBids, peExitStart, companyResidue, vcQuarter, opProfit, grpSyn, peScale, dealEbitda, aiCrisis, foundRange, corpEvents, repOf, repFair, mmList, mmRedeem, finSig, trClose, corpTax, mmQuarter, nlStart, nlStep, nlCap, nlAppeal, stageFor, stageNW, makeGrowthCo, bankLimit, launchTob, tobPrice, activeTob, ctrlP, indivName, checkStage, mmPeople, mmDrag, mmLiq, buyOption, mmWeek, trStep, mmQuarter, roundSh, wholeSh, trWeeks, presWealth, rewScale, roadNext, ROAD, deptOn, stepSlide, peDesk, tradeModel, TMODES, sharesForShort, execShort, takeLoan, bankBorrow, finSig, stamp, exportText, bsaleBase, playerCrisisAuto, RIVAL_CAP, quoteBuy, shortLiab, act, renderAll, econCheck, nwMkt, shortRoom, loadSave, backupSave, boot, migrate, get trialErr(){ return trialErr; }, holdingsMkt, trialLoad, parseSave, tradeFunds, vcRound, divIncomeY, maybeIPO, qnews, fairEst, estAcc, ctrlPx, bankrupt, settleOne, optionsStep, validSave, parseSave, importText, repayMort, liquidate, renderBank, ceoAmtOf, gradeTxt, takeLoan, loanOffers, payoffLoan, bankDebt, termDebt, bankStep, corpTax, newsQuarter, wlv, welfareCost, perShare, showExec, dlgStep, vcFind, vcTranches, presWealth, vcValue, showPortfolio, expoStep, showExpo, mktCards, applyBrand, logoSVG, grossWorth, isJP, niA, pitchMore, bankRate, advertise, trainExec, trainGain, bsaleBids, bsaleExec, bsaleStep, pitchStep, pitchDo, startIPO, quarter, ctrlRule, ownCap, dscr, dscrNeed, refiStep, econStep, macroGlut, debtInit, gradOffer, gradStep, deptEff, deptCost, gradJoinW, vcInvest, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, sharesForMoney, holdingsValue, callLine, playerWeekly, overdraftStep, coverOverdraft, setOffice, activeTob, tenderQuote, tobNeedPrice, resolveTobs, startIPO, ipoStep, needOf, staffNeed, vcQuarter, showVC, ui};
+window.__atlas = {get S(){ return S; }, gpRes, bidFund, fundOrig, fundRaiseWhy, fundWindStep, fundSellAll, fundRepair, fundTarget, fundCanRaise, fundSourceDo, fundSource, fundIdle, fundShorten, fundWind, fundRevCard, fundEvalBolt, fundPlat, fundSrchCost, fundInvest, gpRatio, fundActCard, fundActDo, fundActWhy, fundGate, fundAsk, fundReview, fundReviewActs, fundBidRestore, fundEval, fundAuto8, fundInject, fundInjOk, fundTopUp, fundPlan, fundMode, fundCtl, fundPropCard, fundInjCard, dscrNeed, dscr, fundCard, fundRoom, fundRes, fundOver, fundWeekly, peResolve, peClose, acqEnd, acqPE, vcHold, vcAlign, compStart, compQuarter, ltipVest, deptEff, ipoWhy, holdWhy, peCashGate, vcPeers, vcEvent, hireOdds, firmPull, succCard, succCands, exitAlert, appStep, appSlots, applicantCard, hqBuildBox, coRow, fundAutoStep, fundAuto, fundLead, payBonus, bonusBox, qProfit, renderMarket, debtBox, vcFollowOn, vcSecond, vcBoost, vcQ, vcAskCard, vcRelease, fundMgrs, fundMgrEff, fundClose, fundBy, peExitStart, bsaleStep, pitchAlt, pitchCard, showSecond, secondTo, injectDo, injectBox, pePolSet, pePolCard, optVest, buyRoom, econSh, mortRate, coInfo, acqFlush, planOk, mgRecord, gfrac, mgOf, mgSync, mgSettle, planActions, delegateStep, dlogAdd, propReno, renoQuote, renoStep, propRefi, propSupply, occ, occ0, propMgmt, sellProp, sendLetter, jrStep, roadState, roadDone, roadNext, roadRec, roadBox, guideNow, showUnlock, groupView, grpAlerts, planSet, planDel, planClose, planBox, PLAN_K, acqSnap, jrList, jrReady, gradCands, dlgStep, offTag, officeSection, floorView, cashNote, renderInbox, personLine, hirePanel, gradBox, events, get trialErr(){ return trialErr; }, repay, snSync, snSyncAll, snStep, snOpen, letterStep, resolveSeatFight, irr, propFloor, propLet, get FX0(){ return FX0; }, activist, renderPort, liq, floatOf, payDividend, actLogStep, rollupBox, capAlloc, capAllocBox, peSearch, peSearchCost, actOutcome, actLogBox, bondPxV1, bondMat, bondRecov, bondLiqDisc, smallProps, propOpen, impUp, impDn, quoteSell, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, incorporate, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, isCheap, bankBorrow, bankRepay, bankLimit, showBank, showIPO, UW, peTransfer, peBuySecondary, marketFor, hrStep, peIPO, routeStep, ROUTES, hasR, DIFF, ddCost, lboOK, fundsOf, costOf, pmiStep, exitInfo, SAVE_FMT, fmtCheck, fm, has, traderView, roadList, myWorth, worthOf, preCo, isTrader, foundCompany, restartAsTrader, trStats, mmCap, mmAccept, mmOk, mmRoom, showUnlock, get PROPY(){ return PROP.office.y; }, setOffice, companyResidue, propRepair, dipsValue, propRentY, propVal, propFx, bondsStep, bondRepayAll, reorgStep, LIQUIDATE, bondBuy, bondSell, bondPx, bondsValue, bondEligible, startReorg, reorgChoose, reorgOdds, sendLetter, startSeatFight, seatsOn, letterOdds, defend, pillOnBid, ibxChoose, newInboxCard, hqBuild, hqBld, hqbCost, ic, icState, icDemand, icStep, fillMissions, genMission, niceUp, applyAct, ledgerEvent, payOut, delist, mmRedeemPart, namesV2, saveToFile, loadFromFile, foundBrand, pubNi, closeOption, transferShares, execCover, trSet, trBaseCheck, trFlow, migrate7, acqModel, ledgerAcct, trCheck, ledgerCheck, migrate6, pubSnap, pubVal, pubInit, showStart, showCompare, showWhy, closeModal, repCheap, SCR, marginRate, yoyTxt, stepScale, execShort, sharesForShort, shortLiab, stepCheck, takeLoan, pe100, peReady, peExitBids, peExitStart, companyResidue, vcQuarter, opProfit, grpSyn, peScale, dealEbitda, aiCrisis, foundRange, corpEvents, repOf, repFair, mmList, mmRedeem, finSig, trClose, corpTax, mmQuarter, nlStart, nlStep, nlCap, nlAppeal, stageFor, stageNW, makeGrowthCo, bankLimit, launchTob, tobPrice, activeTob, ctrlP, indivName, checkStage, mmPeople, mmDrag, mmLiq, buyOption, mmWeek, trStep, mmQuarter, roundSh, wholeSh, trWeeks, presWealth, rewScale, roadNext, ROAD, deptOn, stepSlide, peDesk, tradeModel, TMODES, sharesForShort, execShort, takeLoan, bankBorrow, finSig, stamp, exportText, bsaleBase, playerCrisisAuto, RIVAL_CAP, quoteBuy, shortLiab, act, renderAll, econCheck, nwMkt, shortRoom, loadSave, backupSave, boot, migrate, get trialErr(){ return trialErr; }, holdingsMkt, trialLoad, parseSave, tradeFunds, vcRound, divIncomeY, maybeIPO, qnews, fairEst, estAcc, ctrlPx, bankrupt, settleOne, optionsStep, validSave, parseSave, importText, repayMort, liquidate, renderBank, ceoAmtOf, gradeTxt, takeLoan, loanOffers, payoffLoan, bankDebt, termDebt, bankStep, corpTax, newsQuarter, wlv, welfareCost, perShare, showExec, dlgStep, vcFind, vcTranches, presWealth, vcValue, showPortfolio, expoStep, showExpo, mktCards, applyBrand, logoSVG, grossWorth, isJP, niA, pitchMore, bankRate, advertise, trainExec, trainGain, bsaleBids, bsaleExec, bsaleStep, pitchStep, pitchDo, startIPO, quarter, ctrlRule, ownCap, dscr, dscrNeed, refiStep, econStep, macroGlut, debtInit, gradOffer, gradStep, deptEff, deptCost, gradJoinW, vcInvest, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, sharesForMoney, holdingsValue, callLine, playerWeekly, overdraftStep, coverOverdraft, setOffice, activeTob, tenderQuote, tobNeedPrice, resolveTobs, startIPO, ipoStep, needOf, staffNeed, vcQuarter, showVC, ui};
 boot();
 })();
 </script>
