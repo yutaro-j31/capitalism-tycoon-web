@@ -2835,6 +2835,50 @@ async function testRev21(b) {
 }
 
 // playtest 25: applicants placed in a head-office department (and sent out from there); pay packages — options, performance bonus and long-term pay where each officer works
+async function testBal08(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    const fundCo = (seed, lv) => { const S = traderCo(seed, 5000); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.inv, {on: true, staff: 3}); S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const pp = S.hr.people[S.hr.pool[0]]; for (const k in pp.sk) pp.sk[k] = lv || 60; A.hireInto(pp, 'HQ', 'PEH', 'fixed', null); const f = A.fundRaise('buyout', .05, pp.id); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } S.pe.deals = []; return {S, f, lead: pp}; };
+    const deal = (pred) => { let d = null; for (let i = 0; i < 200 && !d; i++) { const x = A.peDealGen(); if (x && pred(x)) d = x; else if (x) A.S.pe.deals = A.S.pe.deals.filter(y => y !== x); } return d; };
+    let S;
+    /* new funds use the new rules; an old fund keeps the old ones after loading */
+    { let f; ({S, f} = fundCo(2801)); out.cfg = !!f.cfg && A.fundMode(f) === 'auto' && f.cfg.dd && f.cfg.ops;
+      const o = JSON.parse(A.exportText()); delete o.pe.funds[0].cfg; o.pe.funds[0].auto = false; A.importText(JSON.stringify(o)); out.legacy = !A.S.pe.funds[0].cfg && A.fundMode(A.S.pe.funds[0]) === 'manual' && A.fundCard(A.S.pe.funds[0]).includes('新しい運用ルール'); }
+    /* the team's view: a loss-maker is passed; the debt chosen passes the bank's refinancing test with profit 15% lower; until DD, the seller's figures */
+    { let f, lead; ({S, f, lead} = fundCo(2802)); const d = deal(x => A.dealEbitda(x, false) > 0 && x.type !== 'turn' && x.ind !== 'bank'), v = A.fundEval(f, d, lead);
+      const r = (S.econ.rate + 3) / 100, debt = v.ok ? d.debt + v.q.acq : 0; info.eval = {ok: v.ok, why: v.why, lev: v.lev};
+      out.evalDebt = !v.ok || debt === 0 || (A.dealEbitda(d, d.dd !== 2) * .85 / (debt * (r + 1 / 7)) >= A.dscrNeed() * 1.15 - 1e-9 && d.assets + d.cash - debt >= -.1 * d.assets - 1e-9);
+      const L = deal(x => A.dealEbitda(x, true) <= 0 && x.type !== 'turn'); out.evalLoss = !L || !A.fundEval(f, L, lead).ok;
+      const bk = deal(x => x.ind === 'bank' && A.dealEbitda(x, false) > 0); out.bankNoDebt = !bk || !A.fundEval(f, bk, lead).ok || A.fundEval(f, bk, lead).lev === 0; }
+    /* due diligence before bidding: the first pass starts DD (paid by the GP), the bid comes once the findings are in */
+    { let f, lead; ({S, f, lead} = fundCo(2803)); S.pe.deals = []; let d = null; for (let k = 0; k < 300 && !d; k++) { const x = A.peDealGen(); if (x && A.fundEval(f, x, lead).ok && x.type !== 'turn') { d = x; d.exp = S.week + 20; S.pe.deals = [d]; } else S.pe.deals = []; }
+      if (d) { S.week = Math.ceil((S.week + 1) / 4) * 4; const c0 = S.player.cash; A.fundAuto8(f); out.ddFirst = d.dd === 1 && !d.bid && S.player.cash < c0; d.dd = 2; S.week += 4; A.fundAuto8(f); info.dd = {bid: !!d.bid, ok: A.fundEval(f, d, lead).ok, why: A.fundEval(f, d, lead).why}; out.bidAfterDD = !!d.bid === A.fundEval(f, d, lead).ok;
+        /* proposals for approval: no bid until you approve */ if (d.bid) d.bid = null; f.cfg.mode = 'propose'; S.week += 4; S.inbox = []; A.fundAuto8(f); const it = S.inbox.find(i => i.kind === 'fundprop'); out.propose = !A.fundEval(f, d, lead).ok || (!!it && !d.bid && A.fundPropCard(it).includes('入札する'));
+        if (it) { const el = document.createElement('button'); el.dataset.id = it.id; el.dataset.v = 'ok'; A.act('fundprop', el); out.approve = !!d.bid && d.bid.owner === f.id; } else out.approve = true;
+        /* manual: the team does nothing */ d.bid = null; f.cfg.mode = 'manual'; S.week += 4; S.inbox = []; A.fundAuto8(f); out.manual = !d.bid && !S.inbox.length; }
+      else { out.ddFirst = out.bidAfterDD = out.propose = out.approve = out.manual = 'no deal'; } }
+    /* after buying: the plan keeps 5% of sales in cash; a small shortfall is topped up from the fund (within the commitment), a large one is proposed to you */
+    { let f, lead; ({S, f, lead} = fundCo(2804)); const d = deal(x => A.dealEbitda(x, false) > 0 && x.type !== 'turn'); d.dd = 2; d.risk = null; const c = A.peAcquire(d, f.id, A.dealAsk(d), .3, false);
+      c.cash = c.rev * .02; const calledP = f.calledLP + f.calledGP, gp0 = S.player.cash; A.fundTopUp(f, c, lead, 'テスト', true); const add = f.calledLP + f.calledGP - calledP;
+      info.top = {add: +add.toFixed(4), cash: +c.cash.toFixed(4), floor: +(c.rev * .05).toFixed(4)}; out.topSmall = Math.abs(c.cash - c.rev * .05) < 1e-9 && Math.abs(add - c.rev * .03) < 1e-9 && Math.abs(gp0 - S.player.cash - add * .05) < 1e-9 && f.calledLP + f.calledGP <= f.lp + f.gp + 1e-9;
+      c.cash = 0; c.crisis = {w: S.week, due: S.week + 8, refi: true, short: Math.min(A.peStats(c).inv * .5, c.debt * .5)}; S.inbox = []; const calledQ = f.calledLP + f.calledGP; A.fundTopUp(f, c, lead, 'テスト', true); const it = S.inbox.find(i => i.kind === 'fundinj');
+      out.topBig = !!it && f.calledLP + f.calledGP === calledQ && !!c.crisis && A.fundInjCard(it).includes('出資する');
+      info.inj = {no: A.fundInjOk(f, c, it.amt), amt: +it.amt.toFixed(3), room: +A.fundRoom(f).toFixed(3)}; const el = document.createElement('button'); el.dataset.id = it.id; el.dataset.v = 'ok'; A.act('fundinj', el); info.inj.cr = c.crisis; out.topApproved = !c.crisis && f.calledLP + f.calledGP > calledQ && !S.inbox.some(i => i.kind === 'fundinj') && loads();
+      const d2 = deal(x => A.dealEbitda(x, false) > 0 && x.type !== 'turn' && x !== d); d2.dd = 2; d2.risk = null; const c2 = A.peAcquire(d2, f.id, A.dealAsk(d2), .3, false); c2.cash = c2.rev * .06; A.fundPlan(c2); out.planFloor = c2.pe.p100 != null && c2.cash >= c2.rev * .05 - 1e-9; info.plan = c2.pe.p100r; }
+    /* a turnaround: no new debt; the plan pays down enough old debt for the books and the bank's test to hold */
+    { let f, lead; ({S, f, lead} = fundCo(2806)); f.strat = 'turn'; const d = deal(x => x.type === 'turn' && A.dealEbitda(x, false) > 0); if (d) { const v = A.fundEval(f, d, lead); info.turn = {ok: v.ok, why: v.why, recap: v.recap && +v.recap.toFixed(2)};
+      out.turnPlan = !v.ok || (v.lev === 0 && v.recap >= 0 && d.assets + d.cash - (d.debt - v.recap) >= .1 * d.assets - 1e-9 && Math.abs(v.out - v.q.out - v.recap) < 1e-9); } else out.turnPlan = true; }
+    /* with no lead, nothing runs */
+    { let f, lead; ({S, f, lead} = fundCo(2805)); S.hr.hq.PEH = null; lead.at = null; lead.role = null; f.mgr = null; const d = deal(x => A.dealEbitda(x, false) > 0); d.dd = 2; d.exp = S.week + 20; S.week = Math.ceil((S.week + 1) / 4) * 4; A.fundAuto8(f); out.noLead = !d.bid && !A.fundLead(f) && !S.inbox.some(i => i.kind === 'fundprop'); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('BAL-08: fund team checks deals (DD first, debt the bank will refinance), runs a plan with a cash floor, tops up within the commitment (large amounts need you), proposal and manual modes', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in BAL-08 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testRev22(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3252,6 +3296,7 @@ async function balance(b) {
     await testRev21(b);
     await testPlay25(b);
     await testRev22(b);
+    await testBal08(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
