@@ -2835,6 +2835,47 @@ async function testRev21(b) {
 }
 
 // playtest 25: applicants placed in a head-office department (and sent out from there); pay packages — options, performance bonus and long-term pay where each officer works
+async function testRev25(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    const fundCo = (seed, strat) => { const S = traderCo(seed, 5000); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.inv, {on: true, staff: 3}); S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const pp = S.hr.people[S.hr.pool[0]]; for (const k in pp.sk) pp.sk[k] = 70; A.hireInto(pp, 'HQ', 'PEH', 'fixed', null); const f = A.fundRaise(strat || 'turn', .05, pp.id); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } S.pe.deals = []; f.cfg.mode = 'propose'; return {S, f}; };
+    const deal = (pred) => { let d = null; for (let i = 0; i < 200 && !d; i++) { const x = A.peDealGen(); if (x && pred(x)) d = x; else if (x) A.S.pe.deals = A.S.pe.deals.filter(y => y !== x); } return d; };
+    const click = (act, id, v) => { const el = document.createElement('button'); el.dataset.id = id; el.dataset.v = v; A.act(act, el); };
+    const setRoom = (f, room) => { const T = 1000, k = T - room; f.gp = T * .05; f.lp = T - f.gp; f.lp0 = f.lp; f.gp0 = f.gp; f.calledGP = k * .05; f.calledLP = k - f.calledGP; f.invEnd = Math.max(f.invEnd, A.S.week + 100); }; /* the document's case: a 1,000 fund with 16.538462 left (15 reserved, 4 weeks of fees 1.538462) */
+    let S;
+    /* BUG-92: another top-up for the same company cannot use its recapitalisation reservation; the recapitalisation itself can */
+    { let f; ({S, f} = fundCo(2592)); const d = deal(x => A.dealEbitda(x, false) > 0 && x.debt > 12); d.dd = 2; d.risk = null; const c = A.peAcquire(d, f.id, A.dealAsk(d), 0, false); c.pe.recap = 10; c.pe.wc = 5; c.pe.p100 = S.week;
+      click('fundact', 99999999, 'ok'); /* any first action settles a one-off amount; the snapshot is taken after it */ setRoom(f, 16.538462); S.player.cash = .75; S.player.loan = 0; A.trClose(); const snap = () => JSON.stringify([S.player.cash, A.fundRoom(f), A.resOf(c), A.gpRes(), c.cash, c.debt, f.calledLP, f.calledGP]); const s0 = snap();
+      A.fundAsk(f, 'inj', {cid: c.id, name: c.name, amt: 1, why: '運転資金'}); const it = S.inbox.find(i => i.kind === 'fundact' && i.act === 'inj'); click('fundact', it.id, 'ok');
+      info.b92 = {why: A.fundInjOk(f, c, 1, 0)}; out.b92refuse = snap() === s0 && A.fundInjOk(f, c, 1, 0) !== '';
+      A.fundAsk(f, 'recap', {cid: c.id, name: c.name, amt: 6, pay: 6, why: '再建（分割）'}); const ir = S.inbox.find(i => i.kind === 'fundact' && i.act === 'recap'); const k0 = f.calledLP + f.calledGP, d0 = c.debt; click('fundact', ir.id, 'ok');
+      info.b92.part = {called: +(f.calledLP + f.calledGP - k0).toFixed(6), debt: +(d0 - c.debt).toFixed(6), res: A.resOf(c), recap: c.pe.recap, wc: c.pe.wc, gp: +S.player.cash.toFixed(6)};
+      out.b92partial = Math.abs(f.calledLP + f.calledGP - k0 - 6) < 1e-9 && Math.abs(d0 - c.debt - 6) < 1e-9 && Math.abs(A.resOf(c) - 9) < 1e-9 && c.pe.recap === 4 && c.pe.wc === 5 && Math.abs(S.player.cash - .45) < 1e-9;
+      A.fundAsk(f, 'recap', {cid: c.id, name: c.name, amt: 9, pay: 4, why: '再建（残り）'}); const ir2 = S.inbox.find(i => i.kind === 'fundact' && i.act === 'recap'); const k1 = f.calledLP + f.calledGP; click('fundact', ir2.id, 'ok'); click('fundact', ir2.id, 'ok');
+      out.b92rest = Math.abs(f.calledLP + f.calledGP - k1 - 9) < 1e-9 && A.resOf(c) === 0 && Math.abs(S.player.cash) < 1e-9 && S.player.loan === 0;
+      setRoom(f, 22); S.player.cash = 1; A.trClose(); out.b92free = A.fundInjOk(f, c, 1, 0) === '' && A.fundInject(f, c, 1, 't', 0) && A.resOf(c) === 0; A.trClose(); out.b92load = loads(); }
+    /* BUG-90: the weekly fee takes only what reservations leave; the rest is recorded unpaid */
+    { let f; ({S, f} = fundCo(2590, 'buyout')); f.cfg.mode = 'manual'; f.invEnd = S.week + 200; const d = deal(x => A.dealEbitda(x, false) > 0); d.dd = 2; d.risk = null; const c = A.peAcquire(d, f.id, A.dealAsk(d), 0, false);
+      const T = 1000; f.gp = T * .05; f.lp = T - f.gp; const called = T - 16.538462; f.calledGP = called * .05; f.calledLP = called - f.calledGP; f.fees = 0; f.feeShort = 0; c.pe.recap = 10; c.pe.wc = 5; S.player.cash = 100;
+      const rooms = []; for (let i = 0; i < 8; i++) { A.fundWeekly(f); rooms.push(+A.fundRoom(f).toFixed(6)); }
+      info.b90 = {rooms, fees: +f.fees.toFixed(6), short: +f.feeShort.toFixed(6)}; out.b90 = rooms.slice(3).every(x => Math.abs(x - 15) < 1e-6) && Math.abs(f.fees - 1.538462) < 1e-6 && Math.abs(f.feeShort - 1.538462) < 2e-6 && A.resOf(c) === 15;
+      c.pe.recap = 0; c.pe.wc = 0; A.fundWeekly(f); out.b90resume = Math.abs(f.fees - 1.538462 - 1000 * .02 / 52) < 1e-6; }
+    /* BUG-91: approving a DD cannot spend the GP cash held for reservations */
+    { let f; ({S, f} = fundCo(2591)); const d = deal(x => A.dealEbitda(x, false) > 0); d.dd = 2; d.risk = null; const c = A.peAcquire(d, f.id, A.dealAsk(d), 0, false); c.pe.recap = 10; c.pe.wc = 5; /* GP share 0.75 */
+      const dd = deal(x => x !== d && !x.dd); dd.exp = S.week + 20; click('fundact', 99999999, 'ok'); S.player.cash = .75 + Math.max(0, A.ddCost(dd) - .01); A.trClose(); const cash0 = S.player.cash;
+      A.fundAsk(f, 'dd', {did: dd.id, name: dd.name, amt: A.ddCost(dd)}); const it = S.inbox.find(i => i.kind === 'fundact' && i.act === 'dd'); click('fundact', it.id, 'ok');
+      info.b91 = {cost: +A.ddCost(dd).toFixed(4), cash: +cash0.toFixed(4), res: A.gpRes()}; out.b91refuse = !dd.dd && S.player.cash === cash0 && Math.abs(A.gpRes() - .75) < 1e-9 && !A.peDD(dd);
+      S.player.cash = .75 + A.ddCost(dd) + .01; A.fundAsk(f, 'dd', {did: dd.id, name: dd.name, amt: A.ddCost(dd)}); const it2 = S.inbox.find(i => i.kind === 'fundact' && i.act === 'dd'); const c1 = S.player.cash; click('fundact', it2.id, 'ok');
+      out.b91ok = dd.dd === 1 && Math.abs(c1 - S.player.cash - A.ddCost(dd)) < 1e-6 && S.player.cash >= A.gpRes() - 1e-9; }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev25: a recapitalisation reservation is used only by that recapitalisation (BUG-92); fees never eat reservations (BUG-90); DD approvals keep the GP cash held for reservations (BUG-91)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in rev25 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testRev24(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3446,6 +3487,7 @@ async function balance(b) {
     await testRev23(b);
     await testBal09(b);
     await testRev24(b);
+    await testRev25(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
