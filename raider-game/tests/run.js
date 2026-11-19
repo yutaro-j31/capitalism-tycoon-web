@@ -2831,6 +2831,29 @@ async function testRev21(b) {
   ok('no page errors in rev21 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 
+// playtest 25: applicants placed in a head-office department (and sent out from there); pay packages — options, performance bonus and long-term pay where each officer works
+async function testPlay25(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    let S;
+    { S = traderCo(2501, 5000); Object.assign(S.dept.acc, {on: true, staff: 4}); S.week = 400; let it = null; for (let q = 31; q < 90 && !it; q++) { A.appStep(q); it = S.inbox.find(i => i.kind === 'applicant'); }
+      const p = A.S.hr.people[it.pid], e0 = A.deptEff('acc'); const card = A.applicantCard(it); const el = document.createElement('button'); el.dataset.id = it.id; el.dataset.v = 'BENCH|acc'; A.act('appgo', el);
+      info.bench = {role: p.role, dept: p.dept, e0: +e0.toFixed(2), e1: +A.deptEff('acc').toFixed(2)}; out.bench = card.includes('幹部として配属') && p.role === 'BENCH' && p.dept === 'acc' && A.deptEff('acc') > e0 && A.personLine(p, null, 'CFO').includes('経理部付き幹部') && loads();
+      const sub = S.cos.filter(x => !x.priv && !x.ctrl)[0]; sub.own = {P: sub.shares * .6}; A.recomputeCtrl(); out.benchSecond = A.secondTo(p, sub.id, 'CFO') && p.at === sub.id && !(S.hr.hq.BENCH || []).includes(p.id); }
+    { S = traderCo(2502, 500); const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean);
+      const po = pool[0]; A.hireInto(po, 'HQ', 'CFO', 'opt', null); out.hqOpt = (po.so || []).length === 1 && po.so[0].f > 0 && po.so[0].f <= .01 && Math.abs(po.so[0].k - A.grossWorth()) < 1e-6;
+      const pb = pool[1]; A.hireInto(pb, 'HQ', 'MA', 'bonus', null); const pay0 = A.hqPayroll ? A.hqPayroll() : 0; S.acct.q[1] = Object.assign({}, S.acct.q[1] || {}, {div: 50}); const c0 = S.player.cash; A.compQuarter(); info.bonus = {got: pb.bonusY, profit: A.qProfit()};
+      out.hqBonus = A.qProfit() > 0 && pb.bonusY > 0 && pb.bonusY <= pb.sal * .6 / 4 + 1e-9 && S.player.cash < c0;
+      const pl = pool[2]; A.hireInto(pl, 'HQ', 'HR', 'ltip', null); const g0 = pl.lt0; S.player.cash += 100; const c1 = S.player.cash; A.ltipVest(pl, null); info.ltip = {got: pl.bonusY, want: +((A.grossWorth() + (c1 - S.player.cash) - g0) * .02).toFixed(4)}; out.hqLtip = pl.bonusY > 1.9 && pl.bonusY < 2.1 && loads(); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('playtest 25: applicants placed in a department and sent out; options, performance bonus and long-term pay by where each officer works', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in playtest-25 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testBal(b) {
   const {p, errs} = await page(b);
   const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
@@ -3154,6 +3177,7 @@ async function balance(b) {
     await testPlay22(b);
     await testPlay23(b);
     await testRev21(b);
+    await testPlay25(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
