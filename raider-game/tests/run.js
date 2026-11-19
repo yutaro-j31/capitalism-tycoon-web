@@ -2609,6 +2609,73 @@ async function testPri56(b) {
   ok('no page errors in margin/priority 5-6 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 
+// rev20: ownership limits count margin shares (BUG-67), tenders on credit are margin (BUG-68), delegated spending keeps the cash floor (BUG-66), no parent money on autopilot (BUG-72), interest on an own building in use (BUG-73), acquisition base after settlement (BUG-69), one seat freed per promotion (BUG-70), the year plan's base, edit and units (BUG-71); live figures for a company you run; stock options
+async function testRev20(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    let S;
+    /* BUG-67: a company under a 49% limit — margin and cash shares together stop at the limit; settling does not lift it */
+    { S = traderCo(2067, 0); S.allUnlocked = true; const c = S.cos.find(x => !x.priv && !x.ctrl && A.ownCap(x, 'P') < 1 && A.ownCap(x, 'P') > .3); if (!c) out.capFound = 'none'; else {
+      const cap = A.ownCap(c, 'P'); S.player.cash = c.price * c.shares * cap * .3; A.execBuy('P', c, c.shares * cap); const e1 = A.econSh(c, 'P') / c.shares; const r2 = A.execBuy('P', c, c.shares * .05);
+      info.b67 = {cap, econ: +e1.toFixed(4), vote: +(A.gfrac(c, 'P')).toFixed(4), mg: +(A.mgOf(c) / c.shares).toFixed(4), extra: !!r2, room: A.buyRoom('P', c)};
+      out.b67cap = e1 <= cap + 1e-9 && !r2 && A.buyRoom('P', c) < 1e-9; S.player.cash = 1e5; A.mgSettle(c); out.b67settle = A.econSh(c, 'P') / c.shares <= cap + 1e-9 && A.gfrac(c, 'P') <= cap + 1e-9 && loads(); } }
+    /* BUG-68: a 51% tender paid 70% in cash and 30% on credit: 15.3 points are margin, 35.7% votes */
+    { S = traderCo(2068, 0); S.allUnlocked = true; const c = S.cos.filter(x => !x.priv && !x.ctrl && A.ownCap(x, 'P') >= 1 && !Object.keys(x.own).some(k => x.own[k] / x.shares > .03)).sort((a, b) => a.price * a.shares - b.price * b.shares)[3];
+      const px = c.price * 1.6, q = A.tenderQuote('P', c, px, .51); S.player.cash = q.cost * .7; S.player.loan = 0; const res = A.execTender('P', c, px, .51); A.recomputeCtrl();
+      const mgF = A.mgOf(c) / c.shares, own = (c.own.P || 0) / c.shares; info.b68 = {own: +own.toFixed(4), mg: +mgF.toFixed(4), vote: +A.gfrac(c, 'P').toFixed(4), loan: +S.player.loan.toFixed(3), ctrl: c.ctrl};
+      out.b68 = !!res && Math.abs(mgF - own * .3) < 1e-6 && Math.abs(A.gfrac(c, 'P') - own * .7) < 1e-6 && loads(); }
+    /* BUG-66: the cash floor holds when actions run (automatic and on approval) */
+    { S = traderCo(2066, 1000); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.ni > 0 && x.debt > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[1]; A.execBuy('P', c, c.shares * .6); A.recomputeCtrl(); A.hqInit();
+      c.dm = 'auto'; c.deleg = 'grow'; c.lim = {ad: .03, rt: 'AAA', cash: .05}; const keep = c.rev * .05; c.cash = keep + .9407 * c.rev / 940.6675; const room = c.cash - keep; while (S.week % 4) { A.step(); S.inbox = []; } c.cash = keep + room; c.dlW = null; A.delegateStep(c);
+      info.b66 = {keep: +keep.toFixed(4), cash: +c.cash.toFixed(4), room: +room.toFixed(4)}; out.b66auto = c.cash >= keep - 1e-9;
+      c.dm = 'approve'; c.cash = keep; const it = {id: 99901, kind: 'prop', cid: c.id, acts: [{k: 'ad', amt: 50, r: 'CMO', why: 't'}, {k: 'rd', amt: 50, r: 'CTO', why: 't'}, {k: 'repay', amt: 50, r: 'CFO', why: 't'}, {k: 'sdiv', amt: 50, r: 'CFO', why: 't'}], exp: S.week + 3};
+      S.inbox.push(it); const el = document.createElement('button'); el.dataset.id = it.id; el.dataset.v = '1'; A.act('hprop', el); out.b66approve = Math.abs(c.cash - keep) < 1e-9 && S.dlog[0].acts.every(a => a.skip);
+      c.cash = keep + 1; const it2 = Object.assign({}, it, {id: 99902}); S.inbox.push(it2); el.dataset.id = it2.id; A.act('hprop', el); const spent = S.dlog[0].acts.reduce((a, x) => a + x.cost, 0); out.b66shared = c.cash >= keep - 1e-9 && spent <= 1 + 1e-9 && loads(); }
+    /* BUG-72: a funding crisis on autopilot: the parent's money is untouched; one request waits; the crisis stays until you decide */
+    { S = traderCo(2072, 500); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.ni > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[2]; A.execBuy('P', c, c.shares * .6); A.recomputeCtrl(); c.dm = 'auto'; S.inbox = [];
+      c.crisis = {due: S.week + 8}; const pc0 = S.player.cash, cc0 = c.cash; A.playerCrisisAuto(c); A.playerCrisisAuto(c); out.b72 = S.player.cash === pc0 && c.cash === cc0 && !!c.crisis && S.inbox.filter(i => i.kind === 'crisis' && i.cid === c.id).length === 1 && loads(); }
+    /* BUG-73: interest on a loan against your own building while the head office uses it */
+    { S = traderCo(2073, 200); A.hqBuild('tyo'); for (let i = 0; i < 53; i++) { A.step(); S.inbox = []; } const bd = A.hqBld(); A.setOffice(1, 'tyo'); A.propRefi(bd, .6); A.setOffice(4); const mort = bd.mort, c0 = S.player.cash; A.propStep(); const d = c0 - S.player.cash, want = mort * A.mortRate() / 100 / 52;
+      info.b73 = {mort: +mort.toFixed(3), d: +d.toFixed(6), want: +want.toFixed(6), use: bd.hqUse}; out.b73 = bd.hqUse && mort > 0 && Math.abs(d - want) < 1e-9 && A.propRentY(bd) >= 0 && loads(); }
+    /* BUG-69: a PE purchase records its own cost, net debt and kind */
+    { S = traderCo(2069, 50); Object.assign(S.dept.inv, {on: true, staff: 1}); let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && A.dealEbitda(x, false) > 0) d = x; } const c = A.peAcquire(d, 'P', A.dealAsk(d), .5, false);
+      const a = c && c.acq0; info.b69 = a && {cost: +a.cost.toFixed(4), real: +A.costOf('P', c.id).toFixed(4), nd: +a.nd.toFixed(4), realNd: +(c.debt - c.cash).toFixed(4), how: a.how};
+      out.b69 = !!a && a.how === 'PE' && Math.abs(a.cost - A.costOf('P', c.id)) < 1e-9 && a.cost > 0 && Math.abs(a.nd - (c.debt - c.cash)) < 1e-9 && loads();
+      const n0 = S.acqSeq; A.acqFlush(); out.b69once = S.acqSeq === n0; }
+    /* BUG-70: a promoted candidate moved again does not free another seat */
+    { S = traderCo(2070, 500); Object.assign(S.dept.acc, {on: true, staff: 8, jr: 3}); S.week = 12; A.gradCands('acc', 3); const p0 = A.jrList()[0]; for (const k in p0.sk) p0.sk[k] = 70; S.week = 300;
+      A.hireInto(p0, 'HQ', 'CFO', null, null); const a1 = [S.dept.acc.staff, S.dept.acc.jr]; const sub = S.cos.filter(x => !x.priv && !x.ctrl)[0]; sub.ctrl = 'P'; sub.own.P = sub.shares * .6; A.hireInto(p0, sub.id, 'CFO', null, null); const a2 = [S.dept.acc.staff, S.dept.acc.jr];
+      info.b70 = {a1, a2}; out.b70 = a1[0] === 7 && a1[1] === 2 && a2[0] === 7 && a2[1] === 2 && p0.at === sub.id && loads(); }
+    /* BUG-71: removing and adding a goal again keeps the year's first base; targets can be edited; units */
+    { S = traderCo(2071, 30); A.planSet('nw', 15); const b0 = S.plan.goals[0].base; S.player.cash = 20; A.planDel('nw'); A.planSet('nw', 15); const b1 = S.plan.goals.find(g => g.k === 'nw').base;
+      A.planSet('nw', 20); const t1 = S.plan.goals.find(g => g.k === 'nw').tgt; A.planSet('cash', 10); A.planSet('deals', 2); const fourth = A.planSet('aum', 20); const bad = A.planSet('deals', 1.5) || A.planSet('cash', 1e9) || A.planSet('nw', NaN);
+      const tx = A.exportText(); A.importText(tx); S = A.S; const html = A.planBox(); const cg = S.plan.goals.find(g => g.k === 'cash');
+      info.b71 = {b0: +b0.toFixed(3), b1: +b1.toFixed(3), t1, fourth, bad}; out.b71 = Math.abs(b0 - b1) < 1e-12 && t1 === 20 && !fourth && !bad && S.plan.goals.find(g => g.k === 'nw').tgt === 20 && html.includes(`${cg.base.toFixed(1)}%`) && html.includes('planedit'); }
+    /* a special dividend shows at once in the overview of a company you run */
+    { S = traderCo(2074, 500); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.cash > 1).sort((a, b) => a.price * a.shares - b.price * b.shares)[1]; A.execBuy('P', c, c.shares * .6); A.recomputeCtrl(); A.step(); S.inbox = [];
+      const h0 = A.coInfo(c), pc0 = S.player.cash, cash0 = c.cash, paid = A.specialDividend(c, c.cash * .5), h1 = A.coInfo(c); info.sdiv = {paid: +paid.toFixed(3), mine: +(S.player.cash - pc0).toFixed(3)};
+      out.sdiv = paid > 0 && h0.includes('現金（現在）') && h1.includes(A.fm(cash0 - paid)) && S.player.cash - pc0 > paid * (c.own.P / c.shares) - 1e-9; }
+    /* stock options: the head office's — granted at today's value, worth the rise, exercised after four years as a dilution of exactly the gain */
+    { S = traderCo(2075, 100); const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean)[0]; A.hireInto(pool, 'HQ', 'CFO', null, null); const g0 = A.grossWorth();
+      pool.so = [{f: .01, k: Math.max(0, g0), w0: S.week}]; S.player.cash += 50; const g1 = A.grossWorth(), shown = .01 * Math.max(0, g1 - g0);
+      for (let i = 0; i < 209; i++) { A.step(); S.inbox = []; } const gw = A.grossWorth(), o = S.player.outside || 0; info.so = {g0: +g0.toFixed(2), shownGain: +shown.toFixed(3), outside: +o.toFixed(5), left: pool.so.length};
+      out.soHQ = pool.so.length === 0 && o > 0 && o < .02 && Math.abs(A.myWorth() - gw * (1 - o)) < 1e-9; }
+    /* a subsidiary officer's options: new shares worth the gain; the company is worth the same, so each share is worth less */
+    { S = traderCo(2076, 500); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.ni > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[1]; A.execBuy('P', c, c.shares * .6); A.recomputeCtrl();
+      const pz = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean)[0]; A.hireInto(pz, c.id, 'CFO', 'opt', null); pz.optK = c.price * .7;
+      const s0 = c.shares, px0 = c.price, mine0 = c.own.P * c.price, gain = pz.sal * 2 / pz.optK * (px0 - pz.optK); A.optVest(pz, c);
+      const capSame = Math.abs(c.shares * c.price - s0 * px0) < 1e-9 * s0 * px0, dil = mine0 - c.own.P * c.price, want = gain * (c.own.P / c.shares);
+      pz.end = S.week + 1; pz.renewAsked = true; pz.optK = c.price * .8; A.step(); S.inbox = []; const vestedAtEnd = pz.optK != null && Math.abs(pz.optK - c.price) < c.price; /* exercised at the end of the period, then a new grant at the new price */
+      info.subso = {gain: +gain.toFixed(4), dil: +dil.toFixed(4), want: +want.toFixed(4), capSame, end: pz.end}; out.soSub = capSame && Math.abs(dil - want) < 1e-9 * Math.max(1, mine0) && pz.end > S.week + 100 && vestedAtEnd && loads(); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev20: ownership limits with margin (BUG-67), tender on credit (BUG-68), cash floor (BUG-66), no parent money on autopilot (BUG-72), interest on own building (BUG-73), acquisition base (BUG-69), promotion seat once (BUG-70), plan base/edit/units (BUG-71), live overview cash, stock options', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in rev20 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testBal(b) {
   const {p, errs} = await page(b);
   const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
@@ -2927,6 +2994,7 @@ async function balance(b) {
     await testRev18(b);
     await testPlay19(b);
     await testPri56(b);
+    await testRev20(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
