@@ -2753,6 +2753,37 @@ async function testPlay22(b) {
   ok('no page errors in playtest-22 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 
+// playtest 23: IPO badges; the company's own share issue needs approval; salaries and bonuses by the CHRO; a lead for a PE company; funds that invest on their own
+async function testPlay23(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    let S;
+    { S = traderCo(2301, 80); Object.assign(S.dept.inv, {on: true, staff: 1}); let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && A.dealEbitda(x, false) > 0) d = x; } const c = A.peAcquire(d, 'P', A.dealAsk(d), .5, false);
+      c.ipoPlan = {kind: 'pe', w0: S.week, end: S.week + 20, uw: 'mid', cost: 0, nf: .3, sf: .15}; out.ipoBadge = A.coRow(c).includes('上場準備中'); }
+    /* the CFO asks before issuing shares of the company itself */
+    { S = traderCo(2302, 50); S.allUnlocked = true; S.stage = 4; const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean); A.hireInto(pool[0], 'HQ', 'CFO', null, null); pool[0].dlg = {eq: true}; S.player.od = S.week - 10;
+      A.dlgStep(); const ask = S.inbox.find(i => i.act && i.act.t === 'ytreq'); out.ytrAsk = !!ask && !S.player.ipoPlan; info.ytr = {ask: !!ask, plan: !!S.player.ipoPlan}; }
+    /* the CHRO sets salaries by morale and pays a bonus after a profitable quarter */
+    { S = traderCo(2303, 200); Object.assign(S.dept.acc, {on: true, staff: 5, mo: 40}); const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean); A.hireInto(pool[0], 'HQ', 'HR', null, null); pool[0].dlg = {sal: true, bonus: true};
+      const s0 = S.dept.acc.sal; S.week = Math.ceil(S.week / 4) * 4; A.dlgStep(); out.hrSal = S.dept.acc.sal > s0;
+      const mo0 = S.dept.acc.mo, c0 = S.player.cash, paid = A.payBonus(1); out.bonus = paid > 0 && S.dept.acc.mo > mo0 && S.player.cash < c0 && A.bonusBox().includes('ボーナス') && loads(); info.hr = {s0, s1: S.dept.acc.sal, paid}; }
+    /* a lead for the PE company from the first-decision card */
+    { S = traderCo(2304, 80); Object.assign(S.dept.inv, {on: true, staff: 1}); const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean); A.hireInto(pool[0], 'HQ', 'MA', null, null); let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && A.dealEbitda(x, false) > 0) d = x; } const c = A.peAcquire(d, 'P', A.dealAsk(d), .5, false);
+      const it = S.inbox.find(i => i.kind === 'pepol' && i.cid === c.id), card = A.pePolCard(it); const el = document.createElement('button'); el.dataset.id = c.id; el.dataset.v = pool[0].id; A.act('pelead', el); out.peLead = card.includes('担当者') && A.ceoOf(c) === pool[0] && loads(); }
+    /* a fund invests on its own through its manager */
+    { S = traderCo(2305, 5000); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.inv, {on: true, staff: 1}); S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean).sort((a, b) => b.sk.deal - a.sk.deal); A.hireInto(pool[0], 'HQ', 'PEH', null, null); const f = A.fundRaise('buyout', .05, pool[0].id);
+      for (let i = 0; i < 60; i++) { A.step(); S.inbox = S.inbox.filter(x => x.kind === 'pepol'); } const owned = S.cos.filter(c => c.pe && !c.pe.closed && c.pe.owner === f.id).length, bids = (S.pe.deals || []).filter(d => d.bid && d.bid.owner === f.id).length;
+      info.fund = {owned, bids, called: +(f.calledLP + f.calledGP).toFixed(2), size: +(f.lp + f.gp).toFixed(1), auto: A.fundAuto(f)}; out.fundMoves = A.fundAuto(f) && owned + bids > 0 && loads(); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('playtest 23: IPO badge, own share issue needs approval, CHRO salaries and bonus, PE company lead, funds invest on their own', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in playtest-23 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testBal(b) {
   const {p, errs} = await page(b);
   const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
@@ -3074,6 +3105,7 @@ async function balance(b) {
     await testRev20(b);
     await testPlay21(b);
     await testPlay22(b);
+    await testPlay23(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
