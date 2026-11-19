@@ -2679,6 +2679,43 @@ async function testRev20(b) {
   ok('no page errors in rev20 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 
+// playtest 21: welfare cards keep their scroll; cash options for department proposals; secondment with a chosen role; injecting money from head office; a PE company's first decision
+async function testPlay21(b) {
+  const {p, errs} = await page(b, {...devices['iPhone 13']});
+  await p.click('[data-act=newgame]');
+  const sc = await p.evaluate(() => { const A = window.__atlas, S = A.S; document.querySelector('#modal').hidden = true; S.player.cash = 5; A.hqInit(); Object.assign(S.dept.hr, {on: true, staff: 5}); A.ui.tab = 'pres'; A.ui.hqTab = 'hr'; A.renderAll(true);
+    const h = document.querySelector('#pbody .hscroll'); if (!h) return {none: true}; h.scrollLeft = 400; const before = h.scrollLeft; const btn = [...h.querySelectorAll('[data-act=welfd]')][6]; if (btn) btn.click(); const h2 = document.querySelector('#pbody .hscroll'); return {before, after: h2 ? h2.scrollLeft : -1, clicked: !!btn}; });
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    let S;
+    /* department proposals: buy a building in cash, bid without borrowing */
+    { S = traderCo(2101, 300); const pr = S.props.find(x => !x.own && !x.small); const it = {id: 99801, kind: 'pitch', who: 'x', role: '投資部', text: 't', act: {t: 'prop', pid: pr.id}, why: 'ローン50%', exp: S.week + 4}; S.inbox.push(it);
+      const alt = A.pitchAlt(it); const el = document.createElement('button'); el.dataset.id = it.id; el.dataset.v = '2'; A.act('pitch', el); info.prop = {alt: alt && alt.label, mort: pr.mort, own: pr.own}; out.propCash = !!alt && alt.ok && pr.own === 'P' && pr.mort === 0 && loads();
+      Object.assign(S.dept.inv, {on: true, staff: 1}); let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && A.dealEbitda(x, false) > 0) d = x; } const it2 = {id: 99802, kind: 'pitch', who: 'y', role: 'PE投資責任者', text: 't', act: {t: 'pebid', did: d.id}, why: 'LBO', exp: S.week + 4}; S.inbox.push(it2);
+      const el2 = document.createElement('button'); el2.dataset.id = it2.id; el2.dataset.v = '2'; A.act('pitch', el2); out.peNoDebt = !!d.bid && d.bid.lev === 0; }
+    /* secondment: choose the subsidiary and the role; the incumbent steps down */
+    { S = traderCo(2102, 500); const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[1]; A.execBuy('P', c, c.shares * .6); A.recomputeCtrl();
+      const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean); const hq = pool[0]; A.hireInto(hq, 'HQ', 'CFO', null, null); const cur = A.exOf ? null : null; const inc = Object.values(S.hr.people).find(x => x.at === c.id && x.role === 'CFO');
+      A.ui.secCo = c.id; A.ui.secRole = 'CFO'; A.showSecond(hq.id); const modal = document.querySelector('#modal').innerHTML; const el = document.createElement('button'); el.dataset.id = hq.id; A.act('secgo', el);
+      info.sec = {inc: inc && inc.n, incAt: inc && inc.at, at: hq.at, role: hq.role}; out.second = modal.includes('役職') && hq.at === c.id && hq.role === 'CFO' && (!inc || inc.at !== c.id || inc.role !== 'CFO') && S.hr.hq.CFO !== hq.id && loads();
+      A.ui.secRole = 'COO'; out.secondRole = A.secondTo(hq, c.id, 'COO') === true && hq.role === 'COO'; }
+    /* head office puts money in, any time; 20% or more ends a funding crisis */
+    { S = traderCo(2103, 500); const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[2]; A.execBuy('P', c, c.shares * .6); A.recomputeCtrl(); const own0 = c.own.P / c.shares, cash0 = c.cash, pc0 = S.player.cash;
+      const a = A.injectDo(c, .1); out.inject = a > 0 && Math.abs(c.cash - cash0 - a) < 1e-9 && Math.abs(pc0 - S.player.cash - a) < 1e-9 && c.own.P / c.shares > own0;
+      c.crisis = {due: S.week + 8}; S.inbox.push({id: 99803, kind: 'crisis', cid: c.id, exp: S.week + 8}); A.injectDo(c, .2); out.injectCrisis = !c.crisis && !S.inbox.some(i => i.kind === 'crisis' && i.cid === c.id) && A.injectBox(c).includes('本社から資金を入れる');
+      S.player.cash = 0; out.injectNoCash = A.injectDo(c, .05) === 0 && loads(); }
+    /* a PE purchase asks first how the company will be run */
+    { S = traderCo(2104, 80); Object.assign(S.dept.inv, {on: true, staff: 1}); let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && A.dealEbitda(x, false) > 0) d = x; } const c = A.peAcquire(d, 'P', A.dealAsk(d), .5, false);
+      const it = S.inbox.find(i => i.kind === 'pepol' && i.cid === c.id); const card = it ? A.pePolCard(it) : ''; A.ui.pePolMode = 'auto'; const el = document.createElement('button'); el.dataset.id = it.id; el.dataset.v = 'fix'; A.act('pepol', el);
+      info.pepol = {dm: c.dm, deleg: c.deleg, p100: c.pe.p100 != null}; out.pePol = !!it && card.includes('財務改善') && c.deleg === 'fix' && c.dm === 'auto' && !!c.pe.pol && c.pe.p100 != null && loads(); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('playtest 21: welfare strip keeps its scroll; cash/no-borrowing options; secondment by role (incumbent steps down); head-office injection; PE first decision', !bad.length && sc.after > 0 && Math.abs(sc.after - sc.before) < 2, bad.join(',') + ' ' + JSON.stringify({sc, info: r.info}));
+  ok('no page errors in playtest-21 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testBal(b) {
   const {p, errs} = await page(b);
   const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
@@ -2998,6 +3035,7 @@ async function balance(b) {
     await testPlay19(b);
     await testPri56(b);
     await testRev20(b);
+    await testPlay21(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
