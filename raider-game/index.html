@@ -1310,7 +1310,7 @@ function recomputeCtrl(){ GS = null; // group control: every stake held by a per
     for (const c of S.cos) {
       const tally = {};
       for (const k in c.own) { const b = bossOf(k); if (b) tally[b] = (tally[b] || 0) + c.own[k]; }
-      if (tally.P) tally.P = Math.min(Math.max(0, tally.P - mgOf(c)), ownCap(c, 'P') * c.shares); /* margin shares do not vote; votes above the ownership limit (an older save) do not count either */
+      if (tally.P) { tally.P = Math.max(0, tally.P - mgOf(c)); if (!c.priv) tally.P = Math.min(tally.P, ownCap(c, 'P') * c.shares); } /* margin shares do not vote; votes above a listed company's ownership limit (an older save) do not count either (a private company bought outright is not under the market limit) */
       const nc = ctrlRule(c, tally);
       if (nc !== c.ctrl) { c.ctrl = nc; changed = true; }
     }
@@ -1537,8 +1537,10 @@ function rightsIssue(c, f){ /* unlisted: new shares are taken up pro rata by the
   news(`【株主割当増資】非上場の${c.name}が株主から${fm(raised)}の払い込みを受けた`, c.ctrl === 'P' ? 'you' : 'deal', c.city);
   return raised;
 }
+const crisisNeed = c => c.price * c.shares * .2 * .95;
 function resolveCrisis(c, k){
   if (!c.crisis) return false;
+  if (k === 'parent') { if (c.ctrl !== 'P' || !(c.rev > 0 && c.price > 0) || freeCash() < crisisNeed(c) - 1e-9) return false; allot(c, 'P', .2); delete c.crisis; qnews(c, 'resolve', `【危機回避】${S.company}が${c.name}に${fm(crisisNeed(c))}を注入（新株を引き受け）`, 'you'); return true; } /* rev20 BUG-72: only on your approval, checked again now */
   if (k === 'equity') issueEquity(c, .2);
   else if (k === 'sell') { const v = sellDivision(c, .15, true); repay(c, v); }
   else { c.pen = {until: S.week + 104, add: 3}; c.cash += Math.min(c.debt * .1, maxDebt(c) * .1 + 1); c.debt += Math.min(c.debt * .1, maxDebt(c) * .1 + 1); }
@@ -3348,7 +3350,7 @@ function resolveInbox(id, accept){
   const it = S.inbox.find(i => i.id === id); if (!it) return;
   S.inbox = S.inbox.filter(i => i !== it);
   if (it.kind === 'tip') return;
-  if (it.kind === 'crisis') { const c = coById(it.cid); if (c && accept) resolveCrisis(c, accept); saveSoon(); return; }
+  if (it.kind === 'crisis') { const c = coById(it.cid); if (c && accept && !resolveCrisis(c, accept) && c.crisis) { S.inbox.push(it); toast('実行できませんでした（資金・支配の状態を確認してください）', true); } saveSoon(); return; } /* a refused choice leaves the request in the inbox */
   if (!accept) { news(`提案を拒否しました`, 'you'); return; }
   if (it.kind === 'counter') { // the player accepts a rival's counter-offer and buys the block
     const c = coById(it.cid); if (!c) return;
@@ -5884,7 +5886,7 @@ function renderInbox(){
       return `<div class="offer" ${mine ? 'style="border-color:var(--down)"' : ''}><p><b>${it.what === 'act' ? '株主総会の議決権行使' : '委任状争奪戦'}</b></p><p>${what}</p><div class="preview">${esc(ownerName(it.from))}グループ ${pc(gfrac(c, it.from))} ・ あなたのグループ ${pc(gfrac(c, 'P'))} ・ 浮動株 ${pc(floatOf(c) / c.shares)}<br><em>採決 ${shortDate(it.exp)}（投票しなければ棄権）</em></div>
       <div class="btnrow"><button class="btn buy" data-act="vote" data-id="${it.id}" data-v="1">賛成</button><button class="btn sell" data-act="vote" data-id="${it.id}" data-v="-1">反対</button><button class="btn sm" data-act="sel" data-id="${c.id}">企業を見る</button></div></div>`; }
     if (it.kind === 'crisis') return `<div class="offer" style="border-color:var(--down)"><p><b>資金繰り危機：${esc(c.name)}</b></p><p>格付け${rating(c)[0]}・手元資金 ${fm(c.cash)}・負債 ${fm(c.debt)}。${shortDate(it.exp)}までに手を打たないと破綻します。</p>${it.rec ? `<p class="note">経営陣の提案：${it.rec}（任されていても、親会社の資金・増資・大口の借入はあなたが決めます）</p>` : ''}
-      <div class="rows">${Object.entries(CRISIS).map(([k, v]) => `<div class="orow"><span><b>${v.n}</b><br><small>${v.d}</small></span><span><button class="btn sm" data-act="crisis" data-id="${it.id}" data-v="${k}">選ぶ</button></span></div>`).join('')}</div>
+      <div class="rows">${c.ctrl === 'P' && c.rev > 0 ? `<div class="orow"><span><b>親会社が資金を注入</b><br><small>${esc(S.company)}が新株を引き受けて${fm(crisisNeed(c))}を入れる（持分が増える・使える現金 ${fm(freeCash())}）</small></span><span><button class="btn sm" data-act="crisis" data-id="${it.id}" data-v="parent" ${freeCash() >= crisisNeed(c) ? '' : 'disabled'}>選ぶ</button></span></div>` : ''}${Object.entries(CRISIS).map(([k, v]) => `<div class="orow"><span><b>${v.n}</b><br><small>${v.d}</small></span><span><button class="btn sm" data-act="crisis" data-id="${it.id}" data-v="${k}">選ぶ</button></span></div>`).join('')}</div>
       <div class="btnrow"><button class="btn sm" data-act="sel" data-id="${c.id}">企業を見る</button></div></div>`;
     if (it.kind === 'counter') { const cost = it.n * it.price; return `<div class="offer"><p><b>相対取引の逆提案</b></p><p>${esc(ownerName(it.from))}は${esc(c.name)}株${fsh(it.n)}を1株${fp(it.price)}なら売ってもよいと言っています。</p><div class="preview">${fsh(it.n)} × ${fp(it.price)} = ${fm(cost)}（名義：${esc(acctName(it.actor))}）<br><em>期限 ${shortDate(it.exp)}</em></div><div class="btnrow"><button class="btn buy" data-act="inbox" data-id="${it.id}" data-v="1">この価格で買う</button><button class="btn" data-act="inbox" data-id="${it.id}" data-v="0">断る</button><button class="btn sm" data-act="sel" data-id="${c.id}">企業を見る</button></div></div>`; }
     if (it.kind === 'block') return `<div class="offer"><p><b>相対取引の申し入れ</b></p><p>${esc(ownerName(it.from))}が、あなたの${esc(c.name)}株をまとめて買い取りたいと申し入れています。応じれば相手の持分が大きく増えます。</p><div class="preview">1株 ${fp(it.price)}（現在値比 <span class="${prem >= 0 ? 'up' : 'down'}">${spc(prem)}</span>）× ${fsh(n)} = ${fm(amt)}<br><em>期限 ${shortDate(it.exp)}</em></div><div class="btnrow"><button class="btn buy" data-act="inbox" data-id="${it.id}" data-v="1">売る</button><button class="btn" data-act="inbox" data-id="${it.id}" data-v="0">断る</button><button class="btn sm" data-act="sel" data-id="${c.id}">企業を見る</button></div></div>`;

@@ -1184,9 +1184,9 @@ async function testBalance2(b) {
     const day1 = Math.abs(A.ctrlPx('P', c) - c.price) < 1e-9; /* on the day control is taken, no premium is booked yet */ c.ctrlW = S.week - 52; /* a year later, integrated */
     out.ctrl = day1 && Math.abs(A.ctrlPx('P', c) - A.fair(c) * .95) < 1e-9 && Math.abs(A.bsNow().eq - A.netWorth('P')) < 1e-6;
     c.own = {}; A.recomputeCtrl();
-    /* a company on autopilot solves its own funding crisis */
+    /* rev20 BUG-72: a company on autopilot does not settle a funding crisis on its own; the request waits for the player */
     const d = S.cos.find(x => !x.priv && !x.ctrl && x !== c); d.own = {P: d.shares * .6}; A.recomputeCtrl(); d.dm = 'auto'; d.ni = -1; d.debt = Math.max(d.debt, 5); d.cash = 0; d.crisis = null; d.dueW = S.week; d.debt = d.rev * 10;
-    S.inbox = []; A.refiStep(); out.auto = !S.inbox.some(i => i.kind === 'crisis' && i.cid === d.id);
+    S.inbox = []; const pc = S.player.cash; A.refiStep(); out.auto = !!d.crisis && S.inbox.filter(i => i.kind === 'crisis' && i.cid === d.id).length === 1 && S.player.cash === pc;
     d.own = {}; A.recomputeCtrl();
     /* new companies are listed after the original list runs out */
     S.ipo = 999; const n0 = S.cos.length; S.cos = S.cos.filter((x, i) => x.priv || i % 3); const n1 = S.cos.length; S.week = 17 * 40; A.maybeIPO(); out.ipo = S.cos.length === n1 + 1 && /^G\d+/.test(S.cos[S.cos.length - 1].tk);
@@ -1200,7 +1200,7 @@ async function testBalance2(b) {
   });
   ok('balance2: the theoretical price is shown as an estimate within its accuracy band', r.est);
   ok('balance2: a controlling stake is valued at intrinsic value (and the balance sheet agrees)', r.ctrl);
-  ok('balance2: a company on autopilot handles its own funding crisis', r.auto);
+  ok('balance2: a company on autopilot asks the player about a funding crisis (no automatic rescue, the parent cash untouched — rev20 BUG-72)', r.auto);
   ok('balance2: new companies list after the original IPO list runs out', r.ipo);
   ok('balance2: unrelated small-company crises are summarised quarterly', r.quiet);
   ok('balance2: alternative goals are awarded once; dividends raise bank credit', r.route && r.div, JSON.stringify(r));
@@ -1316,10 +1316,10 @@ async function testPeTob(b) {
     /* post-merger integration: fixed costs fall about 6% over the first year of control, then stop */
     const wk = S.week; c.pmi = {w0: S.week}; c.fixed = 100; for (let i = 0; i < 60; i++) { A.pmiStep(c); S.week++; } S.week = wk; out.pmi = !c.pmi && c.fixed > 90 && c.fixed < 95; /* 52 weekly steps, then it stops */
     c.own = {}; A.recomputeCtrl(); delete S.player.cost[c.id];
-    /* a funding crisis in an autopilot subsidiary is funded by the parent when it can, keeping control */
-    const d = pick(); d.own = {P: d.shares * .52}; A.recomputeCtrl(); d.dm = 'auto'; d.crisis = {w: S.week + 8}; 
-    A.playerCrisisAuto(d); out.parent = !d.crisis && d.ctrl === 'P' && d.own.P / d.shares > .52;
-    S.player.cash = 0; d.crisis = {w: S.week + 8}; const sh0 = d.shares; A.playerCrisisAuto(d); out.noDilute = !d.crisis && d.ctrl === 'P' && d.own.P / d.shares > .5; /* no cash: refinance or a small offering, never one that costs control */
+    /* rev20 BUG-72: a funding crisis in an autopilot subsidiary waits for the player (the officers recommend); the parent's money moves only on approval, and refinancing keeps control */
+    const d = pick(); d.own = {P: d.shares * .52}; A.recomputeCtrl(); d.dm = 'auto'; d.crisis = {w: S.week + 8, due: S.week + 8}; S.inbox = [];
+    const pc0 = S.player.cash, dc0 = d.cash; A.playerCrisisAuto(d); const it = S.inbox.find(i => i.kind === 'crisis' && i.cid === d.id); out.parent = !!d.crisis && !!it && !!it.rec && S.player.cash === pc0 && d.cash === dc0;
+    const sh0 = d.shares; A.resolveCrisis(d, 'refi'); out.noDilute = !d.crisis && d.ctrl === 'P' && d.shares === sh0 && d.own.P / d.shares > .5;
     d.own = {}; A.recomputeCtrl(); S.player.cash = 500;
     /* tender acceptance: +19% gets about half the float, +35% nearly all */
     const e = pick(); e.price = A.fair(e); const half = A.tenderQuote('P', e, e.price * 1.19, 1), all = A.tenderQuote('P', e, e.price * 1.36, 1);
@@ -1330,7 +1330,7 @@ async function testPeTob(b) {
   });
   ok('PE/TOB: a controlling stake is booked at cost (goodwill) up to 125% of intrinsic value; collateral stays at market', r.gw && r.gwCap, JSON.stringify(r));
   ok('PE/TOB: post-merger integration trims fixed costs about 6% in the first year, then ends', r.pmi);
-  ok('PE/TOB: an autopilot subsidiary in a funding crisis is funded by the parent, or refinanced without losing control', r.parent && r.noDilute);
+  ok('PE/TOB: an autopilot subsidiary in a funding crisis waits for the player with a recommendation; refinancing on approval keeps control (rev20 BUG-72)', r.parent && r.noDilute);
   ok('PE/TOB: a 19% premium attracts about half the float and 36% nearly all of it', r.accept);
   ok('PE/TOB: rivals cap what they pay in a bidding war', r.cap);
   ok('no page errors in PE/TOB tests', !errs.length, errs.slice(0, 3).join(' | '));
@@ -2635,7 +2635,10 @@ async function testRev20(b) {
       c.cash = keep + 1; const it2 = Object.assign({}, it, {id: 99902}); S.inbox.push(it2); el.dataset.id = it2.id; A.act('hprop', el); const spent = S.dlog[0].acts.reduce((a, x) => a + x.cost, 0); out.b66shared = c.cash >= keep - 1e-9 && spent <= 1 + 1e-9 && loads(); }
     /* BUG-72: a funding crisis on autopilot: the parent's money is untouched; one request waits; the crisis stays until you decide */
     { S = traderCo(2072, 500); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.ni > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[2]; A.execBuy('P', c, c.shares * .6); A.recomputeCtrl(); c.dm = 'auto'; S.inbox = [];
-      c.crisis = {due: S.week + 8}; const pc0 = S.player.cash, cc0 = c.cash; A.playerCrisisAuto(c); A.playerCrisisAuto(c); out.b72 = S.player.cash === pc0 && c.cash === cc0 && !!c.crisis && S.inbox.filter(i => i.kind === 'crisis' && i.cid === c.id).length === 1 && loads(); }
+      c.crisis = {due: S.week + 8}; const pc0 = S.player.cash, cc0 = c.cash; A.playerCrisisAuto(c); A.playerCrisisAuto(c); out.b72 = S.player.cash === pc0 && c.cash === cc0 && !!c.crisis && S.inbox.filter(i => i.kind === 'crisis' && i.cid === c.id).length === 1 && loads();
+      const it = S.inbox.find(i => i.kind === 'crisis' && i.cid === c.id), keep = S.player.cash; S.player.cash = 0; const el = document.createElement('button'); el.dataset.id = it.id; el.dataset.v = 'parent'; A.act('crisis', el); const stay = !!c.crisis && S.inbox.some(i => i.id === it.id);
+      S.player.cash = keep; const own0 = c.own.P, sh0 = c.shares, pc1 = S.player.cash, cc1 = c.cash; A.act('crisis', el); const paid = pc1 - S.player.cash, got = c.cash - cc1;
+      info.b72 = {stay, paid: +paid.toFixed(4), got: +got.toFixed(4), own: +((c.own.P) / c.shares).toFixed(4)}; out.b72approve = stay && !c.crisis && paid > 0 && Math.abs(paid - got) < 1e-6 && c.own.P > own0 && c.shares > sh0 && loads(); }
     /* BUG-73: interest on a loan against your own building while the head office uses it */
     { S = traderCo(2073, 200); A.hqBuild('tyo'); for (let i = 0; i < 53; i++) { A.step(); S.inbox = []; } const bd = A.hqBld(); A.setOffice(1, 'tyo'); A.propRefi(bd, .6); A.setOffice(4); const mort = bd.mort, c0 = S.player.cash; A.propStep(); const d = c0 - S.player.cash, want = mort * A.mortRate() / 100 / 52;
       info.b73 = {mort: +mort.toFixed(3), d: +d.toFixed(6), want: +want.toFixed(6), use: bd.hqUse}; out.b73 = bd.hqUse && mort > 0 && Math.abs(d - want) < 1e-9 && A.propRentY(bd) >= 0 && loads(); }
