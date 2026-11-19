@@ -2129,14 +2129,14 @@ function fundEvalBolt(f, d, P, lead){ /* read-only: a bolt-on for the platform, 
   if (debt > 0 && debt / E > maxL) return {ok: false, why: `統合後の負債/EBITDAが上限（${maxL.toFixed(1)}倍）を超える`}; if (debt > 0 && E * .85 / (debt * (r + 1 / 7)) < dscrNeed() * 1.15) return {ok: false, why: '統合後の借り換えの返済能力（DSCR）に余裕がない'};
   return {ok: true, lev: 0, q, e, recap: 0, wc: 0, integ, bolt: P.id, out: q.out + integ, score: e / Math.max(1e-6, q.out + integ) * 1.2}; }
 function fundEval(f, d, lead){ /* read-only: the team's view of one deal. Uses the seller's figures until due diligence is done */
-  const shown = d.dd !== 2, e = dealEbitda(d, shown), fin = lead ? (lead.sk.fin - 50) / 50 : 0, r = (S.econ.rate + 3) / 100, maxL = (FUND_LEV[f.cfg.lev] || 3.5) + .5 * fin;
+  const shown = d.dd !== 2, e = dealEbitda(d, shown), fin = lead ? (lead.sk.fin - 50) / 50 : 0, r = (S.econ.rate + 3) / 100, peak = ['boom', 'bubble'].includes(icState(d.ind)) || !!(S.mk[d.key] && S.mk[d.key].glutOn), stress = peak ? .65 : .85, maxL = (FUND_LEV[f.cfg.lev] || 3.5) + .5 * fin - (peak ? 1 : 0); /* rev23: at the top of its industry's cycle (or in a glutted market) profits are assumed to fall further and less is borrowed */
   const turn = f.strat === 'turn' || d.type === 'turn';
   if (!(e > 0) && !(turn && e > -d.rev * .03)) return {ok: false, why: `EBITDAが赤字（${fm(e)}）`};
   const ask = dealAsk(d), fair = Math.max(e, 0) * peMult(d.ind, d.growth); if (e > 0 && ask + d.debt - d.cash > fair * 1.25) return {ok: false, why: '売り手の希望価格が割高'};
   const levs = !(e > 0) || d.ind === 'bank' ? [0] : turn ? [.2, 0] : f.strat === 'growth' ? [.3, .15, 0] : [.6, .5, .4, .3, .2, 0]; /* lenders are bought without borrowing */
   let why = '';
   if (turn) { /* a turnaround: bought without new debt, then the fund pays down enough of the old debt for the books and the bank's test to hold (the recapitalisation is part of the price it pays) */
-    const q = peQuote(d, ask, 0, f.id), floor = .1 * d.assets, need1 = d.debt - (d.assets + d.cash - floor), e1 = Math.max(e, 1e-9), need2 = e > 0 ? d.debt - e * .85 / (dscrNeed() * 1.15 * (r + 1 / 7)) : d.debt, recap = Math.max(0, need1, need2, 0);
+    const q = peQuote(d, ask, 0, f.id), floor = .1 * d.assets, need1 = d.debt - (d.assets + d.cash - floor), e1 = Math.max(e, 1e-9), need2 = e > 0 ? d.debt - e * stress / (dscrNeed() * 1.15 * (r + 1 / 7)) : d.debt, recap = Math.max(0, need1, need2, 0);
     if (!(e > 0) && d.cash < d.rev * .05) return {ok: false, why: '赤字で、再建に回す手元資金も足りない'};
     if (recap > d.debt + 1e-9) return {ok: false, why: '借入をすべて返しても財務が持たない'};
     const wc = Math.max(0, d.rev * .05 - d.cash) + d.rev * .04 + (e > 0 ? 0 : -e); /* a safety margin: cash back to 5% of sales, the cost of cutting fixed costs (about 4% of sales), and a year of losses if it is losing money */
@@ -2144,7 +2144,7 @@ function fundEval(f, d, lead){ /* read-only: the team's view of one deal. Uses t
   for (const lev of levs) { const q = peQuote(d, ask, lev, f.id), debt = d.debt + q.acq, book = d.assets + d.cash - debt;
     if (e > 0 && debt / e > maxL) { why = `負債/EBITDAが上限（${maxL.toFixed(1)}倍）を超える`; continue; }
     if (debt > 0 && e > 0 && e * .7 / (debt * r) < 1.5) { why = 'EBITDAが3割減ると利払いを賄えない'; continue; }
-    if (debt > 0 && e > 0 && e * .85 / (debt * (r + 1 / 7)) < dscrNeed() * 1.15) { why = '借り換えの返済能力（DSCR）に余裕がない'; continue; } /* the bank's own test at each refinancing, with profit 15% lower */
+    if (debt > 0 && e > 0 && e * stress / (debt * (r + 1 / 7)) < dscrNeed() * 1.15) { why = peak ? '業界の好況期で、利益が落ちたときに借り換えの審査を通らない' : '借り換えの返済能力（DSCR）に余裕がない'; continue; } /* the bank's own test at each refinancing, with profit lower */
     if (book < (e > 0 ? -.1 : .15) * d.assets) { why = '買収後の自己資本が薄く、赤字の期に破綻の恐れ'; continue; }
     return {ok: true, lev, q, e, recap: 0, wc: 0, out: q.out, score: (e > 0 ? e : 0) / Math.max(1e-6, q.out) * (1 + Math.max(0, d.growth) * 2)}; }
   return {ok: false, why: why || '財務が持たない'}; }
@@ -2155,10 +2155,10 @@ function fundInjOk(f, c, amt){ /* a top-up from the fund's own remaining commitm
 function fundInject(f, c, amt, why){ if (fundInjOk(f, c, amt)) return false;
   fundCall(f, amt); c.cash += amt; peFlow(c, -amt); addCost(f.id, c.id, amt); c.pe.inj = (c.pe.inj || 0) + amt; f.injT = (f.injT || 0) + amt; /* follow-on money is invested principal too */
   if (c.crisis && c.crisis.short > 0) { const x = Math.min(c.crisis.short, c.cash, c.debt); c.cash -= x; c.debt -= x; snSync(c); c.crisis.short = c.debt > 1e-9 ? c.crisis.short - x : 0; } /* never more than the debt there is */ /* the loan the bank would not roll over is repaid */
-  if (c.crisis && !(c.crisis.short > 1e-9) && c.cash >= Math.min(c.rev * .05, c.debt * .05) - 1e-9) { delete c.crisis; S.inbox = S.inbox.filter(i => !(i.kind === 'crisis' && i.cid === c.id)); }
+  if (c.crisis && !(c.crisis.short > 1e-9) && c.cash >= Math.min(c.rev * .02, c.debt * .05) - 1e-9) { delete c.crisis; S.inbox = S.inbox.filter(i => !(i.kind === 'crisis' && i.cid === c.id)); }
   news(`【ファンド】${f.n}が${c.name}に${fm(amt)}を追加出資（${why}）`, 'you', c.city); return true; }
 function fundTopUp(f, c, lead, why){ /* BAL-08: working capital below the floor. Automatic: small amounts (up to 15% of what was put in) the team does itself; anything larger, and everything in proposal mode, is proposed to you */
-  const floor = c.rev * .05, need = c.crisis ? (c.crisis.short || 0) + Math.max(0, Math.max(floor, c.debt * .05) - c.cash) : floor - c.cash; if (!(need > 1e-4)) return;
+  const need = c.crisis ? (c.crisis.short || 0) + Math.max(0, c.rev * .02 - c.cash) : c.rev * .03 - c.cash; if (!(need > 1e-4)) return; /* rev23: what is actually short (an unpaid loan, cash back to 2-3% of sales), not a full cushion */
   if (fundMode(f) === 'auto' && need <= peStats(c).inv * .15) { if (!fundInject(f, c, need, why)) c.pe.injNo = fundInjOk(f, c, need); return; }
   fundAsk(f, 'inj', {cid: c.id, name: c.name, amt: need, why, exp: c.crisis ? Math.min(c.crisis.due - 1, S.week + 4) : S.week + 4}); }
 function fundInjCard(it){ const f = fundBy(it.fid), c = coById(it.cid); if (!f || !c) return ''; const no = fundInjOk(f, c, it.amt);
@@ -2280,6 +2280,7 @@ function fundInvest(f, lead, held){ const cfg = f.cfg, auto = fundMode(f) === 'a
   const L = []; for (const d of (S.pe.deals || [])) { if (d.bid || S.week >= d.exp - 1 || !fit(d)) continue;
     if (f.strat === 'rollup' && held.length) { if (!inds[d.ind]) fundPass(f, d, '統合先と業種が違う'); continue; } /* with a platform, deals in its industry are bolt-ons (below) */
     if (f.strat !== 'rollup' && (inds[d.ind] || 0) >= 2) { fundPass(f, d, '同じ業種に集中しすぎる'); continue; }
+    if ((f.bustInd || {})[d.ind] > S.week - 104) { fundPass(f, d, '同じ業種の投資先が2年以内に破綻'); continue; }
     const v = fundEval(f, d, lead); if (!v.ok) { fundPass(f, d, v.why); continue; }
     if (v.out > dry * .95) { fundPass(f, d, '未投資の枠が足りない'); continue; } if (v.out > cap) { fundPass(f, d, '1社への投資がファンドの25%を超える'); continue; }
     L.push([d, v]); }
@@ -4441,7 +4442,7 @@ function bankruptcies(){
     if (c.reorg) continue; /* in restructuring: decided by reorgStep */
     if (((equity(c) < -.25 * c.assets && c.ni < 0) || c.forceBk) && !c.noReorg && bondFace(c) > 0) { startReorg(c); continue; } /* a creditor (you) is at the table */
     if ((equity(c) < -.25 * c.assets && c.ni < 0) || c.forceBk) {
-      news(`【経営破綻】${c.name}が破綻、株式は無価値に`, 'warn', c.city); if (c.pe) peClose(c, '破綻');
+      news(`【経営破綻】${c.name}が破綻、株式は無価値に`, 'warn', c.city); if (c.pe && isFund(c.pe.owner) && fundBy(c.pe.owner)) (fundBy(c.pe.owner).bustInd = fundBy(c.pe.owner).bustInd || {})[c.ind] = S.week; if (c.pe) peClose(c, '破綻');
       mkToOthers(c, c.rev / plev(c));
       if (groupSh(c, 'P') > 0) toast(`${c.name}が破綻。保有株は無価値になりました`, true);
       for (const k in c.own) ledgerEvent(k, c, '清算売り', c.own[k], 0, costOf(k, c.id), '破綻'); /* the loss is recorded */
