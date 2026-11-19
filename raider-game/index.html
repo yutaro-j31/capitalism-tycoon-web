@@ -5511,7 +5511,8 @@ const ROAD = [ /* the early game in order; each step shows once its moment has c
   {id: 'legal', t: '法務・IR部を作る', d: '支配企業が2社以上になったら、TOBや株主総会の対応に法務・IR部が必要になります。', done: () => deptOn('legal') || deptOn('ir'), when: () => ctrlP().length >= 2, go: 'floor'},
 ];
 const roadList = () => ROAD.filter(r => isTrader() || !r.id.startsWith('t-')); /* the trader's steps only in that scenario */
-const roadDone = r => !!((S.roadDone || {})[r.id] != null || (r.id === 'buy' && S.tut && S.tut.buy != null) || r.done()); /* once done, done: selling every share does not undo the first purchase */
+const ROAD_ONCE = {buy: 1, 't-year': 1, 't-mm': 1, 't-found': 1, ctrl: 1}; /* milestones stay done; departments and offices follow what you have now */
+const roadDone = r => !!((ROAD_ONCE[r.id] && (S.roadDone || {})[r.id] != null) || (r.id === 'buy' && S.tut && S.tut.buy != null) || r.done()); /* once done, done: selling every share does not undo the first purchase */
 const roadNA = r => preCo() && r.id !== 'buy' && !r.id.startsWith('t-'); /* company steps while you are an individual */
 function roadRec(){ if (!S) return; const D = S.roadDone = S.roadDone || {}; for (const r of ROAD) if (D[r.id] == null && r.done()) D[r.id] = S.week; } /* written by the weekly step and actions, never by drawing a screen */
 const roadState = r => roadDone(r) ? 'done' : roadNA(r) ? 'na' : !r.when || r.when() ? 'ready' : 'wait';
