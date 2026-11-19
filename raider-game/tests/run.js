@@ -2784,6 +2784,53 @@ async function testPlay23(b) {
   ok('no page errors in playtest-23 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 
+// rev21: cash-only bids (BUG-74), the GP's share in cash (BUG-75), one venture held twice (BUG-76), exit history on delisting (BUG-77), votes above a limit (BUG-67); plus HQ build reach, IPO reasons, hiring refusals, successors, applicants, candidate positions
+async function testRev21(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    const deal = () => { let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && A.dealEbitda(x, false) > 0) d = x; } return d; };
+    let S;
+    /* BUG-74: a cash-only bid needs the cash; at settlement it is checked again and never borrows */
+    { S = traderCo(2174, 50); Object.assign(S.dept.inv, {on: true, staff: 1}); const d = deal(), q = A.peQuote(d, A.dealAsk(d), 0, 'P'); S.player.cash = q.out * .7; S.player.loan = 0;
+      const no = A.peBid(d, 0, 0, false, 'P', 0, true); out.b74refuse = !no && !d.bid && S.player.loan === 0;
+      S.player.cash = q.out * 1.2; const yes = A.peBid(d, 0, 0, false, 'P', 0, true); S.player.cash = q.out * .7; d.n = 0; d.ai = 0; d.bids = []; for (let i = 0; i < 4; i++) { A.step(); S.inbox = []; }
+      const own = S.cos.find(x => x.pe && x.pe.owner === 'P' && x.name === d.name); info.b74 = {yes, loan: S.player.loan, own: !!own}; out.b74settle = yes && !own && S.player.loan === 0 && loads(); }
+    /* BUG-75: a fund cannot invest when the GP has no cash for its share */
+    { S = traderCo(2175, 5000); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.inv, {on: true, staff: 1}); S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean); A.hireInto(pool[0], 'HQ', 'PEH', null, null); const f = A.fundRaise('buyout', .1, pool[0].id); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } f.auto = false;
+      const d = deal(), q = A.peQuote(d, A.dealAsk(d), .5, f.id); S.player.cash = 0; S.player.loan = 0; const lp0 = f.calledLP, gp0 = f.calledGP; const ok0 = A.peBid(d, 0, .5, false, f.id);
+      info.b75 = {ok0, gate: A.peCashGate(f.id, q.out), need: +(q.out * .1).toFixed(3)}; out.b75refuse = !ok0 && S.player.loan === 0 && f.calledLP === lp0 && f.calledGP === gp0;
+      S.player.cash = q.out * .1 + 1e-6; const ok1 = A.peBid(d, 0, .5, false, f.id); S.player.cash = 0; d.n = 0; d.ai = 0; d.bids = []; for (let i = 0; i < 4; i++) { A.step(); S.inbox = []; } const fc = S.cos.find(x => x.pe && x.pe.owner === f.id);
+      out.b75settle = ok1 && !fc && S.player.loan === 0 && loads(); }
+    /* BUG-76: personal 12% and company 7% of the same venture; the company adds money: both see one valuation */
+    { S = traderCo(2176, 100); S.allUnlocked = true; A.vcQuarter(); const d = S.vc.deals[0]; S.pres.cash = 1e3; A.vcInvest(d.id, .12, 'pres'); S.vc.deals.push(d); A.vcInvest(d.id, .07); /* the same round, personally and by the company */ const hp = S.vc.hold.find(h => h.id === d.id && h.pres), hc = S.vc.hold.find(h => h.id === d.id && !h.pres);
+      const V = hp.val, vp0 = hp.stake * hp.val, pres0 = S.pres.cash; A.vcFollowOn(hc, 1);
+      info.b76 = {V, vp: +hp.val.toFixed(3), vc: +hc.val.toFixed(3), sp: +hp.stake.toFixed(5), sc: +hc.stake.toFixed(5)}; out.b76 = Math.abs(hp.val - hc.val) < 1e-9 && Math.abs(hp.val - (V + 1)) < 1e-9 && Math.abs(hp.stake * hp.val - vp0) < 1e-9 && Math.abs(hc.stake - (.07 * V + 1) / (V + 1)) < 1e-9 && S.pres.cash === pres0;
+      let n = 0; for (let i = 0; i < 30 && S.vc.hold.some(h => h.id === d.id); i++) { S.week += 13; A.vcQuarter(); const G = S.vc.hold.filter(h => h.id === d.id); if (G.length === 2 && (G[0].val !== G[1].val || G[0].st !== G[1].st)) n++; S.inbox = []; } out.b76sync = n === 0 && loads(); }
+    /* BUG-77: a PE company sold off the market keeps its history */
+    { S = traderCo(2177, 80); Object.assign(S.dept.inv, {on: true, staff: 1}); const d = deal(), c = A.peAcquire(d, 'P', A.dealAsk(d), .5, false); const bid = {kind: 'pe', buyer: S.pe.firms[0].id, eq: Math.max(.1, A.peStats(c).nav * .9)}; A.peSell(c, bid);
+      const H = (S.acqHist || []).filter(h => h.cid === c.id); info.b77 = {n: H.length, why: H[0] && H[0].why, inCos: S.cos.includes(c) && c.priv && c.pe && !c.pe.closed}; out.b77 = H.length === 1 && loads(); }
+    /* BUG-67: an older save above a 49% limit votes 49% at most */
+    { S = traderCo(2167, 0); const c = S.cos.find(x => !x.priv && !x.ctrl && A.ownCap(x, 'P') < 1 && A.ownCap(x, 'P') > .4); if (c) { c.own = {P: c.shares * .54}; A.recomputeCtrl(); info.b67 = {g: +A.gfrac(c, 'P').toFixed(3), e: +(A.econSh(c, 'P') / c.shares).toFixed(3), cap: A.ownCap(c, 'P'), ctrl: c.ctrl};
+      out.b67 = A.gfrac(c, 'P') <= A.ownCap(c, 'P') + 1e-9 && Math.abs(A.econSh(c, 'P') / c.shares - .54) < 1e-9 && A.buyRoom('P', c) === 0 && c.ctrl !== 'P'; } else out.b67 = 'none'; }
+    /* HQ build reachable from the floor screen; IPO reasons shown */
+    { S = traderCo(2178, 30); A.ui.plan = null; out.hqbFloor = A.floorView().includes('自社ビルを建てる');
+      const c = S.cos.filter(x => !x.priv)[0]; c.priv = true; c.ni = -1; c.ipoPlan = {kind: 'sub', w0: S.week, end: S.week + 5, uw: 'mid', cost: 0, nf: .3, sf: 0}; out.ipoWhy = A.coRow(c).includes('審査条件未達') && A.ipoWhy(c, 'mid').includes('赤字'); }
+    /* hiring: a small company is turned down more often; succession and applicants */
+    { S = traderCo(2179, 2); const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean).sort((a, b) => Math.max(...Object.values(b.sk)) - Math.max(...Object.values(a.sk))); const top = pool[0], oSmall = A.hireOdds(top); S.player.cash = 5e4; const oBig = A.hireOdds(top);
+      info.odds = {small: +oSmall.toFixed(2), big: +oBig.toFixed(2)}; out.hireOdds = oSmall < oBig && oSmall < .9;
+      const pos = A.personLine(pool[1], null, 'CFO'); out.candPos = pos.includes('転職活動中');
+      A.hireInto(pool[2], 'HQ', 'CFO', null, null); S.inbox = []; A.exitAlert(pool[2], null, 'x'); const it = S.inbox.find(i => i.kind === 'succ'); out.succ = !!it && A.succCard(it).includes('グループから昇格') && A.succCard(it).includes('外部から採用');
+      S.inbox = []; S.week = 400; let got = false; for (let q = 31; q < 80 && !got; q++) { A.appStep(q); got = S.inbox.some(i => i.kind === 'applicant'); } const ap = S.inbox.find(i => i.kind === 'applicant'); out.applicant = got && A.applicantCard(ap).includes('この役職で採用') && loads(); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev21: cash-only bids (BUG-74), GP cash for funds (BUG-75), one venture held twice (BUG-76), exit history (BUG-77), votes above a limit (BUG-67); HQ build, IPO reasons, hiring refusals, successors, applicants, candidate positions', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in rev21 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testBal(b) {
   const {p, errs} = await page(b);
   const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
@@ -3106,6 +3153,7 @@ async function balance(b) {
     await testPlay21(b);
     await testPlay22(b);
     await testPlay23(b);
+    await testRev21(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
