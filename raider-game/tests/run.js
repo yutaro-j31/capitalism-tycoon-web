@@ -2200,7 +2200,7 @@ async function testRev13(b) {
     A.restartAsTrader('test'); A.S.player.cash = Math.max(A.S.player.cash, 40); A.incorporate('乙社', 1); A.trClose(); let d3 = {held: 0}; for (let i = 9; i < 20 && !(d3.held > 0); i++) d3 = tobLoss('P', A.S.cos.filter(x => !x.priv && !x.ctrl && !(x.own.P > 0)).sort((u, v) => u.price * u.shares - v.price * v.shares)[i - 3]); out.D_oldGen = A.S.lagg['P#0'].pnl < 0 && (A.S.ledger[0] || {}).aid === 'P#1' && loads();
     stage = 'a subsidi';
     /* a subsidiary: a controlled company buys a block (相対) and sells it at a loss */
-    std(4246); { const L2 = A.S.cos.filter(x => !x.priv && !x.ctrl); const sub = L2[2]; A.execTender('P', sub, sub.price * 1.6, .6, undefined, false); A.recomputeCtrl(); const tg = A.S.cos.filter(x => !x.priv && !x.ctrl && x !== sub)[6];
+    std(4246); { const L2 = A.S.cos.filter(x => !x.priv && !x.ctrl); const sub = L2[2]; A.S.player.cash = Math.max(A.S.player.cash, sub.price * sub.shares * 1.2); /* paid in cash: since rev20 (BUG-68) a tender paid on credit is held on margin and carries no votes */ A.execTender('P', sub, sub.price * 1.6, .6, undefined, false); A.recomputeCtrl(); const tg = A.S.cos.filter(x => !x.priv && !x.ctrl && x !== sub)[6];
       out.D_subCtrl = sub.ctrl === 'P'; sub.cash += 20; A.trClose(); A.execBuy('P', tg, A.roundSh(A.sharesForMoney(tg, 2)), 2); const n = tg.own.P; A.transferShares('P', sub.id, tg, n, tg.price * 2); /* a block sold inside the group at twice the price */
       A.execSell(sub.id, tg, tg.own[sub.id]); const e = A.S.ledger[0]; out.D_sub = e.at === 'sub' && e.pnl < -e.amt && loads(); }
     stage = '4-3:';
@@ -2361,7 +2361,7 @@ async function testFeedback16(b) {
     for (let i = 0; i < 5; i++) A.step(); out.letterAnswered = !c.letter && S.news.some(n => n.t.includes('【書簡に回答】') && n.t.includes(c.name));
     out.seat = A.startSeatFight(c) && c.proxy && c.proxy.seat; out.seatLoads = loads(); for (let i = 0; i < 9; i++) A.step(); out.seatDone = !c.proxy && (A.seatsOn(c) || c.proxyCool > S.week);
     /* defences: your subsidiary under attack */
-    S = std(6604); const sub = S.cos.filter(x => !x.priv && !x.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[3]; A.execTender('P', sub, sub.price * 1.6, .45, undefined, false); A.recomputeCtrl();
+    S = std(6604); const sub = S.cos.filter(x => !x.priv && !x.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[3]; S.player.cash = Math.max(S.player.cash, sub.price * sub.shares * 1.2); /* paid in cash (rev20 BUG-68: credit-paid shares carry no votes) */ A.execTender('P', sub, sub.price * 1.6, .45, undefined, false); A.recomputeCtrl();
     if (sub.ctrl !== 'P') { sub.own.P = sub.shares * .45; A.recomputeCtrl(); } info.subCtrl = sub.ctrl; const rv = S.rivals[0]; sub.own[rv.id] = (sub.own[rv.id] || 0) + sub.shares * .05; rv.cash += 1e4; A.trClose();
     const ok = A.launchTob(rv.id, sub, sub.price * 1.3, .51); const it = S.inbox.find(i => i.kind === 'defend' && i.cid === sub.id); out.defendOffer = ok && !!it;
     A.ui.tab = 'inbox'; A.renderAll(true); out.defendCard = txt('#pbody').includes('ポイズンピル') && txt('#pbody').includes('ホワイトナイト');
