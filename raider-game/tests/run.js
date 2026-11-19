@@ -2716,6 +2716,43 @@ async function testPlay21(b) {
   ok('no page errors in playtest-21 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 
+// playtest 22: borrowing overview and repayment; no sale proposals during an IPO; officers sent to ventures and their requests; clearer merger; fund commitment and manager
+async function testPlay22(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    let S;
+    /* the credit line a CFO drew shows in the overview, in the accounts tab and the bank, and can be repaid */
+    { S = traderCo(2201, 50); S.allUnlocked = true; S.stage = 4; S.player.bank = 7; S.player.cash = 20; const h = A.debtBox(); A.ui.hqTab = 'acc'; const hq = A.renderHQ ? A.renderHQ() : ''; const bk = A.renderBank();
+      out.debtShown = h.includes('クレジットライン') && h.includes(A.fm(7)) && hq.includes('借入の一覧') && bk.includes('借入の一覧');
+      const el = document.createElement('button'); el.dataset.v = '7'; A.act('bankr', el); out.debtRepaid = S.player.bank === 0 && Math.abs(S.player.cash - 13) < 1e-9 && loads(); }
+    /* no sale proposal for a company preparing its IPO */
+    { S = traderCo(2202, 80); Object.assign(S.dept.inv, {on: true, staff: 1}); let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && A.dealEbitda(x, false) > 0) d = x; } const c = A.peAcquire(d, 'P', A.dealAsk(d), .5, false);
+      c.ipoPlan = {kind: 'pe', w0: S.week, end: S.week + 20, uw: 'mid', cost: 0, nf: .3, sf: .15}; out.noExitIpo = A.peExitStart(c) === false && !c.pe.sale; c.bsale = {end: S.week}; S.inbox = []; A.bsaleStep(); out.noBsaleIpo = !S.inbox.some(i => i.kind === 'bsale' && i.cid === c.id); }
+    /* ventures: an officer sent in raises the chance to grow; requests for money and officers; follow-on money adds no value from nothing */
+    { S = traderCo(2203, 200); S.allUnlocked = true; A.hqInit(); const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean).sort((a, b) => b.sk.gen - a.sk.gen); A.hireInto(pool[0], 'HQ', 'CFO', null, null);
+      A.vcQuarter(); const d = S.vc.deals[0]; A.vcInvest(d.id, .05); const h = S.vc.hold[0]; const q0 = A.vcQ(h); const ok = A.vcSecond(pool[0], h);
+      info.vc = {q0: +q0.toFixed(3), q1: +A.vcQ(h).toFixed(3), sk: pool[0].sk.gen, role: pool[0].role, cfo: S.hr.hq.CFO};
+      out.vcSecond = ok && h.ex === pool[0].id && pool[0].role === 'VCX' && S.hr.hq.CFO !== pool[0].id && A.vcQ(h) >= q0 && loads();
+      const v0 = h.stake * h.val, c0 = S.player.cash; const fo = A.vcFollowOn(h, 1); out.vcFollow = fo && Math.abs(h.stake * h.val - (v0 + 1)) < 1e-9 && Math.abs(c0 - S.player.cash - 1) < 1e-9;
+      S.inbox = []; let asked = 0; for (let i = 0; i < 40; i++) { S.week += 13; A.vcQuarter(); if (S.inbox.some(x => x.kind === 'vcask')) { asked++; S.inbox = []; } if (!S.vc.hold.length) break; } info.vcAsk = asked; out.vcAsk = asked > 0;
+      const t = A.exportText(); A.importText(t); out.vcLoads = !!A.S; }
+    /* merger screen says who buys whom and how the money moves */
+    { S = traderCo(2204, 3000); S.allUnlocked = true; S.stage = 4; const c = S.cos.filter(x => !x.priv && !x.ctrl && x.ni > 0).sort((a, b) => b.price * b.shares - a.price * a.shares)[5]; c.own = {P: c.shares * .6}; A.recomputeCtrl(); A.ui.sel = c.id; A.ui.ctab = 'ceo';
+      const B = S.cos.filter(x => !x.priv && !x.ctrl && x !== c)[3]; A.ui.mTarget = B.id; const html = A.renderMarket(); info.merge = html.includes('買い手'); out.mergeClear = html.includes(`買い手：${c.name}`) && html.includes('株の交換ではなく'); }
+    /* fund: the commitment is shown apart from the fee; a manager can be chosen; a higher commitment and a strong manager raise more */
+    { S = traderCo(2205, 5000); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.inv, {on: true, staff: 1}); S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean).sort((a, b) => b.sk.deal - a.sk.deal); A.hireInto(pool[0], 'HQ', 'PEH', null, null);
+      A.ui.fGp = .1; A.ui.fStrat = 'buyout'; A.ui.fMgr = pool[0].id; const html = A.renderPE(); out.fundUi = html.includes('出資約束') && html.includes('ファンドの責任者') && html.includes(pool[0].n);
+      const f = A.fundRaise('buyout', .1, pool[0].id); out.fundMgr = !!f && f.mgr === pool[0].id && !!A.fundMgrEff(f) && loads(); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('playtest 22: borrowing overview and repayment, no sale during an IPO, ventures (officer, requests, follow-on), merger roles, fund commitment and manager', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in playtest-22 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testBal(b) {
   const {p, errs} = await page(b);
   const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
@@ -3036,6 +3073,7 @@ async function balance(b) {
     await testPri56(b);
     await testRev20(b);
     await testPlay21(b);
+    await testPlay22(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
