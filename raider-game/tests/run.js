@@ -472,11 +472,11 @@ async function testPE(b) {
     const c = byDeal(d); out.won = !!c && c.ctrl === 'P' && c.priv && c.own.P === c.shares;
     out.lbo = c && c.debt >= d.debt + q.acq - 1e-6;
     { S.player.cash += 2000; let e = gen(); for (let i = 0; i < 40 && (e.type === 'turn' || A.dealAsk(e) < 2); i++) e = gen(); e.n = 0; e.ai = 0; e.bids = []; e.exp = S.week + 20; e.risk = null; e.dd = 2; /* known numbers: only fees and the discount remain */ const qe = A.peQuote(e, A.dealAsk(e), .5, 'P'); A.peBid(e, 0, .5, false, 'P'); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; }
-      const ce = byDeal(e); out.jcurve = ce ? (qe.out - ce.own.P * ce.price) / qe.out : null; } // bought at the asking price: the mark sits below the cheque
+      const ce = byDeal(e), qc = A.peQuote(e, A.dealAsk(e), .5, 'P'); /* the cheque re-priced in the closing week: the market can move during the three-week auction (industry cycles, bubbles), which is a separate effect from the J-curve */ out.jcurve = ce ? (qc.out - ce.own.P * ce.price) / qc.out : null; out.jcurveBid = ce ? (qe.out - ce.own.P * ce.price) / qe.out : null; } // bought at the asking price: the mark sits below the cheque
     // an outbid player loses
     const d2 = gen(); d2.n = 2; d2.ai = A.dealAsk(d2) * 1.3; d2.exp = S.week + 20; A.peBid(d2, 0, 0, false, 'P'); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; } out.lost = !(byDeal(d2) && byDeal(d2).pe.owner === 'P');
     // skipping due diligence: the hidden problem shows up later
-    const d3 = gen(); d3.n = 0; d3.ai = 0; d3.exp = S.week + 20; d3.risk = {k: 'suit', cost: 3, w: 2}; A.peBid(d3, 0, 0, false, 'P'); for (let i = 0; i < 6; i++) { A.step(); S.inbox = []; }
+    let d3 = gen(); for (let i = 0; i < 40 && (d3.type === 'turn' || A.dealAsk(d3) < 2); i++) d3 = gen(); /* an ordinary deal, as above (a loss-maker at the minimum price may not close within the six weeks) */ d3.n = 0; d3.ai = 0; d3.bids = []; /* nobody else bids, as in the cases above */ d3.exp = S.week + 20; d3.risk = {k: 'suit', cost: 3, w: 2}; A.peBid(d3, 0, 0, false, 'P'); for (let i = 0; i < 6; i++) { A.step(); S.inbox = []; }
     out.surprise = S.news.some(n => n.t.includes('買収後の誤算'));
     // recap: debt up, cash back to the owner, recorded as a distribution
     if (c) { const before = A.peStats(c).ret, cash1 = S.player.cash; c.debt = 0; const a = A.peRecap(c); out.recap = a > 0 && S.player.cash > cash1 && A.peStats(c).ret > before; }
@@ -517,7 +517,7 @@ async function testPE(b) {
   });
   ok('PE: due diligence costs money, takes 4 weeks and takes a found problem off the price', r.ddPaid && r.ddDone && r.ddCheaper, JSON.stringify({p: r.ddPaid, d: r.ddDone, c: r.ddCheaper}));
   ok('PE: an uncontested 10% lowball wins; the company is unlisted, wholly owned and carries the LBO debt', r.bid && r.won && r.lbo, JSON.stringify({bid: r.bid, won: r.won, lbo: r.lbo}));
-  ok('PE: J-curve — fees and the (5%, since 5.26) illiquidity discount cost 1–30% of the cheque at once', r.jcurve > .01 && r.jcurve < .3, String(r.jcurve));
+  ok('PE: J-curve — fees and the (5%, since 5.26) illiquidity discount cost 1–30% of the cheque at once', r.jcurve > .01 && r.jcurve < .3, `${r.jcurve} (against the cheque at the bid: ${r.jcurveBid})`);
   ok('PE: a higher rival bid wins the auction', r.lost);
   ok('PE: skipping due diligence lets a hidden problem surface after the deal', r.surprise);
   ok('PE: a dividend recap pays the owner and counts as a distribution', r.recap);
@@ -2385,6 +2385,73 @@ async function testFeedback16(b) {
   ok('no page errors in feedback 3 tests', errs.length === 0, errs.join(' | '));
 }
 
+// BAL-01..07 (30-year strategy report): price impact at scale, small PE deals, distressed bonds, capital allocation, activist outcomes, small property, roll-up search
+async function testBal(b) {
+  const {p, errs} = await page(b);
+  const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
+  const r = await p.evaluate(fix => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    let S;
+    /* BAL-01: small orders as before; a large order moves the price more than in proportion; the money-to-shares solver stays exact */
+    A.newGame(8101, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true;
+    const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => b.price * b.shares - a.price * a.shares)[10], L = A.liq(c);
+    const lin = n => 1.1 * n / L, small = A.impUp(c, L * .01), big = A.impUp(c, L * .5);
+    info.imp = {small: +(small / lin(L * .01)).toFixed(4), big: +(big / lin(L * .5)).toFixed(3)};
+    out.impSmall = small / lin(L * .01) < 1.015; out.impBig = big / lin(L * .5) > 1.5;
+    { const m = c.price * c.shares * .1, n = A.sharesForMoney(c, m), q = A.quoteBuy(c, n), cost = q.avg * q.n * 1.0025; info.sfm = {ratio: +(cost / m).toFixed(6)}; out.sfm = cost <= m + 1e-9 && cost > m * .999; }
+    { const cash0 = S.player.cash = 5000; const n = A.sharesForMoney(c, 1500); const r1 = A.execBuy('P', c, n); const r2 = A.execSell('P', c, c.own.P); info.rt = {cost: r1 && +r1.cost.toFixed(2), back: +(S.player.cash - (cash0 - r1.cost)).toFixed(2)}; out.roundTripLoses = !!r1 && S.player.cash < cash0 && loads() && !A.ledgerCheck(JSON.parse(A.exportText())); }
+    /* BAL-03: deeper discounts in a crisis, maturity at par, coupons, MOIC and IRR on the record; a round trip loses the dealer's cut */
+    { const d = S.cos.filter(x => !x.priv && !x.ctrl && x.debt > 0 && x.assets > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[3];
+      d.debt = Math.max(d.debt, d.assets * 1.2); d.crisis = {w: S.week, end: S.week + 26}; d.ni = -Math.abs(d.ni || 1);
+      const px = A.bondPx(d); info.bond = {px: +px.toFixed(3), old: +A.bondPxV1(d).toFixed(3), recov: +A.bondRecov(d).toFixed(3), liq: A.bondLiqDisc(d)};
+      out.bondDeep = A.bondEligible(d) && px < .8 && px >= .05 && px < A.bondPxV1(d) && A.bondLiqDisc(d) >= .12;
+      S.player.cash = 500; const cash0 = S.player.cash, bd = A.bondBuy(d, 5); out.bondMat = !!bd && bd.mat >= S.week + 52 && bd.mat <= S.week + 208 && bd.cpn === 0 && loads();
+      const got = A.bondSell(bd); out.bondRoundTrip = got < bd.cost && (S.bondLog[0].moic || 0) < 1 && S.bondLog[0].irr === null; /* sold in the week it was bought: no period, so no IRR */
+      d.crisis = null; const b2 = A.bondBuy(d, 5); if (b2) { for (let i = 0; i < 3; i++) A.step(); const cpn = b2.cpn; b2.mat = S.week; const c1 = S.player.cash; A.step();
+        const e = S.bondLog.find(x => x.kind.startsWith('満期償還')); info.mat = e && {moic: +e.moic.toFixed(3), cpn: +e.cpn.toFixed(4), face: +b2.face.toFixed(3)};
+        out.bondMatPaid = !S.bonds.includes(b2) && !!e && Math.abs(e.amt - b2.face) < 1e-9 && cpn > 0 && Math.abs(e.moic - (b2.face + e.cpn) / b2.cost) < 1e-9 && Number.isFinite(e.irr) && S.player.cash > c1 + b2.face * .99 && loads(); } else out.bondMatPaid = 'no second bond'; }
+    /* BAL-03: a save of the earlier version (bonds valued by the earlier price) loads; the change is restated as this week's change, not hidden */
+    { const o0 = JSON.parse(fix); const err = A.importText(fix); S = A.S;
+      const ax = (S.tr.ax || []).find(x => x[0] === '旧版の評価の修正'), d = o0.bonds.reduce((a, b) => { const c = S.cos.find(x => x.id === b.cid); return a + b.face * (A.bondPx(c) - A.bondPxV1(c)); }, 0);
+      info.old = {err: err || null, ax: ax && +ax[1].toFixed(6), d: +d.toFixed(6), mats: S.bonds.map(b => b.mat)};
+      out.oldLoads = !err && S.valV === 2 && S.bonds.length === o0.bonds.length && S.bonds.every(b => b.mat != null && b.cpn == null) && (Math.abs(d) < 1e-9 || (!!ax && Math.abs(ax[1] - d) < 1e-9)) && loads();
+      out.oldSmall = S.props.filter(x => x.small).length === A.smallProps().length && S.props.filter(x => x.small).every(x => !x.own);
+      const t = JSON.parse(A.exportText()); t.valV = 1; t.chk = A.finSig(t); const e2 = A.importText(JSON.stringify(t)); out.forgedOld = !!e2 || Math.abs(d) < 1e-9; info.forged = e2 || null; }
+    /* BAL-05: small buildings (数千万円) before the property business opens; rivals leave them alone */
+    A.newGame(8102, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false;
+    const sp = S.props.filter(x => x.small); info.small = {n: sp.length, min: Math.min(...sp.map(x => x.v)), max: Math.max(...sp.map(x => x.v)), realty: A.has('realty')};
+    out.smallList = sp.length >= 10 && sp.every(x => x.v >= .15 && x.v < 1.2 && A.propOpen(x)) && !A.has('realty');
+    { S.player.cash = .5; const u = sp.filter(x => x.kind === 'unit').sort((a, b) => a.v - b.v)[0]; const el = document.createElement('button'); el.dataset.id = u.id; el.dataset.v = '0'; A.act('pbuy', el);
+      out.smallBuy = u.own === 'P' && S.player.cash < .5 && loads(); for (let i = 0; i < 4; i++) A.step(); out.smallRent = (S.player.rentW || 0) >= 0 && loads();
+      const big = S.props.find(x => !x.small && !x.own); const el2 = document.createElement('button'); el2.dataset.id = big.id; el2.dataset.v = '0'; S.player.cash = 200; A.act('pbuy', el2); out.bigLocked = !big.own; }
+    { let held = 0; A.newGame(8103, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; for (let i = 0; i < 260; i++) A.step(); held = S.props.filter(x => x.small && x.own && x.own !== 'P').length; out.rivalsSkipSmall = held === 0; }
+    /* BAL-02: a retiring owner's seller note on small deals; BAL-06: search for bolt-ons in an owned industry */
+    S = (() => { A.newGame(8104, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); Object.assign(A.S.dept.inv, {on: true, staff: 1}); A.S.player.cash = 3; A.trClose(); return A.S; })();
+    { let d = null; for (let i = 0; i < 80; i++) { const x = A.peDealGen(); if (x && x.small && x.type === 'succ' && A.dealEbitda(x, false) > 0) { d = x; break; } }
+      const q0 = d && A.peQuote(d, A.dealAsk(d), 0, 'P'), q1 = d && A.peQuote(d, A.dealAsk(d), .5, 'P');
+      info.sn = d && {sn: +q1.sn.toFixed(4), out0: +q0.out.toFixed(4), out1: +q1.out.toFixed(4), ask: +A.dealAsk(d).toFixed(4)};
+      out.sellerNote = !!d && q1.sn > 0 && q1.sn <= A.dealAsk(d) * .2 + 1e-12 && q0.sn === 0 && q1.out < q0.out && q1.acq <= A.dealAsk(d) * .9 + 1e-12; }
+    { const co = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; co.ctrl = 'P'; co.own.P = co.shares * .6;
+      const cash0 = S.player.cash, n0 = S.pe.deals.length, d = A.peSearch(co.id); out.search = !!d && d.ind === co.ind && d.type === 'succ' && S.pe.deals.length === n0 + 1 && S.player.cash < cash0 && d.exp >= S.week + 12;
+      out.searchCool = A.peSearch(co.id) === null; for (let i = 0; i < 4; i++) A.step(); const d2 = A.peSearch(co.id); out.searchAgain = d2 == null || d2.ind === co.ind;
+      const html = A.rollupBox(); out.rollupUI = html.includes('同業ロールアップ') && html.includes(co.name.slice(0, 4)); }
+    /* BAL-04: a proposal's economic result is followed apart from the vote; fixed after a year */
+    { A.newGame(8105, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; const c = S.cos.filter(x => !x.priv && !x.ctrl && x.ni > 0)[2]; S.player.cash = 5000; A.execBuy('P', c, c.shares * .12);
+      const w = A.activist(c, 'div'), e = (S.actLog || [])[0]; out.actLogged = w != null && !!e && e.cid === c.id && e.win === w && e.p0 > 0 && loads();
+      A.payDividend(c, 1); out.actDiv = e.dv > 0; for (let i = 0; i < 53; i++) A.step(); out.actFixed = !!e.y1 && (e.y1.gone || Number.isFinite(e.y1.val)); info.act = {win: w, y1: e.y1};
+      const html = A.renderPort(); out.actUI = html.includes('株主提案の成果'); }
+    /* BAL-07: the allocation adds up to the net worth's parts */
+    { const ca = A.capAlloc(), R = ca.rows, hv = A.holdingsValue('P'), sum = R.stock.val + R.ctrl.val + R.pe.val;
+      info.cap = {sum: +sum.toFixed(4), hv: +hv.toFixed(4), re: +R.re.val.toFixed(4), pe: +A.propEquity('P').toFixed(4), bond: +R.bond.val.toFixed(4), bv: +A.bondsValue().toFixed(4)};
+      out.capSum = Math.abs(sum - hv) < 1e-6 * Math.max(1, hv) && Math.abs(R.re.val - A.propEquity('P')) < 1e-9 && Math.abs(R.bond.val - A.bondsValue()) < 1e-9 && Math.abs(R.vc.val - A.vcValue()) < 1e-9;
+      out.capUI = A.renderPort().includes('資本配分'); }
+    return {out, info};
+  }, fix);
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('BAL: large orders cost more than in proportion, exact share solver, distressed bonds (crisis discount, maturity, coupons, MOIC/IRR), old bond saves restated, small buildings, seller notes, roll-up search, activist outcomes, capital allocation', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in BAL tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testRev15(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -2632,6 +2699,7 @@ async function balance(b) {
     await testFeedback15(b);
     await testFeedback16(b);
     await testRev15(b);
+    await testBal(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
