@@ -2544,7 +2544,7 @@ function hrStep(){
 const roleName = p => p.at === 'HQ' ? (p.role === 'BENCH' && p.dept && DEPTS[p.dept] ? `${DEPTS[p.dept].n}付き幹部` : HQ_ROLES[p.role].n) : `${(coById(p.at) || {name: ''}).name}の${p.role}`;
 function compStart(p, c){ /* a new package: the base for long-term pay; options for a head-office officer are on the company itself */
   p.lt0 = c ? mcap(c) : Math.max(0, grossWorth()); p.bonusY = 0;
-  if (!c && p.comp === 'opt') { const gw = Math.max(1, grossWorth()), f = Math.min(.01, p.sal * 3 / Math.max(10, gw)); p.so = (p.so || []).concat([{f, k: gw, w0: S.week}]); news(`【報酬】${p.n}に${S.company}本体のストックオプション（会社の${pc(f, 2)}・行使価格は今の純資産）を付与`, 'you'); } }
+  if (!c && p.comp === 'opt') { const gw = Math.max(1, grossWorth()), f = p.sal * 3 / Math.max(10, gw); /* no cap on the share: about 3 years of salary at today's net worth */ p.so = (p.so || []).concat([{f, k: gw, w0: S.week}]); news(`【報酬】${p.n}に${S.company}本体のストックオプション（会社の${pc(f, 2)}・行使価格は今の純資産）を付与`, 'you'); } }
 function compQuarter(){ /* performance bonuses each quarter, from what each officer's own area earned */
   if (!S.hr) return; const pr = qProfit();
   for (const p of Object.values(S.hr.people)) { if (p.comp !== 'bonus' || !p.at) continue;
