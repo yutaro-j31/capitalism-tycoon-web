@@ -2457,6 +2457,55 @@ async function testRev17(b) {
   ok('no page errors in rev17 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 
+// rev18 BUG-64: seller notes stay inside the company's total debt — ordinary repayments, the 100-day plan, merger, restructuring, old saves
+async function testRev18(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText()), chk = () => A.econCheck(JSON.parse(A.exportText()));
+    const sumSn = c => (c.sns || []).reduce((a, n) => a + n.bal, 0);
+    const buy = seed => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); const S = A.S; S.won = false; S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); Object.assign(S.dept.inv, {on: true, staff: 1}); S.player.cash = 50; A.trClose();
+      let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && x.small && x.type === 'succ' && A.dealEbitda(x, false) > 0) d = x; }
+      const q = A.peQuote(d, A.dealAsk(d), .5, 'P'), c = A.peAcquire(d, 'P', A.dealAsk(d), .5, false); return {S, c, q}; };
+    let S, c, q;
+    /* the report's case: the company repays everything; at the next instalment date nothing more is paid */
+    ({S, c, q} = buy(8104)); const sn = q.sn, debt0 = c.debt; c.cash = 100; const paid = A.repay(c, c.debt); info.full = {sn: +sn.toFixed(6), debt0: +debt0.toFixed(6), paid: +paid.toFixed(6), debt: c.debt, sns: sumSn(c)};
+    out.fullZero = Math.abs(paid - debt0) < 1e-9 && c.debt === 0 && !c.sns && !chk() && loads();
+    { const cash = c.cash; for (let i = 0; i < 14; i++) A.snStep(); out.fullNoPay = c.cash === cash && c.debt === 0; }
+    /* part repayments: the banks first, then the notes; cash and balances move together */
+    ({S, c, q} = buy(8104)); c.cash = 100; const bank = c.debt - sumSn(c); { const c0 = c.cash; A.repay(c, bank * .5); out.partBank = Math.abs(sumSn(c) - q.sn) < 1e-12 && Math.abs(c0 - c.cash - bank * .5) < 1e-12; }
+    { const c0 = c.cash, d0 = c.debt, x = bank * .5 + q.sn * .3; A.repay(c, x); info.part = {sn: +sumSn(c).toFixed(6), expect: +(q.sn * .7).toFixed(6), debt: +c.debt.toFixed(6)}; out.partNote = Math.abs(sumSn(c) - q.sn * .7) < 1e-9 && Math.abs(c.debt - q.sn * .7) < 1e-9 && Math.abs(c0 - c.cash - x) < 1e-12 && Math.abs(d0 - c.debt - x) < 1e-12 && !chk(); }
+    { const n = c.sns[0], c0 = c.cash, d0 = c.debt; n.next = S.week; A.snStep(); const inst = Math.min(q.sn * .7, q.sn / 20); out.partSched = Math.abs(c0 - c.cash - inst) < 1e-12 && Math.abs(d0 - c.debt - inst) < 1e-12 && Math.abs(sumSn(c) - c.debt) < 1e-9; }
+    /* the 100-day plan repays through the same path */
+    ({S, c, q} = buy(8104)); c.cash = c.debt * 2 + c.rev; A.pe100(c); info.p100 = {debt: +c.debt.toFixed(6), sn: +sumSn(c).toFixed(6)}; out.p100 = sumSn(c) <= c.debt + 1e-9 && !chk() && loads();
+    /* the schedule alone: 20 instalments of principal/20, then nothing */
+    ({S, c, q} = buy(8104)); { let tot = 0; const n = c.sns[0]; for (let k = 0; k < 25 && c.sns; k++) { c.cash = 100; c.debt = Math.max(c.debt, sumSn(c)); n.next = S.week; const c0 = c.cash; A.snStep(); tot += c0 - c.cash; } info.sched = {tot: +tot.toFixed(6), sn: +q.sn.toFixed(6)}; out.sched = Math.abs(tot - q.sn) < 1e-9 && !c.sns; }
+    /* a weekly run: whatever the company does, the notes never exceed its debt; saves load */
+    ({S, c, q} = buy(8106)); c.dm = 'auto'; let worst = 0; for (let i = 0; i < 260; i++) { A.step(); S.inbox = []; const x = S.cos.find(y => y.id === c.id); if (!x) break; worst = Math.max(worst, sumSn(x) - x.debt); if (i % 52 === 51 && !loads()) { out.weeklyLoads = false; } }
+    out.weekly = worst <= 1e-9 && out.weeklyLoads !== false && !chk(); info.weekly = {worst};
+    /* merger: the notes go with the debt; ids stay unique */
+    { ({S, c, q} = buy(8104)); const c1 = c, n1 = c1.sns[0].id; let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && x.small && x.type === 'succ' && A.dealEbitda(x, false) > 0) d = x; } const c2 = A.peAcquire(d, 'P', A.dealAsk(d), .5, false), n2 = c2.sns[0].id;
+      const tot = sumSn(c1) + sumSn(c2); const L = S.cos.filter(x => !x.priv && !x.ctrl && x.ni > 0 && x.ind !== c1.ind && x.debt < x.rev * .2).sort((a, b) => b.rev - a.rev)[0]; /* a large, little-indebted company of another industry (no antitrust review) */ L.own.P = L.shares * .6; L.ctrl = 'P'; L.cash += 5000; /* a listed subsidiary buys both (the PE owner selling) */
+      for (const B of [c1, c2]) { const mq = A.mergeQuote(L, B, 0, true, true); info.mq = Object.assign(info.mq || {}, {[B.id]: [mq.go, mq.reason, mq.fin, mq.anti]}); A.execMerge(L, B, 0, true, null, true); } const c1x = L; const ids = (c1x.sns || []).map(n => n.id); info.merge = {ids, tot: +tot.toFixed(6), now: +sumSn(c1x).toFixed(6), debt: +c1x.debt.toFixed(6)};
+      out.merge = ids.includes(n1) && ids.includes(n2) && Math.abs(sumSn(c1x) - tot) < 1e-9 && sumSn(c1x) <= c1x.debt + 1e-9 && !S.cos.includes(c2) && !S.cos.includes(c1) && !chk() && loads(); }
+    /* restructuring: the notes are cut like other claims and never come back (tried over several deals until one restructuring succeeds) */
+    { let okAll = true, seen = false; for (let k = 0; k < 16 && !seen; k++) { ({S, c, q} = buy(8104 + k)); if (!c || !c.sns) continue; const before = sumSn(c); c.crisis = {due: S.week + 8}; A.startReorg(c); const it = S.inbox.find(i => i.kind === 'reorg' && i.cid === c.id); if (it) A.ibxChoose(it.id, k % 2 ? 'inst' : 'des'); if (!c.reorg) continue;
+        const hc = c.reorg.hc; c.reorg.end = S.week + 1; A.step(); A.step(); const alive = S.cos.includes(c) && !c.reorg && S.news.some(n => n.t.includes('【再建成功】') && n.t.includes(c.name));
+        if (alive) { seen = true; info.reorg = {before: +before.toFixed(6), after: +sumSn(c).toFixed(6), hc: +hc.toFixed(3), debt: +c.debt.toFixed(6)}; }
+        okAll = okAll && (!alive || (sumSn(c) <= before * (1 - hc) + 1e-9 && sumSn(c) <= c.debt + 1e-9)) && !chk() && loads(); }
+      out.reorg = okAll && seen; }
+    /* a save of the earlier version with a balance the company no longer owes: trimmed on load, never paid again; loading twice changes nothing */
+    { ({S, c, q} = buy(8104)); c.cash = 100; const o = JSON.parse(A.exportText()), oc = o.cos.find(x => x.id === c.id); oc.cash -= oc.debt; oc.debt = 0; o.chk = A.finSig(o);
+      const err = A.importText(JSON.stringify(o)), x = A.S.cos.find(y => y.id === c.id); info.old = {err: err || null, why: A.trialErr.slice(0, 160), sns: x && x.sns}; out.oldTrim = !err && !!x && !x.sns && x.debt === 0;
+      const cash = x.cash; for (let i = 0; i < 14; i++) A.snStep(); out.oldNoPay = x.cash === cash; const t = A.exportText(); A.importText(t); out.oldAgain = A.exportText() === t || !A.S.cos.find(y => y.id === c.id).sns; }
+    /* a broken record is refused */
+    { ({S, c, q} = buy(8104)); const o = JSON.parse(A.exportText()), oc = o.cos.find(x => x.id === c.id); oc.sns[0].bal = oc.sns[0].prin * 2; out.badRefused = !!A.econCheck(o); oc.sns[0].bal = oc.sns[0].prin; oc.sns.push(Object.assign({}, oc.sns[0])); out.dupRefused = !!A.econCheck(o); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev18 BUG-64: seller notes stay inside the total debt — full and part repayment, 100-day plan, 20 instalments, weekly play, merger, restructuring, old saves, checks', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in rev18 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testBal(b) {
   const {p, errs} = await page(b);
   const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
@@ -2772,6 +2821,7 @@ async function balance(b) {
     await testRev15(b);
     await testBal(b);
     await testRev17(b);
+    await testRev18(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
