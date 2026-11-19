@@ -2400,7 +2400,7 @@ async function testRev17(b) {
     const nwBuy = A.grossWorth(); A.step(); S.inbox = [];
     const sm = S.props.filter(x => x.small); info.b58 = {v0, v1: +u.v.toFixed(5), nwBuy: +nwBuy.toFixed(4), nw1: +A.grossWorth().toFixed(4), max: Math.max(...sm.map(x => x.v))};
     out.b58week = u.own === 'P' && Math.abs(u.v / v0 - 1) < .01 && sm.every(x => x.v < 1) && Math.abs(A.grossWorth() - nwBuy) < .01 && loads();
-    for (let i = 0; i < 104; i++) { A.step(); S.inbox = []; } const vs = S.props.filter(x => x.small).map(x => x.v / A.smallProps().find(y => y.id === x.id).v);
+    for (let i = 0; i < 104; i++) { A.step(); S.inbox = []; } const vs = S.props.filter(x => x.small && /^S\d+$/.test(x.id)).map(x => x.v / A.smallProps().find(y => y.id === x.id).v); /* the original small buildings (new ones from the half-yearly supply have their own price) */
     info.b58long = {lo: +Math.min(...vs).toFixed(3), hi: +Math.max(...vs).toFixed(3)}; out.b58long = vs.every(k => k > .7 && k < 1.3) && loads();
     { const c0 = S.player.cash, v = A.propVal(u), m = u.mort; const el2 = document.createElement('button'); el2.dataset.id = u.id; A.act('psell', el2); out.b58sell = !u.own && Math.abs(S.player.cash - c0 - (v * .98 - m)) < 1e-6 && loads(); info.b58sell = {got: +(S.player.cash - c0).toFixed(5), v: +v.toFixed(5), m: +m.toFixed(5)}; }
     /* BUG-58: a save of the earlier version (every small building lifted to 1億) is restated from the price it was put on sale at, keeping the move since; the change is shown */
