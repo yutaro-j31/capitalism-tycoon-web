@@ -2385,6 +2385,57 @@ async function testFeedback16(b) {
   ok('no page errors in feedback 3 tests', errs.length === 0, errs.join(' | '));
 }
 
+async function testRev15(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const $ = q => document.querySelector(q);
+    const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    let S;
+    /* BUG-52: the building let out after you move away keeps finite rent and money */
+    S = traderCo(7501, 100); const nw0 = A.grossWorth(); A.hqBuild('tyo'); info.b52 = {after: +A.grossWorth().toFixed(3), before: +nw0.toFixed(3)}; out.b52build = loads();
+    for (let i = 0; i < 53; i++) A.step(); const bd = A.hqBld(); out.b52done = !!bd && !bd.uc && bd.hqUse && loads();
+    A.setOffice(1, 'tyo'); out.b52let = !bd.hqUse && isFinite(A.propRentY(bd)) && A.propRentY(bd) > 0 && loads(); const c0 = S.player.cash; A.step(); out.b52week = isFinite(S.player.cash) && isFinite(A.grossWorth()) && S.player.cash > c0 - 1 && loads();
+    A.setOffice(4); out.b52back = bd.hqUse && A.office().lvl === 4 && loads(); A.step();
+    { const o = JSON.parse(A.exportText()); const pb = o.props.find(x => x.hqb); delete pb.y; pb.hqUse = false; o.office.lvl = 1; o.chk = A.finSig(o); const m = A.importText(JSON.stringify(o)); out.b52old = (m == null || !String(m).includes('読み込めません')) && isFinite(A.hqBld().y) && A.hqBld().y === A.PROPY && (A.step(), isFinite(A.S.player.cash)) && loads(); }
+    { const pr = A.hqBld(); A.setOffice(1, 'tyo'); const c1 = A.S.player.cash, val = A.propVal(pr), got = A.sellProp(pr); out.b52sell = got > 0 && Math.abs(A.S.player.cash - c1 - got) < 1e-9 && Math.abs(got - val * .98) < 1e-6 && !A.hqBld() && !pr.hqb && loads(); A.step(); out.b52after = isFinite(A.S.player.cash) && loads(); }
+    /* BUG-56: an overseas building is worth what it cost on the day it starts (no gain from the rate) */
+    for (const fx of [95, 150, 200]) { S = traderCo(7502, 100); S.econ.fx = fx; const g0 = A.grossWorth(), cost = A.hqbCost('nyc'); A.hqBuild('nyc'); const g1 = A.grossWorth(); out['b56_' + fx] = Math.abs(g1 - (g0 - cost * .05)) < 1e-9 && Math.abs(A.propVal(A.hqBld()) - cost) < 1e-9 && loads(); info['b56_' + fx] = +(g1 - g0).toFixed(4); }
+    { S = traderCo(7503, 100); S.econ.fx = 200; const g0 = A.grossWorth(), cost = A.hqbCost('tyo'); A.hqBuild('tyo'); out.b56home = Math.abs(A.grossWorth() - (g0 - cost * .05)) < 1e-9; }
+    /* BUG-53: the old company's bonds and DIP loan do not come back after a failure */
+    S = traderCo(7504, 30); const bc = S.cos.filter(x => !x.priv && !x.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[3]; bc.crisis = {due: S.week + 8}; bc.debt = Math.max(bc.debt, bc.assets * .9);
+    const bb = A.bondBuy(bc, .1); S.pres.cash = .2; out.b53bought = !!bb;
+    A.restartAsTrader('test'); out.b53gone = !(S.bonds || []).length && !(S.dips || []).length && A.companyResidue().length === 0 && Math.abs(S.player.cash - .2) < 1e-9 && Math.abs(A.grossWorth() - .2) < 1e-9; /* only the personal cash is left */ info.b53 = {cash: S.player.cash, gw: A.grossWorth(), resid: A.companyResidue()};
+    out.b53loads = loads();
+    for (let i = 0; i < 30; i++) A.step(); out.b53later = !(S.bonds || []).length && loads();
+    /* BUG-55 + BUG-53: a DIP loan is booked on both sides, and leaves with the old company */
+    S = traderCo(7505, 30); const dc = S.cos.filter(x => !x.priv && !x.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[5]; dc.crisis = {due: S.week + 8}; dc.debt = Math.max(dc.debt, dc.assets * .9);
+    A.bondBuy(dc, .1); A.startReorg(dc); const ro = S.inbox.find(i => i.kind === 'reorg' && i.cid === dc.id); const d0 = dc.debt, cash0 = S.player.cash, dcCash = dc.cash; A.ibxChoose(ro.id, 'dip'); const dip = dc.reorg.dip;
+    out.b55book = dip > 0 && Math.abs(dc.debt - (d0 + dip)) < 1e-9 && Math.abs(dc.cash - (dcCash + dip)) < 1e-9 && Math.abs(S.player.cash - (cash0 - dip)) < 1e-9 && S.dips.length === 1 && Math.abs(A.dipsValue() - dip * 1.15 * A.reorgOdds(dc)) < 1e-9 && loads();
+    A.ibxChoose(ro.id, 'dip'); out.b55dup = S.dips.length === 1;
+    S.pres.cash = .2; A.restartAsTrader('test'); out.b55gone = !(S.dips || []).length && !(S.bonds || []).length && Math.abs(S.player.cash - .2) < 1e-9 && A.companyResidue().length === 0 && loads();
+    /* BUG-54 / BUG-55: repayments and conversions move the issuer's debt */
+    S = traderCo(7506, 30); const rc = S.cos.filter(x => !x.priv && !x.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[6]; A.trClose();
+    { const debt0 = rc.debt, cash0 = rc.cash, b = {id: 99, cid: rc.id, name: rc.name, face: .2, cost: .15, w: S.week, gen: S.coGen || 0}; S.bonds = [b]; A.bondRepayAll(rc, '買収'); out.b54par = Math.abs(rc.debt - Math.max(0, debt0 - .2)) < 1e-9 && Math.abs(rc.cash + Math.max(0, -(cash0 - .2)) - (cash0 - .2)) < 1e-9 && !S.bonds.length; }
+    let tried = 0, seenDes = false, seenInst = false, seenFail = false;
+    for (let k = 0; k < 24 && !(seenDes && seenInst); k++) {
+      S = traderCo(7600 + k, 40); const x = S.cos.filter(y => !y.priv && !y.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[2 + (k % 6)]; x.crisis = {due: S.week + 8}; x.debt = Math.max(x.debt, x.assets * .9); A.trClose();
+      const bnd = A.bondBuy(x, 1); if (!bnd) continue; A.startReorg(x); const it = S.inbox.find(i => i.kind === 'reorg' && i.cid === x.id); A.ibxChoose(it.id, 'dip'); const dip2 = x.reorg.dip, plan = k % 2 ? 'inst' : 'des'; A.ibxChoose(it.id, plan);
+      x.reorg.end = S.week + 1; const debtB = x.debt, hc = x.reorg.hc, face = bnd.face, plain = debtB - dip2, claims = plain * (1 - hc), my = Math.min(claims, face * (1 - hc)), others = claims - my, conv = others * .3 + (plan === 'des' ? my : 0); tried++;
+      const cashB = S.player.cash; A.step(); A.step();
+      if (x.reorg) continue; const ok = S.news.some(n => n.t.includes('【再建成功】') && n.t.includes(x.name));
+      if (!ok) { seenFail = true; out.b55fail = !S.dips.length && loads(); continue; }
+      if (plan === 'des' && !seenDes) { seenDes = true; out.b54des = Math.abs((x.debt + 0) - (claims - conv + 0)) < .05 * claims + 1e-6 && x.own.P > 0 && !S.bonds.some(y => y.cid === x.id) && !S.dips.length && loads(); info.des = {debt: +x.debt.toFixed(3), expect: +(claims - conv).toFixed(3), own: +(x.own.P / x.shares).toFixed(3)}; }
+      if (plan === 'inst' && !seenInst) { seenInst = true; const ib = S.bonds.find(y => y.cid === x.id); const dA = x.debt; for (let i = 0; i < 53; i++) A.step(); out.b54inst = !!ib && !S.bonds.some(y => y.cid === x.id) && x.debt < dA - my * .5 && loads(); info.inst = {before: +dA.toFixed(3), after: +x.debt.toFixed(3), my: +my.toFixed(3)}; }
+    }
+    info.reorgTried = tried; out.b54seen = seenDes && seenInst;
+    return {out, info};
+  });
+  const fails = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev15: own building let out (BUG-52), overseas building and the yen (BUG-56), old company bonds and DIP at liquidation (BUG-53), issuer debt on repayment and DES (BUG-54), DIP on both books (BUG-55)', !fails.length, JSON.stringify(fails) + ' ' + JSON.stringify(r.info));
+  ok('no page errors in rev15 tests', errs.length === 0, errs.join(' | '));
+}
+
 async function testGpt5(b) {
   const {p, ctx, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -2580,6 +2631,7 @@ async function balance(b) {
     await testFeedback14(b);
     await testFeedback15(b);
     await testFeedback16(b);
+    await testRev15(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
