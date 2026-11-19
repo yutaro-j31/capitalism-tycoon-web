@@ -2506,6 +2506,62 @@ async function testRev18(b) {
   ok('no page errors in rev18 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 
+// playtest 19: central-bank cooldown, unlock list, own-building cost, office buttons, officer candidates from new graduates, M&A sell delegation, cash-only delegated buying, guide history and states, group dashboard, acquisition record, year plan
+async function testPlay19(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    let S;
+    /* central bank: at most one decision in 26 weeks, over 30 years of several games */
+    { let minGap = 1e9; for (const seed of [11, 22, 33, 44]) { A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; let last = null; for (let i = 0; i < 1560; i++) { A.step(); S.inbox = []; const n = S.news[0]; if (n && n.w === S.week && /【経済】(中央銀行|日本銀行)/.test(n.t) && !(n._seen)) { n._seen = 1; if (last != null) minGap = Math.min(minGap, S.week - last); last = S.week; } } }
+      info.cbGap = minGap; out.cbGap = minGap >= 26; }
+    /* the unlock notice leaves out what was already usable (a trader's shorting after 26 weeks), and quotes the trader's own thresholds */
+    { A.newGame(1901, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 27; i++) { A.step(); S.inbox = []; } const shortBefore = A.has('short');
+      S.player.cash = 50; const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares)[0]; A.execBuy('P', c, Math.ceil(c.shares * .06), 50); A.step(); S.inbox = []; const ui = A.ui;
+      const html = (() => { let h = ''; const orig = A.openModal; return document.querySelector('#modal') ? (A.showUnlock && A.ui.pendingUnlock ? (A.showUnlock(), document.querySelector('#modal').innerHTML) : '') : ''; })();
+      info.unlock = {shortBefore, stage: S.stage, has: html.length, txt: html.replace(/<[^>]+>/g, ' ').slice(0, 300)};
+      out.unlockNoShort = shortBefore && html.includes('公開買付け') && !html.includes('空売り') && !html.includes('15,000,000,000円'); }
+    /* the own building is not shown as free; the rent buttons say what they do */
+    { S = traderCo(1902, 200); const t0 = A.offTag(4); A.hqBuild('tyo'); const t1 = A.offTag(4); for (let i = 0; i < 53; i++) { A.step(); S.inbox = []; } const t2 = A.offTag(4); info.hq = {t0, t1, t2};
+      out.hqTag = /要建設/.test(t0) && /建設中/.test(t1) && /維持費 年/.test(t2) && ![t0, t1, t2].some(t => t.includes('無料'));
+      const html = A.officeSection(); out.rentBtn = html.includes('借りる') && html.includes('利用中'); A.ui.plan = {lvl: 2, on: Object.fromEntries(Object.keys(S.dept).map(k => [k, S.dept[k].on]))}; out.planBtn = A.floorView().includes('本社ビルのフロアを借りる'); A.ui.plan = null; }
+    /* officer candidates from each intake, an exceptional one now and then; promoted and sent to a subsidiary as an officer; their position is shown */
+    { S = traderCo(1903, 500); Object.assign(S.dept.acc, {on: true, staff: 1}); let made = 0, elite = 0; for (let y = 0; y < 30; y++) { S.week = y * 52 + 12; A.gradCands('acc', 3); } const J = A.jrList(); made = J.length; elite = J.filter(x => x.grad.elite).length;
+      info.grads = {made, elite, eliteSk: J.filter(x => x.grad.elite).map(x => Math.round(Math.max(...Object.values(x.sk))))}; out.gradsMade = made === 30 && elite >= 1 && elite <= 5;
+      const p0 = J[0]; for (let i = 0; i < 130; i++) A.jrStep ? A.jrStep() : null; S.week = p0.grad.w + 110; const ready = A.jrReady(p0); info.jr = {sk: Math.round(Math.max(...Object.values(p0.sk))), ready};
+      const sub = S.cos.filter(x => !x.priv && !x.ctrl)[0]; sub.ctrl = 'P'; sub.own.P = sub.shares * .6; if (!ready) { for (const k in p0.sk) p0.sk[k] = Math.max(p0.sk[k], 60); }
+      A.ui.hire = {t: sub.id, r: 'CFO'}; A.ui.hch = 'inside'; const panel = A.hirePanel(sub.id, 'CFO'); out.inside = panel.includes(p0.n) && panel.includes('昇格させて出向');
+      const el = document.createElement('button'); el.dataset.id = p0.id; A.act('hirep', el); const moved = p0.at === sub.id && p0.role === 'CFO' && !A.jrList().includes(p0);
+      out.promote = moved && A.personLine(p0, null, 'CFO').includes('現職') && loads(); A.ui.hire = null; }
+    /* M&A officer: buys with cash only (no margin), sells what it bought, asks before selling yours */
+    { S = traderCo(1904, 300); S.allUnlocked = true; const ma = Object.values(S.hr.people).find(x => !x.at) || null; const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean)[0]; A.hireInto(pool, 'HQ', 'MA', null, null); pool.dlg = {buy: true, sell: true};
+      const loan0 = S.player.loan; for (let i = 0; i < 27; i++) { A.step(); S.inbox = S.inbox.filter(x => x.act && x.act.t === 'sellall'); } info.ma = {loan0, loan: S.player.loan, maHold: Object.keys(S.maHold || {}).length, cash: +S.player.cash.toFixed(3)};
+      out.maCashOnly = S.player.loan <= loan0 + 1e-9 && S.player.cash > 0;
+      const mine = S.cos.filter(x => !x.priv && !x.ctrl && !(S.maHold || {})[x.id] && !(x.own.P > 0))[3]; A.execBuy('P', mine, A.sharesForMoney(mine, 2)); mine.price = A.repFair(mine) * 1.3; S.week = Math.ceil(S.week / 13) * 13 + 7 - 1; A.dlgStep && null; A.step();
+      const ask = S.inbox.find(x => x.act && x.act.t === 'sellall' && x.act.cid === mine.id); info.maAsk = {asked: !!ask, own: mine.own.P}; out.maAsks = !!ask && mine.own.P > 0 && loads(); }
+    /* the guide: done stays done; nothing is called complete while steps wait; the trader's thresholds */
+    { A.newGame(1905, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = .1; const c = S.cos.filter(x => !x.priv).sort((a, b) => a.price - b.price)[0]; const rb = A.execBuy('P', c, A.roundSh(A.sharesForMoney(c, .05))); info.buy = !!rb; A.step(); S.inbox = [];
+      const buy = A.roadState({id: 'buy', done: () => false}); A.execSell('P', c, c.own.P); A.step(); S.inbox = []; const after = A.roadDone({id: 'buy', done: () => S.cos.some(x => (x.own.P || 0) > 0)});
+      out.buySticky = after && !!(S.roadDone || {}).buy; for (let i = 0; i < 52; i++) { A.step(); S.inbox = []; } const box = A.roadBox(); info.road = box.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 260);
+      out.noFalseDone = !box.includes('すべて整いました') && !(box.includes('すべて達成') && /[0-9]+ \/ [0-9]+/.test(box) && !/(\d+) \/ \1/.test(box));
+      const g = A.guideNow(); out.guideTrader = !g || !String(g[2]).includes('8,000,000,000'); const t = JSON.parse(A.exportText()); out.roadLoads = loads() && t.roadDone && t.roadDone.buy != null; }
+    /* group dashboard: none / one / several companies; drawing it changes nothing */
+    { S = traderCo(1906, 3000); const h0 = A.groupView(); out.grp0 = h0.includes('支配企業はまだありません') && h0.includes('年間経営計画');
+      const L = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => a.price * a.shares - b.price * b.shares).slice(0, 3); for (const c of L) A.execBuy('P', c, c.shares * .55); A.step(); S.inbox = [];
+      const before = A.exportText(), h = A.groupView(), after = A.exportText(); info.grp = {n: A.ctrlP().length, acq0: L.map(c => !!c.acq0)};
+      out.grp3 = A.ctrlP().length >= 3 && L.every(c => h.includes(c.name)) && h.includes('単純合計') && h.includes('買収後の価値向上') && L.every(c => c.acq0 && c.acq0.w <= S.week) && before === after; }
+    /* year plan: set, judge once at the year end, kept in saves */
+    { S = traderCo(1907, 100); A.planSet('nw', 15); A.planSet('cash', 10); A.planSet('deals', 1); const ok4 = !A.planSet('debt', 20); const t = A.exportText(); A.importText(t); S = A.S;
+      while (S.week % 52 !== 51) { A.step(); S.inbox = []; } const n0 = (S.planHist || []).length; A.step(); A.step(); S.inbox = []; const H = S.planHist || [];
+      info.plan = H[0] && H[0].res.map(r => [r.k, r.res]); out.plan = ok4 && n0 === 0 && H.length === 1 && H[0].res.length === 3 && H[0].res.every(r => ['達成', '未達', '評価不能'].includes(r.res)) && loads(); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('playtest 19: central bank every 26 weeks at most, unlock list, own-building cost, office buttons, officer candidates and promotion, M&A sell delegation and cash-only buying, guide history, group dashboard, acquisition record, year plan', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in playtest-19 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+
 async function testBal(b) {
   const {p, errs} = await page(b);
   const fix = fs.readFileSync(path.join(FIX, 'rev15-bonds.json'), 'utf8');
@@ -2822,6 +2878,7 @@ async function balance(b) {
     await testBal(b);
     await testRev17(b);
     await testRev18(b);
+    await testPlay19(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

@@ -1223,6 +1223,7 @@ function pitchDo(it){
   else if (a.t === 'repay' && c) { const x = repay(c, a.amt); toast(`${c.name}が${fm(x)}を返済しました`); }
   else if (a.t === 'go') { ui.tab = a.tab; if (a.hq) ui.hqTab = a.hq; ui.sel = null; }
   else if (a.t === 'fix') { S.player.bankFix = {r: a.r, until: S.week + 156}; toast(`銀行借入を年${a.r.toFixed(1)}%の3年固定にしました`); }
+  else if (a.t === 'sellall' && c) { const r = (c.own.P || 0) > 0 ? execSell('P', c, c.own.P) : null; toast(r ? `${c.name}を売りました（${fm(r.proceeds)}）` : '売れませんでした', !r); }
   else if (a.t === 'sellhalf' && c) { const r = execSell('P', c, (c.own.P || 0) * .5); toast(r ? `${c.name}を半分売りました（${fm(r.proceeds)}）` : '売れませんでした', !r); }
   else if (a.t === 'ad' && c) { advertise(c, c.rev * .01); toast(`${c.name}が広告キャンペーンを実施`); }
   else if (a.t === 'rd' && c) { rdInvest(c, c.rev * .02); toast(`${c.name}が研究開発を追加`); }
@@ -1304,13 +1305,15 @@ function recomputeCtrl(){ GS = null; // group control: every stake held by a per
   }
   for (const c of S.cos) if (prev[c.id] !== c.ctrl) ctrlNews(c, prev[c.id]);
 }
+function acqSnap(c){ /* priority 3: the company as it was when control was taken (the base for 'what has changed since'); one record per time control is taken */
+  S.acqSeq = (S.acqSeq || 0) + 1; c.acq0 = {id: S.acqSeq, w: S.week, gen: S.coGen || 0, rev: c.rev, op: opProfit(c), eb: ebitda(c), nd: c.debt - c.cash, cost: costOf('P', c.id), frac: gfrac(c, 'P'), mult: c.priv ? peMult(c.ind, c.growth + (c.boost || 0)) : null, how: c.pe && !c.pe.closed ? 'PE' : 'TOB・買い増し'}; }
 function ctrlNews(c, prev){ GS = null;
   c.ctrlW = S.week; if (prev === 'P' || c.ctrl !== 'P') { c.deleg = null; }
   if (c.ctrl) {
     news(`【経営権取得】${ownerName(c.ctrl)}が${c.name}を支配下に（グループ持分${pc(gfrac(c, c.ctrl), 1)}${effCtrl(c) ? '・過半数はないが筆頭株主で、ほかの株主が分散しているため実質支配' : ''}）`, c.ctrl === 'P' ? 'you' : 'deal', c.city);
     if (c.ctrl === 'P') toast(`${c.name}の経営権を取得！ CEOとして配当・自社株買い・買収・他社株の取得が可能に`);
     if (c.ctrl === 'P' && !c.branch && !c.pmiDone) { c.pmiDone = true; c.pmi = {w0: S.week}; } /* post-merger integration starts */
-    if (c.ctrl === 'P') { c.ctrlW = S.week; c.exitHinted = false; }
+    if (c.ctrl === 'P') { c.ctrlW = S.week; c.exitHinted = false; acqSnap(c); }
     else if (prev === 'P') toast(`${c.name}の経営権を失いました`, true);
   } else if (prev) news(`${ownerName(prev)}が${c.name}の経営権を失う（グループ持分${pc(gfrac(c, prev), 1)}）`, prev === 'P' ? 'you' : 'deal', c.city);
 }
@@ -2264,6 +2267,7 @@ function hireInto(p, target, r, comp, ch){ // target: a company or 'HQ'
   const c = target === 'HQ' ? null : coById(target), fee = chFee(ch, p);
   if (ch === 'hunt') { const from = coById(p.at), offer = p.sal * 1.3; if (rnd() > huntOdds(p, offer)) { news(`${p.n}は引き抜きの誘いを断った`, 'warn'); return 'declined'; } if (from) { unseat(p); S.hr.pool = S.hr.pool.filter(x => x !== p.id); news(`【引き抜き】${from.name}の${p.n}を獲得`, 'you', from.city); } p.sal = Math.round(offer * 100) / 100; }
   else if (p.at) unseat(p); // moving within the group
+  if (p.grad) { S.hr.jrs = (S.hr.jrs || []).filter(x => x !== p.id); const d = S.dept && S.dept[p.grad.dept]; if (d && d.staff > 0) { d.staff--; if (d.jr > 0) d.jr--; } p.sal = salAsk(p); p.grad.promoW = S.week; news(`【昇格】${p.n}（${p.age}歳・${DEPTS[p.grad.dept].n}出身）が幹部に昇格`, 'you'); } /* leaves the department's seat; paid as an officer from now */
   S.hr.pool = S.hr.pool.filter(x => x !== p.id);
   if (fee) { if (c) { c.cash -= fee; if (c.cash < 0) { c.debt += -c.cash; c.cash = 0; } } else playerPay(fee); }
   p.comp = comp || TRAITS[p.tr].comp; p.optK = null;
@@ -2930,7 +2934,7 @@ function stageFor(){
 function checkStage(){
   if (S.allUnlocked) return;
   const st = stageFor();
-  if (st > S.stage) { const from = S.stage; S.stage = st; news(`【成長】${S.company}は「${STAGES[st].n}」の段階へ。新しい機能が解放されました`, 'you'); ui.pendingUnlock = [from + 1, st]; }
+  if (st > S.stage) { const from = S.stage, had = Object.keys(FEAT_STAGE).filter(k => has(k)); /* already usable before this stage (a trader's shorting after 26 weeks): not announced as new */ S.stage = st; news(`【成長】${S.company}は「${STAGES[st].n}」の段階へ。新しい機能が解放されました`, 'you'); ui.pendingUnlock = [from + 1, st, had]; }
 }
 
 /* ---------- missions & achievements ---------- */
@@ -2976,7 +2980,7 @@ function repairSave(){
   recomputeCtrl();
   { const T = S.tr, oldV = !(S.valV >= 2), dB = oldV ? (S.bonds || []).reduce((a, b) => { const c = coById(b.cid); return a + (c ? b.face * (bondPx(c) - bondPxV1(c)) : 0); }, 0) : 0, g0 = T && finite(T.eq1) ? grossWorth() - dB : null; /* BAL-03: bonds held in a save of the earlier version were valued by the earlier price */
     if (oldV) { for (const b of S.bonds || []) if (b.mat == null && !b.inst) b.mat = bondMat(b); } /* maturity from the issue; coupons received before are not on record (left unknown, not guessed) */
-    propRepair(); dipMigrate(); S.valV = 3; snSyncAll(); /* BUG-64: a save of the earlier version may hold seller-note balances the company no longer owes; they are trimmed to its debt (nothing paid twice before is guessed back) */
+    propRepair(); dipMigrate(); S.valV = 3; snSyncAll(); if (!S.roadDone) { S.roadDone = {}; if (S.tut && S.tut.buy != null) S.roadDone.buy = S.tut.buy; } roadRec(); /* older saves: the first purchase from the beginner's record (certain); the rest from what holds now */ /* BUG-64: a save of the earlier version may hold seller-note balances the company no longer owes; they are trimmed to its debt (nothing paid twice before is guessed back) */
     if (Array.isArray(S.actLog) && S.actLog.length && !S.actDv) { const D = {}; for (const e of S.actLog) { const k = (e.gen == null ? (S.coGen || 0) : e.gen) + ':' + e.cid; D[k] = Math.max(D[k] || 0, e.dv || 0); } S.actDv = D; } /* BUG-62: saves of the earlier version kept the dividends per record only; where records overlapped the larger is taken (never the sum) */ /* corrections to saves of the earlier version */
     if (g0 != null) { const d = grossWorth() - g0; if (Math.abs(d) > 1e-9) { if (finite(T.mid)) T.mid += d; if (finite(T.seen)) T.seen += d; (T.ax = T.ax || []).push(['旧版の評価の修正', d]); } } } /* the correction is shown as this week's change, not hidden */
   if (S.tr) trRepair();
@@ -3470,10 +3474,12 @@ const EVENTS = [
 function events(){
   const e = S.econ;
   if (rnd() < .035) {
-    const [t, fn] = EVENTS[pickIdx(EVENTS.length)]; fn(e);
-    e.sent = clamp(e.sent, .55, 1.6); e.gdp = clamp(e.gdp, -5, 8); e.fx = clamp(e.fx, 90, 200);
-    for (const k in e.indS) e.indS[k] = clamp(e.indS[k], .6, e.ic && e.ic[k] && e.ic[k].b ? 2.2 : 1.6);
-    news('【経済】' + t, 'econ'); fxNews();
+    const [t, fn] = EVENTS[pickIdx(EVENTS.length)], cb = /中央銀行|日本銀行/.test(t);
+    if (!cb || S.week - (e.cbW == null ? -999 : e.cbW) >= 26) { /* a central bank decides at most once in half a year (the draw is made as before, so the sequence of random numbers is unchanged) */
+      if (cb) e.cbW = S.week; fn(e);
+      e.sent = clamp(e.sent, .55, 1.6); e.gdp = clamp(e.gdp, -5, 8); e.fx = clamp(e.fx, 90, 200);
+      for (const k in e.indS) e.indS[k] = clamp(e.indS[k], .6, e.ic && e.ic[k] && e.ic[k].b ? 2.2 : 1.6);
+      news('【経済】' + t, 'econ'); fxNews(); }
   }
   if (rnd() < .03 && S.cos.length) {
     const c = S.cos[pickIdx(S.cos.length)];
@@ -3661,13 +3667,25 @@ function gradOffer(k, n){
   S.gradQ[k] = (S.gradQ[k] || 0) + n;
   news(`【新卒採用】${DEPTS[k].n}に${n}人へ内定（採用費${fm(fee)}・入社は${dateOf(gradJoinW())}）`, 'you'); return n;
 }
+const DEPT_BOSS = {acc: ['CFO', 'fin'], hr: ['HR', 'hr'], inv: ['PEH', 'deal'], legal: ['MA', 'deal'], ir: ['CFO', 'gen']}; /* the HQ officer a department works under, and the skill it builds */
+const jrList = () => ((S.hr && S.hr.jrs) || []).map(person).filter(Boolean);
+const jrReady = p => !!(p && p.grad) && S.week - p.grad.w >= (p.grad.elite ? 52 : 104) && topSkill(p) >= (p.grad.elite ? 60 : 50); /* promotable to an officer */
+function gradCands(k, n){ /* one named officer candidate from each year's intake of a department; now and then an exceptional one (deterministic from the seed, the week and the department: no random numbers drawn) */
+  if (!S.hr) return; const key = `grad:${S.seed}:${S.week}:${k}`, elite = hashStr(key + ':elite') % 20 === 0, B = DEPT_BOSS[k] || ['CFO', 'fin'];
+  const p = genPerson(key, {level: elite ? 66 : 24, age: 22 + hashStr(key + ':a') % 2, jp: true, focus: B[1]}); p.pot = elite ? 95 + hashStr(key + ':p') % 4 : clamp(55 + hashStr(key + ':p') % 36, 40, 92); p.sal = GRAD_SAL / 1e4; p.ind = p.ind; p.exp = {};
+  p.grad = {w: S.week, dept: k, elite, boss: B[0]}; (S.hr.jrs = S.hr.jrs || []).push(p.id);
+  news(elite ? `【逸材】${DEPTS[k].n}の新卒に${p.n}（${p.age}歳）が入社。入社時から${SKILLS[B[1]]}${Math.round(p.sk[B[1]])}、伸びしろ${Math.round(p.pot)}の逸材です` : `【幹部候補】${DEPTS[k].n}の新卒から${p.n}を幹部候補に選びました（${HQ_ROLES[B[0]].n}の下で育成）`, 'you'); }
+function jrStep(){ for (const p of jrList()) { /* candidates learn faster than staff; a strong HR team and the education welfare help */
+  const r = (1 + .5 * Math.min(1, cov('hr')) + (S.welfare && S.welfare.edu ? .25 : 0)) / (52 * 5); for (const k in p.sk) p.sk[k] = Math.min(p.pot, p.sk[k] + Math.max(0, p.pot - p.sk[k]) * r * (k === (DEPT_BOSS[p.grad.dept] || [])[1] ? 1.5 : .6));
+  if (jrReady(p) && !p.grad.toldW) { p.grad.toldW = S.week; news(`【昇格候補】幹部候補の${p.n}（${p.age}歳）が幹部に昇格できる力をつけました。本社の役職や子会社のCXOに「グループ内」から起用できます`, 'you'); } } }
 function gradStep(){
+  jrStep();
   for (const k of deptsOn()) { const d = S.dept[k]; if (!(d.jr > 0)) continue; /* on-the-job learning; a strong HR team and the education welfare speed it up */
     d.jrAb = (d.jrAb || GRAD_AB) + .2 + .15 * Math.min(1, cov('hr')) + (S.welfare && S.welfare.edu ? .1 : 0);
     if (d.jrAb >= d.ab - 1) { d.ab = ((d.staff - jrOf(d)) * d.ab + jrOf(d) * d.jrAb) / Math.max(1, d.staff); news(`【成長】${DEPTS[k].n}の若手${jrOf(d)}人が一人前になった`, 'you'); d.jr = 0; d.jrAb = null; } }
   if (S.week % 52 !== 12 || !S.gradQ) return;
   for (const k of Object.keys(S.gradQ)) { const d = S.dept[k], q = S.gradQ[k]; if (!d || !d.on || !q) continue; const n = Math.min(q, seatsOf() - d.staff);
-    if (n > 0) { const j = jrOf(d); d.jrAb = (j * (d.jrAb || GRAD_AB) + n * GRAD_AB) / (j + n); d.jr = j + n; d.staff += n; d.mo = Math.min(99, d.mo + 2); }
+    if (n > 0) { const j = jrOf(d); d.jrAb = (j * (d.jrAb || GRAD_AB) + n * GRAD_AB) / (j + n); d.jr = j + n; d.staff += n; d.mo = Math.min(99, d.mo + 2); gradCands(k, n); }
     news(`【入社式】${DEPTS[k].n}に新卒${n}人が入社${q > n ? `（席が足りず${q - n}人は辞退）` : ''}`, 'you'); }
   S.gradQ = {};
 }
@@ -3677,7 +3695,7 @@ function gradBox(){
     <p class="note">年俸${yen(GRAD_SAL)}（業界水準${yen(SAL_NORM)}）で採用できますが、入社時の能力は${GRAD_AB}。仕事をしながら育ち、部門の平均に追いつくと一人前になります（人事部が強いほど・学費支援があるほど早い）。採用費は1人${yen(Math.round(GRAD_FEE * disc * 1e4))}。中途採用（各部門の＋ボタン）は能力が高い代わりに年俸が高めです。</p>
     ${on.map(k => { const d = S.dept[k], n = (ui.grad || {})[k] || 0, room = seatsOf() - d.staff - (q[k] || 0); return `<div class="slot"><div class="slot-h"><b>${DEPTS[k].n}</b><small>${d.staff}人（うち若手${jrOf(d)}人）${q[k] ? `・内定${q[k]}人` : ''}・空き席${Math.max(0, room)}</small></div>
       ${ladder('gradd', `${n}人`, [1, 5], v => v, `data-id="${k}"`, n ? `採用費 ${fm(n * GRAD_FEE * disc)}` : '')}</div>`; }).join('')}
-    <div class="btnrow"><button class="btn gold" data-act="gradgo" ${on.some(k => ((ui.grad || {})[k] || 0) > 0) ? '' : 'disabled'}>内定を出す</button></div></section>`;
+    <div class="btnrow"><button class="btn gold" data-act="gradgo" ${on.some(k => ((ui.grad || {})[k] || 0) > 0) ? '' : 'disabled'}>内定を出す</button></div></section>${jrList().length ? `<section class="box"><h4>幹部候補 <small>${jrList().length}人・新卒から育成</small></h4>${jrList().map(p => `<div class="cand">${personLine(p, null, (DEPT_BOSS[p.grad.dept] || ['CFO'])[0], false)}<p class="note">${jrReady(p) ? '<b class="up">昇格できます</b>：本社の役職や子会社のCXOを探す画面の「グループ内」から起用（出向）できます。' : `育成中（昇格の目安：入社${p.grad.elite ? 1 : 2}年・得意分野${p.grad.elite ? 60 : 50}以上）`}</p></div>`).join('')}</section>` : ''}`;
 }
 const deptPower = k => Math.min(1, deptEff(k) / Math.max(4, needOf(k))); // the job scales with the group's size and deals
 function needOf(k){ /* work in "good-staff" units for each department */
@@ -4203,7 +4221,7 @@ function step(){
   if (S.week % 13 === 0) { corpTax(); newsQuarter(); routeStep(); }
   trStep(tr0);
   recordNW(); plCloseKey('plW', 'plWH', 2); if (S.week % 13 === 0) plClose(); if (S.week % 52 === 0) plCloseKey('plY', 'plYH', 3);
-  snSyncAll(); checkEnd(); checkAch(); trClose();
+  snSyncAll(); roadRec(); planClose(); checkEnd(); checkAch(); trClose();
 }
 function checkEnd(){
   const nw = myWorth();
@@ -4652,20 +4670,22 @@ const skBar = (p, k, rough) => `<span class="skl"><small>${SKILLS[k]}</small><b>
 function personLine(p, c, role, rough){ // compact card: name, age, trait, the role's key skill, fit, pay
   const k = roleSkill(role), others = Object.keys(SKILLS).filter(x => x !== k).sort((a, b) => p.sk[b] - p.sk[a]).slice(0, 2);
   const fi = c ? fitInd(p, c.ind) : 1, cf = c ? cultFit(p, c) : 0;
-  return `<div class="pl"><div class="pl-h"><b>${esc(p.n)}</b><small>${p.age}歳・${TRAITS[p.tr].n}・${IND[p.ind].n}出身</small></div>
+  const pos = p.at && p.role ? `現職：${p.at === 'HQ' ? '本社の' : ''}${roleName(p)}` : p.grad ? `幹部候補（${DEPTS[p.grad.dept].n}・${HQ_ROLES[p.grad.boss].n}の下で育成、入社${Math.max(0, Math.floor((S.week - p.grad.w) / 52))}年目）${p.grad.elite ? '・<b class="up">逸材</b>' : ''}` : '';
+  return `<div class="pl"><div class="pl-h"><b>${esc(p.n)}</b><small>${p.age}歳・${TRAITS[p.tr].n}・${p.grad ? '新卒入社' : IND[p.ind].n + '出身'}</small></div>${pos ? `<div class="note" style="margin:2px 0 4px">${pos}</div>` : ''}
     <div class="pl-s">${skBar(p, k, rough)}${others.map(x => skBar(p, x, rough)).join('')}<span class="skl"><small>伸びしろ</small><b>${rough ? '?' : Math.round(p.pot)}</b></span></div>
     <div class="pl-f">${c ? `<span class="${fi >= .95 ? 'up' : fi < .75 ? 'down' : ''}">業種経験 ${pc(fi, 0)}</span><span class="${cf > 0 ? 'up' : cf < 0 ? 'down' : ''}">社風（${CULTS[c.cult]}）${cf > 0 ? 'と合う' : cf < 0 ? 'と合わない' : 'とは普通'}</span>` : ''}<span>年俸 ${fm(p.sal)}</span>${p.at && p.role ? `<span class="${p.mood < .4 ? 'down' : ''}">満足度 ${(p.mood * 100).toFixed(0)}</span><span>契約 ${shortDate(p.end)}まで</span>` : ''}</div></div>`;
 }
 function hirePanel(target, role){ // channel tabs and candidate list for one slot
   const c = target === 'HQ' ? null : coById(target), ch = ui.hch || 'agency', list = marketFor(role, ch, c);
-  const group = Object.values(S.hr.people).filter(p => p.at && p.role && p.at !== target && (p.at === 'HQ' || (coById(p.at) && coById(p.at).ctrl === 'P')) && !(p.at === target && p.role === role)).sort((a, b) => b.sk[roleSkill(role)] - a.sk[roleSkill(role)]).slice(0, 3);
+  const group = Object.values(S.hr.people).filter(p => p.at && p.role && p.at !== target && (p.at === 'HQ' || (coById(p.at) && coById(p.at).ctrl === 'P')) && !(p.at === target && p.role === role)).sort((a, b) => b.sk[roleSkill(role)] - a.sk[roleSkill(role)]).slice(0, 3)
+    .concat(jrList().filter(jrReady).sort((a, b) => b.sk[roleSkill(role)] - a.sk[roleSkill(role)]).slice(0, 3)); /* plus officer candidates grown from the new graduates */
   return `<div class="hire"><p class="lbl">${(ROLES[role] || HQ_ROLES[role]).n}を探す</p>
     <div class="seg">${[['open', '一般募集'], ['agency', '人材紹介'], ['hunt', 'ヘッドハント'], ['inside', 'グループ内']].map(([k, l]) => `<button class="${ch === k ? 'on' : ''}" data-act="hch" data-v="${k}">${l}</button>`).join('')}</div>
     <p class="note">${{open: '手数料なし。応募者の能力は大まかにしか分かりません。', agency: '年俸の25%の手数料で、この役職に合う人を正確な能力付きで紹介。', hunt: '他社の幹部を年俸1.3倍で引き抜く。手数料は年俸の35%。断られることもあります（目安を表示）。', inside: 'グループ内の幹部を異動・昇格。元の役職は空きます。'}[ch]}</p>
     <p class="lbl">報酬制度</p><div class="seg">${Object.entries(COMP).filter(([k, v]) => !v.pe || (c && c.pe && !c.pe.closed)).map(([k, v]) => `<button class="${(ui.hcomp || 'auto') === k ? 'on' : ''}" data-act="hcomp" data-v="${k}">${v.n}</button>`).join('')}<button class="${(ui.hcomp || 'auto') === 'auto' ? 'on' : ''}" data-act="hcomp" data-v="auto">本人の希望</button></div>
     <p class="note">${ui.hcomp && COMP[ui.hcomp] ? COMP[ui.hcomp].d : '本人の性格に合った制度にすると満足度が上がります。'}</p>
     ${cmpBox(role, ch === 'open')}
-    ${(ch === 'inside' ? group : list).map(p => `<div class="cand">${personLine(p, c, role, ch === 'open')}<div class="btnrow"><button class="btn sm ${(ui.cmp || []).includes(p.id) ? 'on' : ''}" data-act="hcmp" data-id="${p.id}" aria-pressed="${(ui.cmp || []).includes(p.id)}">${(ui.cmp || []).includes(p.id) ? '比較から外す' : '比較'}</button><button class="btn sm buy" data-act="hirep" data-id="${p.id}">${ch === 'hunt' ? `引き抜く（成功の目安 ${pc(huntOdds(p, p.sal * 1.3), 0)}・手数料 ${fm(chFee(ch, p))}）` : ch === 'inside' ? '異動させる' : `採用${chFee(ch, p) ? `（手数料 ${fm(chFee(ch, p))}）` : ''}`}</button></div></div>`).join('') || '<div class="empty">候補がいません。別の方法を試すか、来四半期に新しい人材が出てきます。</div>'}
+    ${(ch === 'inside' ? group : list).map(p => `<div class="cand">${personLine(p, c, role, ch === 'open')}<div class="btnrow"><button class="btn sm ${(ui.cmp || []).includes(p.id) ? 'on' : ''}" data-act="hcmp" data-id="${p.id}" aria-pressed="${(ui.cmp || []).includes(p.id)}">${(ui.cmp || []).includes(p.id) ? '比較から外す' : '比較'}</button><button class="btn sm buy" data-act="hirep" data-id="${p.id}">${ch === 'hunt' ? `引き抜く（成功の目安 ${pc(huntOdds(p, p.sal * 1.3), 0)}・手数料 ${fm(chFee(ch, p))}）` : ch === 'inside' ? (p.grad ? (c ? '昇格させて出向' : '幹部に昇格') : '異動させる') : `採用${chFee(ch, p) ? `（手数料 ${fm(chFee(ch, p))}）` : ''}`}</button></div></div>`).join('') || '<div class="empty">候補がいません。別の方法を試すか、来四半期に新しい人材が出てきます。</div>'}
     <div class="btnrow"><button class="btn sm" data-act="hclose">閉じる</button></div></div>`;
 }
 function execBox(c){
@@ -4700,20 +4720,23 @@ function hqBuildBox(){ /* own head office: build, move in, or let it */
     <div class="btnrow"><button class="btn gold" data-act="hqbuild" ${can ? '' : 'disabled'}>この場所に自社ビルを建てる</button></div>
     <p class="note">現金で支払います（借入なし）。完成すると本社を移し、賃料がなくなります。ビルは会社の資産として純資産に入り、売ることもできます（本社は賃貸に戻ります）。</p>`;
 }
+function offTag(i){ /* what an office costs, honestly: an own building is not free (upkeep 1% of its value a year; it must be built first) */
+  const x = OFFICE[i]; if (!x.own) return x.rent ? `賃料 年${fm(x.rent)}` : '賃料なし';
+  const b = hqBld(); return !b ? `要建設（建設費 ${fm(hqbCost(office().city))}〜）` : b.uc ? `建設中・${shortDate(b.uc)}完成` : `維持費 年${fm(propVal(b) * .01)}`; }
 function officeSection(){
   const o = office(), O = OFFICE[o.lvl], cost = O.rent + o.staff * STAFF_COST;
   return `<section class="box"><h4>本社 <small>${CITY[o.city].n}・${O.n}</small></h4>
     <div class="kv"><div><span>本社幹部の枠</span><b>${hqCount()} / ${O.slots}</b></div><div><span>スタッフ</span><b>${o.staff}人 / ${O.cap}</b></div><div><span>年間コスト</span><b>${fm(cost)}</b></div></div>
-    <p class="lbl">オフィス（移転費は新しいオフィスの1年分の賃料）</p><div class="seg">${OFFICE.map((x, i) => `<button class="${o.lvl === i ? 'on' : ''}" data-act="office" data-v="${i}">${x.n}<br><small>${x.rent ? `年${fm(x.rent)}` : '無料'}・幹部${x.slots}人</small></button>`).join('')}</div>
+    <p class="lbl">オフィス（移転費は新しいオフィスの1年分の賃料）</p><div class="seg">${OFFICE.map((x, i) => `<button class="${o.lvl === i ? 'on' : ''}" data-act="office" data-v="${i}" ${x.own && (!hqBld() || hqBld().uc) ? 'disabled' : ''}>${x.n}<br><small>${o.lvl === i ? '利用中' : x.own ? '移る' : '借りる'}・${offTag(i)}・幹部${x.slots}人</small></button>`).join('')}</div><p class="note">ボタンを押すとそのオフィスを借りて（自社ビルなら移って）本社を移します。移転費は新しいオフィスの1年分の賃料です。</p>
     <div class="field"><label for="hqcity">所在地</label><select id="hqcity" data-act-input="hqcity">${CITIES.map(c => `<option value="${c.id}" ${c.id === o.city ? 'selected' : ''}>${c.n}</option>`).join('')}</select></div>
     ${O.cap ? `<p class="lbl">本社スタッフ（アナリスト・1人 年${fm(STAFF_COST)}）</p><div class="seg">${[0, 5, 10, 20, 50, 100, 250].filter(n => n <= O.cap).map(n => `<button class="${o.staff === n ? 'on' : ''}" data-act="hqstaff" data-v="${n}">${n}人</button>`).join('')}</div>
     <p class="note">スタッフは研究ポイントを生み（1人あたり年${fm(.0015 * 52)}分・研究できるものがある間）、PE案件の発掘を増やします（今 +${pc(staffDealBoost(), 0)}、最大+50%）。</p>` : '<p class="note">オフィスを借りると本社スタッフを雇えます。</p>'}
     <p class="note">オフィスの広さで置ける本社幹部（M&A責任者・PE投資責任者・CHRO・オペレーティングパートナー）の人数が決まります。地図に本社の場所が★で出ます。</p>${hqBuildBox()}</section>`;
 }
-const DLG = {CFO: [['bank', '銀行融資の業務を委任する', '現金がマイナスならクレジットラインで補い、余った現金で返済'], ['eq', '新株発行（増資）を委任する', '現金不足が4週続いたら本体の公募増資を準備'], ['acc', '経理部の管理を委任する', '経理部の人数を必要人数に合わせる'], ['inv', '投資部の管理を委任する', '投資部の人数を必要人数に合わせる'], ['prop', '不動産管理を委任する', '余った現金で不動産ローンを返済']],
+const DLG = {CFO: [['bank', '銀行融資の業務を委任する', '現金がマイナスならクレジットラインで補い、余った現金でクレジットラインと信用借入を返済'], ['eq', '新株発行（増資）を委任する', '現金不足が4週続いたら本体の公募増資を準備'], ['acc', '経理部の管理を委任する', '経理部の人数を必要人数に合わせる'], ['inv', '投資部の管理を委任する', '投資部の人数を必要人数に合わせる'], ['prop', '不動産管理を委任する', '余った現金で不動産ローンを返済']],
   HR: [['hrd', '人事部の管理を委任する', '人事部の人数を必要人数に合わせる'], ['grad', '新卒採用を委任する', '毎年、各部門の不足分を新卒で採用'], ['keep', '幹部の引き留めを委任する', '満足度が40を切った幹部の年俸を10%上げる']],
   PEH: [['inv', '投資部の管理を委任する', '投資部の人数を必要人数に合わせる'], ['exit', 'PE投資先の売却を委任する', '投資額の2倍以上に値上がりしたら売却手続きを始める']],
-  MA: [['buy', '割安株の買い付けを委任する', '四半期ごとに、黒字で割安な会社の株を買付余力の5%まで買う'], ['def', '買収防衛を委任する', '20%以上持つ会社に他社がTOBを出したら、資金の範囲で10%上乗せの対抗TOB']],
+  MA: [['buy', '割安株の買い付けを委任する', '四半期ごとに、黒字で割安な会社の株を現金で買う（手元資金の5%まで・純資産の5%は現金で残す。信用買いはしない）'], ['sell', '割高になった株の売却を委任する', '四半期ごとに、公表値から見た適正価格を10%以上上回った保有株を売る。M&A責任者が買った株は自分で売り、あなたが自分で買った株は受信箱で許可を求める'], ['def', '買収防衛を委任する', '20%以上持つ会社に他社がTOBを出したら、資金の範囲で10%上乗せの対抗TOB']],
   OP: [['auto', '派遣先の経営を委任する', '派遣先の会社の経営を「自動」にする']]};
 function showExec(id){
   const p = person(id); if (!p || p.at !== 'HQ') return; const r = p.role, R0 = HQ_ROLES[r], gw = Math.max(0, grossWorth()), d = p.dlg || {};
@@ -4731,12 +4754,17 @@ function showExec(id){
 }
 function dlgStep(){ /* what delegated head-office executives do each week */
   const p0 = S.player, on = (r, k) => { const x = person(S.hr.hq[r]); return x && x.dlg && x.dlg[k]; };
-  if (on('CFO', 'bank')) { if (p0.cash < -1e-9) bankBorrow(Math.min(-p0.cash * 1.02, Math.max(0, bankLimit() - bankDebt()))); else { const buf = Math.max(5, Math.max(0, grossWorth()) * .05); if ((p0.bank || 0) > 0 && p0.cash > buf) bankRepay(p0.cash - buf); } }
+  if (on('CFO', 'bank')) { if (p0.cash < -1e-9) bankBorrow(Math.min(-p0.cash * 1.02, Math.max(0, bankLimit() - bankDebt()))); else { const buf = Math.max(5, Math.max(0, grossWorth()) * .05); if ((p0.bank || 0) > 0 && p0.cash > buf) bankRepay(p0.cash - buf); if (p0.loan > 0 && p0.cash > buf) { const x = Math.min(p0.loan, p0.cash - buf); p0.cash -= x; p0.loan -= x; news(`【CFO】余った現金で信用借入を${fm(x)}返済`, 'you'); } } } /* the margin loan too */
   if (on('CFO', 'eq') && p0.od != null && S.week - p0.od >= 4 && !p0.ipoPlan && holdingQuote(.2).ok) { p0.ipoPlan = {f: .2, w0: S.week, end: S.week + (p0.outside ? 8 : 22), uw: 'mid'}; news(`【CFO】資金不足が続くため、CFOが本体の${p0.outside ? '公募増資' : '上場'}の準備を始めた（予定日 ${dateOf(p0.ipoPlan.end)}）`, 'you'); }
   if (on('CFO', 'prop') && p0.cash > 10) for (const pr of propsOf('P')) if (pr.mort > 0 && p0.cash > 10) repayMort(pr);
   if (S.week % 4 === 0 && S.dept) for (const [r, k, dk] of [['CFO', 'acc', 'acc'], ['CFO', 'inv', 'inv'], ['PEH', 'inv', 'inv'], ['HR', 'hrd', 'hr']]) { const d = S.dept[dk]; if (on(r, k) && d && d.on) d.staff = clamp(staffNeed(dk), 1, seatsOf()); }
   if (on('HR', 'keep') && S.week % 4 === 0) for (const x of Object.values(S.hr.people)) if (x.at && x.role && x.mood < .4 && (x.at === 'HQ' || (coById(x.at) && coById(x.at).ctrl === 'P'))) { const cc = coById(x.at); if (cc) cc.fixed += paySal({sal: x.sal * .1, comp: x.comp}); x.sal = Math.round(x.sal * 1.1 * 100) / 100; x.mood = Math.min(1, x.mood + .15); news(`【CHRO】${x.n}（${roleName(x)}）の年俸を10%上げて引き留めた`, 'you'); }
-  if (on('MA', 'buy') && S.week % 13 === 5) { const cc = S.cos.filter(x => !x.priv && !x.ctrl && repCheap(x) && !isBanned(x)).sort((a, b) => repFair(b) / b.price - repFair(a) / a.price)[0], m = buyingPower() * .05; if (cc && m > .5) { const r = execBuy('P', cc, sharesForMoney(cc, m)); if (r) news(`【M&A責任者】割安な${cc.name}株を${fm(r.cost)}買い付けた`, 'you', cc.city); } }
+  if (on('MA', 'buy') && S.week % 13 === 5) { const cc = S.cos.filter(x => !x.priv && !x.ctrl && repCheap(x) && !isBanned(x)).sort((a, b) => repFair(b) / b.price - repFair(a) / a.price)[0], m = Math.max(0, Math.min(freeCash(), p0.cash) - Math.max(.5, Math.max(0, grossWorth()) * .05)) * .05; /* cash only, keeping a reserve: delegated buying never borrows on margin */
+    if (cc && m > .05) { const r = execBuy('P', cc, sharesForMoney(cc, m), m); if (r) { (S.maHold = S.maHold || {})[cc.id] = true; news(`【M&A責任者】割安な${cc.name}株を${fm(r.cost)}買い付けた（現金で）`, 'you', cc.city); } } }
+  if (on('MA', 'sell') && S.week % 13 === 7) for (const cc of S.cos.filter(x => !x.priv && x.ctrl !== 'P' && (x.own.P || 0) > 0 && x.price > repFair(x) * 1.1 && !activeTob(x))) { /* sells what has become dear */
+    if ((S.maHold || {})[cc.id]) { const r = execSell('P', cc, cc.own.P); if (r) { delete S.maHold[cc.id]; news(`【M&A責任者】割高になった${cc.name}株を売却（${fm(r.proceeds)}）`, 'you', cc.city); } }
+    else if (!S.inbox.some(i => i.act && i.act.t === 'sellall' && i.act.cid === cc.id) && S.week >= ((S.maAsk || {})[cc.id] || 0)) { (S.maAsk = S.maAsk || {})[cc.id] = S.week + 26; const x = person(S.hr.hq.MA);
+      addInbox({kind: 'pitch', who: x ? x.n : 'M&A責任者', role: 'M&A責任者', text: `あなたが買った${cc.name}株が、公表値から見た適正価格を${pc(cc.price / repFair(cc) - 1, 0)}上回っています（保有 ${fm(cc.own.P * cc.price)}）。売却してよいですか？`, act: {t: 'sellall', cid: cc.id}, exp: S.week + 4}); } }
   if (on('MA', 'def')) for (const t of S.tobs.slice()) { const cc = coById(t.cid); if (!cc || t.boss === 'P' || gfrac(cc, 'P') < .2 || cc.ctrl === 'P') continue; const px = t.price * 1.1, q = tenderQuote('P', cc, px, .51, t.ref); if (q && q.cost <= fundsOf('P') && launchTob('P', cc, px, .51)) news(`【M&A責任者】${cc.name}への${ownerName(t.boss)}のTOBに、1株${fp(px)}で対抗TOBを出した`, 'you', cc.city); }
   if (on('PEH', 'exit')) for (const cc of S.cos.filter(x => x.priv && x.pe && !x.pe.closed && x.pe.owner === 'P' && !x.pe.sale && !x.ipoPlan)) if (peStats(cc).moic >= 2 && peExitStart(cc)) news(`【PE投資責任者】${cc.name}（${peStats(cc).moic.toFixed(1)}倍）の売却手続きを始めた`, 'you', cc.city);
   for (const id of (S.hr.hq.OP || [])) { const x = person(id); if (x && x.dlg && x.dlg.auto) for (const cid of (x.asg || [])) { const cc = coById(cid); if (cc && cc.ctrl === 'P' && (cc.dm || 'manual') === 'manual') { cc.dm = 'auto'; cc.deleg = cc.deleg || 'bal'; cc.lim = cc.lim || {ad: .02, rt: 'BBB'}; news(`【オペレーティングパートナー】${x.n}が${cc.name}の経営を任された（自動）`, 'you', cc.city); } } }
@@ -4776,7 +4804,7 @@ function kidsBox(c){ // branches and subsidiaries owned by this company
   return `<section class="box"><h4>グループ会社 <small>${esc(c.name)}が支配する支店・子会社</small></h4><div class="rtable kids"><div class="rh"><span>会社</span><span>売上</span><span>営業利益</span><span>純利益</span></div>${kids.map(x => `<div><span><button class="link" data-act="sel" data-id="${x.id}">${esc(x.name)}</button>${x.priv ? ' <small>非上場</small>' : ''}</span><span>${fm(x.rev)}</span><span class="${opProfit(x) >= 0 ? '' : 'down'}">${fm(opProfit(x))}</span><span class="${x.ni >= 0 ? 'up' : 'down'}">${fm(x.ni)}</span></div>`).join('')}</div><p class="note">会社名をタップすると詳しい業績を見られます。支店も「保有」タブの「支配している会社」に並びます。</p></section>`;
 }
 /* ---------- head-office screen ---------- */
-const HQ_TABS = [['acc', '経理'], ['hr', '人事'], ['board', '取締役'], ['inv', '投資'], ['legal', '法務・IR'], ['floor', 'フロア'], ['me', '社長']];
+const HQ_TABS = [['grp', 'グループ'], ['acc', '経理'], ['hr', '人事'], ['board', '取締役'], ['inv', '投資'], ['legal', '法務・IR'], ['floor', 'フロア'], ['me', '社長']];
 function secretaryMsg(){
   const t = ui.hqTab || 'acc', lag = S.week - S.acct.w;
   const rn = roadNext();
@@ -4879,9 +4907,78 @@ function renderHQ(){
   else if (t === 'inv') body = (deptsOn().includes('inv') ? floorCv('inv') + deptBox('inv') : `<section class="box"><h4>投資部はまだありません</h4><p>「フロア」で投資部を追加すると、研究ポイント・PE案件・ベンチャー案件が増えます。</p></section>`) + invView();
   else if (t === 'legal') body = ['legal', 'ir'].map(k => deptsOn().includes(k) ? floorCv(k) + deptBox(k) : `<section class="box"><h4>${DEPTS[k].n}はまだありません</h4><p>${DEPTS[k].d}</p><div class="btnrow"><button class="btn sm" data-act="hqtab" data-v="floor">フロアで追加する</button></div></section>`).join('');
   else if (t === 'floor') body = floorView();
+  else if (t === 'grp') body = groupView();
   else body = renderPres();
   if (t === 'hr') body += gradBox();
   return top + hqHeader() + body;
+}
+function grpAlerts(L){ /* priority 2: what needs attention, from the game's own conditions (nothing invented) */
+  const a = [];
+  for (const c of L) { if (c.reorg) a.push([3, c, `再建手続き中（${shortDate(c.reorg.end)}に決着）`]); else if (c.crisis) a.push([3, c, '資金繰りが悪化（危機）']);
+    if (c.cash < 0) a.push([2, c, '現金がマイナス']); if (opProfit(c) < 0) a.push([2, c, `営業赤字（年${fm(opProfit(c))}）`]);
+    const t = activeTob(c); if (t && t.boss !== 'P') a.push([3, c, `${ownerName(t.boss)}がTOB中（${shortDate(t.end)}締切）`]);
+    for (const n of c.sns || []) if (n.next - S.week <= 4) a.push([1, c, `売り手への分割払い ${fm(Math.min(n.bal, n.prin / SN_N))}（${shortDate(n.next)}）`]);
+    if (ebitda(c) > 0 && c.debt / ebitda(c) > 5) a.push([2, c, `有利子負債がEBITDAの${(c.debt / ebitda(c)).toFixed(1)}倍`]); }
+  if (S.dept && deptOn('acc') && cov('acc') < .6 && accNeed() > 2) a.push([1, null, '経理部の人手不足で数字の更新が遅れています']);
+  for (const pr of propsOf('P')) if (propLet(pr) && propRentY(pr) - pr.mort * mortRate() / 100 < 0) a.push([1, null, `${pr.name}の賃料がローン利息を下回っています`]);
+  if (S.player.loan > 0 && S.player.loan > holdingsMkt('P') * callLine() * .85 + Math.max(0, S.player.cash)) a.push([3, null, '追証ラインが近い（信用借入）']);
+  return a.sort((x, y) => y[0] - x[0]);
+}
+/* priority 4: the year's plan — goals the player sets; recorded and judged, never paid */
+const PLAN_K = {
+  nw: {n: '純資産を増やす', unit: '%', def: 15, val: () => myWorth(), judge: (g, v) => g.base > 0 ? (v / g.base - 1) * 100 : null, d: 'あなたの持分ベースの純資産の増加率（基準が0以下なら評価不能）'},
+  debt: {n: '有利子負債を減らす', unit: '%', def: 20, val: () => S.player.loan + bankDebt() + ctrlP().reduce((a, c) => a + c.debt, 0), judge: (g, v) => g.base > 0 ? (1 - v / g.base) * 100 : null, d: '本体の借入と支配企業の有利子負債の合計の減少率（基準が0なら割合の目標は評価不能）'},
+  deals: {n: '会社を買う', unit: '社', def: 2, val: () => S.acqSeq || 0, judge: (g, v) => v - g.base, d: 'この年に新しく支配した会社の数（PE・TOB・買い増し）'},
+  aum: {n: '預かり資産を増やす', unit: '%', def: 20, val: () => (S.mm && S.mm.aum) || 0, judge: (g, v) => g.base > 0 ? (v / g.base - 1) * 100 : null, d: '顧客から預かる資産（あなたの資産ではありません）の増加率'},
+  cash: {n: '手元資金を厚くする', unit: '%', def: 10, val: () => Math.max(0, grossWorth()) > 0 ? S.player.cash / grossWorth() * 100 : 0, judge: (g, v) => v, d: '本体の現金が純資産に占める割合（年末の値が目標以上で達成）', level: true},
+};
+const planYear = () => Math.floor(S.week / 52);
+function planSet(k, tgt){ if (!PLAN_K[k] || !finite(+tgt)) return false; const P = S.plan && S.plan.y === planYear() ? S.plan : (S.plan = {y: planYear(), w0: S.week, goals: [], log: []}); if (P.goals.length >= 3 && !P.goals.some(g => g.k === k)) return false;
+  const old = P.goals.find(g => g.k === k); if (old) { P.log.push({w: S.week, k, from: old.tgt, to: +tgt}); old.tgt = +tgt; return true; } /* changes are logged; the base never moves */
+  P.goals.push({k, tgt: +tgt, base: PLAN_K[k].val(), w0: S.week}); return true; }
+function planDel(k){ const P = S.plan; if (!P || P.y !== planYear()) return false; P.log.push({w: S.week, k, del: true}); P.goals = P.goals.filter(g => g.k !== k); return true; }
+function planClose(){ /* the year end: each goal judged once, the record kept */
+  const P = S.plan; if (!P || P.y >= planYear() || P.done) return; P.done = true;
+  const res = P.goals.map(g => { const K = PLAN_K[g.k], v = K.val(), got = K.judge(g, v); return {k: g.k, tgt: g.tgt, base: g.base, end: v, got, res: got == null ? '評価不能' : got >= g.tgt ? '達成' : '未達', w0: g.w0}; });
+  (S.planHist = S.planHist || []).unshift({y: P.y, w0: P.w0, res, log: P.log}); if (S.planHist.length > 30) S.planHist.length = 30;
+  if (res.length) news(`【年間計画】${P.y + 1}年目の計画：${res.map(r => `${PLAN_K[r.k].n} ${r.res}`).join('・')}`, 'you'); }
+function planBox(){
+  const P = S.plan && S.plan.y === planYear() ? S.plan : null, left = 52 - S.week % 52, H = S.planHist || [];
+  return `<section class="box"><h4>年間経営計画 <small>${planYear() + 1}年目・残り${left}週</small></h4>
+    ${P && P.goals.length ? `<div class="rows">${P.goals.map(g => { const K = PLAN_K[g.k], got = K.judge(g, K.val()); return `<div class="orow"><span><b>${K.n}</b><small class="note">目標 ${g.tgt}${K.unit}・基準 ${K.unit === '社' ? g.base : fm(g.base)}（${shortDate(g.w0)}）${g.w0 % 52 ? '・年の途中から' : ''}</small><small class="note">${K.d}</small></span><span class="num">${got == null ? '評価不能' : `${K.unit === '社' ? got : got.toFixed(1)}${K.unit}`}<br><small>${got != null && got >= g.tgt ? '<span class="up">達成ペース</span>' : `目標まで ${got == null ? '—' : (g.tgt - got).toFixed(K.unit === '社' ? 0 : 1) + K.unit}`}</small><br><button class="btn sm" data-act="plandel" data-v="${g.k}">外す</button></span></div>`; }).join('')}</div>` : '<p class="note">今年の目標はまだありません（任意・最大3つ）。報酬はなく、結果は記録として残ります。</p>'}
+    ${!P || P.goals.length < 3 ? `<p class="lbl">目標を追加</p><div class="btnrow">${Object.entries(PLAN_K).filter(([k]) => !(P && P.goals.some(g => g.k === k)) && !(k === 'aum' && preCo())).map(([k, K]) => `<button class="btn sm" data-act="planadd" data-v="${k}">${K.n}（${K.def}${K.unit}）</button>`).join('')}</div>` : ''}
+    ${H.length ? `<p class="lbl">これまでの結果</p><div class="rows">${H.slice(0, 5).map(h => `<div class="orow"><span>${h.y + 1}年目</span><span class="num">${h.res.map(r => `${PLAN_K[r.k].n}：${r.res}`).join('・') || '目標なし'}</span></div>`).join('')}</div>` : ''}</section>`;
+}
+function groupView(){ /* priority 2: the group at a glance. Figures come from the same functions as the rest of the game; nothing here changes the state */
+  const L = ctrlP(), srt = ui.grpSort || 'rev', flt = ui.grpF || 'all', ca = capAlloc();
+  const key = {rev: c => c.rev, op: c => opProfit(c), cash: c => c.cash, debt: c => c.debt}[srt] || (c => c.rev);
+  const shown = L.filter(c => flt === 'all' || (flt === 'warn' && grpAlerts([c]).length) || (flt === 'pe' && c.pe && !c.pe.closed) || (flt === 'listed' && !c.priv)).sort((a, b) => key(b) - key(a));
+  const al = grpAlerts(L), sum = k => L.reduce((a, c) => a + k(c), 0), lvl = ['', '情報', '注意', '至急'];
+  return `<h3>グループ経営 <small>${dateOf(S.week)}時点</small></h3>${planBox()}
+  <section class="box"><h4>概要</h4><div class="kv"><div><span>あなたの持分ベースの純資産</span><b>${fm(myWorth())}</b></div><div><span>${esc(S.company)}本体の純資産</span><b>${fm(grossWorth())}</b></div>
+    <div><span>本体の現金</span><b>${fm(S.player.cash)}</b></div><div><span>あなた個人の現金（別勘定）</span><b>${fm(S.pres ? S.pres.cash : 0)}</b></div>
+    <div><span>本体の借入（信用・クレジットライン）</span><b>${fm(S.player.loan + bankDebt())}</b></div><div><span>支配企業</span><b>${L.length}社</b></div>
+    <div><span>預かり資産（顧客のお金・純資産外）</span><b>${fm((S.mm && S.mm.aum) || 0)}</b></div></div>
+    <p class="note">資産配分は「保有」タブの資本配分と同じ数字です（借入・空売りを引いて ${fm(ca.net)}）。</p></section>
+  <section class="box"><h4>重要事項 <small>${al.length}件</small></h4>${al.length ? `<div class="rows">${al.slice(0, 12).map(([u, c, t]) => `<div class="orow"><span><b class="${u >= 3 ? 'down' : ''}">${lvl[u]}</b> ${c ? `<button class="link" data-act="sel" data-id="${c.id}">${esc(c.name)}</button>：` : ''}${t}</span></div>`).join('')}</div>` : '<p class="note">いま注意が必要な事項はありません。</p>'}</section>
+  ${L.length ? `<section class="box"><h4>支配企業 <small>${shown.length} / ${L.length}社</small></h4>
+    <div class="seg">${[['rev', '売上順'], ['op', '利益順'], ['cash', '現金順'], ['debt', '負債順']].map(([k, l]) => `<button class="${srt === k ? 'on' : ''}" data-act="grpsort" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="seg">${[['all', 'すべて'], ['warn', '要注意'], ['pe', 'PE'], ['listed', '上場']].map(([k, l]) => `<button class="${flt === k ? 'on' : ''}" data-act="grpf" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="rows">${shown.map(c => { const ceo = ceoOf(c), a0 = c.acq0, w = grpAlerts([c]).length;
+      return `<div class="orow"><span><button class="link" data-act="sel" data-id="${c.id}">${esc(c.name)}</button>${w ? ' <b class="down">●</b>' : ''}<small class="note">${IND[c.ind].n}・持分${pc(gfrac(c, 'P'), 1)}${effCtrl(c) ? '（実質支配）' : ''}・${c.priv ? '非上場' : '上場'}・CEO ${ceo ? esc(ceo.n) : '不在'}・経営 ${DMODE[c.dm || 'manual']}</small>
+        <small class="note">売上${fm(c.rev)}・営業利益${fm(opProfit(c))}・EBITDA${fm(ebitda(c))}・現金${fm(c.cash)}・有利子負債${fm(c.debt)}・格付け${rating(c)[0]}${c.payout ? `・配当性向${pc(c.payout, 0)}` : ''}</small>
+        ${a0 ? `<small class="note">支配後（${shortDate(a0.w)}〜）：売上 ${fm(a0.rev)}→${fm(c.rev)}・営業利益 ${fm(a0.op)}→${fm(opProfit(c))}・純有利子負債 ${fm(a0.nd)}→${fm(c.debt - c.cash)}</small>` : '<small class="note">支配時点の記録なし（この版より前に取得）</small>'}</span></div>`; }).join('') || '<div class="empty">条件に合う会社はありません。</div>'}</div>
+    <p class="note">売上・利益は支配企業の単純合計で、グループ内の取引や配当は消去していません（正式な連結ではありません）：売上合計 ${fm(sum(c => c.rev))}・営業利益合計 ${fm(sum(opProfit))}・現金合計 ${fm(sum(c => c.cash))}・有利子負債合計 ${fm(sum(c => c.debt))}。他の株主の持分も含みます。</p></section>${acqTrackBox(L)}` : '<section class="box"><h4>支配企業はまだありません</h4><p class="note">会社の株を50%超（または実質支配）にすると、ここにまとめて表示されます。</p></section>'}`;
+}
+function acqTrackBox(L){ /* priority 3: since control was taken — what changed, and (where EBITDA × multiple applies) where the value came from. Observed changes; markets and currencies move them too */
+  const R = L.filter(c => c.acq0); if (!R.length) return '';
+  return `<section class="box"><h4>買収後の価値向上 <small>${R.length}社・支配時点との比較</small></h4><div class="rows">${R.map(c => { const a = c.acq0, eb = ebitda(c), m = a.mult, nd = c.debt - c.cash;
+      const dec = m && a.eb > 0 && eb > 0 ? {op: m * (eb - a.eb), debt: a.nd - nd} : null, st = c.pe && !c.pe.closed && c.pe.owner === 'P' ? peStats(c) : null;
+      return `<div class="orow"><span><button class="link" data-act="sel" data-id="${c.id}">${esc(c.name)}</button><small class="note">${a.how}・${shortDate(a.w)}に支配・取得原価 ${fm(a.cost)}</small>
+        <small class="note">EBITDA ${fm(a.eb)}→${fm(eb)}（${a.eb > 0 ? spc(eb / a.eb - 1) : '—'}）・純有利子負債 ${fm(a.nd)}→${fm(nd)}</small>
+        ${dec ? `<small class="note">価値の内訳（目安）：利益の改善 ${fm(dec.op)}（EBITDAの増加×支配時の倍率${m.toFixed(1)}倍）・負債の減少 ${fm(dec.debt)}。それ以外は市場の評価・評価方法の差</small>` : '<small class="note">内訳：赤字や上場企業のため倍率による分解はしていません</small>'}
+        ${st ? `<small class="note">PE：投資 ${fm(st.inv)}・回収 ${fm(st.ret)}・評価 ${fm(st.nav)}・MOIC ${xf(st.moic)}（未実現を含む）${st.yrs >= 1 && st.irr != null ? `・IRR ${ipc(st.irr)}` : ''}</small>` : ''}</span></div>`; }).join('')}</div>
+    <p class="note">支配した時点の数字と今の数字の比較です。変化には景気・業界の波・為替も含まれ、すべてが経営改善の効果とは限りません。</p></section>`;
 }
 function boardView(){
   const held = S.board.lastQ === qNow(), f = ui.board || {div: S.board.div || 0, pay: S.pres.salary || 0};
@@ -4927,7 +5024,7 @@ function floorView0(){
   const newCost = OFFICE[plan.lvl].rent + Object.keys(DEPTS).filter(k => plan.on[k]).reduce((a, k) => a + Math.min(S.dept[k].staff, SEATS[plan.lvl]) * S.dept[k].sal / 1e4, 0) + welfareCost();
   return `<section class="box"><h4>ビル <small>残り ${Math.max(0, fl - nOn)} フロア</small></h4>
     <div class="kv"><div><span>フロア数</span><b>${fl}</b></div><div><span>1フロアの席数</span><b>${SEATS[plan.lvl]}</b></div><div><span>本社幹部の枠</span><b>${OFFICE[plan.lvl].slots}</b></div></div>
-    <p class="lbl">オフィス</p><div class="seg">${OFFICE.map((x, i) => `<button class="${plan.lvl === i ? 'on' : ''}" data-act="planlvl" data-v="${i}">${x.n}<br><small>${x.rent ? `年${fm(x.rent)}` : '無料'}・${FLOORS[i]}フロア</small></button>`).join('')}</div>
+    <p class="lbl">オフィス</p><div class="seg">${OFFICE.map((x, i) => `<button class="${plan.lvl === i ? 'on' : ''}" data-act="planlvl" data-v="${i}">${x.n}<br><small>${o.lvl === i ? '利用中・' : ''}${offTag(i)}・${FLOORS[i]}フロア</small></button>`).join('')}</div>${plan.lvl !== o.lvl ? `<div class="btnrow"><button class="btn buy" data-act="planok" ${nOn > fl || (OFFICE[plan.lvl].own && (!hqBld() || hqBld().uc)) ? 'disabled' : ''}>${OFFICE[plan.lvl].own ? '自社ビルに移る' : `${OFFICE[plan.lvl].n}を借りる`}（移転費 ${fm(OFFICE[plan.lvl].rent)}）</button></div>` : ''}
     <div class="field"><label for="hqcity">所在地</label><select id="hqcity" data-act-input="plancity">${CITIES.map(c => `<option value="${c.id}" ${c.id === (plan.city || o.city) ? 'selected' : ''}>${c.n}</option>`).join('')}</select></div>${(plan.city || o.city) !== o.city ? `<p class="note">${CITY[o.city].n} → <b>${CITY[plan.city].n}</b> に移転（移転費 ${fm(OFFICE[plan.lvl].rent)}）。下の「この内容で確定」で契約します。</p>` : ''}</section>
   <h3>部門</h3>${Object.entries(DEPTS).map(([k, D]) => `<div class="dept">${floorCv(k, 110)}<div><b>${D.n}</b><small>${D.d}</small><label class="chk"><input type="checkbox" data-act="plandept" data-v="${k}" ${plan.on[k] ? 'checked' : ''} ${D.must ? 'disabled' : ''}> ${D.must ? '必須' : '追加'}（${SEATS[plan.lvl]}席）</label></div></div>`).join('')}
   <section class="box"><div class="kv"><div><span>今の年間コスト</span><b>${fm(OFFICE[o.lvl].rent + deptCost())}</b></div><div><span>変更後の年間コスト</span><b>${fm(newCost)}</b></div></div>
@@ -5405,7 +5502,7 @@ const ROAD = [ /* the early game in order; each step shows once its moment has c
   {id: 'buy', t: '最初の株を買う', d: '「市場」タブで「割安」タグの会社を選び、売買画面の「現物買い」で買ってみましょう。', done: () => S.cos.some(c => (c.own.P || 0) > 0) || ctrlP().length > 0, go: 'market'},
   {id: 't-year', t: '運用実績を1年積む', d: '週ごとの運用成績が記録されます。1年分の実績ができると、運用を任せたいという投資家が現れます（信用取引・空売り・オプションは26週から）。', done: () => trWeeks() >= 52 || !preCo(), when: () => isTrader(), go: 'personal'},
   {id: 't-mm', t: '運用委託を受ける（会社設立後）', d: '会社を設立したあと、直近1年で+8%以上・最大下落35%未満・半年間追証なしなら、四半期ごとに打診が届きます。預かり資産の年2%と利益の20%が収入になります。', done: () => !!(S.mm && (S.mm.inv > 0 || S.mm.fees > 0)), when: () => isTrader() && !preCo() && trWeeks() >= 52, go: 'personal'},
-  {id: 't-found', t: '会社を設立する（または個人のまま続ける）', d: `純資産${fm(FOUND_MIN)}から設立できます。口座の株と借入は会社へ現物出資し、部門・PE・LBO・事業会社などが使えるようになります。設立せず、個人投資家として大株主・TOBを目指すこともできます。`, done: () => isTrader() && !preCo(), when: () => isTrader() && myWorth() >= FOUND_MIN, go: 'personal'},
+  {id: 't-found', t: '会社を設立する（または個人のまま続ける）', get d(){ const nw = S ? myWorth() : 0; return `純資産${fm(FOUND_MIN)}から設立できます（いま${fm(nw)}${nw < FOUND_MIN ? `・あと${fm(FOUND_MIN - nw)}` : '・設立できます：「個人」タブから'}）。口座の株と借入は会社へ現物出資し、部門・PE・LBO・事業会社などが使えるようになります。設立せず、個人投資家として大株主・TOBを目指すこともできます。`; }, done: () => isTrader() && !preCo(), when: () => isTrader() && myWorth() >= FOUND_MIN, go: 'personal'},
   {id: 'acc', t: '経理部を作る', d: '保有が増えてきました。本社のフロアで経理部を作ると、財務諸表が毎週更新されます（いまは8週ごと）。数字が遅れたままだと監査で指摘を受けることもあります。', done: () => deptOn('acc'), when: () => accNeed() >= 2 || netWorth('P') >= 40 || ctrlP().length > 0, go: 'floor'},
   {id: 'ctrl', t: '会社を支配する', d: '株を買い増すかTOBで持分を50%超にすると、経営者として配当・買収・経営改善ができます。', done: () => ctrlP().length > 0, when: () => has('tob'), go: 'market'},
   {id: 'office', t: '小規模オフィスに移る', d: `自宅兼事務所は1フロアだけです。2つ目の部門（投資部など）を置くには小規模オフィス（年${fm(OFFICE[1].rent)}）に移ります。`, done: () => office().lvl >= 1, when: () => deptOn('acc') && FLOORS[office().lvl] <= deptsOn().length && (netWorth('P') >= 80 || S.allUnlocked || (S.stage || 4) >= FEAT_STAGE.pe), go: 'floor'},
@@ -5414,16 +5511,22 @@ const ROAD = [ /* the early game in order; each step shows once its moment has c
   {id: 'legal', t: '法務・IR部を作る', d: '支配企業が2社以上になったら、TOBや株主総会の対応に法務・IR部が必要になります。', done: () => deptOn('legal') || deptOn('ir'), when: () => ctrlP().length >= 2, go: 'floor'},
 ];
 const roadList = () => ROAD.filter(r => isTrader() || !r.id.startsWith('t-')); /* the trader's steps only in that scenario */
-const roadNext = () => S && (S.dept || preCo()) ? roadList().find(r => !r.done() && (!r.when || r.when()) && (!preCo() || r.id === 'buy' || r.id.startsWith('t-'))) : null;
-function roadBox(){ /* the checklist in the head office */
-  const n = roadNext(), L = roadList(), got = L.filter(r => r.done()).length;
-  return `<section class="box road"><h4>序盤の道しるべ <small>${got} / ${L.length}</small></h4>${n ? `<p><b>次にやること：${n.t}</b><br><small class="note">${n.d}</small></p>` : '<p class="up">序盤の準備はすべて整いました。</p>'}
-    <ul class="chk-list">${L.map(r => { const ok = r.done(); return `<li class="${ok ? 'up' : ''}">${ok ? '✓' : r === n ? '▶' : '○'} ${r.t}</li>`; }).join('')}</ul></section>`;
+const roadDone = r => !!((S.roadDone || {})[r.id] != null || (r.id === 'buy' && S.tut && S.tut.buy != null) || r.done()); /* once done, done: selling every share does not undo the first purchase */
+const roadNA = r => preCo() && r.id !== 'buy' && !r.id.startsWith('t-'); /* company steps while you are an individual */
+function roadRec(){ if (!S) return; const D = S.roadDone = S.roadDone || {}; for (const r of ROAD) if (D[r.id] == null && r.done()) D[r.id] = S.week; } /* written by the weekly step and actions, never by drawing a screen */
+const roadState = r => roadDone(r) ? 'done' : roadNA(r) ? 'na' : !r.when || r.when() ? 'ready' : 'wait';
+const roadNext = () => S && (S.dept || preCo()) ? roadList().find(r => roadState(r) === 'ready') : null;
+function roadBox(){ /* the checklist in the head office: done / can do now / waiting for its moment / after founding a company */
+  const n = roadNext(), L = roadList(), got = L.filter(roadDone).length, wait = L.filter(r => roadState(r) === 'wait'), na = L.filter(r => roadState(r) === 'na');
+  const head = n ? `<p><b>次にやること：${n.t}</b><br><small class="note">${n.d}</small></p>` : got === L.length ? '<p class="up">序盤の道しるべはすべて達成しました。</p>'
+    : `<p><b>今すぐできる項目はありません。</b><br><small class="note">${wait.length ? `条件待ち：${wait.map(r => r.t).join('・')}（時期が来ると表示されます）` : ''}${na.length ? `${wait.length ? '。' : ''}会社を設立すると：${na.map(r => r.t).join('・')}` : ''}</small></p>`;
+  return `<section class="box road"><h4>序盤の道しるべ <small>${got} / ${L.length}</small></h4>${head}
+    <ul class="chk-list">${L.map(r => { const st = roadState(r); return `<li class="${st === 'done' ? 'up' : ''}">${st === 'done' ? '✓' : r === n ? '▶' : st === 'na' ? '－' : '○'} ${r.t}${st === 'wait' ? ' <small class="note">（条件待ち）</small>' : st === 'na' ? ' <small class="note">（会社設立後）</small>' : ''}</li>`; }).join('')}</ul></section>`;
 }
 function advice(){ // read-only hints; never touches the PRNG
   const out = [], p = S.player, hv = holdingsMkt('P'), rn = roadNext();
   if (rn) out.push([`次にやること：${rn.t}。${rn.d}`, 'go:' + rn.go]);
-  if (!S.allUnlocked && S.stage < 4 && !(rn && rn.id === 'buy')) out.push([[null, '気になる割安株を買ってみましょう。どこかの会社の株を5%以上持つか純資産8,000,000,000円で、TOBや空売りが解放されます', '持分を50%超にする（市場で買い増すかTOB）と経営者の段階へ。「経営」タブや研究ツリーが解放されます', '3社を支配するか純資産40,000,000,000円で、LBOや事業売却、持株会社の上場が解放されます'][S.stage], null]);
+  if (!S.allUnlocked && S.stage < 4 && !(rn && rn.id === 'buy')) out.push([[null, `次の段階「${STAGES[2].n}」：${stageCond(2)}。TOB・株主提案・不動産などが使えるようになります${isTrader() && preCo() ? '（無理に5%を買う必要はありません。資産を増やしても到達します）' : ''}`, `次の段階「${STAGES[3].n}」：${stageCond(3)}。「経営」タブや研究ツリーが解放されます`, `次の段階「${STAGES[4].n}」：${stageCond(4)}。LBOや事業売却、持株会社の上場が解放されます`][S.stage], null]);
   if (p.loan > 0 && p.loan > hv * callLine() * .85 + Math.max(0, p.cash)) out.push(['追証ラインが近いです。借入を返済するか株を売りましょう', null, 1]);
   const sl = shortLiab(); if (sl > 0 && nwMkt() < sl * .4) out.push(['空売りの担保が不足しかけています（踏み上げ注意）', null, 1]);
   for (const t of S.tobs) { const c = coById(t.cid); if (!c) continue;
@@ -5594,7 +5697,7 @@ function ytrBox(){
   return `<section class="box"><h4>${esc(S.company)}本体の${first ? '上場（IPO）' : '公募増資'} <small>${first ? '非上場' : `上場済み・外部株主${pc(o, 0)}`}</small></h4>
     <p>${esc(S.company)}の株を一般投資家に売り出して資金を集めます。資金は増えますが、あなたの持分は薄まり、外部株主への説明責任（業績悪化で株主代表訴訟）も生まれます。</p>
     <div class="why">${wr('純資産5,000,000,000円以上', fm(grossWorth()), '', grossWorth() >= 50 ? '' : 'tot')}${wr('経理部の処理能力80%以上（上場審査）', pc(acc, 0), acc >= .8 ? '' : '足りないと審査で延期になります')}${wr('売出し価格の評価', '×' + holdingPremium().toFixed(2), '直近1年の成績とIR広報部で上下')}</div>
-    ${!open ? '<p class="note">「経営者」の段階（初めて経営権を取得、または純資産15,000,000,000円）で解放されます。</p>'
+    ${!open ? `<p class="note">「${STAGES[3].n}」の段階（${stageCond(3)}）で解放されます。</p>`
       : pl ? `<div class="preview">上場準備中：主幹事 ${(UW[pl.uw] || UW.mid).n}。${first ? '上場' : '増資'}予定日 <b>${dateOf(pl.end)}</b>（あと${Math.max(0, pl.end - S.week)}週）・売出し${pc(pl.f, 0)}</div>`
       : `<p class="lbl">売り出す割合</p><div class="seg">${[.2, .3].map(f => `<button class="${(ui.ytrF || .2) === f ? 'on' : ''}" data-act="ytrf" data-v="${f}">${pc(f, 0)}</button>`).join('')}</div>
         <p class="lbl">主幹事証券（上場予定日）</p>${Object.entries(UW).map(([k, u]) => { const q = holdingQuote(ui.ytrF || .2, u), w = first ? u.wk + 6 : 8; return `<div class="orow"><span><b>${u.n}</b> <small>${u.d}</small><br><small>上場予定 ${dateOf(S.week + w)}・手数料${pc(u.fee, 1)}・今なら約${fm(q.raise)}</small></span><button class="btn sm ${q.ok ? 'gold' : ''}" data-act="ytripo" data-v="${ui.ytrF || .2}" data-uw="${k}" ${q.ok ? '' : 'disabled'}>依頼</button></div>`; }).join('')}<p class="note">準備期間のあとに審査があり、その日の純資産と評価で売出し価格が決まります。</p>`}</section>`;
@@ -5671,9 +5774,13 @@ function ibxChoose(id, v){
     else { news(`【書簡を無視】${c.name}は${ownerName(it.from)}の要求を退けました`, 'you', c.city); if (r && hashStr(c.id + ':esc:' + S.week) % 5 < 2 && !c.ract) rivalPropose(r, c, it.ask); } return; }
   if (it.kind === 'reorg') { reorgChoose(it, c, v); return; }
 }
+function cashNote(){ /* why proposals still come with no cash: most are paid from buying power (margin) or by the company concerned */
+  const p = S.player; if (p.cash > .01 || !(p.loan > 0 || (p.bank || 0) > 0)) return '';
+  return `<div class="preview">現金は${fm(p.cash)}ですが、信用借入${fm(p.loan)}${p.bank ? `・クレジットライン${fm(p.bank)}` : ''}があります（買付余力 ${fm(buyingPower())}）。提案の多くは買付余力（信用）や対象の会社の資金で実行されるため、現金が0でも届きます。現金が要る提案は「資金が足りません」と表示されます。現金を残したいときは、M&A責任者の買い付け委任をオフにするか、CFOの銀行業務委任（余った現金で信用借入を返済）をオンにしてください。</div>`;
+}
 function renderInbox(){
-  if (!S.inbox.length) return '<div class="empty">提案はありません。<br>他社株を8%以上持つとグリーンメール（高値買戻し）の提案が来ることがあります。</div>';
-  return S.inbox.map(it => {
+  if (!S.inbox.length) return cashNote() + '<div class="empty">提案はありません。<br>他社株を8%以上持つとグリーンメール（高値買戻し）の提案が来ることがあります。</div>';
+  return cashNote() + S.inbox.map(it => {
     { const x = newInboxCard(it); if (x != null) return x; }
     if (it.kind === 'renew' || it.kind === 'poach') return hrInboxCard(it);
     if (it.kind === 'story') return storyCard(it);
@@ -5953,7 +6060,7 @@ function tapMap(px, py){
 const NEED = {tender: 'tob', activist: 'activist', proxy: 'proxy', negotiate: 'neg', short: 'short', buyopt: 'options', divsell: 'divest', spinoff: 'divest', holdipo: 'holdipo', research: 'research', tmode: 'tob', pbuy: 'realty', pebid: 'pe', pedd: 'pe', pesearch: 'pe', pepriv: 'privatize'};
 function act(a, el){ const m = !ui.sim && S && S.tr ? {S0: S, k: S.tr.k || 0, g: grossWorth(), f: S.tr.flow || 0} : null; if (m) trSeen(m.g);
   try { return act0(a, el); } finally { if (m && S === m.S0 && S.tr && (S.tr.k || 0) === m.k) { const d = (grossWorth() - m.g) - ((S.tr.flow || 0) - m.f); if (Math.abs(d) > 1e-9) trAx(a, d); S.tr.seen = grossWorth() - (S.tr.eq1 || 0) - (S.tr.flow || 0); } /* BUG-30: every action that changed net worth this week (trades, options, deals, events), for checking a save */
-    if (!ui.sim && S) save(); } } /* saved at once, whichever way the action returns */
+    if (S) roadRec(); if (!ui.sim && S) save(); } } /* saved at once, whichever way the action returns */
 function act0(a, el){ LTAG = '';
   if (NEED[a] && !has(NEED[a]) && !(a === 'pbuy' && propOpen(S.props.find(x => x.id === el.dataset.id)))) return;
   if (PREV[a] && !ui.sim) { if (el.dataset.ok) closeModal(); else if (setOn('confirm')) { showPreview(a, el); return; } }
@@ -6160,6 +6267,10 @@ function act0(a, el){ LTAG = '';
     case 'hfire': { const p = person(el.dataset.id); if (p) { dismiss(p); toast(`${p.n}を解任しました`); } } break;
     case 'htrain': { const p = person(el.dataset.id), k = p && roleSkill(p.role), b0 = p && Math.round(p.sk[k]); if (p && trainExec(p, k)) toast(`${p.n}が研修を受けました（${SKILLS[k]} ${b0}→${Math.round(p.sk[k])}・伸びしろ${Math.round(p.pot)}）`); else if (p) toast(`${p.n}の${SKILLS[k]}は上限に達していて研修では伸びません`, true); } break;
     case 'hsucc': { const p = person(el.dataset.id), x = p && coById(p.at); if (x) { x.succ = x.succ === p.id ? null : p.id; toast(x.succ ? `${p.n}を次期CEOに指名` : '指名を取り消しました'); } } break;
+    case 'grpsort': ui.grpSort = v; break;
+    case 'planadd': if (planSet(v, PLAN_K[v].def)) toast(`目標「${PLAN_K[v].n}」を設定しました`); break;
+    case 'plandel': if (planDel(v)) toast('目標を外しました'); break;
+    case 'grpf': ui.grpF = v; break;
     case 'dmode': if (c && isCEO(c)) { c.dm = v; if (!c.deleg) c.deleg = 'bal'; if (!c.lim) c.lim = {ad: .02, rt: 'BBB'}; toast(`${c.name}の経営を「${DMODE[v]}」に`); } break;
     case 'limad': if (c) { c.lim = Object.assign({ad: .02, rt: 'BBB'}, c.lim, {ad: +v}); } break;
     case 'limrt': if (c) { c.lim = Object.assign({ad: .02, rt: 'BBB'}, c.lim, {rt: v}); } break;
@@ -6581,7 +6692,7 @@ function indivBox(){ /* staying an individual: what you can do and what a compan
 }
 function traderView(){ /* before the company: the individual trader's desk */
   const nw = myWorth(), can = nw >= FOUND_MIN - 1e-9, F = foundRange(), keep = F.keep, cap = F.cap;
-  return `${roadBox()}<section class="box"><h4>個人トレーダー <small>${esc(S.pname)}</small></h4><div class="kv">
+  return `${roadBox()}${planBox()}<section class="box"><h4>個人トレーダー <small>${esc(S.pname)}</small></h4><div class="kv">
     <div><span>あなたの純資産</span><b class="up">${fm(nw)}</b></div><div><span>運用期間</span><b>${(trWeeks() / 52).toFixed(1)}年</b></div>
     <div><span>信用取引・空売り・オプション</span><b>${trWeeks() >= 26 ? '使えます' : `運用${26 - trWeeks()}週後から`}</b></div><div><span>再出発</span><b>${S.restarts || 0}回</b></div></div></section>
   <section class="box"><h4>起業までの道のり <small>${pc(Math.min(1, Math.max(0, nw) / FOUND_MIN), 0)}</small></h4><i class="bar"><b style="width:${(Math.min(1, Math.max(0, nw) / FOUND_MIN) * 100).toFixed(1)}%"></b></i>
@@ -6614,6 +6725,7 @@ function guideNow(){
   if (!setOn('guide') || S.won || S.lost) return null;
   const st = STEPS.find(x => (S.tut || {})[x[0]] == null); if (!st) return null;
   const id = st[0], c = ui.sel ? coById(ui.sel) : null, mk = ui.tab !== 'market';
+  if (id === 'big' && isTrader() && preCo() && !has('tob')) { const rn = roadNext(); return [st, null, `大株主の段階は${stageCond(2)}で到達します。無理に5%を買う必要はありません${rn ? `。今できること：${rn.t}` : ''}`]; } /* a trader builds wealth first */
   if (id === 'buy' || id === 'big') {
     if (mk) return [st, '[data-act=tab][data-v=market]', '「市場」タブを開きましょう'];
     if (!c) return [st, '#pbody .rows .row', id === 'buy' ? '気になる会社をタップしてください。「割安」タグの会社がおすすめです' : '持っている会社を選んで買い増しましょう'];
@@ -6621,7 +6733,7 @@ function guideNow(){
     return [st, '[data-act=buy]', '金額を選んで「買う」を押しましょう'];
   }
   if (id === 'tob') {
-    if (!has('tob')) return [st, null, `TOBは、どこかの会社の株を5%以上持つか、純資産8,000,000,000円で解放されます。まずは1社の株を5%まで買い増してみましょう`];
+    if (!has('tob')) return [st, null, `TOBは「${STAGES[2].n}」の段階（${stageCond(2)}）で解放されます。${isTrader() && preCo() ? 'まずは運用実績を積んで資産を増やしましょう' : 'まずは1社の株を5%まで買い増してみましょう'}`];
     if (mk) return [st, '[data-act=tab][data-v=market]', '「市場」で狙う会社を探しましょう'];
     if (!c) return [st, '#pbody .rows .row', '買収したい会社を選びます。時価総額が小さい会社が狙いやすいです'];
     if (ui.ctab !== 'raid') return [st, '[data-act=ctab][data-v=raid]', '「買収・提案」を開きます'];
@@ -6734,11 +6846,11 @@ function showStart(fresh){
   <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:18px 0 8px;font-weight:500">遊び方</h3>${HOWTO}`);
 }
 function showUnlock(){
-  const [a, b] = ui.pendingUnlock; ui.pendingUnlock = null;
-  const blocks = []; for (let st = a; st <= b; st++) { const fs = STAGES[st].feats.map((f, i) => [f, (STAGE_FK[st] || [])[i]]).filter(([, k]) => !k || !isTrader() || !TRADER_STAGE[k] || TRADER_STAGE[k] >= st || (k === 'pe' && !peDesk())).map(([f, k]) => k === 'pe' && !peDesk() ? f + '（本社に投資部を置くと使えます）' : f); /* a trader's company has some of these earlier */
+  const [a, b, had] = ui.pendingUnlock; ui.pendingUnlock = null; const old = new Set(had || []);
+  const blocks = []; for (let st = a; st <= b; st++) { const fs = STAGES[st].feats.map((f, i) => [f, (STAGE_FK[st] || [])[i]]).filter(([, k]) => !k || !old.has(k)).filter(([, k]) => !k || !isTrader() || !TRADER_STAGE[k] || TRADER_STAGE[k] >= st || (k === 'pe' && !peDesk())).map(([f, k]) => k === 'pe' && !peDesk() ? f + '（本社に投資部を置くと使えます）' : f); /* a trader's company has some of these earlier */
     if (fs.length) blocks.push(`<div class="goal"><b>「${STAGES[st].n}」の段階に到達</b><ul class="ul">${fs.map(f => `<li>${f}</li>`).join('')}</ul></div>`); }
   const go = b >= 3 ? ['pres', '研究ツリーを見る'] : ['market', '市場を見る'];
-  openModal(`<h1 style="font-size:22px">新しい機能が解放されました</h1><p class="lede">${esc(S.company)}の成長に合わせて、使える手が増えました。</p>${blocks.join('')}${b < 4 ? `<p class="note">次の段階「${STAGES[b + 1].n}」：${STAGES[b + 1].cond}</p>` : ''}<div class="btnrow"><button class="btn gold" data-act="unlockgo" data-v="${go[0]}">${go[1]}</button><button class="btn" data-act="close">閉じる</button></div>`);
+  openModal(`<h1 style="font-size:22px">新しい機能が解放されました</h1><p class="lede">${esc(S.company)}の成長に合わせて、使える手が増えました。</p>${blocks.join('')}${b < 4 ? `<p class="note">次の段階「${STAGES[b + 1].n}」：${stageCond(b + 1)}</p>` : ''}<div class="btnrow"><button class="btn gold" data-act="unlockgo" data-v="${go[0]}">${go[1]}</button><button class="btn" data-act="close">閉じる</button></div>`);
 }
 function showHelp(){ openModal(`<h1 style="font-size:22px">遊び方と設定</h1><p class="lede">${dateOf(S.week)}・純資産 ${fm(myWorth())}</p>${settingsHTML()}${HOWTO}<div class="btnrow"><button class="btn gold" data-act="close">ゲームに戻る</button><button class="btn" data-act="savemgr">セーブ管理</button><button class="btn" data-act="restart">最初からやり直す</button></div>`); }
 const inFrame = () => { try { return window.top !== window; } catch (e) { return true; } }; /* inside a viewer that does not allow downloads, the save stays in this browser */
@@ -6824,7 +6936,7 @@ function boot(){
   showStart();
   if (ui.restored) { save(); toast('セーブデータが壊れていたため、バックアップから復元しました（壊れたデータは別に保管しています）', true); } /* the backup slot is left as it was */
 }
-window.__atlas = {get S(){ return S; }, get trialErr(){ return trialErr; }, repay, snSync, snSyncAll, snStep, snOpen, letterStep, resolveSeatFight, irr, propFloor, propLet, get FX0(){ return FX0; }, activist, renderPort, liq, floatOf, payDividend, actLogStep, rollupBox, capAlloc, capAllocBox, peSearch, peSearchCost, actOutcome, actLogBox, bondPxV1, bondMat, bondRecov, bondLiqDisc, smallProps, propOpen, impUp, impDn, quoteSell, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, incorporate, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, isCheap, bankBorrow, bankRepay, bankLimit, showBank, showIPO, UW, peTransfer, peBuySecondary, marketFor, hrStep, peIPO, routeStep, ROUTES, hasR, DIFF, ddCost, lboOK, fundsOf, costOf, pmiStep, exitInfo, SAVE_FMT, fmtCheck, fm, has, traderView, roadList, myWorth, worthOf, preCo, isTrader, foundCompany, restartAsTrader, trStats, mmCap, mmAccept, mmOk, mmRoom, showUnlock, get PROPY(){ return PROP.office.y; }, setOffice, companyResidue, propRepair, dipsValue, propRentY, propVal, propFx, bondsStep, bondRepayAll, reorgStep, LIQUIDATE, bondBuy, bondSell, bondPx, bondsValue, bondEligible, startReorg, reorgChoose, reorgOdds, sendLetter, startSeatFight, seatsOn, letterOdds, defend, pillOnBid, ibxChoose, newInboxCard, hqBuild, hqBld, hqbCost, ic, icState, icDemand, icStep, fillMissions, genMission, niceUp, applyAct, ledgerEvent, payOut, delist, mmRedeemPart, namesV2, saveToFile, loadFromFile, foundBrand, pubNi, closeOption, transferShares, execCover, trSet, trBaseCheck, trFlow, migrate7, acqModel, ledgerAcct, trCheck, ledgerCheck, migrate6, pubSnap, pubVal, pubInit, showStart, showCompare, showWhy, closeModal, repCheap, SCR, marginRate, yoyTxt, stepScale, execShort, sharesForShort, shortLiab, stepCheck, takeLoan, pe100, peReady, peExitBids, peExitStart, companyResidue, vcQuarter, opProfit, grpSyn, peScale, dealEbitda, aiCrisis, foundRange, corpEvents, repOf, repFair, mmList, mmRedeem, finSig, trClose, corpTax, mmQuarter, nlStart, nlStep, nlCap, nlAppeal, stageFor, stageNW, makeGrowthCo, bankLimit, launchTob, tobPrice, activeTob, ctrlP, indivName, checkStage, mmPeople, mmDrag, mmLiq, buyOption, mmWeek, trStep, mmQuarter, roundSh, wholeSh, trWeeks, presWealth, rewScale, roadNext, ROAD, deptOn, stepSlide, peDesk, tradeModel, TMODES, sharesForShort, execShort, takeLoan, bankBorrow, finSig, stamp, exportText, bsaleBase, playerCrisisAuto, RIVAL_CAP, quoteBuy, shortLiab, act, renderAll, econCheck, nwMkt, shortRoom, loadSave, backupSave, boot, migrate, get trialErr(){ return trialErr; }, holdingsMkt, trialLoad, parseSave, tradeFunds, vcRound, divIncomeY, maybeIPO, qnews, fairEst, estAcc, ctrlPx, bankrupt, settleOne, optionsStep, validSave, parseSave, importText, repayMort, liquidate, renderBank, ceoAmtOf, gradeTxt, takeLoan, loanOffers, payoffLoan, bankDebt, termDebt, bankStep, corpTax, newsQuarter, wlv, welfareCost, perShare, showExec, dlgStep, vcFind, vcTranches, presWealth, vcValue, showPortfolio, expoStep, showExpo, mktCards, applyBrand, logoSVG, grossWorth, isJP, niA, pitchMore, bankRate, advertise, trainExec, trainGain, bsaleBids, bsaleExec, bsaleStep, pitchStep, pitchDo, startIPO, quarter, ctrlRule, ownCap, dscr, dscrNeed, refiStep, econStep, macroGlut, debtInit, gradOffer, gradStep, deptEff, deptCost, gradJoinW, vcInvest, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, sharesForMoney, holdingsValue, callLine, playerWeekly, overdraftStep, coverOverdraft, setOffice, activeTob, tenderQuote, tobNeedPrice, resolveTobs, startIPO, ipoStep, needOf, staffNeed, vcQuarter, showVC, ui};
+window.__atlas = {get S(){ return S; }, jrStep, roadState, roadDone, roadNext, roadRec, roadBox, guideNow, showUnlock, groupView, grpAlerts, planSet, planDel, planClose, planBox, PLAN_K, acqSnap, jrList, jrReady, gradCands, dlgStep, offTag, officeSection, floorView, cashNote, renderInbox, personLine, hirePanel, gradBox, events, get trialErr(){ return trialErr; }, repay, snSync, snSyncAll, snStep, snOpen, letterStep, resolveSeatFight, irr, propFloor, propLet, get FX0(){ return FX0; }, activist, renderPort, liq, floatOf, payDividend, actLogStep, rollupBox, capAlloc, capAllocBox, peSearch, peSearchCost, actOutcome, actLogBox, bondPxV1, bondMat, bondRecov, bondLiqDisc, smallProps, propOpen, impUp, impDn, quoteSell, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, incorporate, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, isCheap, bankBorrow, bankRepay, bankLimit, showBank, showIPO, UW, peTransfer, peBuySecondary, marketFor, hrStep, peIPO, routeStep, ROUTES, hasR, DIFF, ddCost, lboOK, fundsOf, costOf, pmiStep, exitInfo, SAVE_FMT, fmtCheck, fm, has, traderView, roadList, myWorth, worthOf, preCo, isTrader, foundCompany, restartAsTrader, trStats, mmCap, mmAccept, mmOk, mmRoom, showUnlock, get PROPY(){ return PROP.office.y; }, setOffice, companyResidue, propRepair, dipsValue, propRentY, propVal, propFx, bondsStep, bondRepayAll, reorgStep, LIQUIDATE, bondBuy, bondSell, bondPx, bondsValue, bondEligible, startReorg, reorgChoose, reorgOdds, sendLetter, startSeatFight, seatsOn, letterOdds, defend, pillOnBid, ibxChoose, newInboxCard, hqBuild, hqBld, hqbCost, ic, icState, icDemand, icStep, fillMissions, genMission, niceUp, applyAct, ledgerEvent, payOut, delist, mmRedeemPart, namesV2, saveToFile, loadFromFile, foundBrand, pubNi, closeOption, transferShares, execCover, trSet, trBaseCheck, trFlow, migrate7, acqModel, ledgerAcct, trCheck, ledgerCheck, migrate6, pubSnap, pubVal, pubInit, showStart, showCompare, showWhy, closeModal, repCheap, SCR, marginRate, yoyTxt, stepScale, execShort, sharesForShort, shortLiab, stepCheck, takeLoan, pe100, peReady, peExitBids, peExitStart, companyResidue, vcQuarter, opProfit, grpSyn, peScale, dealEbitda, aiCrisis, foundRange, corpEvents, repOf, repFair, mmList, mmRedeem, finSig, trClose, corpTax, mmQuarter, nlStart, nlStep, nlCap, nlAppeal, stageFor, stageNW, makeGrowthCo, bankLimit, launchTob, tobPrice, activeTob, ctrlP, indivName, checkStage, mmPeople, mmDrag, mmLiq, buyOption, mmWeek, trStep, mmQuarter, roundSh, wholeSh, trWeeks, presWealth, rewScale, roadNext, ROAD, deptOn, stepSlide, peDesk, tradeModel, TMODES, sharesForShort, execShort, takeLoan, bankBorrow, finSig, stamp, exportText, bsaleBase, playerCrisisAuto, RIVAL_CAP, quoteBuy, shortLiab, act, renderAll, econCheck, nwMkt, shortRoom, loadSave, backupSave, boot, migrate, get trialErr(){ return trialErr; }, holdingsMkt, trialLoad, parseSave, tradeFunds, vcRound, divIncomeY, maybeIPO, qnews, fairEst, estAcc, ctrlPx, bankrupt, settleOne, optionsStep, validSave, parseSave, importText, repayMort, liquidate, renderBank, ceoAmtOf, gradeTxt, takeLoan, loanOffers, payoffLoan, bankDebt, termDebt, bankStep, corpTax, newsQuarter, wlv, welfareCost, perShare, showExec, dlgStep, vcFind, vcTranches, presWealth, vcValue, showPortfolio, expoStep, showExpo, mktCards, applyBrand, logoSVG, grossWorth, isJP, niA, pitchMore, bankRate, advertise, trainExec, trainGain, bsaleBids, bsaleExec, bsaleStep, pitchStep, pitchDo, startIPO, quarter, ctrlRule, ownCap, dscr, dscrNeed, refiStep, econStep, macroGlut, debtInit, gradOffer, gradStep, deptEff, deptCost, gradJoinW, vcInvest, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, sharesForMoney, holdingsValue, callLine, playerWeekly, overdraftStep, coverOverdraft, setOffice, activeTob, tenderQuote, tobNeedPrice, resolveTobs, startIPO, ipoStep, needOf, staffNeed, vcQuarter, showVC, ui};
 boot();
 })();
 </script>
