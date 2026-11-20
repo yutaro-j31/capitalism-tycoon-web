@@ -2835,6 +2835,43 @@ async function testRev21(b) {
 }
 
 // playtest 25: applicants placed in a head-office department (and sent out from there); pay packages — options, performance bonus and long-term pay where each officer works
+async function testFix1120(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    let S;
+    /* 1: debt down to 2 before the weekly run, GP cash 0.35 exactly: 2 paydown + 5 working capital paid in week one, nothing later; 1 yen less: nothing paid */
+    const run1 = (cash) => { S = traderCo(2811, 5000); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.inv, {on: true, staff: 3}); S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const pp = S.hr.people[S.hr.pool[0]]; for (const k in pp.sk) pp.sk[k] = 70; A.hireInto(pp, 'HQ', 'PEH', 'fixed', null); const f = A.fundRaise('turn', .05, pp.id); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } S.pe.deals = []; f.cfg.mode = 'auto'; f.cfg.ops = false;
+      let d = null; for (let i = 0; i < 300 && !d; i++) { const x = A.peDealGen(); if (x && A.dealEbitda(x, false) > 0) d = x; else if (x) S.pe.deals = S.pe.deals.filter(y => y !== x); } d.dd = 2; d.risk = null; const c = A.peAcquire(d, f.id, A.dealAsk(d), 0, false);
+      c.debt = 2; delete c.sns; c.pe.recap = 10; c.pe.wc = 5; c.pe.p100 = S.week; delete c.crisis; const T = 1000, k = T - 100; f.gp = T * .05; f.lp = T - f.gp; f.calledGP = k * .05; f.calledLP = k - f.calledGP; f.invEnd = S.week + 100; S.player.cash = cash; S.player.loan = 0;
+      const k0 = f.calledLP + f.calledGP, g0 = f.calledGP, cash0 = c.cash, at = []; for (let i = 0; i < 3; i++) { S.week++; A.fundAuto8(f); at.push(+(f.calledLP + f.calledGP - k0).toFixed(8)); }
+      return {at, gp: +(f.calledGP - g0).toFixed(8), debt: c.debt, wc: +(c.cash - cash0).toFixed(8), res: A.resOf(c), loan: S.player.loan}; };
+    const a = run1(.35); info.r1 = a; out.f1 = a.at.every(x => Math.abs(x - 7) < 1e-9) && Math.abs(a.gp - .35) < 1e-9 && a.debt === 0 && Math.abs(a.wc - 5) < 1e-9 && a.res === 0 && a.loan === 0;
+    const b1 = run1(.35 - 1e-8); info.r1b = b1; out.f1short = b1.at.every(x => x === 0) && b1.loan === 0;
+    /* 2: a company refounded after a wind-down starts unlisted, with no market or ticker */
+    { S = traderCo(2812, 3000); S.allUnlocked = true; S.stage = 4; Object.assign(S.player, {listed: true, ipoW: S.week, mkt: 'prime', tk: 'OLD', listW: S.week, ipoMkt: 'prime', ipoTk: 'OLD', outside: .2});
+      A.restartAsTrader('test'); const s1 = !A.selfListed() && !S.player.tk && !S.player.mkt && !S.player.outside; S.player.cash = 3000; A.incorporate('NEWCO', 0); A.hqInit(); A.trClose();
+      out.f2 = s1 && !A.selfListed() && !S.player.tk && !(S.player.outside > 0) && S.player.ipoW == null && A.ytrBox().includes('上場（IPO）'); A.importText(A.exportText()); out.f2load = !A.selfListed() && A.S.player.ipoW == null; }
+    /* 3: 20% of a company with 100 million shares and no outsiders: 25 million new shares, 125 million after, 80% yours */
+    { S = traderCo(2813, 3000); const N = A.ytrNew(.2); out.f3 = Math.abs(N.add - 25) < 1e-9 && Math.abs(N.after - 125) < 1e-9 && Math.abs(N.o2 - .2) < 1e-12; }
+    /* 4: Prime needs 300 on the review day too */
+    { const go = gw => { S = traderCo(2814, gw); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.acc, {on: true, staff: 40}); S.player.ipoPlan = {f: .2, w0: S.week, end: S.week + 1, uw: 'mid', mkt: 'prime', tk: 'PRM'}; S.player.cash = gw - (A.grossWorth() - S.player.cash); S.week += 1; A.step(); return A.selfListed(); };
+      const lo = go(100); const hi = go(300.5); info.f4 = {lo, hi}; out.f4 = !lo && hi; }
+    /* 5: at 60% outside, the screen says so and nothing can be issued */
+    { S = traderCo(2815, 3000); S.allUnlocked = true; S.stage = 4; S.player.outside = .6; S.player.listed = true; S.player.ipoW = S.week - 100; out.f5 = A.ytrMax() === 0 && A.ytrBox().includes('上限の60%に達して'); }
+    /* 6: an officer nobody decided about leaves as if let go: back on the job market once */
+    { S = traderCo(2816, 3000); S.allUnlocked = true; S.stage = 4; A.hqInit(); Object.assign(S.dept.acc, {on: true, staff: 5}); const c = S.cos.filter(x => !x.ctrl)[0]; c.own = {P: c.shares * .7}; A.recomputeCtrl(); A.hrEnsure(c); const x = A.ceoOf(c); A.step(); S.inbox = S.inbox.filter(i => i.kind !== 'execback');
+      S.cos = S.cos.filter(y => y !== c); A.hrOrphans(); const it = S.inbox.find(i => i.kind === 'execback' && i.pid === x.id); S.inbox = S.inbox.filter(i => i !== it); /* the deadline passed */ A.hrOrphans(); A.hrOrphans();
+      out.f6 = !!it && !x.at && S.hr.pool.filter(id => id === x.id).length === 1 && x.orphW == null && loads(); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('fix 2026-11-20: weekly recapitalisation after debt fell, refounded company unlisted, IPO share count, Prime on review day, 60% cap message, expired officer decision', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in fix-1120 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testPlay27(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3573,6 +3610,7 @@ async function balance(b) {
     await testRev25(b);
     await testRev26(b);
     await testPlay27(b);
+    await testFix1120(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
