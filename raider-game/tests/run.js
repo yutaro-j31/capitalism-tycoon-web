@@ -2835,6 +2835,48 @@ async function testRev21(b) {
 }
 
 // playtest 25: applicants placed in a head-office department (and sent out from there); pay packages — options, performance bonus and long-term pay where each officer works
+async function testPlay27(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    let S;
+    /* options earned as an individual stay open after incorporating */
+    { A.newGame(2701, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 50; S.tr.n = 30; for (let i = 0; i < 30; i++) S.tr.rets.push(0); const before = A.has('options'); A.incorporate('Z', 0); A.hqInit(); A.trClose(); S.stage = 2; out.optAfterFound = before && A.has('options') && A.has('short'); }
+    /* names: your personal account and an unknown bidder */
+    out.names = A.ownerName('U') === 'あなた（個人）' && A.ownerName('R9') === '他の買い手';
+    /* company you run: the year's figures come from the last report (do not move weekly) */
+    { A.newGame(2702, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } const c = S.cos.find(x => !x.priv && x.qh && x.qh.length); c.ctrl = 'P'; const h0 = A.coInfo(c).match(/純利益（年・直近決算）<\/span><b[^>]*>([^<]*)</)[1]; c.ni *= 1.37; const h1 = A.coInfo(c).match(/純利益（年・直近決算）<\/span><b[^>]*>([^<]*)</)[1]; out.repNi = h0 === h1; }
+    /* listing your company: shares to sell chosen freely, market and ticker; options do not make it 'listed' */
+    { A.newGame(2703, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); Object.assign(S.dept.acc, {on: true, staff: 20}); S.player.cash = 3000; S.player.outside = .05;
+      out.notListed = !A.selfListed() && !A.ytrBox().includes('上場済み');
+      A.ui.ytrF = .2; click('ytrfd', null, '-.05'); click('ytrfd', null, '-.01'); info.f = A.ui.ytrF; click('ytrmkt', null, 'prime'); A.ui.ytrTk = 'ABCD';
+      click('ytripo', null, String(A.ui.ytrF), {uw: 'mid'}); const pl = S.player.ipoPlan; out.plan = !!pl && Math.abs(pl.f - .14) < 1e-9 && pl.mkt === 'prime' && pl.tk === 'ABCD';
+      if (pl) { S.week = pl.end; for (let i = 0; i < 3 && !A.selfListed(); i++) { A.step(); S.inbox = []; } }
+      info.listed = {l: A.selfListed(), tk: S.player.tk, mkt: S.player.mkt, o: S.player.outside}; out.listed = A.selfListed() && S.player.tk === 'ABCD' && S.player.mkt === 'prime' && A.selfBox().includes('ABCD');
+      A.ui.mview = 'hold'; A.ui.tab = 'market'; A.ui.sel = null; out.holdTab = A.holdingsTab().includes('ABCD') || A.holdingsTab().includes('あなたの持株'); out.loadsIPO = loads(); }
+    /* people: an officer of a company that is gone is offered back to head office; earnings are recorded */
+    { A.newGame(2704, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); Object.assign(S.dept.acc, {on: true, staff: 5}); S.player.cash = 3000;
+      const c = S.cos.filter(x => !x.ctrl)[0]; c.own = {P: c.shares * .7}; A.recomputeCtrl(); A.hrEnsure(c); const ceo = A.ceoOf(c); A.step(); S.inbox = [];
+      out.earned = ceo.paid > 0 && ceo.grp === c.name && A.personLine(ceo, null, 'CEO').includes('稼いだ額');
+      S.cos = S.cos.filter(x => x !== c); A.hrOrphans(); const it = S.inbox.find(i => i.kind === 'execback' && i.pid === ceo.id); out.backAsk = !!it && A.execBackCard(it).includes('付き幹部に戻す');
+      click('execback', it.id, 'acc'); out.backHQ = ceo.at === 'HQ' && ceo.role === 'BENCH' && ceo.dept === 'acc';
+      /* secondment picker: a venture and a head-office department are destinations */
+      A.vcQuarter(); const d = S.vc.deals[0]; A.vcInvest(d.id, .05); const h = A.vcHold(d.id, false); A.ui.secCo = 'V:' + h.id; click('secgo', ceo.id); out.secVC = h.ex === ceo.id && ceo.role === 'VCX';
+      A.ui.secCo = 'H:acc'; click('secgo', ceo.id); out.secHQ = ceo.role === 'BENCH' && ceo.dept === 'acc' && h.ex !== ceo.id;
+      out.org = A.orgChart().includes('組織図') && A.orgChart().includes('経理部'); out.loadsPeople = loads(); }
+    /* money into a company in a funding crisis: an amount you choose; the crisis ends once what is short is in */
+    { A.newGame(2705, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); S.player.cash = 5000; const c = S.cos.filter(x => !x.ctrl && x.rev > 5)[0]; c.own = {P: c.shares * .8}; A.recomputeCtrl(); c.cash = 0; c.crisis = {w: S.week, due: S.week + 8, refi: true, short: Math.min(1, c.debt * .1)};
+      const gap = A.crisisGap(c), unit = c.shares * c.price * .95; A.ui.sel = c.id; out.injBox = A.injectBox(c).includes('入れる金額'); click('inject', null, String(gap * .4 / unit)); const still = !!c.crisis; click('inject', null, String(gap / unit));
+      info.inj = {gap: +gap.toFixed(4), still, after: !!c.crisis}; out.inject = still && !c.crisis; }
+    /* allotment to your own company: your share goes up, not down */
+    { A.newGame(2706, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.player.cash = 5000; const c = S.cos[3]; c.own = {P: c.shares * .6}; A.recomputeCtrl(); A.allot(c, 'P', .05); out.allotNews = /上がります/.test(S.news[0].t) && !/薄まります/.test(S.news[0].t); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('playtest 27: options after founding, names, reported profit, own listing (shares, market, ticker), holdings tab, officers of a closed company, secondment picker, org chart, injection amount, allotment wording', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in playtest-27 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testRev26(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3530,6 +3572,7 @@ async function balance(b) {
     await testRev24(b);
     await testRev25(b);
     await testRev26(b);
+    await testPlay27(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
