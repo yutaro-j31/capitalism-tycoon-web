@@ -194,3 +194,30 @@ future completion time or CI success. Both workflows stay pending in the replay.
 No workflow dependency, required job, runner setting, production parallelism,
 rerun or cancellation changes. Synthetic controls and the retained replay are
 invoked by the existing required timing self-test.
+
+## Job wait overlapping other runs' observed execution
+
+The collection report adds `preStartOtherRunExecution` for the subset and each
+run. `completedWait` covers job creation to an observed start. `censoredAge`
+covers known unstarted jobs from creation to the retained observation time.
+Both partition their job-seconds by whether at least one eligible execution
+interval from a different supplied run overlapped the wait. Execution is
+counted once per waiting job even if multiple other jobs or runs execute
+together. Same-run-only activity, ties at interval boundaries, and terminal
+non-success placeholder execution contribute no overlap.
+
+Replay the [three retained Test attempts](ci-evidence/ci-wait-cross-run-2026-11-09.json)
+with `node scripts/parallel-shard-ci-overlap.cjs docs/ci-evidence/ci-wait-cross-run-2026-11-09.json`.
+The snapshot preserves 76 returned job records and the original timing fields,
+captured at 2026-11-09 10:44:45 JST.
+
+| Run | State at capture | Completed wait, job-seconds | During other-run execution | Unstarted age, job-seconds | During other-run execution |
+|---|---|---:|---:|---:|---:|
+| 42538763152 (#1356) | success | 13,972 | 279 | 0 | 0 |
+| 42542487065 (#1358) | pending | 13,614 | 3,723 | 0 | 0 |
+| 42546684395 (main) | pending | 674 | 674 | 3,293.978 | 3,293.978 |
+
+The sums count each job's wait separately. Only the supplied execution intervals
+are visible, so uncovered seconds do not establish idle runners and overlapping
+seconds do not establish runner scarcity or scheduler cause. Workflow states
+remain separate from the queue metrics. No workflow rerun is needed.

@@ -21,9 +21,18 @@ assert.equal(result.observedEligibleJobSeconds, 70);
 assert.deepEqual(result.preStart, { startedJobs: 4, observedDelaySeconds: 76, unstartedJobs: 0, censoredAgeSeconds: 0, omittedJobs: 0 });
 assert.deepEqual(result.runs[0].preStart, { startedJobs: 2, observedDelaySeconds: 28, unstartedJobs: 0, censoredAgeSeconds: 0, omittedJobs: 0 });
 assert.equal(result.capacityQuota, null); assert.equal(result.completeRepositoryCoverage, false);
+const split = (total, covered) => ({
+  waitJobSeconds: total, withOtherRunExecutionJobSeconds: covered,
+  withoutObservedOtherRunExecutionJobSeconds: total - covered
+});
+assert.deepEqual(result.preStartOtherRunExecution.completedWait, split(76, 30));
+assert.deepEqual(result.runs[0].preStartOtherRunExecution.completedWait, split(28, 0),
+  'same-run execution and other-run starts at the end of a wait do not count');
+assert.deepEqual(result.runs[1].preStartOtherRunExecution.completedWait, split(48, 30));
 assert.deepEqual(summarizeCollection({ ...input, asOf: time(100) }), result, 'retained observation time replays deterministically');
 const reversed = structuredClone(input); reversed.snapshots.reverse();
 assert.deepEqual(summarizeCollection(reversed, time(100)).peakWitness, result.peakWitness);
+assert.deepEqual(summarizeCollection(reversed, time(100)).preStartOtherRunExecution, result.preStartOtherRunExecution);
 const tied = { snapshots: [snap(run(1), [job(10, 1, 10, 20)]), snap(run(2), [job(20, 2, 20, 30)])] };
 assert.equal(summarizeCollection(tied, time(100)).maximumObservedEligibleJobOverlap, 1);
 const waiting = { snapshots: [snap(run(1, 'in_progress', null), [
@@ -38,6 +47,7 @@ const waiting = { snapshots: [snap(run(1, 'in_progress', null), [
 const pending = summarizeCollection(waiting, time(100));
 assert.equal(pending.maximumObservedEligibleJobOverlap, 1);
 assert.equal(pending.observedEligibleJobSeconds, 90);
+assert.deepEqual(pending.preStartOtherRunExecution.censoredAge, split(99, 0));
 assert.deepEqual(pending.preStart, { startedJobs: 1, observedDelaySeconds: 9, unstartedJobs: 1, censoredAgeSeconds: 99, omittedJobs: 5 });
 const later = summarizeCollection(waiting, time(110));
 assert.equal(later.preStart.censoredAgeSeconds, 109);
@@ -77,6 +87,15 @@ assert.equal(replay.capacityQuota, null);
 assert.equal(replay.observedActivity.activeSeconds, 2987.341);
 assert.equal(replay.observedActivity.uncoveredSeconds, 8249);
 assert.equal(replay.observedActivity.crossRunSeconds, 0);
+const november = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname,
+  '../docs/ci-evidence/ci-wait-cross-run-2026-11-09.json'), 'utf8'));
+const currentReplay = summarizeCollection(november);
+assert.equal(currentReplay.observedJobs, 76);
+assert.deepEqual(currentReplay.runs.map(run => [run.runId, run.workflowState, run.preStartOtherRunExecution]), [
+  [42538763152, 'success', { completedWait: split(13972, 279), censoredAge: split(0, 0) }],
+  [42542487065, 'pending', { completedWait: split(13614, 3723), censoredAge: split(0, 0) }],
+  [42546684395, 'pending', { completedWait: split(674, 674), censoredAge: split(3293.978, 3293.978) }],
+]);
 const none = summarizeCollection({ snapshots: [snap(run(1), [])] }, time(100));
 assert.deepEqual(none.preStart, { startedJobs: 0, observedDelaySeconds: 0, unstartedJobs: 0, censoredAgeSeconds: 0, omittedJobs: 0 });
 assert.equal(none.maximumObservedEligibleJobOverlap, 0); assert.equal(none.peakWitness, null);
@@ -133,8 +152,17 @@ const fractional = summarizeCollection({ snapshots: [snap(run(1), [job(10, 1, 10
   snap(run(2), [job(20, 2, 10.25, 10.75)])] }, time(100));
 assert.equal(fractional.observedActivity.crossRunSeconds, 0.25);
 assert.equal(fractional.observedActivity.spanSeconds, 0.75);
-for (const summary of [result, pending, later, none, replay, fractional,
-  summarizeCollection({ snapshots: gap }, time(100)), summarizeCollection({ snapshots: sameRun }, time(100))]) {
+assert.deepEqual(fractional.preStartOtherRunExecution.completedWait, split(18.25, 0.25));
+const censored = summarizeCollection({ snapshots: [
+  snap(run(1, 'in_progress', null), [job(10, 1, 1, null, 'queued', null)]),
+  snap(run(2), [job(20, 2, 10, 30), job(21, 2, 4, 8, 'completed', 'cancelled')]),
+  snap(run(3, 'in_progress', null), [job(30, 3, 20, null, 'in_progress', null)])
+] }, time(50));
+assert.deepEqual(censored.preStartOtherRunExecution.censoredAge, split(49, 40),
+  'simultaneous execution is counted once per wait and running evidence stops at asOf');
+const summaries = [result, pending, later, none, replay, fractional,
+  summarizeCollection({ snapshots: gap }, time(100)), summarizeCollection({ snapshots: sameRun }, time(100))];
+for (const summary of summaries) {
   const a = summary.observedActivity;
   const sum = (bins, weight) => bins.reduce((total, bin) => total + bin.seconds * weight(bin), 0);
   assert.ok(Math.abs(sum(a.byJobCount, b => b.jobs) - summary.observedEligibleJobSeconds) < 1e-8,
@@ -143,6 +171,15 @@ for (const summary of [result, pending, later, none, replay, fractional,
   assert.equal(sum(a.byRunCount, () => 1), a.spanSeconds ?? 0);
   assert.equal(sum(a.byJobCount, b => b.jobs > 0 ? 1 : 0), a.activeSeconds);
   assert.equal(summary.capacityQuota, null); assert.equal(summary.completeRepositoryCoverage, false);
+}
+for (const summary of [...summaries, currentReplay, censored]) {
+  const { completedWait, censoredAge } = summary.preStartOtherRunExecution;
+  assert.ok(Math.abs(completedWait.waitJobSeconds - summary.preStart.observedDelaySeconds) < 1e-8);
+  assert.ok(Math.abs(censoredAge.waitJobSeconds - summary.preStart.censoredAgeSeconds) < 1e-8);
+  for (const s of [completedWait, censoredAge]) {
+    assert.ok(Math.abs(s.waitJobSeconds - s.withOtherRunExecutionJobSeconds -
+      s.withoutObservedOtherRunExecutionJobSeconds) < 1e-8);
+  }
 }
 console.log('CI cross-run overlap: PASS (conservative intervals, attempts, missing/queued/cancelled, ties, coverage)');
 require('./parallel-shard-bottleneck-test.cjs');
