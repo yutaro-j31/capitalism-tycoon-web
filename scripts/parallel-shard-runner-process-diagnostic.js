@@ -217,6 +217,7 @@ async function main() {
   if (process.argv.includes('--self-test')) {
     await require('./parallel-shard-cgroup-operation-test.cjs').run();
     require('./parallel-shard-cpu-hotspots-test.cjs');
+    require('./parallel-shard-cpu-callers-test.cjs');
     require('./parallel-shard-memory-snapshot-test.cjs');
     require('./parallel-shard-i-evidence-audit-test.cjs');
     await outputSelfTest();
