@@ -130,6 +130,9 @@ or create a listed lot. Retained positive startup fractions keep the link unreso
 with `CONVERSION_CONFLICT` instead of representing both sources as current interests.
 A residual subsidiary mirror also leaves the link unresolved with `ALIAS_CONFLICT`;
 the reader never certifies an IPO lifecycle while its own alias evidence contradicts it.
+Likewise, when multiple startup sources claim the same valid `ipoStockID`, every link
+for that alias remains unresolved with `ALIAS_CONFLICT`. The reader cannot choose which
+historical source maps to the listed alias, even when both startup fractions are zero.
 
 Every supported link keeps listed-lot status unverified and share-class status unproven.
 Issuer/class/ownership identity, quantity, voting fraction and wealth value remain null.
@@ -138,7 +141,8 @@ for P3-5 lot reconciliation or conversion-precision evidence. No market/personal
 stock collection is read, and no canonical position, replacement edge or authority is
 created by this slice.
 
-Focused coverage includes valid zeroed IPO history, retained-fraction conflict, frozen
+Focused coverage includes valid zeroed IPO history, retained-fraction conflict, duplicate
+listed-alias quarantine, frozen
 JSON replay and the installed funding-close/IPO writer path. Save, settlement, cash,
 ledger, RNG, UI and browser persistence paths are unchanged; no new native WebKit claim
 is made. Full IPO lot/class reconciliation, floor residuals and common-snapshot consumer
