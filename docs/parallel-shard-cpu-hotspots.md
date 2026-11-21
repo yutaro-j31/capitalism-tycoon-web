@@ -16,6 +16,12 @@ Call-tree structure and the association between a URL and repository source are
 not verified. Sample-weighted self time is an approximation, not elapsed-time
 causality, utilization, a speedup forecast or a parallel-safety gate.
 
+`--sample-counts` selects a separate report ranked by sampled leaf counts. It
+keeps profile, frame, sample-reference and hash validation and reports the
+number of negative deltas. Its fractions use all sample references as the
+denominator. It emits no time totals or time-weighted fractions. The default
+report still exits 1 on a negative delta.
+
 The existing required process-diagnostic self-test invokes a short real Node
 `--cpu-prof` fixture alongside synthetic corruption controls. The fixture writes
 outside the source checkout, compares profiled/unprofiled stdout/stderr bytes,
@@ -34,9 +40,38 @@ Retain source SHA and source/input hashes, exact Node/host, command, child exit/
 signal, complete stdout/stderr, profile hash, memory and final-process evidence
 before attributing results to K. Keep all208 weeks/routes/fork/assertions. A
 profiled run has profiler overhead and cannot replace uninstrumented performance
-or parity evidence. No K internal hotspot measurement is claimed yet; the only
-real profile exercised here is the short fixture. Existing K bounds still refer
-to their original source and the cross-Node1byte gap remains unresolved.
+or parity evidence. Existing K bounds still refer to their original source and
+the cross-Node one-byte stderr gap remains unresolved.
+
+## K longest invocation capture — 2026-11-09 JST
+
+One Node 24.22.1 invocation on an EPYC 9V74 host at source
+`369df100a70cbfc8b42c522cb048603cd4781dde` exited 0 after 520.058 seconds.
+All four routes passed 208 weeks and Phase 2 acceptance. The reload fork covered
+12 weeks from week 104. Stderr was empty and the invocation's process group
+was absent at exit. The wrapper observed 680572 KiB child peak RSS. This
+observation does not measure the sum across a process tree or cgroup.
+
+The [capture record](ci-evidence/k-longest-node24-2026-11-09.json) retains exact
+UTF-8 stdout and stderr, hashes, host and source provenance, and the count
+report. The [compressed raw profile](ci-evidence/k-longest-node24-2026-11-09.cpuprofile.gz)
+contains 465618 samples, including a single `-1 µs` delta at zero-based index
+559. Its cause is unconfirmed. Replaying with the default parser exits 1.
+The count report's largest sampled frames were `compare` (17.78%),
+`canonicalSerializeV2` (12.50%) and `clone` (8.10%) from `index.html`.
+These shares describe sample references from this one capture.
+
+```sh
+profile=$(mktemp)
+trap 'rm -f "$profile"' EXIT
+gzip -dc docs/ci-evidence/k-longest-node24-2026-11-09.cpuprofile.gz > "$profile"
+node scripts/parallel-shard-cpu-hotspots.cjs --sample-counts "$profile" \
+  c5ec9917b9177444ba2518aa4e4ec4853d01a98ec2d73ed9825f3b19a85640c5
+```
+
+This capture covers one K command on one Node version. It leaves the
+same-source uninstrumented timing and output parity, cross-Node attribution,
+and hosted workflow impact open.
 
 No production test, economic module, workflow, runner or shard-concurrency setting
 changes. `sourceBindingVerified`, `cpuUtilizationMeasured`, `speedupPredicted`,

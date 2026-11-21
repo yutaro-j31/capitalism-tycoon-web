@@ -13,6 +13,20 @@ for(const change of [p=>p.nodes[1].id=1,p=>p.samples[0]=99,p=>p.timeDeltas.pop()
 }
 const inconsistent=structuredClone(profile);inconsistent.endTime=50;
 assert.equal(summarize(inconsistent).sampledDeltaExceedsProfileSpan,true,'do not turn inconsistent sampled time into CPU utilization');
+const countOptions={sampleCountsOnly:true};
+const outOfOrder={...profile,timeDeltas:[100,-1,1]};
+assert.throws(()=>summarize(outOfOrder),/nonnegative sample delta/);
+const counts=summarize(outOfOrder,1,countOptions);
+assert.equal(counts.schema,'v8-self-sample-counts-v1');
+assert.equal(counts.negativeDeltaCount,1);
+assert.equal(counts.sampleCount,3);
+assert.equal(counts.hotspots[0].functionName,'hot');
+assert.equal(counts.hotspots[0].selfSamples,2);
+assert.equal(counts.hotspots[0].selfSampleFraction,2/3);
+for(const key of ['sampledMicroseconds','sampledDeltaExceedsProfileSpan'])assert.ok(!(key in counts));
+for(const key of ['sampledSelfMicroseconds','sampledSelfFraction'])assert.ok(!(key in counts.hotspots[0]));
+assert.throws(()=>summarize({...outOfOrder,timeDeltas:[100,NaN,1]},20,countOptions),/finite sample delta/);
+assert.throws(()=>summarize({...outOfOrder,samples:[1,99,3]},20,countOptions),/unknown node/);
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'cpu-hotspots-'));
 try{
   const file=path.join(root,'fixture.cjs'),output=path.join(root,'fixture.cpuprofile');
@@ -25,5 +39,16 @@ try{
   assert.equal(real.sourceBindingVerified,false);assert.throws(()=>read(bytes,'0'.repeat(64)),/SHA256/);
   const cli=run([path.join(__dirname,'parallel-shard-cpu-hotspots.cjs'),output,digest]);
   assert.deepEqual(JSON.parse(cli.stdout),read(bytes,digest));
+  const anomaly=Buffer.from(JSON.stringify(outOfOrder));
+  const anomalyHash=crypto.createHash('sha256').update(anomaly).digest('hex');
+  fs.writeFileSync(output,anomaly);
+  const parser=path.join(__dirname,'parallel-shard-cpu-hotspots.cjs');
+  const rejected=cp.spawnSync(process.execPath,[parser,output,anomalyHash],{timeout:10000});
+  assert.ifError(rejected.error);
+  assert.equal(rejected.status,1);
+  assert.match(rejected.stderr.toString(),/nonnegative sample delta/);
+  assert.equal(rejected.stdout.length,0);
+  assert.deepEqual(JSON.parse(run([parser,'--sample-counts',output,anomalyHash]).stdout),read(anomaly,anomalyHash,20,countOptions));
+  assert.throws(()=>read(anomaly,digest,20,countOptions),/SHA256/);
 }finally{fs.rmSync(root,{recursive:true,force:true});}
 console.log('CPU hotspots: PASS (real V8 fixture, byte output parity, strict references/hash, leaf-only samples; not K profiling evidence)');
