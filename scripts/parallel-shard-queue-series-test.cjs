@@ -19,7 +19,28 @@ assert.deepEqual(result.focusHIK.K.executionSeconds, { samples: 2, min: 110, med
 assert.deepEqual(result.runs.map(x => [x.runId, x.runAttempt, x.asOf]),
   [[1, 1, '2026-11-01T00:00:00.000Z'], [2, 2, '2026-11-01T00:00:00.000Z']]);
 assert.equal(result.runnerQuota, null); assert.equal(result.hostComparabilityEstablished, false);
+assert.equal(result.runs[0].lastObservedShardPhases, null);
+assert.equal(result.runs[0].postLastShardToAggregateSeconds, null);
 assert.deepEqual(compareSeries({ summaries: [...input.summaries].reverse() }), result);
+const finishes = structuredClone(input);
+const tied = finishes.summaries[0];
+for (const [i, row] of tied.rows.entries()) row.completed = (200 + i) * 1000;
+tied.rows[7].completed = tied.rows[11].completed;
+tied.rows[11].jobCreationToStartSeconds = null;
+tied.postShardAggregateIntervalSeconds = 5;
+tied.rows.reverse();
+const last = compareSeries(finishes).runs.find(r => r.runId === 2);
+assert.deepEqual(last.lastObservedShardPhases, [
+  { shard: 'H', runCreationToJobCreationSeconds: 27, jobCreationToStartSeconds: 4, executionSeconds: 107 },
+  { shard: 'L', runCreationToJobCreationSeconds: 31, jobCreationToStartSeconds: null, executionSeconds: 111 }
+]);
+assert.equal(last.postLastShardToAggregateSeconds, 5);
+tied.rows.find(row => row.name === 'test-shard-A').completed = null;
+const unknownLast = compareSeries(finishes).runs.find(r => r.runId === 2);
+assert.equal(unknownLast.lastObservedShardPhases, null);
+assert.equal(unknownLast.postLastShardToAggregateSeconds, null);
+tied.rows.find(row => row.name === 'test-shard-A').completed = -1;
+assert.throws(() => compareSeries(finishes));
 const missing = structuredClone(input);
 missing.summaries[0].runCreationToFirstObservedJobCreationSeconds = null;
 assert.equal(compareSeries(missing).metrics.firstJobCreationSeconds.samples, 1);
@@ -73,6 +94,10 @@ assert.deepEqual(replay.runs.map(r => [r.runId, r.runAttempt, r.asOf]),
   summaries.map(s => [s.runId, s.runAttempt, s.asOf]).sort((a, b) => a[0] - b[0]));
 assert.equal(replay.observedRuns, 3);
 assert.equal(replay.metrics.runnerQueueMedianSeconds.median, 65);
+assert.deepEqual(replay.runs.map(r => r.lastObservedShardPhases.map(row => 'test-shard-' + row.shard)),
+  summaries.map(s => s.lastCanonicalSuccessJobs.slice().sort()));
+assert.deepEqual(replay.runs.map(r => r.postLastShardToAggregateSeconds),
+  summaries.map(s => s.postShardAggregateIntervalSeconds));
 assert.equal(replay.runnerQuota, null); assert.equal(replay.counterfactualSpeedup, null);
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-queue-series-'));
 try { const file = path.join(dir, 'collection.json'); fs.writeFileSync(file, JSON.stringify(input));

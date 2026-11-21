@@ -30,3 +30,20 @@ attempt1 and `asOf=2026-10-31T05:02:46.070Z` for all three outputs. Its subset
 median of per-run canonical queue medians remains65 seconds. Synthetic and CLI
 controls reject absent/invalid attempts and observation times without emitting a
 successful comparison. This reuses metadata; no workload or green CI is rerun.
+
+## Phases of the last observed shard
+
+Each completed run reports `lastObservedShardPhases` for the canonical
+shards tied at the latest reported completion time, in shard-letter order.
+Each entry separately reports run creation to job creation, job creation to
+reported start, and execution. `postLastShardToAggregateSeconds` carries the
+observed interval from the last canonical finish to aggregate completion.
+All 12 canonical completion timestamps are needed to identify the last
+finishers. Missing completion evidence yields `null` for both fields, and
+missing phase evidence remains `null` in an otherwise observed entry.
+
+These phases describe the observed finishers. The two pre-start phases can
+include workflow dependencies, admission and scheduling. The report cannot
+identify their causes or predict savings from rescheduling. The existing
+three-run snapshot and synthetic regression cases cover ties, missing
+completion or phase evidence, and aggregate timing.
