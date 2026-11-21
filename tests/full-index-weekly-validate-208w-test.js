@@ -84,14 +84,20 @@ function assertSame(left, right, label) {
   assert.equal(diff, null, `${label}; first diff=${JSON.stringify(diff)}`);
 }
 
-function assertFiniteTree(value, path = '$', seen = new WeakSet()) {
+function assertFiniteTree(value, path = ['$'], seen = new WeakSet()) {
   if (!value || typeof value !== 'object') {
-    if (typeof value === 'number') assert(Number.isFinite(value), `${path} is non-finite: ${value}`);
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      assert(false, `${path.join('.')} is non-finite: ${value}`);
+    }
     return;
   }
   if (seen.has(value)) return;
   seen.add(value);
-  for (const [key, child] of Object.entries(value)) assertFiniteTree(child, `${path}.${key}`, seen);
+  for (const [key, child] of Object.entries(value)) {
+    path.push(key);
+    assertFiniteTree(child, path, seen);
+    path.pop();
+  }
 }
 
 function highestTrafficTenant(engine) {
