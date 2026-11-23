@@ -1593,7 +1593,7 @@ async function testMidgame(b) {
     A.newGame(6162, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 12; A.incorporate('Z', 0); S.stage = 3;
     out.lbo = A.has('lbo') && A.has('found'); A.ui.tab = 'port'; A.renderAll(true);
     const lim1 = A.bankLimit(); out.bankHalf = lim1 > 0;
-    out.found = [...document.querySelectorAll('[data-act=found]')].map(e => +e.dataset.v).join(',');
+    { const R = A.fcapRange(), btn = [...document.querySelectorAll('[data-act=found]')].map(e => +e.dataset.v); out.found = btn.join(',') === '1' && R.lo <= .5 && R.hi >= 3 && R.hi <= 50 ? '0.5,1,3' : JSON.stringify({btn, R}); } /* rev28: capital chosen freely; the default is 1 and the old choices (0.5, 1, 3) stay inside the range */
     /* saves keep the newsletter; a negative member count is refused */
     A.newGame(6163, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; for (let i = 0; i < 27; i++) A.step(); A.nlStart(); for (let i = 0; i < 5; i++) A.step();
     const txt = A.exportText(), o = JSON.parse(txt); out.save = !!A.parseSave(txt) && o.nl && o.nl.subs > 0; o.nl.subs = -5; out.negNl = !!A.econCheck(o);

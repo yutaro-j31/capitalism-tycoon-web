@@ -4590,11 +4590,12 @@ function nlBox(){
 }
 function trSnap(){ return {eq: S.tr && finite(S.tr.eq1) ? S.tr.eq1 : grossWorth()}; } /* from where the last week ended: trades, fees and price impact between weeks are part of this week's result */
 function trClose(){ if (S.tr) { S.tr.eq1 = grossWorth(); S.tr.flow = 0; S.tr.fl = []; S.tr.ax = []; S.tr.dI = 0; S.tr.mid = 0; S.tr.seen = 0; S.tr.k = (S.tr.k || 0) + 1; S.tr.skip = false; } } /* the end of a week: the base for the next one (eq1 = net worth of the trading account: cash, shares, options, property, ventures and fund stakes, less margin, bank debt and short positions) */
+const TR_RMAX = 20;
 function trStep(s){ /* the week's trading return: price moves on the account's positions plus dividends, over its equity (no PRNG) */
   S.tr = S.tr || {rets: [], w0: S.week - 1, mc: 0, mcW: null, eq1: null, flow: 0, cum: 1, skip: false, n: 0, pk: 1, mdd: 0};
   if (S.tr.skip) { S.tr.skip = false; return; } /* the account changed hands this week (company failed): no return is recorded */
   const g = grossWorth() - s.eq - (S.tr.flow || 0); /* every gain and loss of the account: prices, options, interest, fees, forced sales, dividends */
-  const r = s.eq > .005 ? clamp(g / s.eq, -.95, 2) : 0;
+  const r = s.eq > .005 ? clamp(g / s.eq, -.95, TR_RMAX) : 0; /* a leveraged option can triple the account in a week; the cap only guards a tiny base */
   if (!finite(S.tr.cum)) S.tr.cum = S.tr.rets.reduce((a, x) => a * (1 + x), 1); S.tr.cum *= 1 + Math.round(r * 1e6) / 1e6; /* FIN-04: the whole history in one factor */
   S.tr.n = (S.tr.n || 0) + 1; S.tr.pk = Math.max(S.tr.pk || 1, S.tr.cum); S.tr.mdd = Math.max(S.tr.mdd || 0, 1 - S.tr.cum / S.tr.pk); /* BUG-30: whole-period weeks, peak and maximum drawdown */
   S.tr.rets.push(Math.round(r * 1e6) / 1e6); if (S.tr.rets.length > 520) S.tr.rets.shift();
@@ -4815,7 +4816,7 @@ function ledgerCheck(o){ /* BUG-45: every entry is a real trade (delisted compan
 }
 function trCheck(o){ /* BUG-30: the track record must be possible (not that it equals today's net worth) */
   const T = o.tr; if (T == null) return '';
-  if (!(typeof T === 'object' && Array.isArray(T.rets) && T.rets.length <= 520 && T.rets.every(r => finite(r) && r >= -.95 && r <= 2) && (T.eq1 == null || finite(T.eq1)) && (T.flow == null || finite(T.flow)) && (T.cum == null || (finite(T.cum) && T.cum > 0)))) return '運用実績の記録が不正';
+  if (!(typeof T === 'object' && Array.isArray(T.rets) && T.rets.length <= 520 && T.rets.every(r => finite(r) && r >= -.95 && r <= TR_RMAX) && (T.eq1 == null || finite(T.eq1)) && (T.flow == null || finite(T.flow)) && (T.cum == null || (finite(T.cum) && T.cum > 0)))) return '運用実績の記録が不正';
   if (T.mc != null && !(Number.isInteger(T.mc) && T.mc >= 0)) return '追証の回数が不正';
   if (T.mcW != null && !(Number.isInteger(T.mcW) && T.mcW <= o.week)) return '追証の日付が不正';
   if (T.skip != null && typeof T.skip !== 'boolean') return '運用実績の記録が不正';
