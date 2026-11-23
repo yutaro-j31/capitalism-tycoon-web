@@ -2886,6 +2886,46 @@ async function testRev27(b) {
   ok('rev27: reserved PE settlements incl. bolt-ons (BUG-96), one search rule (BUG-97/99), short preview matches the trade (BUG-98), wind-down started vs finished (BUG-100)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
   ok('no page errors in rev27 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testPlay28(b) {
+  const {p, errs} = await page(b);
+  await p.setViewportSize({width: 390, height: 640});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    let S;
+    /* founding your company: the share count you choose; all of it is yours and the value does not depend on it */
+    { A.newGame(2801, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 50; A.ui.foundSh = 1; click('incorp'); const mc = A.selfPx() * A.selfSh();
+      out.foundSh = S.founded && S.player.sh0 === 1 && Math.abs(A.selfSh() - 1) < 1e-9 && mc > 0 && /発行済み株式1/.test(S.news.map(n => n.t).join('|'));
+      /* split before listing: price ÷k, shares ×k, worth and your percentage unchanged, no RNG; again within 4 weeks is refused */
+      A.hqInit(); A.trClose(); const gw = A.grossWorth(), px = A.selfPx(), rs = S.rs, o = S.player.outside || 0; const html = A.splitBox(); click('splitk', null, 5); click('selfsplit', null, 5);
+      out.splitPre = !A.selfListed() && /株式分割/.test(html) && Math.abs(A.selfSh() - 5) < 1e-9 && Math.abs(A.selfPx() - px / 5) < 1e-9 && A.grossWorth() === gw && (S.player.outside || 0) === o && S.rs === rs;
+      info.cool = [A.selfSplitWhy(2), S.player.splitW, S.week]; out.splitCool = /4週間/.test(A.selfSplitWhy(2)) && A.selfSplit(2) !== '' && Math.abs(A.selfSh() - 5) < 1e-9;
+      /* after listing (outside holders 25%) */ S.week += 5; S.player.listed = true; S.player.ipoW = S.week - 1; S.player.outside = .25; S.player.tk = 'ZZZ'; S.player.mkt = 'growth'; const sh1 = A.selfSh(), px1 = A.selfPx(), mine = S.player.sh0;
+      out.splitPost = A.selfListed() && A.selfSplit(2) === '' && Math.abs(A.selfSh() - sh1 * 2) < 1e-9 && Math.abs(A.selfPx() - px1 / 2) < 1e-9 && S.player.sh0 === mine * 2 && S.player.outside === .25 && /1株を2株/.test(S.news[0].t) && loads(); info.split = {sh1, px1, sh2: A.selfSh(), px2: A.selfPx()};
+      /* an impossible share count from a save is dropped on load */ const t = JSON.parse(A.exportText()); t.player.sh0 = -3; out.shLoad = !!A.parseSave(JSON.stringify(t)) ; }
+    /* founding a company: capital and share count chosen; the same value over fewer shares */
+    { const mk = sh => { A.newGame(2802, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; S.stage = 4; A.ui.fCap = 7; A.ui.fSh = sh; const box = A.foundBox(); click('found', null, 7); const c = S.cos.find(x => x.born != null && x.own.P && x.bare); return {c, box}; };
+      const a = mk(null), bb = mk(1); info.found = {auto: [a.c && a.c.shares, a.c && a.c.price], one: [bb.c && bb.c.shares, bb.c && bb.c.price]};
+      out.foundSub = !!a.c && !!bb.c && /資本金 7億円・/.test(a.box.replace(/,/g, '')) || (!!a.c && !!bb.c && /資本金/.test(a.box));
+      out.foundSub = out.foundSub && Math.abs(bb.c.shares - 1) < 1e-9 && bb.c.own.P === 1 && Math.abs(bb.c.price * bb.c.shares - a.c.price * a.c.shares) < 1e-9 && /発行済み株式1/.test(S.news.map(n => n.t).join('|')) && loads(); }
+    /* the profile screen keeps its place when the option stepper is used; a different screen opens at the top */
+    { A.newGame(2803, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; S.stage = 4; const pp = S.hr.people[S.hr.pool[0]]; A.hireInto(pp, 'HQ', 'CFO', 'fixed', null); A.showExec(pp.id); const sh = document.querySelector('#modal .sheet'); sh.scrollTop = 260; const top0 = sh.scrollTop;
+      click('xsof', pp.id, .005); const sh2 = document.querySelector('#modal .sheet'); info.scroll = [top0, sh2.scrollTop]; out.keepScroll = top0 > 100 && sh2.scrollTop === top0 && /0\.0?1|1\.0%/.test(sh2.textContent);
+      A.showBank(); out.newTop = document.querySelector('#modal .sheet').scrollTop === 0; A.closeModal(); }
+    /* officers of companies you do not run: weaker, and in line with how the company is run; a turnaround's management is weak */
+    { A.newGame(2804, 'normal', 'B', 'b', 'std', true); S = A.S; const lv = S.cos.filter(c => !c.pe).map(c => A.exLevel(c, 'CFO')); const ex = S.cos.filter(c => c.ex && c.ctrl !== 'P').flatMap(c => Object.values(c.ex).map(id => S.hr.people[id]).filter(Boolean));
+      const avgTop = ex.reduce((a, x) => a + Math.max(...Object.values(x.sk)), 0) / Math.max(1, ex.length); info.levels = {min: Math.min(...lv), max: Math.max(...lv), avgTop: +avgTop.toFixed(1), n: ex.length};
+      out.levels = Math.max(...lv) <= 66 && Math.min(...lv) >= 20 && avgTop < 75;
+      S.allUnlocked = true; S.stage = 4; let turn = [], other = []; for (let i = 0; i < 400 && (turn.length < 15 || other.length < 15); i++) { const d = A.peDealGen(); if (!d) continue; (d.type === 'turn' ? turn : other).push(d.mq); S.pe.deals = S.pe.deals.filter(x => x !== d); }
+      info.mq = {turnMax: Math.max(...turn), otherMax: Math.max(...other), nT: turn.length};
+      out.turnMq = turn.length > 5 && Math.max(...turn) <= 47 && Math.min(...turn) >= 15;
+      let d = null; for (let i = 0; i < 400 && !d; i++) { const x = A.peDealGen({type: 'turn'}); if (x && x.type === 'turn') d = x; } if (d) { d.dd = 2; d.risk = null; S.player.cash = 1e5; const c = A.peAcquire(d, 'P', A.dealAsk(d), .3, false); const ceo = c && S.hr.people[c.ex.CEO]; info.turnCeo = ceo ? ceo.sk.gen : null; out.turnCeo = !!ceo && ceo.sk.gen <= 39 + 12 + 20 && A.exLevel(c, 'CEO') <= 39; } else out.turnCeo = false; }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('play28: share count at founding (company and startups), stock split before/after listing, modal keeps scroll, weaker outside officers and turnaround management', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in play28 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testFix1120(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3663,6 +3703,7 @@ async function balance(b) {
     await testPlay27(b);
     await testFix1120(b);
     await testRev27(b);
+    await testPlay28(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
