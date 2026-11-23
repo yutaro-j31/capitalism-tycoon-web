@@ -2835,6 +2835,57 @@ async function testRev21(b) {
 }
 
 // playtest 25: applicants placed in a head-office department (and sent out from there); pay packages — options, performance bonus and long-term pay where each officer works
+async function testRev27(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    const lastToast = () => { const t = document.querySelectorAll('#toasts .toast'); return t.length ? t[t.length - 1].textContent : ''; };
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); A.S.won = false; A.S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); A.S.player.cash = cash; A.trClose(); return A.S; };
+    const fundCo = (seed, strat) => { const S = traderCo(seed, 5000); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.inv, {on: true, staff: 3}); S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const pp = S.hr.people[S.hr.pool[0]]; for (const k in pp.sk) pp.sk[k] = 70; A.hireInto(pp, 'HQ', 'PEH', 'fixed', null); const f = A.fundRaise(strat || 'buyout', .05, pp.id); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } S.pe.deals = []; f.cfg.mode = 'manual'; return {S, f, lead: pp}; };
+    const deal = (pred) => { let d = null; for (let i = 0; i < 300 && !d; i++) { const x = A.peDealGen(); if (x && pred(x)) d = x; else if (x) A.S.pe.deals = A.S.pe.deals.filter(y => y !== x); } return d; };
+    const setRoom = (f, room) => { const T = 1000, k = T - room; f.gp = T * .05; f.lp = T - f.gp; f.lp0 = f.lp; f.gp0 = f.gp; f.calledGP = k * .05; f.calledLP = k - f.calledGP; };
+    let S;
+    /* BUG-96: a bid whose reservation equals what is left settles after fees have run, with nothing unreserved left */
+    { let f; ({S, f} = fundCo(2896)); const d = deal(x => A.dealEbitda(x, false) > 0 && x.type !== 'turn'); d.dd = 2; d.risk = null; d.exp = S.week + 20; d.n = 0; d.ai = 0; d.bids = []; f.invEnd = S.week + 200;
+      const q = A.peQuote(d, A.dealAsk(d), 0, f.id); setRoom(f, q.out + 1e4); A.peBid(d, 0, 0, false, f.id); const own = d.bid.need; setRoom(f, own); /* exactly the reservation is left */
+      for (let i = 0; i < 3; i++) A.fundWeekly(f); info.b96 = {own: +own.toFixed(6), room: +A.fundRoom(f).toFixed(6), dry: A.fundDry(f)}; const rr = A.peResolve(d); const c = S.cos.find(x => x.name === d.name && x.pe && x.pe.owner === f.id);
+      out.b96exact = rr === 'won' && !!c && A.fundRoom(f) < 1e-6 && f.calledLP + f.calledGP <= f.lp + f.gp + 1e-9 && loads();
+      /* more than the reservation with no unreserved room: refused, nothing moves */
+      const d2 = deal(x => A.dealEbitda(x, false) > 0 && x.type !== 'turn' && x !== d); d2.dd = 2; d2.risk = null; d2.exp = S.week + 20; d2.n = 0; d2.ai = 0; d2.bids = []; const q2 = A.peQuote(d2, A.dealAsk(d2), 0, f.id); setRoom(f, q2.out + 1e4); A.peBid(d2, 0, 0, false, f.id); setRoom(f, d2.bid.need);
+      d2.bid.eq *= 1.1; const k0 = f.calledLP + f.calledGP, gp0 = S.player.cash; const r2 = A.peResolve(d2); out.b96over = r2 === 'fail' && f.calledLP + f.calledGP === k0 && S.player.cash === gp0;
+      /* a fund winding down does not settle */ const d3 = deal(x => A.dealEbitda(x, false) > 0 && x.type !== 'turn' && x !== d && x !== d2); d3.dd = 2; d3.risk = null; d3.exp = S.week + 20; d3.n = 0; d3.ai = 0; d3.bids = []; setRoom(f, 1e4); A.peBid(d3, 0, 0, false, f.id); f.winding = 'early'; const k3 = f.calledLP + f.calledGP; out.b96wind = !!d3.bid && A.peResolve(d3) === 'fail' && f.calledLP + f.calledGP === k3; f.winding = null; }
+    /* BUG-96: a bolt-on settles from its own reservation; when the GP lacks cash it is refused with nothing changed */
+    { let f, lead; ({S, f, lead} = fundCo(2897, 'rollup')); f.invEnd = S.week + 200; const d = deal(x => A.dealEbitda(x, false) > 0 && x.type === 'succ'); d.dd = 2; d.risk = null; const P = A.peAcquire(d, f.id, A.dealAsk(d), .3, false);
+      let b2 = null; for (let i = 0; i < 400 && !b2; i++) { const x = A.peDealGen({type: 'succ', ind: P.ind, scale: P.rev * .3}); if (x) b2 = x; } b2.dd = 2; b2.risk = null; b2.exp = S.week + 20; b2.n = 0; b2.ai = 0; b2.bids = []; const integ = b2.rev * .02; b2.integ = integ;
+      setRoom(f, 1e4); b2.fundPay = {f: f.id}; b2.fExtra = {integ}; A.peBid(b2, 0, 0, false, P.id); const need = b2.bid.need; setRoom(f, need); for (let i = 0; i < 3; i++) A.fundWeekly(f);
+      const snap = () => JSON.stringify([f.calledLP, f.calledGP, S.player.cash, P.cash, P.debt, P.rev]); S.player.cash = need * .05 * .5; const s0 = snap(); const rf = A.peResolve(b2); out.b96boltShort = rf === 'fail' && snap() === s0;
+      S.player.cash = need * .05 + 1; const b3 = Object.assign({}, b2, {id: b2.id + 'x'}); b2.bid = null; S.pe.deals.push(b3); b3.fundPay = {f: f.id}; b3.fExtra = {integ}; A.peBid(b3, 0, 0, false, P.id); setRoom(f, b3.bid.need); for (let i = 0; i < 3; i++) A.fundWeekly(f);
+      const rev0 = P.rev, rb = A.peResolve(b3); info.bolt = {rf, rb}; out.b96bolt = rb === 'won' && P.rev > rev0 && A.fundRoom(f) < 1e-6; }
+    /* BUG-97/99: one rule for searching — after the investment period, too soon, six a year, GP cash net of reservations */
+    { let f, lead; ({S, f, lead} = fundCo(2898)); f.invEnd = S.week + 1; S.player.cash = 100; A.fundAsk(f, 'search', {name: 'x', amt: A.fundSrchCost(f)}); f.cfg.mode = 'propose'; const it = S.inbox.find(i => i.kind === 'fundact' && i.act === 'search'); it.mode = 'propose';
+      const okBefore = A.fundSourceWhy(f, lead) === ''; S.week = f.invEnd; const c0 = S.player.cash, n0 = f.srchN || 0, deals0 = S.pe.deals.length, rs0 = S.rs; click('fundact', it.id, 'ok');
+      out.b97 = okBefore && S.player.cash === c0 && (f.srchN || 0) === n0 && S.pe.deals.length === deals0 && S.rs === rs0 && /投資期間/.test(A.fundSourceWhy(f, lead));
+      f.invEnd = S.week + 100; f.srchW = S.week - 1; out.b97gap = /たっていません/.test(A.fundSourceWhy(f, lead)); f.srchW = null; f.srchL = [1, 2, 3, 4, 5, 6].map(i => S.week - i); out.b97year = /6回/.test(A.fundSourceWhy(f, lead)); f.srchL = [];
+      /* the idle-fund card disables the button with the reason: free cash 1, reserved 0.9, cost 0.2 → 0.1 short */
+      const cost = A.fundSrchCost(f); S.player.cash = 100; const dR = deal(x => A.dealEbitda(x, false) > 0 && x.type !== 'turn'); dR.dd = 2; dR.exp = S.week + 20; setRoom(f, 1e4); A.peBid(dR, 0, 0, false, f.id); info.dRbid = !!dR.bid; S.player.cash = 1; if (dR.bid) dR.bid.gpNeed = .9;
+      const fc = Math.max(0, A.freeCash() - A.gpRes()); const card = A.fundRevCard({id: 1, fid: f.id, exp: S.week + 8}); info.b99 = {cost, free: fc}; out.b99 = (cost > fc ? /disabled>追加で案件を探す/.test(card.replace(/data-v="search" /, '')) && /不足/.test(card) : true); }
+    /* BUG-98: the short preview matches the trade: cash in = gross less 0.25%; collateral = half the short value afterwards */
+    { A.newGame(2899, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; S.stage = 4; S.player.cash = 500; const c = S.cos.find(x => !x.priv && !(x.own.P > 0) && x.price > 1); A.ui.sel = c.id; A.ui.tmode = 'short'; A.ui.tf = .3; A.ui.actor = 'P';
+      const m = A.tradeModel(c); const row = l => (m.rows.find(x => x[0] === l) || [])[1]; const cash0 = S.player.cash; const res = A.execShort(c, m.n);
+      const gotNet = S.player.cash - cash0, lock = A.shortLiab() * .5, free = A.freeCash(); info.b98 = {net: row('現金に入る額'), gotNet: A.fm(gotNet), lock: row('約定後の担保の拘束（全銘柄・空売り時価の50%）'), gotLock: A.fm(lock), free: row('約定後に使える現金'), gotFree: A.fm(free)};
+      out.b98 = row('現金に入る額') === A.fm(gotNet) && row('約定後の担保の拘束（全銘柄・空売り時価の50%）') === A.fm(lock) && row('約定後に使える現金') === A.fm(free); }
+    /* BUG-100: starting a wind-down with an unsellable asset says it started; the finish comes once, when the asset is sold */
+    { let f; ({S, f} = fundCo(2900)); const c = S.cos.find(x => !x.priv && !x.ctrl && x.price > 1); c.own[f.id] = c.shares * .05; c.reorg = {w: S.week}; S.inbox.push({id: 990777, kind: 'fundrev', fid: f.id, exp: S.week + 8});
+      click('fundrev', 990777, 'wind', {ok: '1'}); const t1 = lastToast(); out.b100start = f.winding === 'early' && !f.closed && /開始/.test(t1) && !/清算が完了しました/.test(t1);
+      c.reorg = null; A.fundWeekly(f); const fin = S.news.filter(n => /清算が完了/.test(n.t)).length; A.fundWeekly(f); out.b100done = f.closed && fin === 1 && S.news.filter(n => /清算が完了/.test(n.t)).length === 1; info.b100 = t1; }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev27: reserved PE settlements incl. bolt-ons (BUG-96), one search rule (BUG-97/99), short preview matches the trade (BUG-98), wind-down started vs finished (BUG-100)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in rev27 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testFix1120(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3611,6 +3662,7 @@ async function balance(b) {
     await testRev26(b);
     await testPlay27(b);
     await testFix1120(b);
+    await testRev27(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
