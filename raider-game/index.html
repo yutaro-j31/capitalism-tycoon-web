@@ -736,7 +736,7 @@ const floatOf = c => Math.max(0, c.shares - held(c));
 const mcap = c => c.price * c.shares;
 function estAcc(){ return clamp(((S && DIFF[S.diff] && DIFF[S.diff].info != null) ? DIFF[S.diff].info : .3) + (S && hasR('in1') ? .3 : 0) + (S && S.dept && S.dept.inv && S.dept.inv.on ? .4 * deptPower('inv') : 0), 0, 1); } /* analysis quality: research and the investment department */
 const estAmp = () => .04 + .26 * (1 - estAcc());
-const estErr = c => estAmp() * ((hashStr(c.id + ':est:' + Math.floor(S.week / 13) + ':' + S.seed) % 2001) / 1000 - 1); /* fixed for a quarter, no PRNG */
+const estErr = c => (S && S.rsch && S.rsch[c.id] === Math.floor(S.week / 13) ? .015 : estAmp()) * ((hashStr(c.id + ':est:' + Math.floor(S.week / 13) + ':' + S.seed) % 2001) / 1000 - 1); /* fixed for a quarter, no PRNG */
 const fairEst = c => fair(c) * (1 + estErr(c));
 const repOf = c => { const q = c.qh && c.qh[c.qh.length - 1]; return q && finite(q.rev) ? q : c.pub0 && finite(c.pub0.rev) ? c.pub0 : null; }; /* the figures from the last earnings report: what an investor can actually see */
 const repFair = c => { const q = repOf(c); return q && finite(q.fe) ? q.fe : fairEst(c); };
@@ -876,7 +876,7 @@ function holdingsValue(k){ let v = 0; for (const c of S.cos) if (c.own[k]) v += 
 function shortLiab(){ let v = 0; for (const id in S.player.shorts) { const c = coById(id); if (c) v += S.player.shorts[id].n * c.price; } return v; }
 const termDebt = () => ((S.player.tl) || []).reduce((a, l) => a + l.a, 0);
 const bankDebt = () => (S.player.bank || 0) + termDebt();
-function grossWorth(){ return S.player.cash + bondsValue() + holdingsValue('P') - S.player.loan - bankDebt() - shortLiab() + optionsValue() + propEquity('P') + vcValue() + ((S.pe && S.pe.funds) || []).reduce((a, f) => a + gpRatio(f) * fundNAV(f), 0); } // a fund counts only through the GP's own commitment
+function grossWorth(){ return S.player.cash + bondsValue() + holdingsValue('P') - S.player.loan - bankDebt() - selfBondFace() - shortLiab() + optionsValue() + propEquity('P') + vcValue() + ((S.pe && S.pe.funds) || []).reduce((a, f) => a + gpRatio(f) * fundNAV(f), 0); } // a fund counts only through the GP's own commitment
 function netWorth(k){ if (k === 'P') { const g = grossWorth(); return g * (1 - (S.player.outside || 0)); } const r = rivalBy(k); return r.cash + holdingsValue(k) + propEquity(k); }
 function buyingPower(){ // half of the short-sale proceeds stay locked as collateral
   const hv = holdingsMkt('P'), free = S.player.cash - shortLiab() * .5;
@@ -890,8 +890,8 @@ const shortCap = () => hasR('fin3') ? .25 : .15; // lendable shares as a share o
 function expensePay(a){ S.player.cash -= a; } /* running costs: paid from cash; a shortfall shows as negative cash (overdraft) */
 /* the bank: a term credit line secured on the group's assets (separate from the broker's margin loan) */
 const divIncomeY = () => S.cos.reduce((a, c) => a + (c.own.P && c.ni > 0 ? c.ni * c.payout * c.own.P / c.shares : 0), 0);
-const bankLimit = () => (preCo() ? .5 : 1) * Math.max(0, divIncomeY() * 4 + Math.max(0, S.player.cash + holdingsMkt('P') + propEquity('P') - S.player.loan - bankDebt()) * .1 + holdingsMkt('P') * .35 + propEquity('P') * .5 + vcValue() * .2 + S.cos.filter(c => c.priv && c.ctrl === 'P').reduce((a, c) => a + (c.own.P || 0) * c.price * .25, 0));
-const bankRate = () => (S.player.bankFix && S.player.bankFix.until > S.week) ? S.player.bankFix.r : S.econ.rate + 1.2 - .6 * Math.max(0, S.hr ? hqEff('CFO') : 0) + Math.max(0, ((S.player.bank || 0) + S.player.loan) / Math.max(1, grossWorth() + (S.player.bank || 0) + S.player.loan) - .3) * 6;
+const bankLimit = () => (preCo() ? .5 : 1) * Math.max(0, divIncomeY() * 4 + Math.max(0, S.player.cash + holdingsMkt('P') + propEquity('P') - S.player.loan - bankDebt() - selfBondFace()) * .1 + holdingsMkt('P') * .35 + propEquity('P') * .5 + vcValue() * .2 + S.cos.filter(c => c.priv && c.ctrl === 'P').reduce((a, c) => a + (c.own.P || 0) * c.price * .25, 0));
+const bankRate = () => (S.player.bankFix && S.player.bankFix.until > S.week) ? S.player.bankFix.r : S.econ.rate + 1.2 - .6 * Math.max(0, S.hr ? hqEff('CFO') : 0) + Math.max(0, ((S.player.bank || 0) + S.player.loan + selfBondFace()) / Math.max(1, grossWorth() + (S.player.bank || 0) + S.player.loan + selfBondFace()) - .3) * 6; /* rev29: bonds you issued count as borrowing */
 const bankOpen = () => !(preCo() && (S.stage || 1) < 2) && !(S.allUnlocked === false && false); /* the bank (or, for an individual, the securities-backed loan) is open */
 function bankBorrow(a){ if (!bankOpen()) return 0; /* BUG-37: not yet available: nothing changes */ const p = S.player; a = Math.min(a, bankLimit() - bankDebt()); if (!(a > 1e-9)) return 0; p.bank = (p.bank || 0) + a; p.cash += a; news(`【銀行】${fm(a)}を借り入れ（年${bankRate().toFixed(1)}%・残高${fm(p.bank)}）`, 'you'); return a; }
 function bankRepay(a){ const p = S.player; a = Math.min(a, p.bank || 0, Math.max(0, p.cash)); if (!(a > 1e-9)) return 0; p.bank -= a; p.cash -= a; if (p.bank < 1e-9) p.bank = 0; news(`【銀行】${fm(a)}を返済（残高${fm(p.bank)}）`, 'you'); return a; }
@@ -911,6 +911,28 @@ function bankStep(){
   const i = p.bank * bankRate() / 100 / 52; expensePay(i); plAdd('int', -i);
   if (p.bank > bankLimit() * 1.25 && S.week % 4 === 0) news(`【銀行】担保の価値が下がり、借入${fm(p.bank)}が融資枠${fm(bankLimit())}を超えています。返済を求められています`, 'warn');
 }
+function govBox(){ /* rev29: government bonds — safe from default, but their price falls when rates rise */
+  const k = GOV[ui.govK] ? ui.govK : 'g10', amt = clamp(ui.govAmt == null ? 1 : ui.govAmt, .01, 1e5), y = govYield(k), mine = S.gov || [];
+  const shock = b => b.face * (pvBond(b.cpn, govLeft(b), govYield(b.k) + .01) - govPx(b)); /* if yields rose 1% tomorrow */
+  return `<section class="box"><h4>国債 <small>政策金利 ${S.econ.rate.toFixed(2)}%・2年 ${pc(govYield('g2'), 2)}・10年 ${pc(govYield('g10'), 2)}</small></h4>
+    <p class="note">国は倒産しませんが、金利が上がると国債の値段は下がり、金利が下がると上がります。満期まで持てば額面で戻ります。利息は毎週受け取ります（課税されます）。</p>
+    ${mine.length ? `<div class="rows">${mine.map(b => `<div class="orow"><span><b>${GOV[b.k].n}</b> 額面${fm(b.face)}・利率${pc(b.cpn, 2)}<br><small>満期 ${dateOf(b.mat)}・時価 ${fm(b.face * govPx(b))}（買値との差 ${fm(b.face * govPx(b) - b.cost)}）・金利が1%上がると ${fm(shock(b))}</small></span><button class="btn sm" data-act="govsell" data-id="${b.id}">売却</button></div>`).join('')}</div>` : ''}
+    <div class="seg">${Object.entries(GOV).map(([g, x]) => `<button class="${k === g ? 'on' : ''}" data-act="govk" data-v="${g}">${x.n}（${pc(govYield(g), 2)}）</button>`).join('')}</div>
+    ${ladder('govamt', fm(amt), [.1, 1], fm, '', `使える現金 ${fm(Math.max(0, freeCash()))}`, [.01, Math.max(.01, Math.max(0, freeCash())), amt])}
+    <div class="preview">利率 年${pc(y, 2)}（買った日の利回りで固定）・年間の利息 約${fm(amt * y)}・金利が1%上がると時価は約${fm(-amt * govDur({k, cpn: y, mat: S.week + 52 * GOV[k].y}) / (1 + y) * .01)}</div>
+    <div class="btnrow"><button class="btn sm gold" data-act="govbuy" data-v="${amt}" ${freeCash() >= amt * (1 + GOV_FEE) - 1e-9 ? '' : 'disabled'}>${fm(amt)}分を買う（手数料0.1%）</button></div></section>`;
+}
+function sbBox(){ /* rev29: raising money by issuing bonds or convertibles instead of shares or bank loans */
+  if (preCo()) return ''; const kind = ui.sbK === 'cb' ? 'cb' : 'sb', yrs = SB_YRS.includes(ui.sbY) ? ui.sbY : 5, amt = Math.max(1, ui.sbAmt == null ? 10 : ui.sbAmt), why = sbWhy(kind, amt, yrs), r0 = preCo() ? null : selfRating(), r1 = selfRating(amt), cpn = sbCpn(kind, yrs, amt), mine = S.player.sb || [], q = kind === 'cb' ? cbTerms(amt) : null;
+  return `<section class="box"><h4>社債・転換社債 <small>${esc(S.company)}の格付け ${r0[0]}（借入 ${fm(selfLiab())}・総資産の${pc(selfLiab() / Math.max(1e-9, grossWorth() + selfLiab()), 0)}）</small></h4>
+    <p class="note">投資家からお金を借ります。銀行より長く借りられ、持分は薄まりません。利率は格付け（借入の割合）・金利・信用環境で決まります。<b>転換社債</b>は利率が約2.5%低い代わりに、満期の株価が転換価格を超えていれば借金が株に変わり、あなたの持分が薄まります。</p>
+    ${mine.length ? `<div class="rows">${mine.map(b => `<div class="orow"><span><b>${b.kind === 'cb' ? '転換社債' : '社債'}</b> 額面${fm(b.face)}・利率${pc(b.cpn, 2)}・発行時の格付け${b.rt}<br><small>満期 ${dateOf(b.mat)}${b.kind === 'cb' ? `・転換価格 ${fp(b.cvPx)}（いまの株価 ${fp(selfPx())}・${selfPx() > b.cvPx ? '<b class="down">転換される水準</b>' : '現金で償還の見込み'}）` : ''}</small></span><button class="btn sm" data-act="sbcall" data-id="${b.id}">繰上償還（101%）</button></div>`).join('')}</div>` : ''}
+    <div class="seg">${[['sb', '普通社債'], ['cb', '転換社債']].map(([x, l]) => `<button class="${kind === x ? 'on' : ''}" data-act="sbk" data-v="${x}">${l}</button>`).join('')}</div>
+    <div class="seg" style="margin-top:6px">${SB_YRS.map(x => `<button class="${yrs === x ? 'on' : ''}" data-act="sby" data-v="${x}">${x}年</button>`).join('')}</div>
+    ${ladder('sbamt', fm(amt), [1, 10], fm, '', '発行額', [1, Math.max(1, (grossWorth() + selfLiab()) * .3), amt])}
+    <div class="preview">利率 年<b>${pc(cpn, 2)}</b>（年間の利払い ${fm(amt * cpn)}）・発行後の格付け ${r1[0]}・引受手数料 ${fm(amt * .01)}${q ? `<br>転換価格 1株${fp(q.px)}（いまの株価の1.25倍）・すべて転換されると新株${fsh(q.n)}・外部株主 ${pc(S.player.outside || 0, 1)} → ${pc(q.o2, 1)}` : ''}</div>
+    ${why ? `<p class="note down">${why}</p>` : ''}<div class="btnrow"><button class="btn sm gold" data-act="sbiss" data-v="${amt}" ${why ? 'disabled' : ''}>${fm(amt)}の${kind === 'cb' ? '転換社債' : '社債'}を発行する</button></div></section>`;
+}
 function showBank(){ openModal(bankHTML() + `<div class="btnrow"><button class="btn gold" data-act="close">閉じる</button></div>`); }
 function renderBank(){ return bankHTML(); }
 function debtBox(){ /* every borrowing of the company in one place, with a way to pay each back (the CFO may have drawn the credit line) */
@@ -929,7 +951,7 @@ function bankHTML(){
     <p class="lbl">借りる</p><div class="btnrow">${amts.map(a => `<button class="btn sm buy" data-act="bankb" data-v="${a}">${fm(a)}</button>`).join('')}<button class="btn sm buy" data-act="bankb" data-v="${room}" ${room > .01 ? '' : 'disabled'}>枠いっぱい（${fm(room)}）</button></div>
     <p class="lbl">返す</p><div class="btnrow">${[5, 20].filter(a => a < (p.bank || 0)).map(a => `<button class="btn sm" data-act="bankr" data-v="${a}" ${p.cash >= a ? '' : 'disabled'}>${fm(a)}</button>`).join('')}<button class="btn sm" data-act="bankr" data-v="${p.bank || 0}" ${(p.bank || 0) > 0 && p.cash > 0 ? '' : 'disabled'}>全額（${fm(Math.min(p.bank || 0, Math.max(0, p.cash)))}）</button></div>
     <p class="note">利息は毎週現金から支払います。担保の価値が下がって融資枠を大きく超えると返済を求められます。</p>`;
-  return `${debtBox()}<h1 style="font-size:22px">🏦 アトラス中央銀行</h1><p class="lede">ようこそ。${preCo() ? `${esc(S.pname)}様の個人向け融資（保有株を担保にした証券担保ローン）の窓口です。会社名義の半分までお貸しします。` : `${esc(S.company)}本体への融資窓口です。`}今日はどういったご用件で？</p>
+  return `${debtBox()}${govBox()}${sbBox()}<h1 style="font-size:22px">🏦 アトラス中央銀行</h1><p class="lede">ようこそ。${preCo() ? `${esc(S.pname)}様の個人向け融資（保有株を担保にした証券担保ローン）の窓口です。会社名義の半分までお貸しします。` : `${esc(S.company)}本体への融資窓口です。`}今日はどういったご用件で？</p>
   <div class="seg">${[['loan', 'ビジネスローン'], ['line', 'クレジットライン']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-act="banktab" data-v="${k}">${l}</button>`).join('')}</div>
   ${tab === 'loan' ? loan : line}`;
 }
@@ -946,12 +968,47 @@ function newsQuarter(){
     S.fcb[k] = tgt; if (k !== 'eu' && k !== 'usa' && hashStr(k + S.week) % 2) continue;
     news(`【海外金融】${n}が政策金利を${tgt === was ? `${tgt.toFixed(2)}%で据え置き` : `${tgt.toFixed(2)}%へ${tgt > was ? '引き上げ' : '引き下げ'}`}。${tgt > e.rate ? 'ドル・ユーロ高（円安）要因' : '円高要因'}`, 'econ'); }
 }
-function corpTax(){ /* the holding company's quarterly corporate tax: 30% of the operating result, half of dividends received exempt */
-  const L = S.player.pl || {}; const base = (L.div || 0) * .5 + ['rent', 'fee', 'nl', 'int', 'hq', 'rd', 'pay'].reduce((a, k) => a + (L[k] || 0), 0);
-  const ind = preCo(), rate = ind ? .2 : TAX_RATE, t = rate * Math.max(0, base); if (t < 1e-6) return 0; /* FIN-05: taxable are dividends (half), business income, fees, rent and interest; gains on shares are not taxed in this game */ /* an individual pays about 20% on income instead of corporate tax */
-  const TXN = {div: '受取配当の半分', rent: '賃料', fee: '運用報酬', nl: 'レポート事業', int: '利息', hq: '本社費用', rd: '研究費', pay: '役員報酬'}, parts = Object.keys(TXN).map(k => [k, k === 'div' ? (L.div || 0) * .5 : (L[k] || 0)]).filter(([, v]) => Math.abs(v) > 1e-9).map(([k, v]) => `${TXN[k]}${fm(v)}`).join('・'); /* the items actually taxed this quarter */
-  expensePay(t); plAdd('tax', -t); news(ind ? `【納税】${esc(S.pname)}さんが今四半期の所得税等${fm(t)}を納付（課税される所得${fm(base)}＝${parts}・税率${pc(rate, 0)}）` : `【納税】${S.company}が今四半期の法人税等${fm(t)}を納付（課税所得${fm(base)}・税率${pc(rate, 0)}・受取配当の半分は非課税）`, 'you'); return t;
+const TAX_ITEMS = ['rent', 'fee', 'nl', 'int', 'bond', 'hq', 'rd', 'pay'];
+const NOL_RULE = () => preCo() ? {yrs: 3, use: 1} : {yrs: 10, use: .5}; /* rev29: losses carried forward — an individual 3 years against all income; a company 10 years, up to half of each year's income */
+function taxPlan(){ /* the quarter's tax, worked out from what is on record (no change): income, realised gains on investments, the loss carried forward */
+  const L = S.player.pl || {}, ind = preCo(), rate = ind ? .2 : TAX_RATE, R = NOL_RULE(), inc = (L.div || 0) * .5 + TAX_ITEMS.reduce((a, k) => a + (L[k] || 0), 0), cg = S.player.cg || 0, base = inc + cg;
+  const nol = (S.player.nol || []).filter(x => S.week - x.w < 52 * R.yrs), have = nol.reduce((a, x) => a + x.a, 0), used = base > 0 ? Math.min(have, base * R.use) : 0, taxable = Math.max(0, base - used);
+  return {L, ind, rate, inc, cg, base, have, used, taxable, t: rate * taxable, R};
 }
+function corpTax(){ /* the holding company's quarterly tax: 30% of the operating result and realised investment gains (half of dividends received exempt); an individual about 20% */
+  const q = taxPlan(), L = q.L; S.player.cg = 0; /* rev29: gains and losses realised on shares, options and bonds are taxed when realised (FIN-05 left them untaxed) */
+  let nol = (S.player.nol || []).filter(x => S.week - x.w < 52 * q.R.yrs), left = q.used; for (const x of nol) { const u = Math.min(x.a, left); x.a -= u; left -= u; } nol = nol.filter(x => x.a > 1e-9); /* the oldest losses are used first */
+  if (q.base < -1e-9) nol.push({w: S.week, a: -q.base}); S.player.nol = nol; S.player.taxQ = {w: S.week, inc: q.inc, cg: q.cg, used: q.used, t: q.t, nol: nol.reduce((a, x) => a + x.a, 0)};
+  if (q.base < -1e-9) news(`【税務】今四半期は${fm(-q.base)}の赤字（実現損を含む）。繰越欠損金として${q.ind ? '3年' : '10年'}間、将来の所得と相殺できます（繰越残高 ${fm(S.player.taxQ.nol)}）`, 'you');
+  const t = q.t; if (t < 1e-6) return 0;
+  const TXN = {div: '受取配当の半分', rent: '賃料', fee: '運用報酬', nl: 'レポート事業', int: '利息', bond: '債券の利息', hq: '本社費用', rd: '研究費', pay: '役員報酬'}, parts = Object.keys(TXN).map(k => [k, k === 'div' ? (L.div || 0) * .5 : (L[k] || 0)]).filter(([, v]) => Math.abs(v) > 1e-9).map(([k, v]) => `${TXN[k]}${fm(v)}`).concat(Math.abs(q.cg) > 1e-9 ? [`売買の実現損益${fm(q.cg)}`] : []).concat(q.used > 1e-9 ? [`繰越欠損金の控除${fm(-q.used)}`] : []).join('・'); /* the items actually taxed this quarter */
+  expensePay(t); plAdd('tax', -t); news(q.ind ? `【納税】${esc(S.pname)}さんが今四半期の所得税等${fm(t)}を納付（課税される所得${fm(q.taxable)}＝${parts}・税率${pc(q.rate, 0)}）` : `【納税】${S.company}が今四半期の法人税等${fm(t)}を納付（課税所得${fm(q.taxable)}＝${parts}・税率${pc(q.rate, 0)}・受取配当の半分は非課税）`, 'you'); return t;
+}
+function presTax(){ /* rev29: your own account (after founding): 20% on realised gains, losses carried 3 years */
+  const g = S.pres.cg || 0; S.pres.cg = 0; let nol = (S.pres.nol || []).filter(x => S.week - x.w < 156), base = g;
+  if (base > 0) { for (const x of nol) { const u = Math.min(x.a, base); x.a -= u; base -= u; } nol = nol.filter(x => x.a > 1e-9); } else if (base < -1e-9) { nol.push({w: S.week, a: -base}); base = 0; }
+  S.pres.nol = nol; const t = .2 * Math.max(0, base); if (t < 1e-6) return 0; S.pres.cash -= t; S.pres.tax = (S.pres.tax || 0) + t;
+  news(`【納税】${esc(S.pname)}さんの個人口座の譲渡益${fm(g)}に対する税金${fm(t)}を納付（税率20%${g - base > 1e-9 ? `・繰越損失の控除${fm(g - base)}` : ''}）`, 'you'); return t; }
+function cgAdd(k, pnl){ if (!finite(pnl) || Math.abs(pnl) < 1e-12) return; if (k === 'P') S.player.cg = (S.player.cg || 0) + pnl; else if (k === 'U' && S.pres) S.pres.cg = (S.pres.cg || 0) + pnl; } /* a realised gain or loss of an account that pays tax (subsidiaries and funds are taxed in their own figures) */
+/* goodwill: the price paid above the share of the book equity when control is taken; written down when the stake is worth less than it is carried at */
+const gwLeft = c => c.acq0 && c.acq0.gw ? Math.max(0, c.acq0.gw - (c.acq0.gwImp || 0)) : 0;
+const coFair = c => c.priv ? Math.max(0, c.pe && !c.pe.closed ? peEV(c) - c.debt + c.cash : equity(c) * 1.2) : mcap(c); /* what the whole company is worth now: market value, or for a private company its deal value */
+function gwStep(){ /* yearly impairment test, and the record of impairments for the market's view of your company */
+  for (const c of S.cos) { const g = gwLeft(c); if (!(g > 1e-9) || c.ctrl !== 'P') continue; const f = gfrac(c, 'P'), carry = f * Math.max(0, equity(c)) + g, fair = f * coFair(c);
+    if (fair < carry - 1e-9) { const imp = Math.min(g, carry - fair); c.acq0.gwImp = (c.acq0.gwImp || 0) + imp; (S.player.imp = S.player.imp || []).push([S.week, imp, c.name]); news(`【減損】${c.name}ののれんを${fm(imp)}減損（取得時ののれん ${fm(c.acq0.gw)}・残り ${fm(gwLeft(c))}）。買収額が高すぎたことになり、連結の利益が減り、${S.company}の株式の評価が下がります`, 'warn', c.city); } }
+  if (S.player.imp) S.player.imp = S.player.imp.filter(x => S.week - x[0] < 156); }
+const impRecent = () => (S.player.imp || []).filter(x => S.week - x[0] < 52).reduce((a, x) => a + x[1], 0);
+function consol(){ /* the group's consolidated figures this year (from the companies' current run-rate; nothing is changed) */
+  const subs = S.cos.filter(c => c.ctrl === 'P'), eqm = S.cos.filter(c => c.ctrl !== 'P' && gfrac(c, 'P') >= .2 - 1e-9), L = S.player.plY || {};
+  const rev = subs.reduce((a, c) => a + c.rev, 0), op = subs.reduce((a, c) => a + opProfit(c), 0), ni = subs.reduce((a, c) => a + c.ni, 0), mino = subs.reduce((a, c) => a + c.ni * (1 - gfrac(c, 'P')), 0), eqInc = eqm.reduce((a, c) => a + c.ni * gfrac(c, 'P'), 0);
+  const hold = PL_ITEMS.filter(([k]) => k !== 'div' && k !== 'tax').reduce((a, [k]) => a + (L[k] || 0), 0), imp = impRecent(), gw = subs.reduce((a, c) => a + gwLeft(c), 0);
+  return {subs, eqm, rev, op, ni, mino, eqInc, hold, imp, gw, own: ni - mino + eqInc + hold - imp}; }
+function consolBox(){ const x = consol();
+  return `<section class="box"><h4>連結決算（グループ・年換算） <small>連結子会社${x.subs.length}社・持分法${x.eqm.length}社</small></h4>
+    <p class="note">50%超を持つ（または実質支配する）会社は売上・利益をすべて連結し、ほかの株主の分を「非支配株主の利益」として引きます。20%以上50%以下の会社は利益の持分だけを「持分法による投資利益」として取り込みます。</p>
+    <div class="why">${wr('連結売上高', fm(x.rev))}${wr('連結営業利益', fm(x.op))}${wr('子会社の純利益', fm(x.ni))}${wr('非支配株主の利益', fm(-x.mino))}${wr('持分法による投資利益', fm(x.eqInc))}${wr('本体の損益（配当・税を除く・今年）', fm(x.hold))}${wr('のれんの減損（直近1年）', fm(-x.imp), '', x.imp > 0 ? 'tot' : '')}${wr('親会社株主に帰属する利益', fm(x.own), '', 'tot')}</div>
+    <div class="kv"><div><span>のれん残高</span><b>${fm(x.gw)}</b></div><div><span>今期の実現損益（未納税）</span><b>${fm(S.player.cg || 0)}</b></div><div><span>繰越欠損金</span><b>${fm((S.player.nol || []).reduce((a, n) => a + n.a, 0))}</b></div><div><span>今期の見込み税額</span><b>${fm(taxPlan().t)}</b></div></div>
+    ${x.subs.filter(c => gwLeft(c) > 0 || (c.acq0 && c.acq0.gwImp)).map(c => `<div class="orow"><span>${esc(c.name)}<br><small>取得時ののれん ${fm(c.acq0.gw)}・減損累計 ${fm(c.acq0.gwImp || 0)}</small></span><span class="num">残り ${fm(gwLeft(c))}</span></div>`).join('')}</section>`; }
 function overdraftStep(){
   bankStep();
   const p = S.player;
@@ -1033,7 +1090,7 @@ const LMKT = s => s === '買い' || s === '売り' || s === '空売り' || s ===
 function laggAdd(a, x){ const g = S.lagg[a.aid] = S.lagg[a.aid] || {at: a.at, an: a.an, gen: a.gen, w0: x.w, n: 0, amt: 0, fee: 0, pnl: 0}; g.an = a.an; g.n++; g.amt += x.amt; g.fee += x.fee; g.pnl += x.pnl || 0; } /* BUG-42: all-time totals, kept beyond the 400-entry list */
 function ledgerAdd(k, c, side, n, px, amt, fee, pnl, p0, cb){ /* one executed trade of yours or your group's (no PRNG; the list keeps the last 400, the totals keep everything) */
   if (!S || !(bossOf(k) === 'P' || k === 'U')) return null; S.ledger = S.ledger || []; S.lagg = S.lagg || {}; S.ldropA = S.ldropA || {}; if (S.ledgerW0 == null) S.ledgerW0 = S.week;
-  const a = ledgerAcct(k), x = Object.assign({w: S.week, cid: c.id, name: c.name, side, k, n, px, amt, fee, pnl: pnl == null ? null : pnl, why: LTAG || '', px0: p0, px1: c.price, ex: 0}, a); if (cb != null) x.cb = cb; /* BUG-51: the cost of the shares sold (or the short proceeds bought back) */
+  const a = ledgerAcct(k), x = Object.assign({w: S.week, cid: c.id, name: c.name, side, k, n, px, amt, fee, pnl: pnl == null ? null : pnl, why: LTAG || '', px0: p0, px1: c.price, ex: 0}, a); if (pnl != null) cgAdd(k, pnl); /* rev29: realised gains are taxed */ if (cb != null) x.cb = cb; /* BUG-51: the cost of the shares sold (or the short proceeds bought back) */
   S.ledger.unshift(x); laggAdd(a, x); ledgerFin(c, x);
   while (S.ledger.length > 400) { const o = S.ledger.pop(); S.ldrop = (S.ldrop || 0) + 1; const d = S.ldropA[o.aid] = S.ldropA[o.aid] || {n: 0, amt: 0, fee: 0, pnl: 0}; d.n++; d.amt += o.amt; d.fee += o.fee; d.pnl += o.pnl || 0; if (o.w === S.week && o.at !== 'pers' && S.tr) S.tr.dI = (S.tr.dI || 0) + ledgerI(o) + o.fee; } /* BUG-45: what leaves the list is summed per account (and this week's trades still count when a save is checked) */
   return x;
@@ -1340,14 +1397,15 @@ function acqPE(c, a){ /* BUG-78: the result of the deal this record belongs to. 
   if (P.closed) return null; const st = peStats(c); return {inv: st.inv, ret: st.ret, nav: st.nav, moic: st.moic, irr: st.irr, done: false}; }
 function acqEnd(c, why){ const a = c.acq0; if (!a) return; (S.acqHist = S.acqHist || []).unshift(Object.assign({}, a, {name: c.name, cid: c.id, endW: S.week, why, eb1: ebitda(c), nd1: c.debt - c.cash, rev1: c.rev, pe: acqPE(c, a), v: 2})); if (S.acqHist.length > 40) S.acqHist.length = 40; c.acq0 = null; } /* the record moves to the history when control ends */
 function acqSnap(c){ /* priority 3: the company as it was when control was taken (the base for 'what has changed since'); one record per time control is taken */
-  if (c.acq0 && c.acq0.w === S.week) return; S.acqSeq = (S.acqSeq || 0) + 1; c.acq0 = {id: S.acqSeq, w: S.week, gen: S.coGen || 0, rev: c.rev, op: opProfit(c), eb: ebitda(c), nd: c.debt - c.cash, cost: costOf('P', c.id), frac: gfrac(c, 'P'), mult: c.priv ? peMult(c.ind, c.growth + (c.boost || 0)) : null, how: c.pe && !c.pe.closed ? 'PE' : 'TOB・買い増し', by: c.pe && !c.pe.closed ? c.pe.owner : 'P', pe: c.pe && !c.pe.closed ? {inv: peStats(c).inv, w0: c.pe.w0, owner: c.pe.owner} : null}; }
+  if (c.acq0 && c.acq0.w === S.week) return; S.acqSeq = (S.acqSeq || 0) + 1; c.acq0 = {id: S.acqSeq, w: S.week, gen: S.coGen || 0, rev: c.rev, op: opProfit(c), eb: ebitda(c), nd: c.debt - c.cash, cost: costOf('P', c.id), frac: gfrac(c, 'P'), mult: c.priv ? peMult(c.ind, c.growth + (c.boost || 0)) : null, how: c.pe && !c.pe.closed ? 'PE' : 'TOB・買い増し', by: c.pe && !c.pe.closed ? c.pe.owner : 'P', pe: c.pe && !c.pe.closed ? {inv: peStats(c).inv, w0: c.pe.w0, owner: c.pe.owner} : null};
+  c.acq0.gw0 = true; c.acq0.gw = Math.max(0, (c.acq0.cost || 0) - (c.acq0.frac || 0) * Math.max(0, equity(c))); } /* rev29: goodwill = what was paid above the share of the book equity */
 function ctrlNews(c, prev){ GS = null;
   c.ctrlW = S.week; if (prev === 'P' || c.ctrl !== 'P') { c.deleg = null; }
   if (c.ctrl) {
     news(`【経営権取得】${ownerName(c.ctrl)}が${c.name}を支配下に（グループ持分${pc(gfrac(c, c.ctrl), 1)}${effCtrl(c) ? '・過半数はないが筆頭株主で、ほかの株主が分散しているため実質支配' : ''}）`, c.ctrl === 'P' ? 'you' : 'deal', c.city);
     if (c.ctrl === 'P') toast(`${c.name}の経営権を取得！ CEOとして配当・自社株買い・買収・他社株の取得が可能に`);
     if (c.ctrl === 'P' && !c.branch && !c.pmiDone) { c.pmiDone = true; c.pmi = {w0: S.week}; } /* post-merger integration starts */
-    if (c.ctrl === 'P') { c.ctrlW = S.week; c.exitHinted = false; c.acqPend = S.week; } /* BUG-69: the base is written once the deal has settled (costs, debt and terms in place), not at the moment control changes */
+    if (c.ctrl === 'P') { c.ctrlW = S.week; c.exitHinted = false; c.acqPend = S.week; } if (c.ctrl === 'P' && c.frd) frdOut(c, '買収後の調査で'); /* rev29 */ /* BUG-69: the base is written once the deal has settled (costs, debt and terms in place), not at the moment control changes */
     else if (prev === 'P') toast(`${c.name}の経営権を失いました`, true);
     if (prev === 'P' && c.ctrl !== 'P') acqEnd(c, '経営権を失った');
   } else if (prev) { if (prev === 'P') acqEnd(c, '売却・持分低下'); news(`${ownerName(prev)}が${c.name}の経営権を失う（グループ持分${pc(gfrac(c, prev), 1)}）`, prev === 'P' ? 'you' : 'deal', c.city); }
@@ -2054,7 +2112,7 @@ const fundCommit = f => (+f.lp || 0) + (+f.gp || 0), fundCalled = f => (+f.calle
 const fundRoom = f => Math.max(0, fundCommit(f) - fundCalled(f)), fundOver = f => Math.max(0, fundCalled(f) - fundCommit(f));
 const fundRes = (f, skip, cid) => ((S.pe && S.pe.deals) || []).filter(d => d !== skip && d.bid && (d.bid.fid ? d.bid.fid === f.id : (d.bid.owner === f.id || d.bid.fund === f.id))).reduce((a, d) => a + (+d.bid.need || 0), 0)
   + ((S && S.cos) || []).filter(c => c.id !== cid && c.pe && !c.pe.closed && c.pe.owner === f.id && (c.pe.recap > 0 || c.pe.wc > 0)).reduce((a, c) => a + (c.pe.recap || 0) + (c.pe.wc || 0), 0); /* open bids (also bolt-ons paid by the fund) and a turnaround's planned recapitalisation hold their money */
-const fundFeeRes = f => S.week < f.invEnd ? fundCommit(f) * .02 / 52 * 4 : 0;
+const fundFeeRes = f => S.week < f.invEnd ? fundCommit(f) * (f.feeR || .02) / 52 * 4 : 0;
 const fundDry = (f, skip) => f.closed || f.winding || S.week >= f.invEnd || f.raising ? 0 : Math.max(0, fundRoom(f) - fundRes(f, skip) - Math.min(fundRoom(f), fundFeeRes(f)));
 const fundNAV = f => S.cos.reduce((a, c) => a + (c.own[f.id] || 0) * c.price, 0);
 const gpRatio = f => { const t = (+f.lp || 0) + (+f.gp || 0); return t > 0 ? (+f.gp || 0) / t : 0; }; /* a fund still raising has no commitments yet */
@@ -2066,7 +2124,7 @@ function fundCall(f, amt){ // capital call: LPs and the GP pay in pro rata to th
 function fundDistribute(f, amt){ // waterfall: capital back, 8% preferred return, then 20% carried interest to the GP (with catch-up)
   if (amt <= 0) return;
   const PI = f.calledLP + f.calledGP, H = PI * (1 + .08 * Math.max(0, (S.week - f.w0) / 52)), D = f.distLP + f.distGP + f.carry + amt;
-  const due = clamp(.2 * (D - PI), 0, Math.max(0, D - H)), carry = Math.min(amt, Math.max(0, due - f.carry));
+  const due = clamp((f.carryR || .2) * (D - PI), 0, Math.max(0, D - H)), carry = Math.min(amt, Math.max(0, due - f.carry));
   const rest = amt - carry, g = rest * gpRatio(f);
   f.carry += carry; f.distGP += g; f.distLP += rest - g; S.player.cash += carry + g; plAdd('fee', carry);
   if (carry > 0) { S.player.carryW = (S.player.carryW || 0) + carry; }
@@ -2085,13 +2143,13 @@ function fundRaiseWhy(gpPct){ const ck = fundCanRaise(); if (!ck.ok) return ck.w
   return size >= 10 ? '' : `GPの出資（募集額の${pc(gpPct || .05, 0)}）に使える現金が足りません（自由な現金の半分 ${fm(Math.max(0, freeCash() * .5))}から、ほかのファンドへの未払込と予約を差し引いて ${fm(gpMax)}）`; }
 function fundCanRaise(){
   if (S.pe.funds.some(f => f.raising)) return {ok: false, why: '募集中のファンドがあります'};
-  const last = S.pe.funds[S.pe.funds.length - 1], r = fundRecord();
+  const last = S.pe.funds.filter(x => !x.cont).slice(-1)[0], r = fundRecord();
   if (!last && (r.n < 2 || r.moic < 1.3) && !(r.n >= 1 && r.moic >= 2)) return {ok: false, why: '直接投資の実績が足りません（EXIT 2件・平均1.3倍以上、または1件で2倍以上）'};
   if (last && !last.closed && !last.winding && S.week < last.invEnd && last.calledLP + last.calledGP < (last.lp + last.gp) * .6) return {ok: false, why: `${last.n}の投資が6割に達するか、投資期間（${shortDate(last.invEnd)}）が終わると次の募集ができます`};
   return {ok: true};
 }
 function fundTarget(){ // size LPs are willing to back
-  const last = S.pe.funds[S.pe.funds.length - 1], r = fundRecord(), rep = S.player.rep == null ? .5 : S.player.rep;
+  const last = S.pe.funds.filter(x => !x.cont).slice(-1)[0], r = fundRecord(), rep = S.player.rep == null ? .5 : S.player.rep;
   const dep = last && !last.raising && (S.week >= last.invEnd || last.closed) ? clamp(((last.invT || 0) + (last.injT || 0)) / Math.max(1e-9, fundOrig(last)), 0, 1) : 1; /* BAL-09: a fund that put little of its money to work raises less next time */
   const tv = last ? fundStats(last).tvpi : null, perf = (last ? (tv == null ? 1 : clamp(1 + (tv - 1) * 1.6, .6, 2.5)) : clamp(.7 + (r.moic - 1) * .6, .7, 1.6)) * (dep < .4 ? .6 + dep : 1); /* rev24: a fund that never called money has no return to judge (not a zero) */
   const base = last ? fundOrig(last) : Math.max(80, r.inv * 3, Math.max(0, netWorth('P')) * 1.2); /* rev24 BUG-88: the original size, not what was left after a wind-down */
@@ -2104,7 +2162,7 @@ function fundRaise(strat, gpPct, mgr){
   if (strat === 'growth' && !S.pe.funds.length) return null;
   const no = S.pe.funds.length + 1, gpMax = Math.max(0, freeCash() * .5 - S.pe.funds.filter(x => !x.closed).reduce((a, x) => a + Math.max(0, x.gp - x.calledGP), 0) - gpRes()), size = Math.min(fundTarget(), Math.floor(gpMax / Math.max(.01, gpPct) / 10) * 10), gp = size * gpPct; /* BAL-09: the GP's share must fit half its free cash, after what it still owes other funds */
   if (!(size >= 10)) return null;
-  const f = {id: 'F' + no, no, n: `${S.company} PE Fund ${ROMAN[no - 1] || no}`, strat, size, gpPct, lp: 0, gp: 0, calledLP: 0, calledGP: 0, distLP: 0, distGP: 0, carry: 0, fees: 0,
+  const vin = S.pe.funds.filter(x => !x.cont).length + 1, f = {id: 'F' + no, no, n: `${S.company} PE Fund ${ROMAN[vin - 1] || vin}`, strat, size, gpPct, lp: 0, gp: 0, calledLP: 0, calledGP: 0, distLP: 0, distGP: 0, carry: 0, fees: 0,
     w0: S.week, raising: S.week + 13, invEnd: 0, end: 0, flowsLP: [], cost: {}, closed: false, mgr: mgr && person(mgr) ? mgr : null, cfg: {mode: 'auto', lev: 'mid', dd: true, ops: true}};
   playerPay(size * .005); plAdd('hq', -size * .005); // placement agents and legal work
   S.pe.funds.push(f);
@@ -2115,6 +2173,7 @@ function fundClose(f){ // LP demand at the close decides the final size
   const me = fundMgrEff(f), demand = clamp(S.econ.sent * (.8 + ((S.player.rep == null ? .5 : S.player.rep)) * .4) * (.85 + rnd() * .3) * (1 + (f.gpPct - .05) * 1.5) * (1 + (me ? me.deal * .12 : 0)), .5, 1.3); /* LPs commit more when the GP puts in more of its own money, and to a strong manager */
   const tot = Math.round(f.size * demand / 10) * 10;
   f.gp = tot * f.gpPct; f.lp = tot - f.gp; f.size = tot; f.lp0 = f.lp; f.gp0 = f.gp; /* rev24 BUG-88: the commitments at the close, kept apart from what is still callable */ f.raising = 0; f.w0 = S.week; f.invEnd = S.week + 260; f.end = S.week + 520;
+  { const prev = S.pe.funds.filter(x => x !== f && !x.raising && !x.cont && (x.calledLP + x.calledGP) > 0).slice(-1)[0], tv = prev ? fundStats(prev).tvpi : null; f.feeR = tv != null && tv < 1.2 ? .015 : .02; f.carryR = tv == null ? .2 : tv >= 2 ? .25 : tv < 1.2 ? .15 : .2; f.terms = tv == null ? '標準' : tv >= 2 ? '実績が良く有利' : tv < 1.2 ? '実績が弱く不利' : '標準'; } /* rev29: LPs set the fee and the carry from the last fund's record */
   news(`【ファンド組成】${f.n}が${fm(tot)}で締め切り（LP ${fm(f.lp)}・あなたの出資 ${fm(f.gp)}）。投資期間は5年、運用期間は10年`, 'you');
   toast(`${f.n}が${fm(tot)}で組成されました`);
 }
@@ -2366,7 +2425,7 @@ function fundWeekly(f){
   if (f.raising) { if (S.week >= f.raising) fundClose(f); return; }
   fundAutoStep(f);
   const base = S.week < f.invEnd ? f.lp + f.gp : Object.values(f.cost).reduce((a, x) => a + x, 0);
-  const fee0 = base * .02 / 52, fee = Math.min(fee0, Math.max(0, fundRoom(f) - fundRes(f))); /* rev25 BUG-90: reserved money (purchases, bolt-ons, recapitalisations) comes first; the fee takes only what is left, the rest is recorded as unpaid */ if (fee0 - fee > 1e-12) f.feeShort = (f.feeShort || 0) + fee0 - fee; /* BUG-80: only what is left of the commitment */ f.fees += fee; f.calledLP += fee * (1 - gpRatio(f)); f.calledGP += fee * gpRatio(f); S.player.cash += fee * (1 - gpRatio(f)); plAdd('fee', fee * (1 - gpRatio(f))); // the GP's own share of the fee nets out
+  const fee0 = base * (f.feeR || .02) / 52, fee = Math.min(fee0, Math.max(0, fundRoom(f) - fundRes(f))); /* rev25 BUG-90: reserved money (purchases, bolt-ons, recapitalisations) comes first; the fee takes only what is left, the rest is recorded as unpaid */ if (fee0 - fee > 1e-12) f.feeShort = (f.feeShort || 0) + fee0 - fee; /* BUG-80: only what is left of the commitment */ f.fees += fee; f.calledLP += fee * (1 - gpRatio(f)); f.calledGP += fee * gpRatio(f); S.player.cash += fee * (1 - gpRatio(f)); plAdd('fee', fee * (1 - gpRatio(f))); // the GP's own share of the fee nets out
   pushQ(f.flowsLP, -fee * (1 - gpRatio(f)));
   playerPay((f.lp + f.gp) * .008 / 52); plAdd('hq', -(f.lp + f.gp) * .008 / 52); // the GP's people, offices and research
   if (S.week >= f.end) { f.winding = 'end'; for (const d of (S.pe.deals || [])) if (d.bid && bidFund(d.bid) === f) d.bid = null; fundWindStep(f); } // end of life: whatever is left is sold to secondary buyers; the fund closes once it is all sold
@@ -3257,7 +3316,8 @@ const LIQUIDATE = [
     for (const d of S.pe.deals || []) { if (d.bid && coOwned(d.bid.owner)) d.bid = null; if (d.bids) d.bids = d.bids.filter(b => !coOwned(b.k)); } S.pe.funds = []; }],
   ['本社の幹部・部門・オフィス', () => { if (S.hr && S.hr.hq) { S.hr.hq = {MA: null, PEH: null, HR: null, CFO: null, OP: []}; for (const id in S.hr.people) { const q = S.hr.people[id]; if (q && q.at === 'HQ') q.at = null; } } S.dept = null; S.office = null; }],
   ['運用委託（顧客へ返還）・レポート事業', (L) => { L.back = S.mm ? S.mm.aum : 0; if (S.mm) Object.assign(S.mm, {aum: 0, hwm: 0, inv: 0, list: [], warn: 0}); S.nl = null; }],
-  ['受信箱・ミッション・上場準備', () => { S.inbox = []; S.missions = []; S.player.ipoPlan = null; S.player.outside = 0; for (const k of ['listed', 'ipoW', 'ipoNav', 'mkt', 'tk', 'listW', 'ipoMkt', 'ipoTk', 'sh0']) delete S.player[k]; }], /* the listing, its dates, market and ticker belonged to the company that is gone */
+  ['受信箱・ミッション・上場準備', () => { S.inbox = []; S.missions = []; S.player.ipoPlan = null; S.player.outside = 0; for (const k of ['listed', 'ipoW', 'ipoNav', 'mkt', 'tk', 'listW', 'ipoMkt', 'ipoTk', 'sh0', 'splitW', 'cg', 'nol', 'imp', 'taxQ', 'srt']) delete S.player[k]; }], /* the listing, its dates, market and ticker belonged to the company that is gone */
+  ['国債と自社の社債（国債は清算人が売却、社債は会社の債務として消える）', () => { S.gov = []; S.player.sb = []; S.player.srt = null; }], /* rev29 */
   ['債権・DIP融資（清算人が引き取る）', () => { for (const b of S.bonds || []) bondLog(b, '法人清算で清算人へ', 0, -b.cost); S.bonds = []; for (const d of S.dips || []) { dipLog(d, '法人清算で清算人へ', 0); const c = coById(d.cid); if (c && c.reorg) c.reorg.dipOld = (c.reorg.dipOld || 0) + d.amt; } S.dips = []; for (const c of S.cos) if (c.reorg) c.reorg.dip = 0; }], /* the loan now belongs to the liquidator: still a debt of the company */ /* BUG-53: the old company's claims do not come back to you */
   ['株主書簡・派遣取締役', () => { for (const c of S.cos) { delete c.letter; delete c.seats; } }],
   ['自社ビル（不動産と一緒に）', () => { for (const pr of S.props || []) if (pr.hqb && pr.own == null) { pr.hqb = false; pr.hqUse = false; pr.uc = null; } }],
@@ -3271,6 +3331,7 @@ function companyResidue(){ /* right after a liquidation, nothing may still belon
   if (((S.vc && S.vc.hold) || []).some(h => !h.pres)) r.push('ベンチャー出資');
   if ((S.props || []).some(p => p.own === 'P')) r.push('不動産');
   if ((S.bonds || []).length || (S.dips || []).length) r.push('債権・DIP融資');
+  if ((S.gov || []).length) r.push('国債'); if ((S.player.sb || []).length) r.push('自社の社債');
   if (S.cos.some(c => c.letter || c.seats)) r.push('株主書簡・派遣取締役');
   if (S.mm && (S.mm.aum > 0 || (S.mm.list || []).length)) r.push('運用委託');
   if (S.nl || S.dept || S.office || S.inbox.length || P.loan || P.bank || P.tl.length || Object.keys(P.shorts).length || P.opts.length || P.ipoPlan) r.push('事業・借入・契約');
@@ -3591,7 +3652,7 @@ function issueEquity(c, f){
   qnews(c, 'equity', `【公募増資】${c.name}が新株${pc(f, 0)}を発行し${fm(add * px)}を調達`, c.ctrl === 'P' ? 'you' : 'deal');
   return add * px;
 }
-function holdingPremium(){ const h = S.nwHist.P, n = h.length, g = n > 52 && h[n - 53] > 0 ? h[n - 1] / h[n - 53] - 1 : 0; return clamp(1.05 + g * .3 + .05 * deptPower('ir'), .85, 1.3); }
+function holdingPremium(){ const h = S.nwHist.P, n = h.length, g = n > 52 && h[n - 53] > 0 ? h[n - 1] / h[n - 53] - 1 : 0, imp = Math.min(.12, impRecent() / Math.max(1, grossWorth()) * 2); return clamp(1.05 + g * .3 + .05 * deptPower('ir') - imp, .85, 1.3); } /* rev29: impairments in the last year lower the market's view */
 const ytrTkOf = () => (ui.ytrTk == null ? (S.company.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || 'MYCO') : ui.ytrTk).trim().toUpperCase();
 const ytrTkWhy = () => { const t = ytrTkOf(); return !/^[A-Z0-9]{2,5}$/.test(t) ? 'ティッカーは英数字2〜5文字にしてください' : S.cos.some(c => (c.tk || '').toUpperCase() === t) ? `${t}はほかの会社が使っています` : ''; };
 const selfListed = () => !!(S.player.ipoW != null || S.player.listed); /* listed only by an actual listing — outside shareholders from stock options do not make it listed */
@@ -3681,7 +3742,7 @@ function optQuote(c, type, wks, money){
   const n = Math.min(money / unit, Math.max(0, c.shares * OPT_CAP - used));
   return {unit, n, cost: n * unit, be: type === 'call' ? c.price + unit : c.price - unit};
 }
-function optLog(o, kind, amt, pnl){ const c = coById(o.cid); (S.optLog = S.optLog || []).unshift({w: S.week, cid: o.cid, name: c ? c.name : '', type: o.type, kind, n: o.n, k: o.k, amt, pnl: pnl == null ? null : pnl}); if (S.optLog.length > 200) S.optLog.length = 200; } /* the option history (kept to the last 200) */
+function optLog(o, kind, amt, pnl){ if (pnl != null) cgAdd('P', pnl); const c = coById(o.cid); (S.optLog = S.optLog || []).unshift({w: S.week, cid: o.cid, name: c ? c.name : '', type: o.type, kind, n: o.n, k: o.k, amt, pnl: pnl == null ? null : pnl}); if (S.optLog.length > 200) S.optLog.length = 200; } /* the option history (kept to the last 200) */
 function optLoanNote(v){ const p = S.player; return p.loan > 1e-9 ? `。信用借入${fm(p.loan)}があるため、受け取った現金は週末に借入の返済へ自動で充てられます` : ''; }
 function buyOption(c, type, wks, money){
   if (c.priv) return null;
@@ -3870,6 +3931,7 @@ function quarter(){
     c.margin = clamp(c.margin + (c.base - c.margin) * .25 + gauss() * c.base * .12, -.1, .45);
     c.growth = c.growth + (indG(c.ind) - c.growth) * .15 + gauss() * .012;
     const act = niA(c), snap = pubSnap(c); /* FIN-QH: revenue, profit, balance sheet and the published valuation all from this one state */
+    if (c.frd) { const k = c.frd.k; snap.ni = Math.abs(snap.ni) * k + snap.ni; snap.op = Math.abs(snap.op) * k + snap.op; snap.rev *= 1 + k / 3; snap.fe *= 1 + k; } /* rev29: a company dressing up its figures publishes more than it earns */
     for (const o of (c.qh || [])) delete o.v; c.qh = (c.qh || []).concat([snap]).slice(-8); delete c.pub0; /* the valuation breakdown is kept for the latest results only */
     if (c.est != null) { // earnings surprise against the analyst consensus
       const sur = (act - c.est) / Math.max(Math.abs(c.est), c.rev * .01);
@@ -4371,7 +4433,7 @@ function propOffer(p, f){ // f: share of the asking price offered
   p.offW = S.week + 4; return 'no';
 }
 
-const PL_ITEMS = [['div', '受取配当'], ['rent', '不動産の賃料（ローン利息控除後）'], ['fee', 'ファンドの管理報酬・成功報酬'], ['nl', '投資レポート事業（会費−費用）'], ['int', '信用借入の利息・貸株料'], ['hq', '本社経費（幹部・オフィス・スタッフ・ファンド運営）'], ['rd', '研究開発'], ['pay', '役員報酬（社長）'], ['fine', '罰金・課徴金'], ['tax', '法人税等']];
+const PL_ITEMS = [['div', '受取配当'], ['rent', '不動産の賃料（ローン利息控除後）'], ['fee', 'ファンドの管理報酬・成功報酬'], ['nl', '投資レポート事業（会費−費用）'], ['int', '信用借入の利息・貸株料'], ['bond', '債券の利息（国債の受取・社債の支払）と社債の手数料'], ['hq', '本社経費（幹部・オフィス・スタッフ・ファンド運営）'], ['rd', '研究開発'], ['pay', '役員報酬（社長）'], ['fine', '罰金・課徴金'], ['tax', '法人税等']];
 function plCur(){ if (!S.player.pl) S.player.pl = plOpenRec(); return S.player.pl; }
 function plAdd(k, v){ if (!S || !v) return; if (S.tr && TR_FLOW[k]) trFlow(k, v); plCur(); for (const key of ['pl', 'plW', 'plY']) { if (!S.player[key]) S.player[key] = plOpenRec(); S.player[key][k] = (S.player[key][k] || 0) + v; } } // the holding company's income and costs (week, quarter, year)
 function plClose(){ plCloseKey('pl', 'plHist', 8); }
@@ -4447,7 +4509,7 @@ const bondMat = b => b.w + 52 * (1 + hashStr(b.cid + ':mat:' + b.id) % 4); /* BA
 const bondIrr = (moic, wk) => wk > 0 && moic > 0 ? Math.pow(moic, 52 / Math.max(1, wk)) - 1 : null;
 const bondEligible = c => !!(c && !c.priv && c.ctrl !== 'P' && c.debt > 0 && !c.reorg && (c.crisis || ['B', 'CCC'].includes(rating(c)[0]) || chg(c, 52) < -.5 || c.cash < fixedOf(c) * 13 / 52));
 const bondFace = c => (S.bonds || []).filter(b => b.cid === c.id).reduce((a, b) => a + b.face, 0);
-function bondsValue(){ let v = 0; for (const b of S.bonds || []) { const c = coById(b.cid); if (c) v += b.face * bondPx(c); } return v + dipsValue(); }
+function bondsValue(){ let v = 0; for (const b of S.bonds || []) { const c = coById(b.cid); if (c) v += b.face * bondPx(c); } return v + dipsValue() + govValue(); } /* rev29: government bonds count with the other bonds */
 const dipsOf = c => (S.dips || []).filter(d => d.cid === c.id);
 function dipsValue(){ let v = 0; for (const d of S.dips || []) { const c = coById(d.cid); if (c && c.reorg) v += d.amt * 1.15 * reorgOdds(c); } return v; } /* BUG-55: what the loan is expected to bring back */
 function dipLog(d, kind, amt){ (S.bondLog = S.bondLog || []).unshift({w: S.week, cid: d.cid, name: d.name, kind: 'DIP融資：' + kind, face: d.amt, amt, pnl: kind === '融資' ? null : amt - d.amt}); if (S.bondLog.length > 200) S.bondLog.length = 200; }
@@ -4459,7 +4521,7 @@ function bondDesLog(b, conv, sh, px){ /* BUG-60: a conversion is not cash: face,
   const e = {w: S.week, cid: b.cid, name: b.name, kind: '債権の株式転換', face: b.face, amt: 0, pnl: null, cost: b.cost, cpn: b.cpn == null ? null : b.cpn, got: b.got || 0, conv, sh, px, mv: sh * px};
   if (b.cost > 0 && b.cpn != null) e.moicMark = ((b.got || 0) + b.cpn + e.mv) / b.cost;
   (S.bondLog = S.bondLog || []).unshift(e); if (S.bondLog.length > 200) S.bondLog.length = 200; }
-function bondLog(b, kind, amt, pnl, fin){ const e = {w: S.week, cid: b.cid, name: b.name, kind, face: b.face, amt, pnl: pnl == null ? null : pnl}; if (fin && b.cost > 0 && b.cpn != null) { const back = (b.got || 0) + amt + (b.cpn || 0); e.cpn = b.cpn || 0; e.moic = back / b.cost; e.irr = Array.isArray(b.cf) ? irr(b.cf.concat(amt > 0 ? [[S.week, amt]] : []), 0, S.week) : null; } /* BUG-59: IRR from the dated cash flows (purchase, each coupon and instalment, the final receipt); a bond bought before they were recorded has none (not estimated) */ (S.bondLog = S.bondLog || []).unshift(e); /* BAL-03: a closed position records its coupons, MOIC and IRR (cash back incl. coupons ÷ cost) */ if (S.bondLog.length > 200) S.bondLog.length = 200; }
+function bondLog(b, kind, amt, pnl, fin){ if (pnl != null) cgAdd('P', pnl); const e = {w: S.week, cid: b.cid, name: b.name, kind, face: b.face, amt, pnl: pnl == null ? null : pnl}; if (fin && b.cost > 0 && b.cpn != null) { const back = (b.got || 0) + amt + (b.cpn || 0); e.cpn = b.cpn || 0; e.moic = back / b.cost; e.irr = Array.isArray(b.cf) ? irr(b.cf.concat(amt > 0 ? [[S.week, amt]] : []), 0, S.week) : null; } /* BUG-59: IRR from the dated cash flows (purchase, each coupon and instalment, the final receipt); a bond bought before they were recorded has none (not estimated) */ (S.bondLog = S.bondLog || []).unshift(e); /* BAL-03: a closed position records its coupons, MOIC and IRR (cash back incl. coupons ÷ cost) */ if (S.bondLog.length > 200) S.bondLog.length = 200; }
 function bondBuy(c, money){ /* paid in cash; no more than half the company's debt, nor 20% of your net worth in one company */
   if (preCo() || !bondEligible(c) || !finite(money) || money <= 0) return null;
   const px = bondPx(c), room = Math.min(c.debt * .5 - bondFace(c), (Math.max(0, grossWorth()) * .2 - (S.bonds || []).filter(b => b.cid === c.id).reduce((a, b) => a + b.cost, 0)) / (px * (1 + BOND_FEE)));
@@ -4473,6 +4535,52 @@ function bondSell(b, f){ /* to the market at the current price less the dealer's
   const got = b.face * px * (f || 1); S.player.cash += got; S.bonds = S.bonds.filter(x => x !== b); bondLog(b, c.reorg ? '債権売却（叩き売り）' : '債権売却', got, got - b.cost, true);
   news(`【債権売却】${b.name}の社債（額面${fm(b.face)}）を${fm(got)}で売却（損益${fm(got - b.cost)}）`, 'you', c.city); return got;
 }
+/* ---------- rev29 F1: government bonds (rate risk), your company's bonds and convertibles, the holding company's rating ---------- */
+const GOV = {g2: {n: '2年国債', y: 2, add: .1}, g10: {n: '10年国債', y: 10, add: .7}}, GOV_FEE = .001; /* dealers take 0.1% each way */
+const govYield = k => Math.max(.05, S.econ.rate + GOV[k].add + (k === 'g10' ? .15 * ((S.econ.infl == null ? 2 : S.econ.infl) - 2) : 0)) / 100; /* today's yield: the policy rate plus a term premium (longer bonds also price in inflation) */
+const govLeft = b => Math.max(0, (b.mat - S.week) / 52);
+const pvBond = (cpn, n, y) => n <= 1e-9 ? 1 : (y > 1e-9 ? cpn * (1 - Math.pow(1 + y, -n)) / y : cpn * n) + Math.pow(1 + y, -n); /* price per 1 of face: the remaining coupons and the face, discounted at today's yield */
+const govPx = b => pvBond(b.cpn, govLeft(b), govYield(b.k));
+const govValue = () => (S.gov || []).reduce((a, b) => a + b.face * govPx(b), 0);
+const govDur = b => { const n = govLeft(b), y = govYield(b.k); if (n <= 1e-9) return 0; let pv = 0, t = 0; for (let i = 1; i <= Math.ceil(n); i++) { const ti = Math.min(i, n), cf = (i >= n ? 1 : 0) + b.cpn * (i >= n ? n - (i - 1) : 1), d = cf / Math.pow(1 + y, ti); pv += d; t += ti * d; } return pv > 0 ? t / pv : 0; }; /* how much the price moves for 1% of yield (years) */
+function govBuy(k, money){ /* bought at today's yield (the coupon is fixed for the life of the bond) */
+  if (!GOV[k] || !finite(money) || money <= 0) return null; money = Math.min(money, Math.max(0, freeCash())); const cpn = govYield(k), face = money / (1 + GOV_FEE); if (!(face > 1e-6)) return null;
+  const b = {id: (S.govSeq = (S.govSeq || 0) + 1), k, face, cpn, w: S.week, mat: S.week + 52 * GOV[k].y, cost: face * (1 + GOV_FEE)}; S.player.cash -= b.cost; S.gov = (S.gov || []).concat([b]);
+  news(`【国債】${GOV[k].n}を額面${fm(face)}購入（利回り${pc(cpn, 2)}・満期 ${dateOf(b.mat)}）`, 'you'); return b; }
+function govSell(id){ const b = (S.gov || []).find(x => x.id === id); if (!b) return 0; const got = b.face * govPx(b) * (1 - GOV_FEE); S.player.cash += got; S.gov = S.gov.filter(x => x !== b); cgAdd('P', got - b.cost);
+  news(`【国債】${GOV[b.k].n}（額面${fm(b.face)}）を${fm(got)}で売却（買値との差 ${fm(got - b.cost)}）`, 'you'); return got; }
+function govStep(){ for (const b of (S.gov || []).slice()) { const c = b.face * b.cpn / 52; S.player.cash += c; plAdd('bond', c);
+    if (S.week >= b.mat) { S.player.cash += b.face; S.gov = S.gov.filter(x => x !== b); cgAdd('P', b.face - b.cost); news(`【国債】${GOV[b.k].n}（額面${fm(b.face)}）が満期を迎え、額面で償還されました`, 'you'); } } }
+const SR_STEPS = [[.1, 0], [.2, 1], [.3, 2], [.4, 3], [.55, 4], [.7, 5], [Infinity, 6]]; /* liabilities over gross assets → AAA … CCC */
+const selfBondFace = () => (S.player.sb || []).reduce((a, b) => a + b.face, 0);
+const selfLiab = (add) => S.player.loan + bankDebt() + mortP() + shortLiab() + selfBondFace() + (add || 0);
+function selfRating(add){ const L = selfLiab(add), A = Math.max(1e-9, grossWorth() + L), i = SR_STEPS.find(x => L / A < x[0])[1]; return RATINGS[i]; } /* the holding company's credit: how much of what it owns is borrowed (add: debt about to be issued; the cash it raises adds to both sides) */
+const sbCpn = (kind, yrs, add) => { const r = selfRating(add); return Math.max(.1, S.econ.rate + r[2] + ((S.econ.credit || 0) - .25) * 4 + (yrs - 3) * .15 - (kind === 'cb' ? 2.5 : 0)) / 100; }; /* the market's rate for your paper: the policy rate, your rating's spread, the credit cycle, the length; a convertible pays about 2.5% less because holders may take shares instead */
+const SB_YRS = [3, 5, 7];
+function sbWhy(kind, amt, yrs){
+  if (preCo()) return '会社を設立すると発行できます'; if (!has('ceo')) return `「${STAGES[3].n}」の段階で解放されます`;
+  if (!(kind === 'sb' || kind === 'cb') || !SB_YRS.includes(yrs)) return '条件が正しくありません'; if (!finite(amt) || amt < 1) return '発行額は1億円からです';
+  const gw = grossWorth(); if (!(gw > 0)) return '純資産がマイナスのため発行できません';
+  if (selfBondFace() + amt > (gw + selfLiab()) * .3 + 1e-9) return `社債の残高は総資産の30%までです（発行できる上限 ${fm(Math.max(0, (gw + selfLiab()) * .3 - selfBondFace()))}）`;
+  const r = selfRating(amt); if (RATINGS.indexOf(r) > 4) return `発行後の格付けが${r[0]}になるため、引き受ける証券会社がありません（BB以上が必要）`;
+  if (kind === 'cb') { const q = cbTerms(amt); if (q.o2 > .6 + 1e-9) return `すべて株に転換されると外部株主が${pc(q.o2, 1)}になり、上限の60%を超えます`; }
+  return ''; }
+function cbTerms(amt){ /* conversion at a 25% premium to today's share price: the shares holders would receive and where outside holders would end */
+  const px = selfPx() * 1.25, n = px > 0 ? amt / px : Infinity, tot = selfSh(), mine = S.player.sh0 || 100, o2 = n === Infinity ? 1 : 1 - mine / (tot + n); return {px, n, o2}; }
+function sbIssue(kind, amt, yrs){ const why = sbWhy(kind, amt, yrs); if (why) return why;
+  const cpn = sbCpn(kind, yrs, amt), fee = amt * .01, b = {id: (S.sbSeq = (S.sbSeq || 0) + 1), kind, face: amt, cpn, w: S.week, mat: S.week + 52 * yrs, rt: selfRating(amt)[0]};
+  if (kind === 'cb') { const q = cbTerms(amt); b.cvPx = q.px; b.cvN = q.n; }
+  S.player.cash += amt - fee; plAdd('bond', -fee); S.player.sb = (S.player.sb || []).concat([b]);
+  news(`【${kind === 'cb' ? '転換社債' : '社債'}発行】${S.company}が${yrs}年の${kind === 'cb' ? '転換社債' : '社債'}を${fm(amt)}発行（利率 年${pc(cpn, 2)}・格付け${b.rt}・引受手数料${fm(fee)}${kind === 'cb' ? `・転換価格 1株${fp(b.cvPx)}` : ''}）`, 'you'); return ''; }
+function sbCall(id){ const b = (S.player.sb || []).find(x => x.id === id); if (!b) return '社債がありません'; const pay = b.face * 1.01; if (freeCash() < pay - 1e-9) return `現金が足りません（必要 ${fm(pay)}）`;
+  S.player.cash -= pay; plAdd('bond', -(pay - b.face)); S.player.sb = S.player.sb.filter(x => x !== b); news(`【社債の繰上償還】${S.company}が${b.kind === 'cb' ? '転換社債' : '社債'}（額面${fm(b.face)}）を額面の101%で買い戻しました`, 'you'); return ''; }
+function sbConvert(b){ /* holders take shares: the debt is gone, outside holders own more of the company (your shares stay the same) */
+  const tot = selfSh(), mine = S.player.sh0 || 100, o2 = 1 - mine / (tot + b.cvN); S.player.outside = clamp(o2, 0, .99); S.player.sb = S.player.sb.filter(x => x !== b); if (S.tr) trFlow('raise', b.face); /* the debt turned into equity: money raised, not an investment result */
+  news(`【転換社債の転換】${S.company}の転換社債（額面${fm(b.face)}）がすべて株に転換されました（新株${fsh(b.cvN)}・外部株主 ${pc(S.player.outside, 1)}）。借入がなくなり、あなたの持分は薄まりました`, 'you'); }
+function sbStep(){ const p = S.player; if (!(p.sb || []).length) { p.srt = preCo() ? null : selfRating()[0]; return; }
+  for (const b of p.sb.slice()) { const c = b.face * b.cpn / 52; expensePay(c); plAdd('bond', -c);
+    if (S.week >= b.mat) { if (b.kind === 'cb' && selfPx() > b.cvPx) { sbConvert(b); continue; } expensePay(b.face); p.sb = p.sb.filter(x => x !== b); news(`【社債の償還】${S.company}の${b.kind === 'cb' ? '転換社債（株価が転換価格に届かず現金で）' : '社債'}額面${fm(b.face)}を償還しました`, 'you'); } }
+  const r = selfRating()[0]; if (p.srt && r !== p.srt) news(`【格付け】${S.company}の格付けが${p.srt}から${r}に${RATINGS.findIndex(x => x[0] === r) < RATINGS.findIndex(x => x[0] === p.srt) ? '上がりました' : '下がりました'}（借入の割合で判定。次の社債の利率に響きます）`, 'you'); p.srt = r; }
 function bondsStep(){ /* coupons; installments; companies that left the market */
   for (const b of (S.bonds || []).slice()) { const c = coById(b.cid);
     if (!c) { S.bonds = S.bonds.filter(x => x !== b); bondLog(b, '債権償却', 0, -b.cost, true); news(`【債権償却】${b.name}の社債（額面${fm(b.face)}）を償却`, 'warn'); continue; }
@@ -4534,7 +4642,7 @@ function reorgStep(){
   }
 }
 function bankruptcies(){
-  reorgStep(); bondsStep(); hqBuildStep(); actLogStep(); snStep(); renoStep(); propSupply(); /* weekly: restructurings, bonds, the head office under construction */
+  reorgStep(); bondsStep(); govStep(); sbStep(); hqBuildStep(); actLogStep(); snStep(); renoStep(); propSupply(); /* weekly: restructurings, bonds, the head office under construction */
   for (const c of S.cos.slice()) {
     if (c.reorg) continue; /* in restructuring: decided by reorgStep */
     if (((equity(c) < -.25 * c.assets && c.ni < 0) || c.forceBk) && !c.noReorg && bondFace(c) > 0) { startReorg(c); continue; } /* a creditor (you) is at the table */
@@ -4633,11 +4741,12 @@ function mmList(){ /* each investor's money is tracked separately; older saves k
 function mmSync(){ const m = S.mm, L = mmList(); m.aum = L.reduce((a, x) => a + x.val, 0); m.inv = L.length; m.hwm = L.reduce((a, x) => a + (x.hwm || 0), 0); if (!L.length) { m.aum = 0; m.hwm = 0; } }
 function mmWeek(r){
   const m = S.mm; if (!m) return; const L = mmList(); if (!L.length) { mmSync(); return; }
-  const over = Math.max(1, m.aum / Math.max(.01, mmPeople())), rc = r > 0 ? r * mmDrag() / Math.sqrt(over) : r; /* large sums move prices against you, and beyond what the team can run gains shrink further: the clients earn less of the gain */
-  let fee = 0; for (const x of L) { x.val = Math.max(0, x.val * (1 + rc)); const f = x.val * .02 / 52; x.val -= f; fee += f; } /* management fee 2% a year */
+  const SG = MM_STRAT[mmStrat()], h = S.idxHist || [], mk = h.length > 1 && h[h.length - 2] > 0 ? h[h.length - 1] / h[h.length - 2] - 1 : 0, r1 = mmStrat() === 'mn' ? r - mk - .005 / 52 : r; /* rev29: a market-neutral book hedges out the index (at a cost) */
+  const over = Math.max(1, m.aum / Math.max(.01, mmPeople())), rc = r1 > 0 ? r1 * mmDrag() / Math.sqrt(over) : r1; /* large sums move prices against you, and beyond what the team can run gains shrink further: the clients earn less of the gain */
+  let fee = 0; for (const x of L) { x.val = Math.max(0, x.val * (1 + rc)); const f = x.val * SG.fee / 52; x.val -= f; fee += f; } /* management fee: 1-2% a year by strategy */
   mmSync(); m.fees += fee; m.lastFee = fee; S.player.cash += fee; plAdd('fee', fee);
-  if (S.week % 52 === 0) { let pf = 0; for (const x of L) if (x.val > x.hwm + 1e-9) { const f = (x.val - x.hwm) * .2; x.val -= f; x.hwm = x.val; pf += f; } /* each client pays only on their own new high */
-    mmSync(); if (pf > 0) { m.perf += pf; S.player.cash += pf; plAdd('fee', pf); news(`【運用委託】成功報酬${fm(pf)}を受け取りました（それぞれの投資家の過去最高を超えた利益の20%・預かり資産${fm(m.aum)}）`, 'you'); } }
+  if (S.week % 52 === 0) { let pf = 0; for (const x of L) if (x.val > x.hwm + 1e-9) { const f = (x.val - x.hwm) * SG.perf; x.val -= f; x.hwm = x.val; pf += f; } /* each client pays only on their own new high */
+    mmSync(); if (pf > 0) { m.perf += pf; S.player.cash += pf; plAdd('fee', pf); news(`【運用委託】成功報酬${fm(pf)}を受け取りました（それぞれの投資家の過去最高を超えた利益の${pc(SG.perf, 0)}・預かり資産${fm(m.aum)}）`, 'you'); } }
 }
 function mmRedeemPart(x, amt){ /* part of an investor's money goes back to them */
   const f = amt / x.val; x.val -= amt; if (x.hwm != null) x.hwm *= 1 - f; x.out = null; delete x.why; delete x.outAmt; mmSync();
@@ -4651,7 +4760,7 @@ function mmRedeem(x, own){ /* an investor leaves (or you give the money back): t
 function mmQuarter(){ /* investors arrive after a good year; after a bad stretch they warn first, then give a quarter's notice (trader scenario, once you have a company) */
   if (!isTrader() || preCo()) return; const st = trStats(); if (!st) return;
   const m = S.mm = S.mm || {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}, L = mmList(), recentMc = (S.tr.mcW == null ? -999 : S.tr.mcW) > S.week - 26;
-  const bad = recentMc || st.year < -.05 || (st.ddY > .35 && st.year < .1), capT = mmPeople();
+  const J = mmJudge(st, recentMc), bad = J.bad, capT = mmPeople(); /* rev29: judged by the strategy (the long/short rule is unchanged) */
   for (const x of L) if (x.out != null) { /* a notice is withdrawn once its reason has gone */
     if (x.why === 'cap' ? m.aum <= capT * 1.5 : (!bad && st.year > 0)) { const cap = x.why === 'cap'; x.out = null; delete x.why; delete x.outAmt; news(cap ? `【運用委託】運用チームの体制が整ったため、${x.who}は解約を撤回しました` : `【運用委託】${x.who}は成績の回復を見て解約を撤回しました`, 'you'); } }
   for (const x of L.filter(y => y.out != null && y.out <= S.week)) { if (x.why === 'cap' && x.outAmt > 0 && x.outAmt < x.val - 1e-9) mmRedeemPart(x, x.outAmt); else mmRedeem(x); } /* notices that have run their course */
@@ -4668,8 +4777,8 @@ function mmQuarter(){ /* investors arrive after a good year; after a bad stretch
     else if (L.some(y => y.out == null) && !L.some(y => y.why === 'cap' && y.out != null)) { const x = L.filter(y => y.out == null).sort((a, b) => b.w - a.w || b.id - a.id)[0]; x.out = S.week + 13; x.why = 'cap'; x.outAmt = Math.min(x.val, m.aum - capT * 1.2);
       news(`【解約通知】運用チームの手が回っていないとして、${x.who}が${shortDate(x.out)}に${x.outAmt < x.val - 1e-9 ? `一部（${fm(x.outAmt)}）` : `全額（${fm(x.val)}）`}を解約します。それまでに体制を整えれば撤回されます（チームで運用できる額${fm(capT)}）`, 'warn'); }
     return; }
-  if (bad || st.weeks < 52 || st.year < .08 || st.ddY > .35 || S.inbox.some(i => i.kind === 'mmoffer')) return;
-  const room = mmCap() - m.aum; if (room < .02) return;
+  if (bad || !J.good || S.inbox.some(i => i.kind === 'mmoffer')) return;
+  const room = mmCap() * (mmStrat() === 'mn' ? 1.3 : 1) - m.aum; if (room < .02) return;
   const amt = room * (.25 + rnd() * .35), who = MM_INV[Math.floor(rnd() * MM_INV.length)];
   addInbox({kind: 'mmoffer', amt, who, yr: st.year, exp: S.week + 4});
   news(`【運用委託】${who}が${fm(amt)}の運用を任せたいと打診してきました（受信箱）`, 'you');
@@ -4677,7 +4786,7 @@ function mmQuarter(){ /* investors arrive after a good year; after a bad stretch
 function mmOk(){ /* the conditions an investor checks, at the moment the money would arrive */
   const st = trStats(), recentMc = S.tr && (S.tr.mcW == null ? -999 : S.tr.mcW) > S.week - 26;
   if (preCo()) return '他人のお金を預かるには会社が必要です';
-  if (!st || st.weeks < 52) return '運用実績が1年に足りません'; if (st.year < .08) return '直近1年の成績が+8%を下回っています'; if (st.ddY > .35) return '直近1年の最大下落が35%を超えています'; if (recentMc) return '半年以内に追証がありました';
+  if (!st || st.weeks < 52) return '運用実績が1年に足りません'; if (recentMc) return '半年以内に追証がありました'; { const J = mmJudge(st, false); if (!J.good) return J.why || '投資家の条件を満たしていません'; }
   return '';
 }
 const mmRoom = () => Math.max(0, mmCap() - ((S.mm && S.mm.aum) || 0));
@@ -4703,7 +4812,9 @@ function step(){
   S.inbox = S.inbox.filter(i => { if (i.exp < S.week) { news('提案の期限が切れました', 'you'); return false; } return true; });
   if (S.week % 52 === 0) yearAwards();
   if (S.week % 52 === 0) news(`【年次】${S.week / 52}年目終了。あなたの純資産は${fm(myWorth())}、受取配当累計${fm(S.player.divs)}`, 'you');
-  if (S.week % 13 === 0) { corpTax(); newsQuarter(); routeStep(); }
+  rumorStep(); if (S.week % 13 === 0) frdStep();
+  if (S.week % 13 === 0) { corpTax(); presTax(); newsQuarter(); routeStep(); }
+  if (S.week % 52 === 26) gwStep(); /* rev29: the yearly impairment test */
   trStep(tr0);
   recordNW(); plCloseKey('plW', 'plWH', 2); if (S.week % 13 === 0) plClose(); if (S.week % 52 === 0) plCloseKey('plY', 'plYH', 3);
   snSyncAll(); if (mgSync()) recomputeCtrl(); acqFlush(); roadRec(); planClose(); checkEnd(); checkAch(); trClose();
@@ -4847,6 +4958,16 @@ function econCheck(o, raw){ /* money and ownership must add up; returns the firs
   if ((o.inbox || []).some(i => i && i.kind === 'mmoffer' && !(finite(i.amt) && i.amt > 0))) return '運用委託の打診額が不正';
   if (o.bonds != null && !(Array.isArray(o.bonds) && o.bonds.every(b => b && typeof b.cid === 'string' && finite(b.face) && b.face >= 0 && finite(b.cost) && b.cost >= 0 && Number.isInteger(b.id) && (b.inst == null || (finite(b.inst) && b.inst >= 0))))) return '債権の記録が不正';
   if (o.bondLog != null && !(Array.isArray(o.bondLog) && o.bondLog.length <= 200)) return '債権の履歴が不正';
+  { const nolOk = l => l == null || (Array.isArray(l) && l.length <= 200 && l.every(x => x && Number.isInteger(x.w) && x.w <= o.week && finite(x.a) && x.a > 0)); /* rev29: taxes */
+    if ((o.player.cg != null && !finite(o.player.cg)) || !nolOk(o.player.nol) || (o.pres && ((o.pres.cg != null && !finite(o.pres.cg)) || !nolOk(o.pres.nol)))) return '税務の記録が不正';
+    if (o.player.imp != null && !(Array.isArray(o.player.imp) && o.player.imp.length <= 400 && o.player.imp.every(x => Array.isArray(x) && Number.isInteger(x[0]) && finite(x[1]) && x[1] >= 0))) return '減損の記録が不正';
+    for (const c of o.cos) if (c.acq0 && ((c.acq0.gw != null && !(finite(c.acq0.gw) && c.acq0.gw >= 0)) || (c.acq0.gwImp != null && !(finite(c.acq0.gwImp) && c.acq0.gwImp >= 0 && c.acq0.gwImp <= (c.acq0.gw || 0) + 1e-9)))) return 'のれんの記録が不正 ' + c.id; }
+  for (const f of (o.pe && o.pe.funds) || []) if ((f.feeR != null && !(finite(f.feeR) && f.feeR >= 0 && f.feeR <= .05)) || (f.carryR != null && !(finite(f.carryR) && f.carryR >= 0 && f.carryR <= .5)) || (f.cont != null && !fundIdOk(o, f.cont))) return 'ファンドの条件が不正 ' + f.id; /* rev29 */
+  if (o.mm && o.mm.strat != null && !MM_STRAT[o.mm.strat]) return '運用戦略が不正';
+  if (o.rsch != null && !(typeof o.rsch === 'object' && Object.values(o.rsch).every(q => Number.isInteger(q) && q >= 0))) return '調査の記録が不正'; /* rev29 */
+  for (const c of o.cos) { if (c.frd != null && !(c.frd && finite(c.frd.k) && c.frd.k > 0 && c.frd.k < 1 && Number.isInteger(c.frd.end))) return '会計の記録が不正 ' + c.id; if (c.rum != null && !(c.rum && finite(c.rum.d) && Number.isInteger(c.rum.end) && typeof c.rum.txt === 'string')) return '噂の記録が不正 ' + c.id; }
+  if (o.gov != null && !(Array.isArray(o.gov) && o.gov.every(b => b && GOV[b.k] && Number.isInteger(b.id) && finite(b.face) && b.face > 0 && finite(b.cpn) && b.cpn >= 0 && b.cpn < .5 && finite(b.cost) && b.cost >= 0 && Number.isInteger(b.w) && Number.isInteger(b.mat) && b.mat >= b.w) && new Set(o.gov.map(b => b.id)).size === o.gov.length)) return '国債の記録が不正'; /* rev29 */
+  if (o.player.sb != null && !(Array.isArray(o.player.sb) && o.player.sb.every(b => b && (b.kind === 'sb' || b.kind === 'cb') && Number.isInteger(b.id) && finite(b.face) && b.face > 0 && finite(b.cpn) && b.cpn >= 0 && b.cpn < .5 && Number.isInteger(b.w) && Number.isInteger(b.mat) && b.mat > b.w && (b.kind === 'sb' || (finite(b.cvPx) && b.cvPx > 0 && finite(b.cvN) && b.cvN > 0))) && new Set(o.player.sb.map(b => b.id)).size === o.player.sb.length)) return '社債の記録が不正';
   if (o.dips != null && !(Array.isArray(o.dips) && o.dips.every(d => d && typeof d.cid === 'string' && finite(d.amt) && d.amt > 0 && Number.isInteger(d.id)))) return 'DIP融資の記録が不正';
   if ((o.bonds || []).concat(o.dips || []).some(x => x.gen != null && !(Number.isInteger(x.gen) && x.gen >= 0 && x.gen <= (o.coGen || 0)))) return '債権の法人世代が不正';
   for (const pr of o.props || []) if (pr && pr.own && (!finite(pr.v) || (pr.y != null && !finite(pr.y)))) return '不動産の評価が不正';
@@ -5121,6 +5242,38 @@ function fundCtl(f){ /* BAL-08: how the fund is run, and what its team is doing 
     <p class="note">審査した案件 ${(f.passN || 0) + held.length + T.length}件・見送り ${f.passN || 0}件・DD ${f.ddN || 0}件・EXIT ${T.length}件（うち破綻 ${bust}件${T.length ? `・${pc(bust / T.length, 0)}` : ''}・元本割れ ${T.filter(r => r.moic < 1).length}件）</p>
     ${(f.pass || []).length ? `<div class="rows">${f.pass.slice(0, 4).map(x => `<div class="orow"><span>見送り：${esc(x.name)}<small class="note">${shortDate(x.w)}・${esc(x.why)}</small></span></div>`).join('')}</div>` : ''}
     ${held.length ? `<div class="rows">${held.map(c => { const p = c.pe, st = peStats(c), rv = p.rv; return `<div class="orow"><span><button class="link" data-act="sel" data-id="${c.id}">${esc(c.name)}</button><small class="note">投資 ${fm(st.inv)}・評価 ${fm(st.nav)}・MOIC ${xf(st.moic)}${p.plan ? `・仮説：${esc(p.plan.thesis)}` : ''}${p.p100 != null ? '・100日計画済み' : '・100日計画まだ'}${p.sale ? '・売却手続き中' : ''}${c.boltLog && c.boltLog.length ? `・追加買収 ${c.boltLog.length}件（${c.boltLog.map(b => `${esc(b.name)} ${fm(b.eq)}`).join('、')}）` : ''}${p.rvN ? `・レビュー ${p.rvN}回` : ''}${p.stopInj ? '・追加出資を停止' : ''}</small>${rv && rv.warn.length ? `<small class="note warn">要注意：${rv.warn.join('・')}</small>` : ''}</span></div>`; }).join('')}</div>` : ''}`; }
+/* rev29 F5: secondary sales and continuation funds */
+const SEC_DISC = .12;
+function fundSecWhy(f, c){ if (!f || f.closed || f.raising) return 'ファンドが終了・募集中です'; if (!c || !((c.own[f.id] || 0) > 1e-9)) return 'このファンドの投資先ではありません'; if (!c.priv) return '上場株は市場で売却します'; if (c.reorg) return '再建手続き中は売却できません'; if (c.pe && S.week - c.pe.w0 < 26) return '取得から半年は売却できません'; return ''; }
+function fundSecondary(f, c){ const why = fundSecWhy(f, c); if (why) return why; const px = peMark(c) * (1 - SEC_DISC); if (c.pe) c.pe.why = 'セカンダリー売却';
+  delist(c, px, `【セカンダリー売却】${f.n}が${c.name}を評価額の${pc(1 - SEC_DISC, 0)}（1株${fp(px)}）でセカンダリー投資家に売却。LPへの分配が早まります`); return ''; }
+function fundContWhy(f){ if (!f || f.closed || f.raising || f.cont) return 'このファンドは移管できません'; if (S.week < f.end - 26) return `満期の半年前（${shortDate(f.end - 26)}）から選べます`;
+  const A = S.cos.filter(c => c.priv && !c.reorg && c.pe && !c.pe.closed && c.pe.owner === f.id && (c.own[f.id] || 0) > 1e-9); if (!A.length) return '移管できる非上場の投資先がありません';
+  const V = A.reduce((a, c) => a + c.own[f.id] * c.price, 0) * .97, g = V * f.gpPct; if (freeCash() - gpRes() < g - 1e-9) return `GPの出資（${pc(f.gpPct, 0)}・${fm(g)}）に使える現金が足りません`; return ''; }
+function fundCont(f){ /* the assets you still believe in move to a new vehicle at 97% of their value: the old LPs get cash now, new LPs (and you, as GP) buy in, and you keep running them for 3 more years at a 1% fee */
+  const why = fundContWhy(f); if (why) return why; const A = S.cos.filter(c => c.priv && !c.reorg && c.pe && !c.pe.closed && c.pe.owner === f.id && (c.own[f.id] || 0) > 1e-9);
+  const V = A.reduce((a, c) => a + c.own[f.id] * c.price, 0) * .97, gp = V * f.gpPct, no = S.pe.funds.length + 1;
+  const nf = {id: 'F' + no, no, n: `${S.company} 継続ファンド（${f.n}から）`, strat: f.strat, size: V, gpPct: f.gpPct, lp: V - gp, gp, lp0: V - gp, gp0: gp, calledLP: V - gp, calledGP: gp, distLP: 0, distGP: 0, carry: 0, fees: 0,
+    w0: S.week, raising: 0, invEnd: S.week, end: S.week + 156, flowsLP: [], cost: {}, closed: false, mgr: f.mgr, cfg: Object.assign({}, f.cfg || {mode: 'auto', lev: 'mid', dd: true, ops: true}), cont: f.id, feeR: .01, carryR: .2, terms: '継続ファンド', invT: V};
+  pushQ(nf.flowsLP, -(V - gp)); S.player.cash -= gp; S.pe.funds.push(nf);
+  for (const c of A) { const n = c.own[f.id], Vc = n * c.price * .97, p = c.pe; p.flows.push([S.week, Vc]); peClose(c, '継続ファンドへ移管');
+    c.pe = Object.assign({}, p, {owner: nf.id, w0: S.week, inv: Vc, flows: [[S.week, -Vc]], closed: false}); delete c.pe.rec; delete c.pe.why;
+    c.own[nf.id] = n; delete c.own[f.id]; delete f.cost[c.id]; nf.cost[c.id] = Vc; }
+  GS = null; fundDistribute(f, V); news(`【継続ファンド】${f.n}の投資先${A.length}社を${nf.n}へ評価額の97%（${fm(V)}）で移管。旧ファンドのLPには現金で分配し、あなたは3年間運用を続けます（管理報酬1%・GP出資${fm(gp)}）`, 'you');
+  if (!f.winding) f.winding = 'end'; fundWindStep(f); return ''; }
+/* managed money: the strategy decides what clients pay and how they judge you */
+const MM_STRAT = {long: {n: 'ロングオンリー', fee: .01, perf: .1, d: '株を買うだけ。市場平均と比べて評価され、下落には寛容。報酬は1%＋10%'}, ls: {n: 'ロングショート', fee: .02, perf: .2, d: '買いと空売りで絶対収益を狙う。年+8%以上・最大下落35%以内が条件。報酬は2%＋20%'}, mn: {n: 'マーケットニュートラル', fee: .015, perf: .15, d: '株価指数の先物で市場の動きを打ち消す（費用年0.5%）。市場平均を上回った分が顧客の収益。最大下落15%以内が条件。年金マネーが集まりやすい。報酬は1.5%＋15%'}};
+const mmStrat = () => MM_STRAT[(S.mm && S.mm.strat) || 'ls'] ? (S.mm && S.mm.strat) || 'ls' : 'ls';
+const idxYear = () => { const h = S.idxHist || []; return h.length > 52 && h[h.length - 53] > 0 ? h[h.length - 1] / h[h.length - 53] - 1 : 0; };
+function mmJudge(st, recentMc){ /* {bad, good, why}: the same rule for warnings, notices and new money */
+  const k = mmStrat(), ex = st.year - idxYear();
+  if (k === 'long') return {bad: recentMc || ex < -.1 || st.ddY > .5, good: !recentMc && st.weeks >= 52 && ex >= .03 && st.ddY <= .45, why: ex < -.1 ? `市場平均を${pc(-ex, 0)}下回っています` : st.ddY > .45 ? '最大下落が45%を超えています' : ex < .03 ? '市場平均を3%以上上回っていません' : ''};
+  if (k === 'mn') return {bad: recentMc || ex < -.05 || st.ddY > .2, good: !recentMc && st.weeks >= 52 && ex >= .04 && st.ddY <= .15, why: ex < .04 ? `市場平均との差が${spc(ex)}（+4%以上が条件）` : st.ddY > .15 ? '最大下落が15%を超えています' : ''};
+  return {bad: recentMc || st.year < -.05 || (st.ddY > .35 && st.year < .1), good: !recentMc && st.weeks >= 52 && st.year >= .08 && st.ddY <= .35, why: st.year < .08 ? '直近1年の成績が+8%を下回っています' : st.ddY > .35 ? '直近1年の最大下落が35%を超えています' : ''}; }
+function mmSetStrat(k){ if (!MM_STRAT[k]) return '戦略が正しくありません'; const m = S.mm = S.mm || {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; if (mmStrat() === k) return '';
+  if (m.stratW != null && S.week - m.stratW < 52) return `戦略の変更は年1回までです（${shortDate(m.stratW + 52)}から）`; m.strat = k; m.stratW = S.week; news(`【運用委託】運用戦略を「${MM_STRAT[k].n}」に変更しました（${MM_STRAT[k].d}）`, 'you'); return ''; }
+function fundExtra(f){ if (f.closed || f.raising) return ''; const P = S.cos.filter(c => c.priv && (c.own[f.id] || 0) > 1e-9), cw = fundContWhy(f);
+  return `<p class="note">LPとの条件：管理報酬 年${pc(f.feeR || .02, 1)}・成功報酬 ${pc(f.carryR || .2, 0)}（${f.terms || '標準'}）。次のファンドの規模と条件は、このファンドの成績（TVPI）で決まります。</p>${P.length ? `<p class="lbl">セカンダリー売却（評価額の${pc(1 - SEC_DISC, 0)}で今すぐ現金化）</p>${P.map(c => `<div class="orow"><span>${esc(c.name)}<br><small>評価 ${fm(c.own[f.id] * c.price)}${fundSecWhy(f, c) ? `・${fundSecWhy(f, c)}` : ''}</small></span><button class="btn sm" data-act="fsec" data-id="${f.id}" data-v="${c.id}" ${fundSecWhy(f, c) ? 'disabled' : ''}>売却</button></div>`).join('')}` : ''}${f.cont ? '' : `<div class="btnrow"><button class="btn sm" data-act="fcont" data-id="${f.id}" ${cw ? 'disabled' : ''}>継続ファンドへ移管する</button></div><p class="note">${cw || '非上場の投資先を評価額の97%で新しいファンドへ移し、旧LPには現金で分配します。あなたは3年間運用を続けます（管理報酬1%）。'}</p>`}`; }
 function fundCard(f){
   if (f.raising) return `<div class="deal"><div class="deal-h static"><b>${esc(f.n)}</b><small>募集中・${shortDate(f.raising)}締切・目標${fm(f.size)}</small></div></div>`;
   const s = fundStats(f);
@@ -5130,7 +5283,7 @@ function fundCard(f){
     ${f.closed ? '' : `<p class="note">責任者：${person(f.mgr) ? `${esc(person(f.mgr).n)}（M&A ${Math.round(person(f.mgr).sk.deal)}・事業運営 ${Math.round(person(f.mgr).sk.ops)}）` : '未定'} ${fundMgrs().filter(p => p.id !== f.mgr).slice(0, 3).map(p => `<button class="btn sm" data-act="fundmgr" data-id="${f.id}" data-v="${p.id}">${esc(p.n)}に替える</button>`).join('')}</p>`}
     <div class="kv"><div><span>総額（うちあなた）</span><b>${fm(f.lp + f.gp)}（${fm(f.gp)}）</b></div><div><span>払込済み</span><b>${fm(s.PI)}</b></div><div><span>未投資</span><b>${fm(s.dry)}</b></div><div><span>未払込の約束額</span><b>${fm(fundRoom(f))}${fundRes(f) > 1e-9 ? `（入札で予約 ${fm(fundRes(f))}）` : ''}</b></div>
     <div><span>評価額（NAV）</span><b>${fm(s.nav)}</b></div><div><span>分配済み</span><b>${fm(s.dist)}</b></div><div><span>DPI・TVPI</span><b class="${s.tvpi != null && s.tvpi >= 1 ? 'up' : 'down'}">${s.dpi == null ? '未評価（払込なし）' : `${xf(s.dpi)} · ${xf(s.tvpi)}`}</b></div>
-    <div><span>LPのIRR</span><b>${ipc(s.irr)}</b></div><div><span>管理報酬 累計</span><b>${fm(f.fees * (1 - gpRatio(f)))}</b></div><div><span>成功報酬 累計</span><b class="up">${fm(f.carry)}</b></div></div>${f.feeShort > 1e-6 ? `<p class="note">約束額を使い切ったため、管理報酬 ${fm(f.feeShort)}は受け取れていません（未回収）。</p>` : ''}${fundOver(f) > 1e-6 ? `<p class="note warn">旧版で約束額を${fm(fundOver(f))}超えて払い込まれていました。記録はそのまま残し、これ以上の払込はしません。</p>` : ''}</div>`;
+    <div><span>LPのIRR</span><b>${ipc(s.irr)}</b></div><div><span>管理報酬 累計</span><b>${fm(f.fees * (1 - gpRatio(f)))}</b></div><div><span>成功報酬 累計</span><b class="up">${fm(f.carry)}</b></div></div>${fundExtra(f)}${f.feeShort > 1e-6 ? `<p class="note">約束額を使い切ったため、管理報酬 ${fm(f.feeShort)}は受け取れていません（未回収）。</p>` : ''}${fundOver(f) > 1e-6 ? `<p class="note warn">旧版で約束額を${fm(fundOver(f))}超えて払い込まれていました。記録はそのまま残し、これ以上の払込はしません。</p>` : ''}</div>`;
 }
 function rollupBox(){ /* BAL-06: search for bolt-ons in the industries you already own, and the record of each platform */
   const plats = S.cos.filter(c => c.ctrl === 'P' && !c.branch); if (!plats.length) return '';
@@ -5466,7 +5619,7 @@ function renderHQ(){
   hqInit(); const t = ui.hqTab || 'acc', o = office();
   const top = `<div class="hqtitle"><b>${logoSVG(S.logo, OWNHEX.P, 22)} ${esc(S.company)} 本社</b><small>${CITY[o.city].n}・${OFFICE[o.lvl].n}</small></div>`;
   let body = '';
-  if (t === 'acc') body = debtBox() + floorCv('acc') + `<div class="kv"><div><span>純資産</span><b>${fm(netWorth('P'))}</b></div><div><span>今期の本業の収支</span><b>${fm(PL_ITEMS.reduce((a, [k]) => a + (S.acct.q[0][k] || 0), 0))}</b></div><div><span>本社の年間コスト</span><b>${fm(OFFICE[o.lvl].rent + deptCost() + hqPayroll())}</b></div></div>` + deptBox('acc') + fsView();
+  if (t === 'acc') body = debtBox() + consolBox() + floorCv('acc') + `<div class="kv"><div><span>純資産</span><b>${fm(netWorth('P'))}</b></div><div><span>今期の本業の収支</span><b>${fm(PL_ITEMS.reduce((a, [k]) => a + (S.acct.q[0][k] || 0), 0))}</b></div><div><span>本社の年間コスト</span><b>${fm(OFFICE[o.lvl].rent + deptCost() + hqPayroll())}</b></div></div>` + deptBox('acc') + fsView();
   else if (t === 'hr') body = (deptsOn().includes('hr') ? floorCv('hr') + deptBox('hr') + `<h3>福利厚生 <small>本社の全社員${hqStaff()}人が対象・横にスワイプ</small></h3><div class="hscroll">${Object.entries(WELFARE).map(([k, w]) => { const lv = wlv(k), per = w.cost * lv / 2; return `<div class="wcard ${lv ? 'on' : ''}"><div class="ico" aria-hidden="true">${WICO[k] || '★'}</div><h4>${w.n}</h4><p>${w.d}</p>
     <p class="lbl">1人あたりの年間負担</p>${ladder('welfd', lv ? `${['なし', '控えめ', '標準', '手厚い', '最大'][lv]}・${yen(Math.round(per))}` : 'なし', [1, 2], v => v === 1 ? '1段' : '2段', `data-id="${k}"`)}
     <p class="note">推定週間経費 ${fm(per / 1e4 * hqStaff() / 52)}・${w.ab ? `能力+${(w.ab * Math.sqrt(lv / 2)).toFixed(1)} ` : ''}士気+${(w.mo * Math.sqrt(lv / 2)).toFixed(1)}</p></div>`; }).join('')}</div>` : `<section class="box"><h4>人事部はまだありません</h4><p>「フロア」で人事部を追加すると、本社社員の士気・採用・福利厚生を管理できます。</p></section>`) + hqSection();
@@ -5814,6 +5967,39 @@ function synCard(c){ /* the group synergies a controlled company enjoys (read-on
   return `<section class="box"><h4>グループのシナジー <small>グループ会社${g.n + 1}社</small></h4><div class="kv">${rows.map(([l, v]) => `<div><span>${l}</span><b class="${/[−+]/.test(v) ? 'up' : ''}">${v}</b></div>`).join('')}</div>
     <p class="note">同じ業種・同じ地域の会社を増やし、本社の経理部を強くするほど、グループの会社の利益が上がります。</p></section>`;
 }
+/* ---------- rev29 F3: research reports, analysts' targets, rumours, accounting fraud (no PRNG: all from hashes of the state) ---------- */
+const qIdx = () => Math.floor(S.week / 13);
+const rschHas = c => !!(S.rsch && S.rsch[c.id] === qIdx());
+const rschCost = c => Math.max(.05, mcap(c) * .0004) * (S.dept && S.dept.inv && S.dept.inv.on ? 1 - .5 * deptPower('inv') : 1); /* an outside research firm; your investment department halves the bill */
+function rschBuy(c){ if (!c || c.priv) return '上場企業だけ調査できます'; if (rschHas(c)) return 'この四半期の調査は済んでいます'; const k = rschCost(c); if (freeCash() < k - 1e-9) return `現金が足りません（費用 ${fm(k)}）`;
+  expensePay(k); plAdd('hq', -k); S.rsch = Object.fromEntries(Object.entries(S.rsch || {}).filter(([, q]) => q === qIdx())); S.rsch[c.id] = qIdx(); news(`【調査】${c.name}の詳しい調査を依頼（費用${fm(k)}・${shortDate(13 * (qIdx() + 1))}の決算まで有効）`, 'you', c.city); return ''; }
+const rschFlag = c => !!(c.frd && rschHas(c) && hashStr(c.id + ':frdseen:' + qIdx() + ':' + S.seed) % 100 < 35 + 50 * estAcc()); /* the researchers may spot the figures that do not add up */
+function analyst(c){ /* the sell-side view: a broker's rating and target price, a little optimistic on average, refreshed each quarter */
+  const b = ((hashStr(c.id + ':an:' + S.seed) % 21) - 5) / 100, n = ((hashStr(c.id + ':an:' + qIdx() + ':' + S.seed) % 2001) / 1000 - 1) * .12, base = repFair(c), tp = Math.max(.01, base * (1 + b + n)), up = tp / c.price - 1;
+  return {tp, up, r: up > .15 ? '買い' : up < -.1 ? '売り' : '中立', bias: b}; }
+function rumorStep(){ /* now and then a rumour moves a share; later it is confirmed or denied */
+  for (const c of S.cos) { const R = c.rum; if (!R || S.week < R.end) continue; delete c.rum;
+    if (R.t === 'bad' && c.frd) { frdOut(c, '噂のとおり'); continue; }
+    if (R.truth) { if (R.t === 'good') { c.boost += .03; } qnews(c, 'rumT', `【噂の確認】${c.name}の「${R.txt}」は事実でした`, 'earn'); }
+    else { c.mood -= R.d * .8; qnews(c, 'rumF', `【噂の否定】${c.name}が「${R.txt}」を否定。株価は噂の前の水準へ戻りつつあります`, 'earn'); } }
+  const h = hashStr(S.seed + ':rum:' + S.week); if (h % 10 >= 3) return; const L = S.cos.filter(c => !c.priv && c.ctrl !== 'P' && !c.rum); if (!L.length) return;
+  const c = L[(h >>> 4) % L.length], bad = c.frd ? hashStr(c.id + ':rb:' + S.week) % 3 > 0 : (h >>> 9) % 2 === 0, txt = bad ? ['不正会計の疑い', '大口顧客の離反', '製品の不具合'][(h >>> 11) % 3] : ['大型受注', '新製品の好評', '業務提携'][(h >>> 11) % 3], d = bad ? -.07 : .06;
+  c.rum = {t: bad ? 'bad' : 'good', txt, d, w: S.week, end: S.week + 2 + (h >>> 13) % 3, truth: (h >>> 15) % 100 < 35}; c.mood += d;
+  qnews(c, 'rum', `【噂】${c.name}に「${txt}」の噂。株価が${bad ? '下落' : '上昇'}（真偽は未確認・数週間で判明）`, 'earn'); }
+function frdStep(){ /* quarterly: a few companies dress up their figures; it comes out after some quarters */
+  for (const c of S.cos) { if (c.frd) { if (S.week >= c.frd.end) frdOut(c, '内部告発で'); continue; }
+    if (c.priv || c.ctrl === 'P' || c.frdW != null) continue; const h = hashStr(c.id + ':frd:' + qIdx() + ':' + S.seed); if (h % 900 !== 0) continue;
+    c.frd = {k: .15 + ((h >>> 10) % 26) / 100, w0: S.week, end: S.week + 13 * (2 + (h >>> 16) % 5)}; } }
+function frdOut(c, how){ const F = c.frd; if (!F) return; delete c.frd; c.frdW = S.week; const drop = .35 + F.k / 2; c.price = Math.max(.05, c.price * (1 - drop)); c.mood -= .2;
+  news(`【不正会計の発覚】${how}${c.name}が利益を約${pc(F.k, 0)}水増ししていたことが判明（${shortDate(F.w0)}から）。株価は${pc(drop, 0)}急落。公表されていた決算は信頼できません`, groupSh(c, 'P') > 0 || c.ctrl === 'P' ? 'warn' : 'earn', c.city);
+  if (c.ctrl === 'P') gwStep(); }
+function infoBox(c){ if (c.priv) return ''; const a = analyst(c), has = rschHas(c), k = rschCost(c), fl = rschFlag(c), nx = niA(c) * (1 + c.growth / 4);
+  return `<section class="box"><h4>リサーチ <small>アナリスト評価・調査</small></h4>
+    <div class="kv"><div><span>アナリストの評価</span><b class="${a.r === '買い' ? 'up' : a.r === '売り' ? 'down' : ''}">${a.r}</b></div><div><span>目標株価</span><b>${fp(a.tp)}（${spc(a.up)}）</b></div>
+      <div><span>推定理論株価の精度</span><b>±${pc(has ? .015 : estAmp(), 0)}</b></div>${c.rum ? `<div><span>噂</span><b class="${c.rum.t === 'bad' ? 'down' : 'up'}">「${esc(c.rum.txt)}」（未確認）</b></div>` : ''}${c.frdW != null ? `<div><span>不正会計</span><b class="down">${shortDate(c.frdW)}に発覚</b></div>` : ''}</div>
+    <p class="note">証券会社のアナリストは平均するとやや強気です。目標株価はうのみにせず、決算と推定理論株価で確かめましょう。</p>
+    ${has ? `<div class="preview">調査レポート（${shortDate(13 * (qIdx() + 1))}の決算まで有効）<br>次の決算の見込み純利益 <b>${fm(nx)}</b>・市場予想 ${c.est != null ? fm(c.est) : '—'}（${c.est != null ? `${nx > c.est * 1.03 ? '<b class="up">上振れ</b>' : nx < c.est * .97 ? '<b class="down">下振れ</b>' : '予想並み'}の見込み` : ''}）<br>推定理論株価 ${fp(repFair(c))}（誤差±1.5%）${fl ? '<br><b class="down">⚠ 会計に疑義：売掛金と在庫の増え方が売上と合いません。公表の利益は水増しの可能性があります</b>' : '<br>会計上の目立った問題は見つかりませんでした（見落としの可能性はあります）'}</div>`
+      : `<div class="btnrow"><button class="btn sm" data-act="rsch" ${freeCash() >= k - 1e-9 ? '' : 'disabled'}>詳しく調査する（${fm(k)}）</button></div><p class="note">調査会社が次の決算の見込み、推定理論株価（誤差±1.5%）、会計上の問題の有無を調べます。投資部があると費用が下がり、問題を見つけやすくなります。</p>`}</section>`; }
 function coInfo(c){
   const live = c.ctrl === 'P', q = repOf(c), R = live ? {rev: q ? q.rev : c.rev, ni: q ? q.ni : c.ni, cash: c.cash, debt: c.debt} : q || {rev: c.rev, ni: c.ni, cash: c.cash, debt: c.debt}; /* the year's sales and profit are the last earnings report's (they change only at each report). A company you run shows today's cash and debt */ /* published figures: they change at each earnings report, not every week. A company you run shows today's books (a special dividend shows at once) */
   const f = repFair(c), eps = R.ni / c.shares, per = eps > 0 ? c.price / eps : 0, pbr = equity(c) > 0 ? mcap(c) / equity(c) : 0;
@@ -5830,7 +6016,7 @@ function coInfo(c){
     <div><span>成長率</span><b>${pc(c.growth + c.boost)}</b></div><div><span>営業利益率</span><b class="${opMargin(c) >= 0 ? '' : 'down'}">${pc(opMargin(c))}${syn > .0005 ? ` <small class="up">内シェア効果+${pc(syn)}</small>` : ''}</b></div><div><span>配当利回り</span><b>${pc(divY)}</b></div>
     <div><span>価格戦略</span><b>${PRICE[c.ps || 0].n}</b></div><div><span>ブランド</span><b>${(brandOf(c) * 100).toFixed(0)}</b></div><div><span>市場シェア</span><b>${pc(c.sh || 0)}${c.tsh != null && Math.abs(c.tsh - c.sh) > .002 ? ` <small class="${c.tsh > c.sh ? 'up' : 'down'}">${c.tsh > c.sh ? '↑' : '↓'}${pc(c.tsh)}</small>` : ''}</b></div>
     <div><span>業界シェア${c.ctrl ? '（グループ）' : ''}</span><b>${pc(indShare(c))}</b></div><div><span>為替の影響</span><b class="${fxe >= 0 ? 'up' : 'down'}">${spc(fxe)}</b></div><div><span>保有株式</span><b>${fm(c.pv || 0)}</b></div>
-  </div>
+  </div>${infoBox(c)}
   ${note ? `<p class="note" style="margin-top:10px">🛂 ${note}</p>` : ''}
   ${c.crisis ? `<div class="preview down">資金繰り危機：${shortDate(c.crisis.due)}までに資金を確保しないと破綻します</div>` : ''}${c.pen && c.pen.until > S.week ? `<p class="note">借り換えの上乗せ金利 +${c.pen.add}%（${shortDate(c.pen.until)}まで）</p>` : ''}
   ${c.priv ? '' : `<div class="btnrow"><button class="btn sm" data-act="cmpadd" data-id="${c.id}">比較に追加</button>${(ui.cmp || []).length ? `<button class="btn sm" data-act="cmpshow">比較を見る（${ui.cmp.length}社）</button>` : ''}</div>`}${posCard(c)}${bondCard(c)}${earnCard(c)}${exCard(c)}${synCard(c)}${marketCard(c)}${vertCard(c)}${attrCard(c)}
@@ -6264,7 +6450,7 @@ function calItems(){ /* upcoming events from what exists now; nothing is execute
   const p = S.player, out = [], add = (w, t, d, kind, cid) => { if (w >= S.week) out.push({w, t, d, kind, cid}); }, qEnd = Math.ceil((S.week + 1) / 13) * 13;
   const mine = S.cos.filter(c => !c.priv && (groupSh(c, 'P') > 0 || (S.watch || []).includes(c.id) || p.shorts[c.id]));
   if (mine.length) add(qEnd, '決算発表', `${mine.length}社（${mine.slice(0, 3).map(c => esc(c.name)).join('、')}${mine.length > 3 ? 'ほか' : ''}）`, 'earn');
-  { const L = p.pl || {}, base = (L.div || 0) * .5 + ['rent', 'fee', 'nl', 'int', 'hq', 'rd', 'pay'].reduce((a, k) => a + (L[k] || 0), 0), t = (preCo() ? .2 : TAX_RATE) * Math.max(0, base); add(qEnd, preCo() ? '四半期の納税（所得税等）' : '四半期の納税（法人税等）', `いまの見込み ${fm(t)}（四半期末までの収支で確定）`, 'tax'); }
+  { const t = taxPlan().t; add(qEnd, preCo() ? '四半期の納税（所得税等）' : '四半期の納税（法人税等）', `いまの見込み ${fm(t)}（四半期末までの収支で確定）`, 'tax'); }
   if (S.cos.some(c => (c.own.P || 0) > 0)) add(qEnd, '配当の受け取り', `年間の予想配当 ${fm(S.cos.reduce((a, c) => a + ((c.own.P || 0) > 0 && pubNi(c) > 0 ? pubNi(c) * c.payout * c.own.P / c.shares : 0), 0))} の四半期分`, 'div');
   for (const t of S.tobs) { const c = coById(t.cid); if (!c) continue; if (t.boss === 'P') { const q = tenderQuote(t.k, c, t.price, t.target, t.ref); add(t.end, 'あなたのTOBの締切', `${esc(c.name)}・支払い見込み ${q ? fm(q.cost) : '—'}`, 'tob', c.id); } else if (groupSh(c, 'P') > 0) add(t.end, '保有銘柄へのTOBの締切', `${esc(c.name)}・1株${fp(t.price)}（応募するかどうか）`, 'tob', c.id); }
   for (const o of p.opts) { const c = coById(o.cid); add(o.exp, 'オプションの満期', `${c ? esc(c.name) : ''}の${o.type === 'call' ? 'コール' : 'プット'}・行使価格${fp(o.k)}`, 'opt', o.cid); }
@@ -6706,6 +6892,19 @@ function act0(a, el){ LTAG = '';
     case 'loanoff': { if (payoffLoan(+v)) toast('ローンを完済しました'); bankRefresh(); } return;
     case 'bankb': { const a = bankBorrow(+v); if (a) toast(`銀行から${fm(a)}を借りました`); bankRefresh(); } return;
     case 'loanpay': { const a = Math.min(+v, S.player.loan, Math.max(0, S.player.cash)); if (a > 0) { S.player.cash -= a; S.player.loan -= a; if (mgSync()) recomputeCtrl(); toast(`信用借入を${fm(a)}返しました`); } renderAll(true); } return;
+    case 'govk': ui.govK = v; bankRefresh(); return;
+    case 'govamt': ui.govAmt = clamp(Math.round(((ui.govAmt == null ? 1 : ui.govAmt) + +v) * 100) / 100, .01, Math.max(.01, freeCash())); bankRefresh(); return;
+    case 'govbuy': { const b = govBuy(GOV[ui.govK] ? ui.govK : 'g10', +v); toast(b ? `${GOV[b.k].n}を${fm(b.face)}購入しました` : '購入できませんでした', !b); bankRefresh(); } return;
+    case 'govsell': { const g = govSell(+el.dataset.id); if (g) toast(`国債を${fm(g)}で売却しました`); bankRefresh(); } return;
+    case 'sbk': ui.sbK = v; bankRefresh(); return;
+    case 'sby': ui.sbY = +v; bankRefresh(); return;
+    case 'sbamt': ui.sbAmt = clamp(Math.round(((ui.sbAmt == null ? 10 : ui.sbAmt) + +v) * 100) / 100, 1, 1e5); bankRefresh(); return;
+    case 'sbiss': { const why = sbIssue(ui.sbK === 'cb' ? 'cb' : 'sb', +v, SB_YRS.includes(ui.sbY) ? ui.sbY : 5); toast(why || '発行しました', !!why); bankRefresh(); } return;
+    case 'sbcall': { const why = sbCall(+el.dataset.id); toast(why || '繰上償還しました', !!why); bankRefresh(); } return;
+    case 'fsec': { const f = fundBy(el.dataset.id), why = fundSecondary(f, coById(v)); toast(why || 'セカンダリー売却しました', !!why); } break;
+    case 'fcont': { const why = fundCont(fundBy(el.dataset.id)); toast(why || '継続ファンドへ移管しました', !!why); } break;
+    case 'mmstrat': { const why = mmSetStrat(v); if (why) toast(why, true); } break;
+    case 'rsch': { const why = rschBuy(c); toast(why || '調査を依頼しました', !!why); } break;
     case 'bankr': { const a = bankRepay(+v); if (a) toast(`銀行に${fm(a)}を返済しました`); bankRefresh(); } return;
     case 'cmpadd': if (c) { ui.cmp = (ui.cmp || []).filter(id => id !== c.id && coById(id)); ui.cmp.push(c.id); if (ui.cmp.length > 4) ui.cmp.shift(); toast(`比較に追加（${ui.cmp.length}社）`); } break;
     case 'cmprm': ui.cmp = (ui.cmp || []).filter(id => id !== el.dataset.id); showCompare(); return;
@@ -7331,7 +7530,8 @@ function trackBox(){ /* the track record: what investors look at */
 }
 function mmBox(){ /* managed money */
   const m = S.mm || {aum: 0, fees: 0, perf: 0, inv: 0, hwm: 0}, st = trStats(), L = S.mm ? mmList() : [];
-  if (L.length || m.fees > 0) return `<section class="box"><h4>運用委託 <small>投資家${L.length}件</small></h4><div class="kv">
+  const sg = `<p class="lbl">運用戦略（年1回まで変更）</p><div class="seg">${Object.entries(MM_STRAT).map(([k, x]) => `<button class="${mmStrat() === k ? 'on' : ''}" data-act="mmstrat" data-v="${k}">${x.n}</button>`).join('')}</div><p class="note">${MM_STRAT[mmStrat()].d}</p>`;
+  if (L.length || m.fees > 0) return `<section class="box"><h4>運用委託 <small>投資家${L.length}件・${MM_STRAT[mmStrat()].n}</small></h4>${sg}<div class="kv">
     <div><span>預かり資産（お客様のお金）</span><b>${fm(m.aum)}</b></div><div><span>今週の管理報酬（あなたの収入）</span><b class="up">${fm(m.lastFee || 0)}</b></div>
     <div><span>管理報酬の累計（年2%）</span><b class="up">${fm(m.fees)}</b></div><div><span>成功報酬の累計（20%）</span><b class="up">${fm(m.perf)}</b></div>
     <div><span>成功報酬の基準（過去最高）</span><b>${fm(m.hwm)}</b></div><div><span>受け入れ余力 / 上限</span><b>${fm(mmRoom())} / ${fm(mmCap())}</b></div>
@@ -7357,7 +7557,7 @@ function personalBox(){ /* the person's own money, separate from the company */
       <p class="note">会社は有限責任です。会社が債務超過になると倒産し、会社の資産は債権者への返済に充てられます（運用委託のお金は顧客へ返還）。個人保証はないので、あなた個人の資産は残り、運用実績と再出発の回数を引き継いで個人トレーダーに戻ります。</p>` : ''}
     <p class="note">役員報酬や配当で受け取った個人のお金は、売買画面の名義「個人（あなた）」で株を買えます（現物のみ・1株単位）。</p></section>${isTrader() ? cashFlowBox() + trackBox() + mmBox() + nlBox() : ''}`;
 }
-const CF_NAMES = [['div', '受取配当'], ['fee', '運用委託の報酬'], ['nl', '投資レポート事業'], ['int', '利息（信用・ローン）'], ['rent', '家賃収入'], ['tax', '税金'], ['hq', '本社の費用・出来事'], ['pay', '人件費'], ['fine', '罰金'], ['rd', '研究開発'], ['raise', '増資']];
+const CF_NAMES = [['div', '受取配当'], ['fee', '運用委託の報酬'], ['nl', '投資レポート事業'], ['int', '利息（信用・ローン）'], ['bond', '債券の利息・社債の手数料'], ['rent', '家賃収入'], ['tax', '税金'], ['hq', '本社の費用・出来事'], ['pay', '人件費'], ['fine', '罰金'], ['rd', '研究開発'], ['raise', '増資']];
 function cashFlowBox(){ /* last week's money in and out, other than buying and selling shares (read-only) */
   const L = (S.player.plWH && S.player.plWH[0]) || null; if (!L) return '';
   const rows = CF_NAMES.filter(([k]) => Math.abs(L[k] || 0) > 1e-9).map(([k, n]) => `<div><span>${n}</span><b class="${L[k] >= 0 ? 'up' : 'down'}">${L[k] >= 0 ? '+' : ''}${fm(L[k])}</b></div>`);
@@ -7632,7 +7832,7 @@ function boot(){
   showStart();
   if (ui.restored) { save(); toast('セーブデータが壊れていたため、バックアップから復元しました（壊れたデータは別に保管しています）', true); } /* the backup slot is left as it was */
 }
-window.__atlas = {get S(){ return S; }, foundBox, selfPx, selfSh, selfSplit, selfSplitWhy, splitBox, exLevel, fcapRange, fundSourceWhy, freeCash, gpRes, ytrNew, restartAsTrader, selfListed, selfBox, holdingsTab, ytrMax, hrOrphans, execBackCard, secDests, orgChart, crisisGap, coTrade, ytrBox, ownerName, injectBox, fundRecapPlan, fundRecapSettle, get actNote(){ return actNote; }, resOf, fundInjOk, peDD, ddCost, gpRes, bidFund, fundOrig, fundRaiseWhy, fundWindStep, fundSellAll, fundRepair, fundTarget, fundCanRaise, fundSourceDo, fundSource, fundIdle, fundShorten, fundWind, fundRevCard, fundEvalBolt, fundPlat, fundSrchCost, fundInvest, gpRatio, fundActCard, fundActDo, fundActWhy, fundGate, fundAsk, fundReview, fundReviewActs, fundBidRestore, fundEval, fundAuto8, fundInject, fundInjOk, fundTopUp, fundPlan, fundMode, fundCtl, fundPropCard, fundInjCard, dscrNeed, dscr, fundCard, fundRoom, fundRes, fundOver, fundWeekly, peResolve, peClose, acqEnd, acqPE, vcHold, vcAlign, compStart, compQuarter, ltipVest, deptEff, ipoWhy, holdWhy, peCashGate, vcPeers, vcEvent, hireOdds, firmPull, succCard, succCands, exitAlert, appStep, appSlots, applicantCard, hqBuildBox, coRow, fundAutoStep, fundAuto, fundLead, payBonus, bonusBox, qProfit, renderMarket, debtBox, vcFollowOn, vcSecond, vcBoost, vcQ, vcAskCard, vcRelease, fundMgrs, fundMgrEff, fundClose, fundBy, peExitStart, bsaleStep, pitchAlt, pitchCard, showSecond, secondTo, injectDo, injectBox, pePolSet, pePolCard, optVest, buyRoom, econSh, mortRate, coInfo, acqFlush, planOk, mgRecord, gfrac, mgOf, mgSync, mgSettle, planActions, delegateStep, dlogAdd, propReno, renoQuote, renoStep, propRefi, propSupply, occ, occ0, propMgmt, sellProp, sendLetter, jrStep, roadState, roadDone, roadNext, roadRec, roadBox, guideNow, showUnlock, groupView, grpAlerts, planSet, planDel, planClose, planBox, PLAN_K, acqSnap, jrList, jrReady, gradCands, dlgStep, offTag, officeSection, floorView, cashNote, renderInbox, personLine, hirePanel, gradBox, events, get trialErr(){ return trialErr; }, repay, snSync, snSyncAll, snStep, snOpen, letterStep, resolveSeatFight, irr, propFloor, propLet, get FX0(){ return FX0; }, activist, renderPort, liq, floatOf, payDividend, actLogStep, rollupBox, capAlloc, capAllocBox, peSearch, peSearchCost, actOutcome, actLogBox, bondPxV1, bondMat, bondRecov, bondLiqDisc, smallProps, propOpen, impUp, impDn, quoteSell, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, incorporate, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, isCheap, bankBorrow, bankRepay, bankLimit, showBank, showIPO, UW, peTransfer, peBuySecondary, marketFor, hrStep, peIPO, routeStep, ROUTES, hasR, DIFF, ddCost, lboOK, fundsOf, costOf, pmiStep, exitInfo, SAVE_FMT, fmtCheck, fm, has, traderView, roadList, myWorth, worthOf, preCo, isTrader, foundCompany, restartAsTrader, trStats, mmCap, mmAccept, mmOk, mmRoom, showUnlock, get PROPY(){ return PROP.office.y; }, setOffice, companyResidue, propRepair, dipsValue, propRentY, propVal, propFx, bondsStep, bondRepayAll, reorgStep, LIQUIDATE, bondBuy, bondSell, bondPx, bondsValue, bondEligible, startReorg, reorgChoose, reorgOdds, sendLetter, startSeatFight, seatsOn, letterOdds, defend, pillOnBid, ibxChoose, newInboxCard, hqBuild, hqBld, hqbCost, ic, icState, icDemand, icStep, fillMissions, genMission, niceUp, applyAct, ledgerEvent, payOut, delist, mmRedeemPart, namesV2, saveToFile, loadFromFile, foundBrand, pubNi, closeOption, transferShares, execCover, trSet, trBaseCheck, trFlow, migrate7, acqModel, ledgerAcct, trCheck, ledgerCheck, migrate6, pubSnap, pubVal, pubInit, showStart, showCompare, showWhy, closeModal, repCheap, SCR, marginRate, yoyTxt, stepScale, execShort, sharesForShort, shortLiab, stepCheck, takeLoan, pe100, peReady, peExitBids, peExitStart, companyResidue, vcQuarter, opProfit, grpSyn, peScale, dealEbitda, aiCrisis, foundRange, corpEvents, repOf, repFair, mmList, mmRedeem, finSig, trClose, corpTax, mmQuarter, nlStart, nlStep, nlCap, nlAppeal, stageFor, stageNW, makeGrowthCo, bankLimit, launchTob, tobPrice, activeTob, ctrlP, indivName, checkStage, mmPeople, mmDrag, mmLiq, buyOption, mmWeek, trStep, mmQuarter, roundSh, wholeSh, trWeeks, presWealth, rewScale, roadNext, ROAD, deptOn, stepSlide, peDesk, tradeModel, TMODES, sharesForShort, execShort, takeLoan, bankBorrow, finSig, stamp, exportText, bsaleBase, playerCrisisAuto, RIVAL_CAP, quoteBuy, shortLiab, act, renderAll, econCheck, nwMkt, shortRoom, loadSave, backupSave, boot, migrate, get trialErr(){ return trialErr; }, holdingsMkt, trialLoad, parseSave, tradeFunds, vcRound, divIncomeY, maybeIPO, qnews, fairEst, estAcc, ctrlPx, bankrupt, settleOne, optionsStep, validSave, parseSave, importText, repayMort, liquidate, renderBank, ceoAmtOf, gradeTxt, takeLoan, loanOffers, payoffLoan, bankDebt, termDebt, bankStep, corpTax, newsQuarter, wlv, welfareCost, perShare, showExec, dlgStep, vcFind, vcTranches, presWealth, vcValue, showPortfolio, expoStep, showExpo, mktCards, applyBrand, logoSVG, grossWorth, isJP, niA, pitchMore, bankRate, advertise, trainExec, trainGain, bsaleBids, bsaleExec, bsaleStep, pitchStep, pitchDo, startIPO, quarter, ctrlRule, ownCap, dscr, dscrNeed, refiStep, econStep, macroGlut, debtInit, gradOffer, gradStep, deptEff, deptCost, gradJoinW, vcInvest, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, sharesForMoney, holdingsValue, callLine, playerWeekly, overdraftStep, coverOverdraft, setOffice, activeTob, tenderQuote, tobNeedPrice, resolveTobs, startIPO, ipoStep, needOf, staffNeed, vcQuarter, showVC, ui};
+window.__atlas = {get S(){ return S; }, fundSecondary, fundSecWhy, fundCont, fundContWhy, fundExtra, fundClose, mmSetStrat, mmJudge, mmStrat, mmWeek, idxYear, rschBuy, rschHas, rschFlag, analyst, rumorStep, frdStep, frdOut, infoBox, estErr, taxPlan, corpTax, presTax, cgAdd, gwStep, gwLeft, consol, consolBox, impRecent, holdingPremium, acqSnap, govBuy, govSell, govPx, govYield, govValue, sbIssue, sbWhy, sbCall, sbCpn, selfRating, selfBondFace, cbTerms, foundBox, selfPx, selfSh, selfSplit, selfSplitWhy, splitBox, exLevel, fcapRange, fundSourceWhy, freeCash, gpRes, ytrNew, restartAsTrader, selfListed, selfBox, holdingsTab, ytrMax, hrOrphans, execBackCard, secDests, orgChart, crisisGap, coTrade, ytrBox, ownerName, injectBox, fundRecapPlan, fundRecapSettle, get actNote(){ return actNote; }, resOf, fundInjOk, peDD, ddCost, gpRes, bidFund, fundOrig, fundRaiseWhy, fundWindStep, fundSellAll, fundRepair, fundTarget, fundCanRaise, fundSourceDo, fundSource, fundIdle, fundShorten, fundWind, fundRevCard, fundEvalBolt, fundPlat, fundSrchCost, fundInvest, gpRatio, fundActCard, fundActDo, fundActWhy, fundGate, fundAsk, fundReview, fundReviewActs, fundBidRestore, fundEval, fundAuto8, fundInject, fundInjOk, fundTopUp, fundPlan, fundMode, fundCtl, fundPropCard, fundInjCard, dscrNeed, dscr, fundCard, fundRoom, fundRes, fundOver, fundWeekly, peResolve, peClose, acqEnd, acqPE, vcHold, vcAlign, compStart, compQuarter, ltipVest, deptEff, ipoWhy, holdWhy, peCashGate, vcPeers, vcEvent, hireOdds, firmPull, succCard, succCands, exitAlert, appStep, appSlots, applicantCard, hqBuildBox, coRow, fundAutoStep, fundAuto, fundLead, payBonus, bonusBox, qProfit, renderMarket, debtBox, vcFollowOn, vcSecond, vcBoost, vcQ, vcAskCard, vcRelease, fundMgrs, fundMgrEff, fundClose, fundBy, peExitStart, bsaleStep, pitchAlt, pitchCard, showSecond, secondTo, injectDo, injectBox, pePolSet, pePolCard, optVest, buyRoom, econSh, mortRate, coInfo, acqFlush, planOk, mgRecord, gfrac, mgOf, mgSync, mgSettle, planActions, delegateStep, dlogAdd, propReno, renoQuote, renoStep, propRefi, propSupply, occ, occ0, propMgmt, sellProp, sendLetter, jrStep, roadState, roadDone, roadNext, roadRec, roadBox, guideNow, showUnlock, groupView, grpAlerts, planSet, planDel, planClose, planBox, PLAN_K, acqSnap, jrList, jrReady, gradCands, dlgStep, offTag, officeSection, floorView, cashNote, renderInbox, personLine, hirePanel, gradBox, events, get trialErr(){ return trialErr; }, repay, snSync, snSyncAll, snStep, snOpen, letterStep, resolveSeatFight, irr, propFloor, propLet, get FX0(){ return FX0; }, activist, renderPort, liq, floatOf, payDividend, actLogStep, rollupBox, capAlloc, capAllocBox, peSearch, peSearchCost, actOutcome, actLogBox, bondPxV1, bondMat, bondRecov, bondLiqDisc, smallProps, propOpen, impUp, impDn, quoteSell, hqInit, deptStep, deptEff, deptPower, cov, accNeed, accLag, acctSnap, bsNow, cfOf, liveRec, plCloseKey, holdBoard, boardQuarter, vcQuarter, vcInvest, vcEvent, vcValue, propInfo, propOffer, showReport, wantReport, renderHQ, plClose, plCur, setOffice, office, officeStep, kidsBox, missionStep, genMission, laborSettle, laborDemand, unionOf, talksWeek, peCulture, hrInit, hrEnsure, hrStep, genPerson, person, exOf, ceoOf, hireInto, dismiss, trainExec, assignOP, marketFor, huntOdds, planActions, doAction, delegateStep, setWage, productivity, effOf, fitInd, cultFit, exApply, hqEff, peCapacity, staffStep, rivalProxyResolve, peBidders, peAIWin, peTransfer, peBuySecondary, coPartner, firmBy, opMargin, synergy, peDealGen, peDD, peBid, peAcquire, peQuote, dealAsk, dealEV, dealById, peStats, peExitStart, peExitBids, peSell, peIPO, peRecap, peTakePrivate, peStep, peMark, peEV, ebitda, irr, fundRaise, fundCanRaise, fundStats, fundNAV, fundBy, fundDistribute, fundCall, fundDry, renderPE, researchLeft, shortCap, callLine, researchStep, canResearch, doResearch, tenderQuote, execSell, specialDividend, invest, buyingPower, propHits, buyProp, sellProp, propVal, propEquity, propStep, genProps, rivalPropose, rivalProxyStart, rivalBid, rivalVotes, castVote, allot, rivalRaise, tasks, stepCheck, crisisCheck, resolveCrisis, opState, foundCompany, incorporate, expandRegion, listCompany, liquidate, vertBonus, restructure, rdInvest, mkTargets, pricePreview, levelFor, save, loadSave, parseSave, exportText, importText, BAK_KEY, SAVE_KEY, step, newGame, netWorth, fair, execBuy, execTender, execMerge, launchTob, mergeQuote, negotiate, advertise, fairParts, storyStep, storyPick, STORIES, yearAwards, awardWins, prestige, scrPass, ovStats, guideNow, autoPause, addInbox, celebrate, marginNear, isCheap, bankBorrow, bankRepay, bankLimit, showBank, showIPO, UW, peTransfer, peBuySecondary, marketFor, hrStep, peIPO, routeStep, ROUTES, hasR, DIFF, ddCost, lboOK, fundsOf, costOf, pmiStep, exitInfo, SAVE_FMT, fmtCheck, fm, has, traderView, roadList, myWorth, worthOf, preCo, isTrader, foundCompany, restartAsTrader, trStats, mmCap, mmAccept, mmOk, mmRoom, showUnlock, get PROPY(){ return PROP.office.y; }, setOffice, companyResidue, propRepair, dipsValue, propRentY, propVal, propFx, bondsStep, bondRepayAll, reorgStep, LIQUIDATE, bondBuy, bondSell, bondPx, bondsValue, bondEligible, startReorg, reorgChoose, reorgOdds, sendLetter, startSeatFight, seatsOn, letterOdds, defend, pillOnBid, ibxChoose, newInboxCard, hqBuild, hqBld, hqbCost, ic, icState, icDemand, icStep, fillMissions, genMission, niceUp, applyAct, ledgerEvent, payOut, delist, mmRedeemPart, namesV2, saveToFile, loadFromFile, foundBrand, pubNi, closeOption, transferShares, execCover, trSet, trBaseCheck, trFlow, migrate7, acqModel, ledgerAcct, trCheck, ledgerCheck, migrate6, pubSnap, pubVal, pubInit, showStart, showCompare, showWhy, closeModal, repCheap, SCR, marginRate, yoyTxt, stepScale, execShort, sharesForShort, shortLiab, stepCheck, takeLoan, pe100, peReady, peExitBids, peExitStart, companyResidue, vcQuarter, opProfit, grpSyn, peScale, dealEbitda, aiCrisis, foundRange, corpEvents, repOf, repFair, mmList, mmRedeem, finSig, trClose, corpTax, mmQuarter, nlStart, nlStep, nlCap, nlAppeal, stageFor, stageNW, makeGrowthCo, bankLimit, launchTob, tobPrice, activeTob, ctrlP, indivName, checkStage, mmPeople, mmDrag, mmLiq, buyOption, mmWeek, trStep, mmQuarter, roundSh, wholeSh, trWeeks, presWealth, rewScale, roadNext, ROAD, deptOn, stepSlide, peDesk, tradeModel, TMODES, sharesForShort, execShort, takeLoan, bankBorrow, finSig, stamp, exportText, bsaleBase, playerCrisisAuto, RIVAL_CAP, quoteBuy, shortLiab, act, renderAll, econCheck, nwMkt, shortRoom, loadSave, backupSave, boot, migrate, get trialErr(){ return trialErr; }, holdingsMkt, trialLoad, parseSave, tradeFunds, vcRound, divIncomeY, maybeIPO, qnews, fairEst, estAcc, ctrlPx, bankrupt, settleOne, optionsStep, validSave, parseSave, importText, repayMort, liquidate, renderBank, ceoAmtOf, gradeTxt, takeLoan, loanOffers, payoffLoan, bankDebt, termDebt, bankStep, corpTax, newsQuarter, wlv, welfareCost, perShare, showExec, dlgStep, vcFind, vcTranches, presWealth, vcValue, showPortfolio, expoStep, showExpo, mktCards, applyBrand, logoSVG, grossWorth, isJP, niA, pitchMore, bankRate, advertise, trainExec, trainGain, bsaleBids, bsaleExec, bsaleStep, pitchStep, pitchDo, startIPO, quarter, ctrlRule, ownCap, dscr, dscrNeed, refiStep, econStep, macroGlut, debtInit, gradOffer, gradStep, deptEff, deptCost, gradJoinW, vcInvest, issueEquity, rightsIssue, recomputeCtrl, foundCompany, stageFor, ctrlCore, repairSave, toast, sharesForMoney, holdingsValue, callLine, playerWeekly, overdraftStep, coverOverdraft, setOffice, activeTob, tenderQuote, tobNeedPrice, resolveTobs, startIPO, ipoStep, needOf, staffNeed, vcQuarter, showVC, ui};
 boot();
 })();
 </script>

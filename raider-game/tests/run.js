@@ -406,9 +406,9 @@ async function testPhase6(b) {
   ok('rival LBO: a raider short of cash bids with borrowed money', r.lbo, r.lboInfo);
   ok('rival equity: a third-party allotment raises the rival stake and dilutes the player', r.allot.up && r.allot.diluted && r.allot.ctrl === 'R1', JSON.stringify(r.allot));
   // long run: rivals use the new moves and nothing breaks
-  const l = await p.evaluate(inv => { const A = window.__atlas; A.newGame(8181, 'hard', 'T', 't', 'std', true); const S = A.S; S.won = true; S.lost = true; const seen = {}; for (let w = 0; w < 520; w++) { A.step(); S.inbox = []; for (const n of S.news) if (n.w === S.week) for (const k of ['株主提案', '委任状争奪戦', 'LBO', '第三者割当', '不動産取得']) if (n.t.includes(k)) seen[k] = (seen[k] || 0) + 1; } return {seen, bad: (0, eval)('(' + inv + ')')()}; }, INVARIANTS.toString());
-  ok('rivals use proposals, proxy fights and real estate over 10 years', l.seen['株主提案'] > 0 && l.seen['委任状争奪戦'] > 0 && l.seen['不動産取得'] > 0, JSON.stringify(l.seen));
-  ok('invariants hold over 10 hard years with the new moves', !l.bad.length, l.bad.slice(0, 5).join(', '));
+  const l = await p.evaluate(inv => { const A = window.__atlas, seen = {}, bad = []; for (const seed of [8181, 8182, 8183]) { A.newGame(seed, 'hard', 'T', 't', 'std', true); const S = A.S; S.won = true; S.lost = true; for (let w = 0; w < 520; w++) { A.step(); S.inbox = []; for (const n of S.news) if (n.w === S.week) for (const k of ['株主提案', '委任状争奪戦', 'LBO', '第三者割当', '不動産取得']) if (n.t.includes(k)) seen[k] = (seen[k] || 0) + 1; } bad.push(...[].concat((0, eval)('(' + inv + ')')() || [])); } return {seen, bad: bad.length ? bad : (0, eval)('(' + inv + ')')()}; }, INVARIANTS.toString()); /* rev29: counted over three 10-year games (30 years), so one game's path does not decide whether rivals use a move at all */
+  ok('rivals use proposals, proxy fights and real estate over three 10-year games', l.seen['株主提案'] > 0 && l.seen['委任状争奪戦'] > 0 && l.seen['不動産取得'] > 0, JSON.stringify(l.seen));
+  ok('invariants hold over three 10-year hard games with the new moves', !l.bad.length, l.bad.slice(0, 5).join(', '));
   // the property list in a city renders on iPhone without overflow
   const m = await page(b, devices['iPhone 13']);
   await m.p.evaluate(() => { const A = window.__atlas; A.newGame(8282, 'normal', 'T', 't', 'std', true); A.S.lost = true; A.S.player.cash = 300; A.buyProp('P', A.S.props.find(x => x.city === 'osa'), .5); document.querySelector('#modal').hidden = true; A.ui.city = 'tyo'; });
@@ -2666,7 +2666,7 @@ async function testRev20(b) {
     /* stock options: the head office's — granted at today's value, worth the rise, exercised after four years as a dilution of exactly the gain */
     { S = traderCo(2075, 100); const pool = S.hr.pool.map(id => S.hr.people[id]).filter(Boolean)[0]; A.hireInto(pool, 'HQ', 'CFO', null, null); const g0 = A.grossWorth();
       pool.so = [{f: .01, k: Math.max(0, g0), w0: S.week}]; S.player.cash += 50; const g1 = A.grossWorth(), shown = .01 * Math.max(0, g1 - g0);
-      for (let i = 0; i < 209; i++) { A.step(); S.inbox = []; } const gw = A.grossWorth(), o = S.player.outside || 0; info.so = {g0: +g0.toFixed(2), shownGain: +shown.toFixed(3), outside: +o.toFixed(5), left: pool.so.length};
+      for (let i = 0; i < 209; i++) { A.step(); S.inbox = []; if (pool.offer) pool.sal = pool.offer.sal; /* the player matches a rival's offer to keep the officer */ } const gw = A.grossWorth(), o = S.player.outside || 0; info.so = {g0: +g0.toFixed(2), shownGain: +shown.toFixed(3), outside: +o.toFixed(5), left: pool.so.length};
       out.soHQ = pool.so.length === 0 && o > 0 && o < .02 && Math.abs(A.myWorth() - gw * (1 - o)) < 1e-9; }
     /* a subsidiary officer's options: new shares worth the gain; the company is worth the same, so each share is worth less */
     { S = traderCo(2076, 500); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.ni > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[1]; A.execBuy('P', c, c.shares * .6); A.recomputeCtrl();
@@ -2925,6 +2925,66 @@ async function testPlay28(b) {
   const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
   ok('play28: share count at founding (company and startups), stock split before/after listing, modal keeps scroll, weaker outside officers and turnaround management', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
   ok('no page errors in play28 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+async function testRev29(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    let S;
+    const std = seed => { A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; S.stage = 4; return S; };
+    /* F1 — government bonds: bought at today's yield, worth less when rates rise, coupons weekly, repaid at par */
+    { std(2911); S.player.cash = 200; click('noop'); const g0 = A.grossWorth(); const b = A.govBuy('g10', 50); const dW = A.grossWorth() - g0, px0 = A.govPx(b);
+      S.econ.rate += 1; const shock = A.govValue() - b.face; S.econ.rate -= 1; const c0 = S.player.cash; A.step(); const cpn = S.player.cash - c0;
+      info.gov = {dW: +dW.toFixed(5), px0, shock: +shock.toFixed(3), y: b.cpn, cpn: +cpn.toFixed(5)};
+      out.gov = Math.abs(dW + b.face * .001) < 1e-9 && Math.abs(px0 - 1) < 1e-9 && shock < -2 && shock > -6 && (S.player.pl.bond || 0) > 0 && loads();
+      b.mat = S.week + 1; const n = S.gov.length; A.step(); out.govMat = S.gov.length === n - 1; }
+    /* F1 — your bonds and convertibles: cash in, debt up, worth unchanged but the fee; rating limit; a convertible below its price is repaid, above it turns into shares */
+    { std(2912); S.player.cash = 300; const w0 = A.grossWorth(), c0 = S.player.cash, why = A.sbIssue('sb', 30, 5);
+      out.sb = why === '' && Math.abs(S.player.cash - c0 - 29.7) < 1e-9 && Math.abs(A.grossWorth() - w0 + .3) < 1e-9 && A.selfBondFace() === 30 && /BB以上|30%/.test(A.sbWhy('sb', 1e5, 5)) && loads();
+      out.cbCheaper = A.sbCpn('cb', 5, 10) < A.sbCpn('sb', 5, 10) - .02;
+      const e = A.sbIssue('cb', 20, 3); const cb = S.player.sb.find(x => x.kind === 'cb'); out.cbIssued = e === '' && cb.cvPx > A.selfPx() * 1.2;
+      cb.mat = S.week + 1; const o0 = S.player.outside || 0; cb.cvPx = A.selfPx() * .5; const g1 = A.grossWorth(); A.step(); info.cb = {o0, o1: S.player.outside, dW: A.grossWorth() - g1};
+      out.cbConvert = !S.player.sb.some(x => x.kind === 'cb') && S.player.outside > o0 && loads();
+      const sb = S.player.sb[0]; sb.mat = S.week + 1; const c1 = S.player.cash; A.step(); out.sbRepaid = !S.player.sb.length && S.player.cash < c1 - 29; }
+    /* F2 — tax: realised gains taxed at 30%; a loss is carried forward and offsets at most half of later income; an individual 20% */
+    { std(2913); for (let i = 0; i < 12; i++) { A.step(); S.inbox = []; } S.player.pl = {}; S.player.cg = 0; S.player.nol = [];
+      A.cgAdd('P', 10); const c0 = S.player.cash; A.corpTax(); const t1 = c0 - S.player.cash; A.cgAdd('P', -40); A.corpTax(); const nol = (S.player.nol || []).reduce((a, x) => a + x.a, 0); A.cgAdd('P', 30); const q = A.taxPlan();
+      info.tax = {t1, nol, used: q.used, t: q.t}; out.tax = Math.abs(t1 - 3) < 1e-9 && Math.abs(nol - 40) < 1e-9 && Math.abs(q.used - 15) < 1e-9 && Math.abs(q.t - 4.5) < 1e-9 && loads();
+      /* a sale of shares records the gain for the quarter */ const c = S.cos.find(x => !x.priv && !x.ctrl && x.price > 1); S.player.cg = 0; S.player.cash = 500; A.execBuy('P', c, c.shares * .01); c.price *= 1.3; A.execSell('P', c, c.own.P); out.cgSale = (S.player.cg || 0) > 0; }
+    /* F2 — goodwill at control, impaired when the stake is worth less; the holding company's valuation falls */
+    { std(2914); const c = S.cos.find(x => !x.priv && !x.ctrl && x.price > 1); c.own.P = c.shares * .6; S.player.cost[c.id] = mcapOf(c) * .6 * 1.5; function mcapOf(x) { return x.price * x.shares; }
+      c.ctrl = 'P'; A.acqSnap(c); const gw = c.acq0.gw, hp0 = A.holdingPremium(); c.price *= .4; A.gwStep(); info.gw = {gw, imp: c.acq0.gwImp, hp0, hp1: A.holdingPremium()};
+      out.goodwill = gw > 0 && c.acq0.gwImp > 0 && c.acq0.gwImp <= gw + 1e-9 && A.holdingPremium() < hp0 && /のれんの減損/.test(A.consolBox()) && loads(); }
+    /* F3 — research narrows the estimate and reports the next results; analysts lean optimistic; rumours and fraud use no PRNG */
+    { std(2915); S.player.cash = 100; const c = S.cos.find(x => !x.priv && !x.ctrl); const e0 = Math.abs(A.estErr(c)); const why = A.rschBuy(c);
+      out.research = why === '' && A.rschHas(c) && Math.abs(A.estErr(c)) <= .015 + 1e-12 && /調査レポート/.test(A.infoBox(c)) && A.rschBuy(c) !== '';
+      const bias = S.cos.filter(x => !x.priv).map(x => A.analyst(x).bias); out.analyst = bias.reduce((a, x) => a + x, 0) / bias.length > 0;
+      const rs = S.rs; for (let i = 0; i < 30; i++) { S.week++; A.rumorStep(); if (S.week % 13 === 0) A.frdStep(); } out.noRng = S.rs === rs;
+      const f = S.cos.find(x => !x.priv && !x.ctrl && x !== c && !x.frd); f.frd = {k: .3, w0: S.week, end: S.week + 26}; const p0 = f.price; A.frdOut(f, 'テストで'); out.fraud = f.price / p0 < .55 && f.frdW === S.week && !f.frd && loads(); }
+    /* F3 — over 5 years rumours come and go and a fraud may surface; two runs match */
+    { const run = () => { std(2916); for (let i = 0; i < 260; i++) { A.step(); S.inbox = []; } return JSON.stringify([S.cos.map(c => +c.price.toFixed(6)), S.cos.filter(c => c.frdW != null).map(c => c.id), S.news.filter(n => /【噂】/.test(n.t)).length]); };
+      const a = run(), bb = run(); out.det = a === bb; info.rum = JSON.parse(a)[2]; }
+    /* F5 — LP terms from the last fund; secondary sale; continuation fund; managed-money strategies */
+    { A.newGame(2917, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); S.player.cash = 5000; A.trClose(); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.inv, {on: true, staff: 3});
+      S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const pp = S.hr.people[S.hr.pool[0]]; for (const k in pp.sk) pp.sk[k] = 70; A.hireInto(pp, 'HQ', 'PEH', 'fixed', null); const f = A.fundRaise('buyout', .05, pp.id); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } f.cfg.mode = 'manual';
+      out.terms1 = f.feeR === .02 && f.carryR === .2;
+      const mk = () => { let d = null; for (let i = 0; i < 300 && !d; i++) { const x = A.peDealGen(); if (x && A.dealEbitda(x, false) > 0 && x.type !== 'turn') d = x; else if (x) S.pe.deals = S.pe.deals.filter(y => y !== x); } d.dd = 2; d.risk = null; return A.peAcquire(d, f.id, A.dealAsk(d), .3, false); };
+      const c1 = mk(), c2 = mk(); const young = A.fundSecWhy(f, c1); S.week += 30; const dist0 = f.distLP + f.distGP + f.carry, nav1 = c1.own[f.id] * A.peMark(c1);
+      out.secondary = /半年/.test(young) && A.fundSecondary(f, c1) === '' && !S.cos.includes(c1) && Math.abs((f.distLP + f.distGP + f.carry - dist0) - nav1 * .88) < nav1 * .02;
+      const early = A.fundContWhy(f); f.end = S.week + 10; const gp0 = S.player.cash; const cw = A.fundCont(f); const nf = S.pe.funds[S.pe.funds.length - 1];
+      out.cont = /半年前/.test(early) && cw === '' && nf.cont === f.id && nf.feeR === .01 && (c2.own[nf.id] || 0) > 0 && !(c2.own[f.id] > 0) && c2.pe.owner === nf.id && f.closed && S.pe.track[0].why === '継続ファンドへ移管' && loads();
+      /* the next regular fund is still numbered II and judged on the last regular fund */ out.contNotLast = !A.fundCanRaise().why || !/継続/.test(A.fundCanRaise().why || '');
+      out.mmStrat = A.mmStrat() === 'ls' && A.mmSetStrat('mn') === '' && A.mmStrat() === 'mn' && /年1回/.test(A.mmSetStrat('long')) && loads();
+      /* market-neutral clients earn the excess over the index */ S.mm.list = [{id: 1, who: 't', val: 100, w: S.week, hwm: 100}]; S.mm.aum = 100; S.idxHist.push(S.idxHist[S.idxHist.length - 1] * 1.05); const v0 = S.mm.list[0].val; A.mmWeek(.05); out.mmHedge = S.mm.list[0].val < v0 * 1.001; }
+    /* old saves keep loading; an impossible bond or tax record is refused */
+    { std(2918); const t = JSON.parse(A.exportText()); t.gov = [{id: 1, k: 'g10', face: -1, cpn: .02, cost: 1, w: 0, mat: 520}]; const bad1 = !A.parseSave(JSON.stringify(t)); const t2 = JSON.parse(A.exportText()); t2.player.nol = [{w: 0, a: -5}]; const bad2 = !A.parseSave(JSON.stringify(t2)); out.refuse = bad1 && bad2; }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev29: government bonds, own bonds and convertibles, rating; capital gains tax and loss carry-forward, goodwill and impairment; research, analysts, rumours, fraud; LP terms, secondaries, continuation funds, managed-money strategies', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
+  ok('no page errors in rev29 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 async function testFix1120(b) {
   const {p, errs} = await page(b);
@@ -3704,6 +3764,7 @@ async function balance(b) {
     await testFix1120(b);
     await testRev27(b);
     await testPlay28(b);
+    await testRev29(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
