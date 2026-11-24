@@ -1640,13 +1640,20 @@ const PROP = {
 }; /* BAL-05: apt/unit are small (数千万円) buildings for a start: in Japanese cities only */
 const PROP_PRE = ['中央', 'ベイ', 'グランド', 'パーク', 'ステーション', 'リバー', 'ヒルズ', 'ガーデン'];
 const CITY_SCALE = {tyo: 3, nyc: 3, lon: 2.6, hkg: 2, sha: 2, par: 2, sin: 1.8, osa: 1.8, sfo: 1.8, chi: 1.5, sel: 1.5, fra: 1.4, zur: 1.4, syd: 1.4, dxb: 1.4, tor: 1.3, ngo: 1.2, fuk: 1, spk: .9};
+/* rev43: land and building prices from real-world figures (2025). Japan: 地価公示 令和7年 (国土交通省): 東京都 商業地平均 2,699,100円/㎡・住宅地平均 466,400円/㎡; 北海道 商業地 127,400・住宅地 24,600; 区平均の参考: 大阪市北区 商業地 約419万・名古屋市中村区 約302万・札幌市中央区 約121万円/㎡.
+   For the other Japanese cities the city-wide averages are estimates placed between those references. Abroad: city-centre apartment prices (Deutsche Bank "Mapping the World's Prices 2025": 香港 US$25,946/㎡・ソウル 22,875・ドバイ 7,602; 2026 edition: チューリッヒ €22,910・パリ €12,771・ヨハネスブルグ €913);
+   cities without a published figure use estimates of the same measure. A city's land is priced at Tokyo's level times its apartment price over Tokyo's (about US$11,000/㎡, an estimate). [commercial, residential, industrial] 円/㎡ */
+const APT_USD = {tyo: 11000, hkg: 25946, sel: 22875, zur: 24600, sin: 21000, lon: 19000, nyc: 18000, sha: 13000, par: 13700, sto: 11000, sfo: 12000, syd: 11000, tor: 9000, fra: 9000, chi: 5500, dxb: 7602, bom: 6000, mex: 3000, sao: 2800, bue: 3000, jnb: 980, los: 2000};
+const LANDPX_JP = {tyo: [2699100, 466400, 400000], osa: [1500000, 300000, 220000], ngo: [1000000, 230000, 150000], fuk: [900000, 210000, 120000], spk: [600000, 120000, 60000]}; /* 東京都は公示平均・他は推定 */
+const landYen = (ct, zone) => { const L = LANDPX_JP[ct] || LANDPX_JP.tyo.map(v => v * (APT_USD[ct] || 4000) / APT_USD.tyo), i = zone === 'com' ? 0 : zone === 'ind' ? 2 : 1; return L[i]; };
+const cityPx = ct => landYen(ct, 'com') / LANDPX_JP.tyo[0]; /* a city's property price level against Tokyo */
 function genProps(){ // derived from the city list alone: never touches the PRNG
   const out = [], kinds = ['office', 'retail', 'logi', 'resi']; let id = 1; /* the original four (the order fixes which building each city has) */
   for (const ct of CITIES) {
     const sc = CITY_SCALE[ct.id] || .8, n = sc >= 2.5 ? 4 : sc >= 1.4 ? 3 : 2, k0 = hashStr(ct.id);
     for (let i = 0; i < n; i++) {
       const h = hashStr(ct.id + ':' + i), kind = kinds[(k0 + i) % kinds.length], K = PROP[kind];
-      out.push({id: 'E' + id++, city: ct.id, kind, name: `${ct.n}${PROP_PRE[(h >>> 3) % PROP_PRE.length]}${K.sfx[(h >>> 7) % 3]}`, v: +(sc * K.sz * (14 + h % 37)).toFixed(1), y: +(K.y + ((h >>> 11) % 9 - 4) * .002).toFixed(4), own: null, mort: 0, cost: 0});
+      out.push({id: 'E' + id++, city: ct.id, kind, name: `${ct.n}${PROP_PRE[(h >>> 3) % PROP_PRE.length]}${K.sfx[(h >>> 7) % 3]}`, v: +(3 * cityPx(ct.id) * K.sz * (14 + h % 37) * Math.pow(Math.max(.6, sc) / 3, .3)).toFixed(1), y: /* rev43: priced by the city's real property level (Tokyo as before); a bigger city still has bigger buildings */ +(K.y + ((h >>> 11) % 9 - 4) * .002).toFixed(4), own: null, mort: 0, cost: 0});
     }
   }
   return out.concat(smallProps());
@@ -1654,7 +1661,7 @@ function genProps(){ // derived from the city list alone: never touches the PRNG
 function smallProps(){ /* BAL-05: two small buildings in each Japanese city; also derived from the city list alone */
   const out = []; let id = 1;
   for (const ct of CITIES) { if (REGION_OF[ct.id] !== 'jp') continue; const sc = CITY_SCALE[ct.id] || .8;
-    for (const kind of ['apt', 'unit']) { const h = hashStr(ct.id + ':s:' + kind), K = PROP[kind], v = kind === 'apt' ? .3 + (h % 50) / 100 * Math.sqrt(sc) : .15 + (h % 30) / 100 * Math.sqrt(sc);
+    for (const kind of ['apt', 'unit']) { const h = hashStr(ct.id + ':s:' + kind), K = PROP[kind], r = landYen(ct.id, 'res') / LANDPX_JP.tyo[1], v = kind === 'apt' ? (.45 + (h % 50) / 100) * (.35 + .65 * r) : (.4 + (h % 40) / 100) * (.3 + .7 * r); /* rev43: 東京の一棟アパート 約0.5〜1億円・区分マンション 約4,000万〜8,000万円, other cities by their residential land price */
       out.push({id: 'S' + id++, city: ct.id, kind, small: true, name: `${ct.n}${PROP_PRE[(h >>> 3) % PROP_PRE.length]}${K.sfx[(h >>> 7) % 3]}`, v: +v.toFixed(2), y: +(K.y + ((h >>> 11) % 9 - 4) * .002 - (sc - 1) * .003).toFixed(4), own: null, mort: 0, cost: 0}); } }
   return out;
 }
@@ -6376,10 +6383,10 @@ function opsRecord(c){ const o = c.ops; if (!o) return; o.wk.push({w: S.week, re
 
 /* ---------- developer: land, design, construction, sale or holding (a realty subsidiary or your investment department) ---------- */
 const ZONE = {com: {n: '商業地', kinds: ['office', 'retail', 'condo'], far: [6, 10]}, res: {n: '住宅地', kinds: ['resi', 'condo', 'apt'], far: [2, 4]}, ind: {n: '工業地', kinds: ['logi'], far: [1.5, 2.5]}};
-const DEVK = {office: {n: 'オフィスビル', cm2: .004}, retail: {n: '商業施設', cm2: .0035}, logi: {n: '物流倉庫', cm2: .002}, resi: {n: '賃貸マンション', cm2: .003}, apt: {n: '一棟アパート', cm2: .0025}, condo: {n: '分譲マンション', cm2: .0035}};
+const DEVK = {office: {n: 'オフィスビル', cm2: .0055}, retail: {n: '商業施設', cm2: .0045}, logi: {n: '物流倉庫', cm2: .0025}, resi: {n: '賃貸マンション', cm2: .0042}, /* rev43: 2025年の建築費（延床1㎡あたり：オフィス約55万・商業約45万・物流約25万・賃貸マンション約42万円） */ apt: {n: '一棟アパート', cm2: .0032}, condo: {n: '分譲マンション', cm2: .0048}};
 const siteName = (ct, h) => `${CITY[ct].n}${['一丁目', '二丁目', '港南', '北口', '湾岸', '東', '西', '中央'][h % 8]}の用地`;
 function siteGen(ct, k){ const h = hashStr(ct + ':site:' + k), sc = cityScale(ct), zone = ['com', 'res', 'res', 'ind'][h % 4], Z = ZONE[zone], area = Math.round((sc >= 1.4 ? 1500 : 400) + (h >>> 3) % (sc >= 1.4 ? 6000 : 1600)), far = +(Z.far[0] + ((h >>> 9) % 10) / 10 * (Z.far[1] - Z.far[0])).toFixed(1), risky = (h >>> 13) % 100 < 12;
-  return {id: 'L' + ct + k, city: ct, k, n: siteName(ct, h >>> 5), zone, area, far, pxm2: +(.006 * Math.pow(sc, 1.5) * (zone === 'com' ? 1.4 : zone === 'ind' ? .5 : 1) * (risky ? .8 : 1) * (.85 + ((h >>> 17) % 30) / 100)).toFixed(5), risky}; }
+  return {id: 'L' + ct + k, city: ct, k, n: siteName(ct, h >>> 5), zone, area, far, pxm2: +(landYen(ct, zone) / 1e8 * (risky ? .8 : 1) * (.85 + ((h >>> 17) % 30) / 100)).toFixed(6), risky}; } /* rev43: the city's real land price (円/㎡ → 億円/㎡) */
 function sitesEnsure(){ S.sites = S.sites || []; S.devp = S.devp || []; S.devSeq = S.devSeq || 0; S.siteK = S.siteK || {}; S.siteW = S.siteW || {};
   for (const ct of CITIES) { const n = cityScale(ct.id) >= 1.4 ? 3 : 2; while (S.sites.filter(x => x.city === ct.id).length < n && S.week >= (S.siteW[ct.id] || 0)) { const k = S.siteK[ct.id] || 0; S.sites.push(siteGen(ct.id, k)); S.siteK[ct.id] = k + 1; } } } /* a sold site is replaced after half a year */
 const sitePrice = s => s.area * s.pxm2 * (1 + .04 * ((S.econ.gdp || 2.5) - 2.5)) * (1 + .15 * (ICS_SIG[icState('realty')] || 0));
