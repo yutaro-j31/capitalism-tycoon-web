@@ -3204,6 +3204,24 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testIcons46(b) {
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; A.closeModal(); A.newGame(77, 'normal', 'B', 'b', 'std', true); const S = A.S; for (let i = 0; i < 2; i++) A.step();
+    const T = A.AV_TAG, src2i = new Map(A.AV_POOL.map((s, i) => [s, i])), bad = []; let n = 0;
+    for (const x of Object.values(S.hr.people)) { const i = src2i.get(A.avPoolImg(x.n, x.age)), t = T[i], w = A.avWho(x.n); n++; if (t[0] !== w.g || !w.looks.includes(t[1])) bad.push([x.n, t.join(' ')]); }
+    info.n = n; info.bad = bad.slice(0, 5); out.match = n > 30 && bad.length === 0;
+    const jp = Object.values(S.hr.people).filter(x => !/・/.test(x.n)); out.jpEastAsian = jp.every(x => T[src2i.get(A.avPoolImg(x.n, x.age))][1] === 'ea');
+    out.same = Object.values(S.hr.people).every(x => A.avPoolImg(x.n, x.age) === A.avPoolImg(x.n, x.age)); /* the same person always has the same face */
+    const cand = S.hr.pool.map(A.person).find(Boolean); out.noBadgeForCandidate = !/class="avb"/.test(A.avFace(cand, 'CFO'));
+    const exec = Object.values(S.hr.people).find(x => x.at && x.role === 'CEO'); out.badgeForHolder = /class="avb">CEO</.test(A.avFace(exec, 'CFO'));
+    return {out, info}; });
+  console.log('rev46 icons', JSON.stringify(r.info).slice(0, 600));
+  for (const [k, v] of Object.entries(r.out)) ok('rev46 icons: ' + k, v);
+  ok('rev46 icons: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testBug128(b) {
   const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
   const r = await p.evaluate(() => { try { return (() => {
@@ -3756,7 +3774,7 @@ async function testOps37(b) {
     /* a developer that disappears (merged, delisted) takes its projects with it: the save still loads at once */
     { fresh(3812); A.step(); A.sitesEnsure(); const dv = S.cos.find(x => x.ops.type === 'dev'); dv.cash += 1e4; const st = S.sites[0]; const e = A.devBuy(dv.id, st.id, false); const had = S.devp.some(x => x.own === dv.id); S.cos = S.cos.filter(x => x !== dv); for (const c of S.cos) for (const k of Object.keys(c.own)) if (k === dv.id) delete c.own[k];
       const ok = !!A.parseSave(A.exportText()); info.purge = {e, had, err: (A.trialErr || '').slice(0, 60)}; out.purge = e === '' && had && ok && !S.devp.some(x => x.own === dv.id); }
-    /* a building drawn for each kind and grade */ { const k = ['office', 'retail', 'logi', 'resi', 'apt', 'condo'].map(x => A.bldSVG(x, 'std', 1) + A.bldSVG(x, 'hi', 1)); out.svg = k.every(x => /<svg/.test(x) && /polygon/.test(x)) && k[0] !== k[1]; }
+    /* a building drawn for each kind and grade */ { const k = ['office', 'retail', 'logi', 'resi', 'apt', 'condo'].map(x => A.bldSVG(x, 'std', 1) + A.bldSVG(x, 'hi', 1)); out.svg = k.slice(0, 4).every(x => /<img class="prop2d"/.test(x)) && k.slice(4).every(x => /<svg/.test(x) && /polygon/.test(x)) && k[0] !== k[1]; } /* rev46: offices, retail, logistics and rental blocks are photos; the small kinds keep the drawing */
     /* the AI runs the other companies with the same actions */ { fresh(3809); for (let i = 0; i < 104; i++) A.step(); const acted = S.cos.filter(c => c.ctrl !== 'P' && (c.ops.log || []).length).length; info.ai = acted; out.ai = acted >= 10; }
     /* the same seed gives the same businesses */ { const run = () => { fresh(3810); for (let i = 0; i < 40; i++) A.step(); return JSON.stringify(S.cos.map(c => [c.ops.A, c.ops.P, c.ops.cap, c.rev])) + JSON.stringify(S.cmdty) + JSON.stringify(S.devp); }; out.det = run() === run(); }
     /* the business tab at 320px for each type; the group tab lists the subsidiaries' weeks */
@@ -4562,6 +4580,7 @@ async function balance(b) {
     await testSearch43(b);
     await testNames44(b);
     await testBug128(b);
+    await testIcons46(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
