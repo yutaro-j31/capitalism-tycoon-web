@@ -2978,6 +2978,9 @@ async function testRev29(b) {
       /* the next regular fund is still numbered II and judged on the last regular fund */ out.contNotLast = !A.fundCanRaise().why || !/継続/.test(A.fundCanRaise().why || '');
       out.mmStrat = A.mmStrat() === 'ls' && A.mmSetStrat('mn') === '' && A.mmStrat() === 'mn' && /年1回/.test(A.mmSetStrat('long')) && loads();
       /* market-neutral clients earn the excess over the index */ S.mm.list = [{id: 1, who: 't', val: 100, w: S.week, hwm: 100}]; S.mm.aum = 100; S.idxHist.push(S.idxHist[S.idxHist.length - 1] * 1.05); const v0 = S.mm.list[0].val; A.mmWeek(.05); out.mmHedge = S.mm.list[0].val < v0 * 1.001; }
+    /* rev29 (found by the UI fuzz): margin shares that stop being margin shares give back their votes before the save is written, so the save loads */
+    { std(2919); const c = S.cos.find(x => !x.priv && !x.ctrl && x.price > 1 && !x.pill); c.own.P = c.shares * .55; S.player.cost[c.id] = c.price * c.own.P; S.player.loan = 5; S.player.mg = {[c.id]: c.shares * .2}; S.player.mgB = {[c.id]: 5}; A.recomputeCtrl(); A.trClose(); const before = c.ctrl;
+      S.player.loan = 0; const txt = A.exportText(); info.mgv = {before, after: c.ctrl, err: A.parseSave(txt) ? '' : A.trialErr.slice(0, 60)}; out.mgVotes = before !== 'P' && c.ctrl === 'P' && !!A.parseSave(txt); }
     /* old saves keep loading; an impossible bond or tax record is refused */
     { std(2918); const t = JSON.parse(A.exportText()); t.gov = [{id: 1, k: 'g10', face: -1, cpn: .02, cost: 1, w: 0, mat: 520}]; const bad1 = !A.parseSave(JSON.stringify(t)); const t2 = JSON.parse(A.exportText()); t2.player.nol = [{w: 0, a: -5}]; const bad2 = !A.parseSave(JSON.stringify(t2)); out.refuse = bad1 && bad2; }
     return {out, info};
