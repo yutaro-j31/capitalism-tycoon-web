@@ -3204,6 +3204,77 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testBug128(b) {
+  const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
+  const r = await p.evaluate(() => { try { return (() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); return ok1 && !(typeof m === 'string' && m.includes('読み込めません')) && A.S !== S0 && A.econCheck(A.S) === ''; };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.confirm = false; return S; };
+    const q = {ind: 'any', focus: 'fin', car: 'mid', bg: 'any', tier: 'std'};
+    const hrState = () => JSON.stringify([S.player.cash, S.player.loan, S.player.bank || 0, (S.hr.srch || []).map(x => [x.id, x.closed, x.cands]), Object.values(S.hr.people).map(x => [x.id, x.at, x.role, x.sal, x.comp]), S.hr.pool, S.rngN || 0]);
+    const coState = c => JSON.stringify([c.cash, c.debt, c.ex, Object.values(S.hr.people).map(x => [x.id, x.at, x.role, x.sal, x.comp]), S.hr.srch.map(x => [x.id, x.closed, x.cands])]);
+    /* T01/T03/T04: head office: no money → refused, nothing changes; exactly enough → hired once; after raising money the same candidate can still be hired */
+    { fresh(4801); A.step(); S.player.cash = 50; A.srchOrder('HQ', 'CFO', q); for (let i = 0; i < 3; i++) A.step(); const x = S.hr.srch[0], pid = x.cands[0], P = A.person(pid), fee = A.chFee('search', P);
+      S.player.cash = 0; S.player.loan = 0; const room0 = A.buyingPower(); const s0 = hrState(); const r1 = A.srchHire(x.id, pid); const same = hrState() === s0, open1 = x.closed == null;
+      S.player.cash = fee + (A.buyingPower() >= fee ? 0 : 0); let need = fee; S.player.cash = need; while (A.buyingPower() < fee) { need += .001; S.player.cash = need; } const L0 = S.player.loan, c0 = S.player.cash;
+      const r2 = A.srchHire(x.id, pid), r3 = A.srchHire(x.id, pid); info.t1 = {room0, fee, r1, same, r2, r3, paid: c0 - S.player.cash + (S.player.loan - L0)};
+      out.T01 = r1 === 'nofund' && same && open1; out.T03_T04_hq = r2 === 'ok' && r3 === 'none' && Math.abs(c0 - S.player.cash + (S.player.loan - L0) - fee) < 1e-9 && P.at === 'HQ' && P.role === 'CFO' && x.closed != null; }
+    /* T02/T03: a subsidiary with no cash and no borrowing room → refused, the sitting officer stays; exactly enough room → paid by the subsidiary only */
+    { fresh(4802); A.step(); const c = S.cos.find(x => x.ind === 'tech' && !x.priv); c.own.P = c.shares * .6; A.recomputeCtrl(); A.opsEnsure(); c.cash += 5; A.srchOrder(c.id, 'CFO', q); for (let i = 0; i < 3; i++) A.step(); const x = S.hr.srch[0], pid = x.cands[0], P = A.person(pid), fee = A.chFee('search', P), old = (c.ex || {}).CFO;
+      c.cash = 0; c.debt = Math.max(c.debt, A.maxDebt(c)); const s0 = coState(c), hq0 = S.player.cash; const r1 = A.srchHire(x.id, pid); const same = coState(c) === s0 && S.player.cash === hq0, keep = (c.ex || {}).CFO === old;
+      c.debt = A.maxDebt(c) - fee; const d0 = c.debt; const r2 = A.srchHire(x.id, pid); info.t2 = {fee, r1, r2, dd: c.debt - d0, hq: S.player.cash - hq0};
+      out.T02 = r1 === 'nofund' && same && keep; out.T03_sub = r2 === 'ok' && Math.abs(c.debt - d0 - fee) < 1e-9 && c.cash >= 0 && S.player.cash === hq0 && (c.ex || {}).CFO === pid; }
+    /* T05: other paid routes use the same check; a free internal move is not blocked by money */
+    { fresh(4803); A.step(); S.player.cash = 0; S.player.loan = 0; const pool = S.hr.pool.map(A.person).filter(Boolean); const p1 = pool[0], s0 = hrState(); const ra = A.hireInto(p1, 'HQ', 'CFO', null, 'agency'); const sa = hrState() === s0;
+      const c = S.cos.find(x => !x.priv && !x.ctrl); const cand = Object.values(S.hr.people).find(x => x.at && x.at !== 'HQ' && A.coById(x.at) && !A.coById(x.at).ctrl); const rh = cand ? A.hireInto(cand, 'HQ', 'MA', null, 'hunt') : 'skip';
+      const own = pool[1]; S.player.cash = 50; A.hireInto(own, 'HQ', 'BENCH', null, null); S.player.cash = 0; const rm = A.hireInto(own, 'HQ', 'CFO', null, null); info.t5 = {ra, sa, rh, rm};
+      out.T05 = ra === 'nofund' && sa && (rh === 'nofund' || rh === 'skip') && rm === 'ok' && A.hireInto(own, 'XX', 'CFO', null, null) === 'none' && A.hireInto(own, 'HQ', 'ZZZ', null, null) === 'none'; }
+    /* T07-T09: one tally for gains, losses, net and count, whatever the folding */
+    const tally = (pairs, opt) => { fresh(4804); A.step(); const c = S.cos.find(x => !x.priv); while (S.week % 13 !== 1) A.step(); let g = 0, l = 0, n = 0; for (const v of pairs) { A.xlAdd(c, v, 't'); if (v > 0) g += v; else l += v; n++; }
+      const open = A.xlSum(c.xl.filter(e => e.rep == null)), sums = c.xl.filter(e => e.sum).length; let ok = true; if (opt && opt.load) { ok = loads(); S = A.S; } const cc = A.coById(c.id); do { A.step(); } while (S.week % 13 !== 0); const h = cc.qh[cc.qh.length - 1];
+      return {g, l, n, open, h: {xg: h.xg, xL: h.xL, xo: h.xo, xn: h.xn}, ok, sums}; };
+    const near = (a, b2) => Math.abs(a - b2) < 1e-6;
+    { const R7 = tally(Array.from({length: 600}, (_, i) => i % 2 ? -10 : 20)); info.t7 = R7; out.T07 = near(R7.h.xg, 6000) && near(R7.h.xL, -3000) && near(R7.h.xo, 3000) && R7.h.xn === 600 && R7.sums >= 1;
+      const B = [499, 500, 501].map(k => tally(Array.from({length: k}, (_, i) => i % 3 ? -7 : 11))); info.t8 = B.map(x => x.h); out.T08 = B.every(x => near(x.h.xg, x.g) && near(x.h.xL, x.l) && near(x.h.xo, x.g + x.l) && x.h.xn === x.n);
+      const Z = tally(Array.from({length: 1600}, (_, i) => i % 2 ? -5 : 5)); info.t9 = Z.h; out.T09 = near(Z.h.xg, 4000) && near(Z.h.xL, -4000) && near(Z.h.xo, 0) && Z.h.xn === 1600 && Z.sums >= 1;
+      const L11 = tally(Array.from({length: 700}, (_, i) => i % 2 ? -3 : 4), {load: true}); info.t11 = L11.h; out.T11 = L11.ok && near(L11.h.xg, 1400) && near(L11.h.xL, -1050) && L11.h.xn === 700; }
+    /* T06: 70 licence trades in one quarter: reported in that quarter only */
+    { fresh(4342 + 70); const c = S.cos.find(x => x.ind === 'pharma' && !x.priv); c.cash += 1e4; while (S.week % 13 !== 1) A.step(); let loss = 0; for (let i = 0; i < 70; i++) { c.cash += 1e4; const c1 = c.cash; A.opsDo(c, {k: 'lin', v: 2}, 'P'); const pj = c.ops.pipe[c.ops.pipe.length - 1]; A.opsDo(c, {k: 'lout', id: pj.id}, 'P'); loss += c.cash - c1; c.cash -= 1e4; }
+      do { A.step(); } while (S.week % 13 !== 0); const q1 = c.qh[c.qh.length - 1].xo; for (let i = 0; i < 13; i++) A.step(); const q2 = c.qh[c.qh.length - 1].xo; info.t6 = {loss, q1, q2}; out.T06 = near(q1, loss) && q2 === 0; }
+    /* T10: absorbing companies whose open ledgers were folded: every part moves once */
+    { fresh(4805); A.step(); const L = S.cos.filter(x => x.ind === 'pharma' && !x.priv && !x.ctrl); let a = null; const parts = [];
+      for (const c of L) { for (let i = 0; i < 520; i++) A.xlAdd(c, i % 2 ? -2 : 3, 't'); parts.push(A.xlSum(c.xl.filter(e => e.rep == null))); }
+      const tot = parts.reduce((t, x) => ({g: t.g + x.g, l: t.l + x.l, n: t.n + x.n}), {g: 0, l: 0, n: 0}); a = L[0]; let merged = 1; for (const c of L.slice(1)) { a.cash += 1e5; a.debt = 0; c.debt = 0; if (A.execMerge(a, c, .3, true)) merged++; }
+      const o = A.xlSum(a.xl.filter(e => e.rep == null)), exp = parts.slice(0, merged).reduce((t, x) => ({g: t.g + x.g, l: t.l + x.l, n: t.n + x.n}), {g: 0, l: 0, n: 0}); const ids = a.xl.map(e => e.id); info.t10 = {merged, o, exp};
+      out.T10 = merged >= 2 && near(o.g, exp.g) && near(o.l, exp.l) && o.n === exp.n && new Set(ids).size === ids.length; }
+    /* T12: an older summary with only its net: net and count kept, the split shown as unknown, nothing invented */
+    { fresh(4806); A.step(); const c = S.cos.find(x => !x.priv); while (S.week % 13 !== 1) A.step(); c.xl = [{id: 1, w: S.week, amt: 123, n: 40, why: '40件の取引をまとめた記録', sum: true}]; A.xlAdd(c, 5, 'x'); A.xlAdd(c, -2, 'y'); const ok = loads(); S = A.S; const cc = A.coById(c.id); do { A.step(); } while (S.week % 13 !== 0); const h = cc.qh[cc.qh.length - 1]; A.ui.sel = cc.id; const html = A.qhBox(cc);
+      info.t12 = {xo: h.xo, xg: h.xg, xL: h.xL, xu: h.xu, xn: h.xn}; out.T12 = ok && near(h.xo, 126) && near(h.xg, 5) && near(h.xL, -2) && near(h.xu, 123) && h.xn === 42 && /内訳不明/.test(html); }
+    /* T13-T16: searches closed in week 0 stay closed, also after a reload; closing twice changes nothing; later weeks work as before */
+    { fresh(4807); S.player.cash = 50; A.srchOrder('HQ', 'CFO', q); A.srchOrder('HQ', 'COO', Object.assign({}, q, {tier: 'exec'})); const [s1, s2] = S.hr.srch; A.srchClose(s1, '見送り'); A.srchClose(s2, '見送り'); const pool0 = S.hr.pool.length;
+      for (let i = 0; i < 3; i++) A.step(); const t13 = s1.cands.length === 0 && !S.inbox.some(i => i.kind === 'srchres'); const ok = loads(); S = A.S; for (let i = 0; i < 3; i++) A.step(); const X = S.hr.srch;
+      const t14 = ok && X.every(x => x.closed === 0 && x.cands.length === 0) && !S.inbox.some(i => i.kind === 'srchres') && A.srchOrder('HQ', 'CMO', q) === '' && A.srchOrder('HQ', 'MA', q) === '' && A.srchOrder('HQ', 'PEH', q) === '';
+      info.t13 = {t13, t14, n: X.length}; out.T13 = t13; out.T14 = t14;
+      fresh(4808); A.step(); S.player.cash = 50; A.srchOrder('HQ', 'CFO', q); for (let i = 0; i < 3; i++) A.step(); const x = S.hr.srch[0], cs = x.cands.slice(); A.srchClose(x, '見送り'); const poolN = S.hr.pool.filter(id => cs.includes(id)).length; A.srchClose(x, 'again'); const poolN2 = S.hr.pool.filter(id => cs.includes(id)).length;
+      out.T15 = poolN === cs.length && poolN2 === poolN && new Set(S.hr.pool).size === S.hr.pool.length && x.why === '見送り';
+      A.srchOrder('HQ', 'COO', q); for (let i = 0; i < 3; i++) A.step(); const y = S.hr.srch.find(z => z.r === 'COO'); const hr = A.srchHire(y.id, y.cands[0]); for (let i = 0; i < 27; i++) A.step(); info.t16 = {hr, left: S.hr.srch.length};
+      out.T16 = hr === 'ok' && S.hr.srch.length === 0; }
+    /* T17/T18: an absorbed company's interim results are kept on record (profit or loss), not added to the buyer's quarter; a subsidiary keeps its own */
+    { fresh(4342); for (let i = 0; i < 5; i++) A.step(); const L = S.cos.filter(x => x.ind === 'pharma' && !x.priv && !x.ctrl); let a = null, b2 = null; for (const x of L) for (const y of L) if (!a && x !== y) { x.cash += 1e5; x.debt = 0; y.debt = 0; if (A.mergeQuote(x, y, .3, true).go) { a = x; b2 = y; } }
+      const bq = b2.qni, bw = b2.qw, aq = a.qni, cashSum = a.cash + b2.cash; b2.qni = -Math.abs(bq) - 1; const bLoss = b2.qni; const q = A.execMerge(a, b2, .3, true); const aq1 = a.qni;
+      do { A.step(); } while (S.week % 13 !== 0); const h = a.qh[a.qh.length - 1]; A.ui.sel = a.id; const html = A.qhBox(a);
+      info.t17 = {bw, bLoss, aq, aq1, mfin: h.mfin, qni: h.qni, qw: h.qw}; out.T17 = !!q && aq1 === aq && h.mfin && h.mfin.length === 1 && near(h.mfin[0].qni, bLoss) && h.mfin[0].qw === bw && h.qw <= 13 && /合併前の実績/.test(html);
+      for (let i = 0; i < 13; i++) A.step(); const h2 = a.qh[a.qh.length - 1]; const X = S.cos.find(x => x.ind === 'tech' && !x.priv && !x.ctrl), Y = S.cos.find(x => x.ind === 'steel' && !x.priv && !x.ctrl); X.cash += 1e5; X.debt = 0; Y.debt = 0; const yq = Y.qni; const qs = A.execMerge(X, Y, .3, true);
+      out.T18 = !h2.mfin && (!qs || (qs.sub && S.cos.includes(Y) && Y.qni === yq && !(X.mfin || []).length)); info.t18 = {sub: qs && qs.sub}; }
+    /* T19: research limits as before */
+    { fresh(4809); A.step(); const c = S.cos.find(x => x.ind === 'pharma' && !x.priv); c.cash += 1e5; let n = 0; for (let i = 0; i < 30; i++) if (A.opsDo(c, {k: i % 2 ? 'lin' : 'pstart', v: 2}, 'P') === '') n++; out.T19 = c.ops.pipe.length === 16 && loads(); }
+    return {out, info}; })(); } catch (e) { return {out: {crash: false}, info: {err: e.message, stack: String(e.stack).slice(0, 300)}}; } });
+  console.log('rev45 BUG-128..131', JSON.stringify(r.info).slice(0, 3500));
+  for (const [k, v] of Object.entries(r.out)) ok('rev45 BUG-128..131: ' + k, v);
+  ok('rev45 BUG-128..131: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testNames44(b) {
   const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
   const r = await p.evaluate(() => {
@@ -4490,6 +4561,7 @@ async function balance(b) {
     await testBug127(b);
     await testSearch43(b);
     await testNames44(b);
+    await testBug128(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
