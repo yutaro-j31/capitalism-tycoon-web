@@ -866,7 +866,7 @@ async function testFeedback10(b) {
     S.player.cash = 50; const t = S.cos.filter(c => !c.priv && !c.ctrl)[2]; A.execBuy('P', t, A.sharesForMoney(t, 40)); A.step(); S.inbox = [];
     const nw0 = A.netWorth('P'), cash0 = S.player.cash, lim = A.bankLimit(); const got = A.bankBorrow(10);
     out.bank = {got: got > 0, nw: Math.abs(A.netWorth('P') - nw0) < 1e-9, cash: Math.abs(S.player.cash - cash0 - got) < 1e-9, cap: A.bankBorrow(1e6) <= lim};
-    A.step(); S.inbox = []; const L = S.player.plWH[0], C = A.cfOf(L); out.cf = Math.abs(C.op + C.inv + C.fin - (L.cash1 - L.cash0)) < 1e-9;
+    A.step(); S.inbox = []; const L = S.player.plWH[0], C = A.cfOf(L); out.cf = Math.abs(C.op + C.inv + C.fin + (C.oth || 0) - (L.cash1 - L.cash0)) < 1e-9; /* rev33 BUG-110: rewards are their own line */
     const B = A.bsNow(); out.bs = Math.abs(B.eq - A.netWorth('P') / (1 - (S.player.outside || 0))) < 1e-6 && B.L.some(x => x[0] === 'bank' && x[2] > 0);
     /* (3)(4) underwriters set the listing date and price */
     const n = A.foundCompany('tyo', 'tech', 20); A.startIPO(n, 'list', 'fast'); out.uw = n.ipoPlan.end === S.week + A.UW.fast.wk && n.ipoPlan.uw === 'fast';
@@ -1051,7 +1051,7 @@ async function testAC(b) {
     const offs = A.loanOffers(); const nw0 = A.netWorth('P'), cash0 = S.player.cash;
     out.loan = offs.length === 3 && A.takeLoan(0) && Math.abs(A.netWorth('P') - nw0) < 1e-6 && S.player.cash > cash0;
     const a0 = A.termDebt(); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; } out.amort = A.termDebt() < a0;
-    const L = S.player.plWH[0], C = A.cfOf(L); out.cf = Math.abs(C.op + C.inv + C.fin - (L.cash1 - L.cash0)) < 1e-9;
+    const L = S.player.plWH[0], C = A.cfOf(L); out.cf = Math.abs(C.op + C.inv + C.fin + (C.oth || 0) - (L.cash1 - L.cash0)) < 1e-9; /* rev33 BUG-110: rewards are their own line */
     const B = A.bsNow(); out.bs = Math.abs(B.eq - A.netWorth('P') / (1 - (S.player.outside || 0))) < 1e-6;
     /* (13) corporate tax on a positive quarter */
     S.player.pl = Object.assign({}, S.player.pl, {div: 10, rent: 2, hq: -1}); const t = A.corpTax(); out.tax = Math.abs(t - .3 * (5 + 2 - 1 + (S.player.pl.int || 0) + (S.player.pl.fee || 0) + (S.player.pl.rd || 0) + (S.player.pl.pay || 0))) < 1e-6 && S.player.pl.tax < 0;
@@ -3725,7 +3725,7 @@ async function testHQ(b) {
     for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; }
     // statements: balance sheet equity equals the holding company's value; cash flow adds up to the change in cash
     const B = A.bsNow(); out.bs = Math.abs(B.eq - (A.netWorth('P') / (1 - (S.player.outside || 0)))) < 1e-6;
-    const L = S.player.plHist[0], C = A.cfOf(L); out.cf = Math.abs(C.op + C.inv + C.fin - (L.cash1 - L.cash0)) < 1e-9;
+    const L = S.player.plHist[0], C = A.cfOf(L); out.cf = Math.abs(C.op + C.inv + C.fin + (C.oth || 0) - (L.cash1 - L.cash0)) < 1e-9; /* rev33 BUG-110: rewards are their own line */
     // a thin accounting team: statements lag; more people bring them up to date
     S.dept.acc.on = true; /* set up an accounting department first (a new company has none) */ S.dept.acc.staff = 0; out.lagThin = A.accLag(); S.dept.acc.staff = 4; S.dept.acc.ab = 70; S.dept.acc.mo = 80; out.lagFull = A.accLag();
     // investment department: research points and more venture deals
