@@ -3087,6 +3087,39 @@ async function testRev32(b) {
   ok('rev32: weekly records close after rewards (BUG-105), ±0 shown neutral (BUG-106), estimates named (BUG-107), total vs company net worth named (BUG-108), zero line in the profit chart', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 700));
   ok('no page errors in rev32 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testRev33(b) {
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {};
+    let S;
+    const fresh = (seed, scen) => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', scen, scen === 'std'); S = A.S; S.won = scen === 'std'; document.querySelector('#modal').hidden = true; A.renderAll(true); };
+    const same = () => { const my = A.myWorth(), h = S.nwHist.P[S.nwHist.P.length - 1], w = S.wk[S.wk.length - 1].nw; return Math.abs(my - h) < 1e-8 && Math.abs(my - w) < 1e-8 && Math.abs(S.player.plWH[0].nw1 - A.netWorth('P')) < 1e-8 && Math.abs(S.player.plWH[0].cash1 - S.player.cash) < 1e-8; };
+    /* T-109A / T-110A: the first purchase pays a reward at the end of the week */
+    { fresh(3301, 'std'); const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((x, y) => x.price - y.price)[0]; A.plEnsure(); /* as act() does before a trade in the UI */ A.execBuy('P', c, Math.min(c.shares * .001, S.player.cash * .1 / c.price)); A.renderAll(true);
+      const n0 = S.nwHist.P.length, t0 = Object.keys(S.tut || {}).length; document.querySelector('[data-act=step]').click(); const rew = Object.keys(S.tut).length - t0, C = A.cfOf(S.player.plWH[0]);
+      info.t109a = {rew, hist: S.nwHist.P[S.nwHist.P.length - 1], wk: S.wk[S.wk.length - 1].nw, my: A.myWorth(), C};
+      out.t109a = rew > 0 && same() && S.nwHist.P.length === n0 + 1;
+      out.t110a = C.oth > 0 && Math.abs(C.op + C.inv + C.fin + C.oth - C.tot) < 1e-9 && C.inv < 0 && Math.abs(C.inv + (c.own.P * c.price)) < c.own.P * c.price * .05 && /その他の資金流入（達成報酬）/.test(document.querySelector('#modal').textContent); A.closeModal();
+      /* T-109B: ten weeks without a reward: one entry a week, each the same as the weekly result */ let ok = true; for (let i = 0; i < 10; i++) { const n = S.nwHist.P.length; A.step(); A.closeModal(); ok = ok && S.nwHist.P.length === Math.min(260, n + 1) && same(); } out.t109b = ok; }
+    /* T-110B: a reward week together with shares, government bonds and a bond issue: each in its own line */
+    { fresh(3302, 'std'); S.allUnlocked = true; S.stage = 4; S.player.cash = 300; A.trClose(); A.step(); A.closeModal(); const cash0 = S.player.cash; delete (S.tut || {}).buy1; S.tut = S.tut || {};
+      A.govBuy('g10', 10); A.sbIssue('sb', 5, 5); const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((x, y) => x.price - y.price)[0]; A.execBuy('P', c, Math.min(c.shares * .001, 1 / c.price)); A.step(); A.closeModal(); const C = A.cfOf(S.player.plWH[0]);
+      info.t110b = C; out.t110b = Math.abs(C.fin - 5) < 1e-9 && Math.abs(C.op + C.inv + C.fin + C.oth - C.tot) < 1e-9 && C.inv < -10 && same(); }
+    /* T-109C: an individual earns a reward, then incorporates; the history matches after the next week and after a reload */
+    { fresh(3303, 'trader'); const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((x, y) => x.price - y.price)[0]; A.execBuy('P', c, Math.min(c.shares * .001, S.player.cash * .1 / c.price)); A.step(); A.closeModal(); const a = same();
+      S.player.cash = 50; A.trClose(); A.incorporate('Z', 1); A.hqInit(); A.trClose(); A.step(); A.closeModal(); const bb = same(); const txt = A.exportText(); info.t109c = {a, bb};
+      out.t109c = a && bb && !!A.parseSave(txt) && Math.abs(S.nwHist.P[S.nwHist.P.length - 1] - A.myWorth()) < 1e-8; }
+    /* an older save without the reward line shows 0 there and still adds up */ { const L = Object.assign({}, S.player.plWH[0]); delete L.rew; const C = A.cfOf(L); out.oldRec = C.oth === 0 && Math.abs(C.op + C.inv + C.fin - C.tot) < 1e-9; }
+    /* T-UI (UI-02): +1%, 0%, −1%, a rounding zero, not yet measured */
+    { const base = {w: 5, rev: 1, op: 1, ni: 1, hold: 0, div: 0, nw: 1}; const box = ret => { S.wk = [Object.assign({}, base, {ret})]; S.wkCos = {cur: {}, prev: {}}; return A.wkBox(); };
+      const up = box(.01), zero = box(0), down = box(-.01), tiny = box(.00004), none = box(null); info.ui = {up: /class="up">\+1\.0%/.test(up), zero: /class="note">±0\.0%/.test(zero), down: /class="down">−1\.0%/.test(down), tiny: /±0\.0%/.test(tiny), none: /<b>—<\/b>/.test(none)};
+      out.ui02 = Object.values(info.ui).every(Boolean) && !/\+0\.0%/.test(zero + tiny); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev33: net-worth history, weekly results and the week\'s records from the same final state (BUG-109), rewards as their own cash-flow line (BUG-110), the week\'s return shown neutral at ±0.0% (UI-02)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 900));
+  ok('no page errors in rev33 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testFix1120(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3869,6 +3902,7 @@ async function balance(b) {
     await testWeekly30(b);
     await testRev31(b);
     await testRev32(b);
+    await testRev33(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

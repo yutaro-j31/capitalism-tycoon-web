@@ -3545,7 +3545,7 @@ const stepScale = () => isTrader() ? .005 : 1; /* the beginner steps pay about 5
 function stepCheck(){
   S.tut = S.tut || {};
   if (S.tut._m) { delete S.tut._m; for (const [id, , , , fn] of STEPS) if (fn()) S.tut[id] = S.week; return; } // older saves: record silently, no rewards
-  for (const [id, n, , reward0, fn] of STEPS) if (S.tut[id] == null && fn()) { const reward = reward0 * stepScale(); S.tut[id] = S.week; S.player.cash += reward; trFlow('reward', reward, id); /* BUG-49: a beginner's reward is not an investment return */ news(`【はじめの一歩】「${n}」を達成。報酬${fm(reward)}`, 'you'); toast(`はじめの一歩：${n}（報酬 ${fm(reward)}）`); celebrate(); }
+  for (const [id, n, , reward0, fn] of STEPS) if (S.tut[id] == null && fn()) { const reward = reward0 * stepScale(); S.tut[id] = S.week; plEnsure(); S.player.cash += reward; plFin('rew', reward); trFlow('reward', reward, id); /* BUG-110: booked as a reward (other cash in), not left to the investing residual */ /* BUG-49: a beginner's reward is not an investment return */ news(`【はじめの一歩】「${n}」を達成。報酬${fm(reward)}`, 'you'); toast(`はじめの一歩：${n}（報酬 ${fm(reward)}）`); celebrate(); }
 }
 
 /* ---------- endless goals after the first win (Phase 5) ---------- */
@@ -4253,7 +4253,7 @@ function plCloseKey(key, hist, keep){
   S.player[key] = plOpenRec();
 }
 function liveRec(key){ const L = Object.assign({}, S.player[key] || plOpenRec()), nw1 = netWorth('P'); return Object.assign(L, {nw1, cash1: S.player.cash, loan1: S.player.loan, bank1: bankDebt(), mort1: mortP(), sb1: selfBondFace(), other: nw1 - L.nw0 - PL_ITEMS.reduce((a, [k]) => a + (L[k] || 0), 0) - (L.odiv || 0)}); }
-function cfOf(L){ if (!L) return null; const op = PL_ITEMS.reduce((a, [k]) => a + (L[k] || 0), 0), fin = (L.loan1 - L.loan0) + ((L.bank1 || 0) - (L.bank0 || 0)) + (L.mort1 - L.mort0) + (L.raise || 0) + (L.odiv || 0) + (L.sbf || 0), tot = L.cash1 - L.cash0; /* BUG-103: bonds issued less principal repaid are financing (a conversion into shares is not cash) */ return {op, inv: tot - op - fin, fin, tot}; }
+function cfOf(L){ if (!L) return null; const op = PL_ITEMS.reduce((a, [k]) => a + (L[k] || 0), 0), fin = (L.loan1 - L.loan0) + ((L.bank1 || 0) - (L.bank0 || 0)) + (L.mort1 - L.mort0) + (L.raise || 0) + (L.odiv || 0) + (L.sbf || 0), tot = L.cash1 - L.cash0, oth = L.rew || 0; /* BUG-103: bonds issued less principal repaid are financing (a conversion into shares is not cash) */ return {op, inv: tot - op - fin - oth, fin, oth, tot}; } /* BUG-110: rewards are their own line; op + inv + fin + oth = the change in cash */
 const vcValue = () => ((S.vc && S.vc.hold) || []).filter(h => !h.pres).reduce((a, h) => a + h.stake * h.val, 0);
 const vcFind = id => ((S.vc && S.vc.deals) || []).find(x => x.id === id) || (S.expo && S.expo.deals.find(x => x.id === id)) || null;
 const vcTranches = d => { const h = hashStr(d.id + ':tr'); return [(8 + h % 8) / 100, (4 + (h >>> 3) % 6) / 100, (2 + (h >>> 6) % 3) / 100]; };
@@ -4819,9 +4819,8 @@ function step(){
   if (S.week % 13 === 0) { corpTax(); presTax(); newsQuarter(); routeStep(); }
   if (S.week % 52 === 26) gwStep(); /* rev29: the yearly impairment test */
   trStep(tr0);
-  recordNW();
   snSyncAll(); if (mgSync()) recomputeCtrl(); acqFlush(); roadRec(); planClose(); checkEnd(); checkAch();
-  wkRec(); plCloseKey('plW', 'plWH', 2); if (S.week % 13 === 0) plClose(); if (S.week % 52 === 0) plCloseKey('plY', 'plYH', 3); /* BUG-105: the week's records close after the week's rewards and achievements, so they show the net worth as the week ends */
+  recordNW(); wkRec(); /* BUG-109: the net-worth history and the weekly results are taken from the same final state of the week (after rewards); one entry a week */ plCloseKey('plW', 'plWH', 2); if (S.week % 13 === 0) plClose(); if (S.week % 52 === 0) plCloseKey('plY', 'plYH', 3); /* BUG-105: the week's records close after the week's rewards and achievements, so they show the net worth as the week ends */
   trClose();
 }
 function checkEnd(){
@@ -5591,7 +5590,7 @@ function fsView(){
      <div><span>株主への配当</span>${cols.map(([, L]) => `<span>${L ? f(L.odiv || 0) : '—'}</span>`).join('')}</div>
      <div><span>保有資産の値動き（売却益・評価損益）</span>${cols.map(([, L]) => `<span>${L ? f(L.other) : '—'}</span>`).join('')}</div>
      <div class="sum"><span><b>純資産の増減</b></span>${cols.map(([, L]) => `<span><b>${L ? f(L.nw1 - L.nw0) : '—'}</b></span>`).join('')}</div>`;
-  else if (kind === 'cf') { const C = cols.map(([, L]) => cfOf(L)); rows = [['op', '営業活動（配当・賃料・報酬−利息・経費）'], ['inv', '投資活動（株・不動産・投資先の売買）'], ['fin', '財務活動（借入・返済・増資・配当）']].map(([k, n]) => `<div><span>${n}</span>${C.map(c => `<span>${c ? f(c[k]) : '—'}</span>`).join('')}</div>`).join('') + `<div class="sum"><span><b>現金の増減</b></span>${C.map(c => `<span><b>${c ? f(c.tot) : '—'}</b></span>`).join('')}</div>`; }
+  else if (kind === 'cf') { const C = cols.map(([, L]) => cfOf(L)); rows = [['op', '営業活動（配当・賃料・報酬−利息・経費）'], ['inv', '投資活動（株・不動産・投資先の売買）'], ['fin', '財務活動（借入・返済・増資・配当）'], ['oth', 'その他の資金流入（達成報酬）']].filter(([k]) => k !== 'oth' || C.some(c => c && Math.abs(c.oth || 0) > 1e-12)).map(([k, n]) => `<div><span>${n}</span>${C.map(c => `<span>${c ? f(c[k]) : '—'}</span>`).join('')}</div>`).join('') + `<div class="sum"><span><b>現金の増減</b></span>${C.map(c => `<span><b>${c ? f(c.tot) : '—'}</b></span>`).join('')}</div>`; }
   else { const B = A.bs, prev = per === 'w' ? null : (cols[1][1] && cols[1][1].bs); const pv = (arr, k) => { if (!prev) return null; const r = prev[arr].find(x => x[0] === k); return r ? r[2] : null; };
     rows = `<div class="rh"><span>資産</span><span>今</span><span>${prev ? (per === 'q' ? '前期末' : '前年末') : ''}</span></div>${B.A.filter(r => r[2] || pv('A', r[0])).map(([k, n, v]) => `<div><span>${n}</span><span>${f(v)}</span><span>${prev ? f(pv('A', k)) : ''}</span></div>`).join('')}<div class="sum"><span><b>資産合計</b></span><span><b>${fm(B.ta)}</b></span><span>${prev ? `<b>${fm(prev.ta)}</b>` : ''}</span></div>
      <div class="rh"><span>負債</span><span></span><span></span></div>${B.L.filter(r => r[2] || pv('L', r[0])).map(([k, n, v]) => `<div><span>${n}</span><span>${f(-v)}</span><span>${prev ? f(-(pv('L', k) || 0)) : ''}</span></div>`).join('') || '<div><span>なし</span><span></span><span></span></div>'}
@@ -5794,7 +5793,7 @@ function wkBox(){ const W = S.wk || [], a = W[W.length - 1], b = W[W.length - 2]
   return `<p class="note">売上と利益は各社の年間ペース（年換算の売上・利益）を52で割った<b>週換算の推計</b>です。実際の取引を週ごとに集計した数字ではありません。</p>
     <div class="kv"><div><span>推計売上（グループ・週換算）</span><b>${fm(a.rev)}</b>${d(a.rev, b && b.rev)}</div><div><span>推計営業利益（週換算）</span><b class="${a.op >= 0 ? '' : 'down'}">${fm(a.op)}</b>${d(a.op, b && b.op)}</div>
     <div><span>推計純利益（子会社・週換算）</span><b class="${a.ni >= 0 ? '' : 'down'}">${fm(a.ni)}</b>${d(a.ni, b && b.ni)}</div><div><span>本体の収支（今週の実績・配当を除く）</span><b class="${a.hold >= 0 ? '' : 'down'}">${fm(a.hold)}</b>${d(a.hold, b && b.hold)}</div>
-    <div><span>受取配当（今週の実績）</span><b>${fm(a.div)}</b>${d(a.div, b && b.div)}</div><div><span>運用成績（今週）</span><b class="${(a.ret || 0) >= 0 ? 'up' : 'down'}">${a.ret == null ? '—' : spc(a.ret)}</b></div>
+    <div><span>受取配当（今週の実績）</span><b>${fm(a.div)}</b>${d(a.div, b && b.div)}</div><div><span>運用成績（今週）</span>${(() => { if (a.ret == null || !isFinite(a.ret)) return '<b>—</b>'; const t = Math.round(a.ret * 1000); return t > 0 ? `<b class="up">+${(t / 10).toFixed(1)}%</b>` : t < 0 ? `<b class="down">−${(-t / 10).toFixed(1)}%</b>` : '<b class="note">±0.0%</b>'; })()}</div>
     <div><span>あなたの総純資産（会社の持分＋個人資産）</span><b>${fm(a.nw)}</b>${d(a.nw, b && b.nw)}</div></div>
     <p class="lbl">直近12週の利益（推計純利益＋本体の収支＋配当）</p>${bars}
     ${ids.length ? `<p class="lbl">会社別（週換算の推計・前週比）</p><div class="rows">${ids.map(id => { const c = coById(id), x = C.cur[id], y = C.prev[id]; return c ? `<div class="orow"><span>${esc(c.name)}<br><small>推計売上 ${fm(x[0])} ${y ? d(x[0], y[0]) : '<small class="note">新規</small>'}</small></span><span class="num">推計営業利益 ${fm(x[1])}<br>${y ? d(x[1], y[1]) : ''}</span></div>` : ''; }).join('')}</div>` : '<p class="note">支配している会社はまだありません。会社を買う・創業すると、ここに会社ごとの週換算の売上と利益が並びます。</p>'}`; }
@@ -5806,7 +5805,7 @@ function showReport(){
   const C = cfOf(L), op = PL_ITEMS.reduce((a, [k]) => a + (L[k] || 0), 0), since = L.w0, sec = ui.paper || 'top';
   const pool = S.news.filter(n => n.w > since && n.w <= S.week), pick = sec === 'top' ? pool.filter(n => n.k !== 'you').slice(0, 4) : pool.filter(n => ({mkt: ['earn', 'warn'], biz: ['deal', 'you'], eco: ['econ']})[sec].includes(n.k)).slice(0, 4);
   openModal(`<h2>${m === 'w' ? `週間業績 <small>${shortDate(Math.max(0, S.week - 1))}〜${shortDate(S.week)}</small>` : '四半期業績'}</h2>${m === 'w' ? wkBox() + '<p class="lbl">本体のお金の動き（今週）</p>' : ''}<div class="kv"><div><span>会社（本体）の純資産・あなたの持分</span><b>${fm(L.nw1)}</b></div><div><span>増減</span><b class="${L.nw1 >= L.nw0 ? 'up' : 'down'}">${L.nw1 >= L.nw0 ? '+' : ''}${fm(L.nw1 - L.nw0)}</b></div><div><span>本業の収支</span><b>${fm(op)}</b></div></div><p class="note">「会社（本体）の純資産・あなたの持分」は会社の純資産のうち外部株主の分を除いたものです（個人の現金や個人口座の株は含みません）。${m === 'w' ? '上の「あなたの総純資産」はこれに個人の資産を足したものです。' : ''}</p>
-    <div class="rtable pl" style="margin-top:8px"><div><span>営業活動</span><span>${fm(C.op)}</span></div><div><span>投資活動</span><span>${fm(C.inv)}</span></div><div><span>財務活動</span><span>${fm(C.fin)}</span></div><div class="sum"><span><b>現金の増減</b></span><span><b>${fm(C.tot)}</b></span></div></div>
+    <div class="rtable pl" style="margin-top:8px"><div><span>営業活動</span><span>${fm(C.op)}</span></div><div><span>投資活動</span><span>${fm(C.inv)}</span></div><div><span>財務活動</span><span>${fm(C.fin)}</span></div>${Math.abs(C.oth) > 1e-12 ? `<div><span>その他の資金流入（達成報酬）</span><span>${fm(C.oth)}</span></div>` : ''}<div class="sum"><span><b>現金の増減</b></span><span><b>${fm(C.tot)}</b></span></div></div>
     <div class="paper"><div class="paper-h">ATLAS経済新聞<small>${dateOf(S.week)}</small></div><div class="paper-t">${[['top', 'トップ'], ['mkt', '株式市場'], ['biz', '企業'], ['eco', '経済']].map(([k, l]) => `<button class="${sec === k ? 'on' : ''}" data-act="paper" data-v="${k}">${l}</button>`).join('')}</div>
     <div class="paper-g">${pick.map(n => `<div><i>${/赤字|急落|破綻|ショック|下落|ストライキ|不祥事|危機/.test(n.t) ? '📉' : NEWS_ICON[n.k] || '・'}</i><b>${esc(n.t.replace(/^【[^】]+】/, ''))}</b><small>${(n.t.match(/^【([^】]+)】/) || [])[1] || ''}</small></div>`).join('') || '<p>大きな出来事はありませんでした。</p>'}</div></div>
     <p class="lbl">この画面を出すタイミング</p><div class="seg">${[['w', '毎週'], ['q', '四半期ごと'], ['off', '出さない']].map(([k, l]) => `<button class="${S.settings.rep === k ? 'on' : ''}" data-act="repmode" data-v="${k}">${l}</button>`).join('')}</div>
