@@ -592,7 +592,7 @@ async function testTalent(b) {
     for (let i = 0; i < 30 && A.ceoOf(c) === ceo; i++) { A.step(); S.inbox = []; if (S.news.some(n => n.t.includes('引退予定') && n.t.includes(ceo.n))) warned = true; }
     out.succession = {warned, newCEO: A.ceoOf(c) === cfo};
     // an outside offer always comes through the inbox first; matching it keeps the person
-    const x = A.ceoOf(c); x.offer = null; let got = null; for (let i = 0; i < 400 && !got; i++) { x.mood = .1; x.quit = null; x.retiring = null; x.retire = 99; x.end = S.week + 300; A.step(); got = S.inbox.find(it => it.kind === 'poach' && it.pid === x.id); if (!got) S.inbox = []; }
+    const x = A.ceoOf(c); x.offer = null; let got = null; for (let i = 0; i < 1040 && !got; i++) /* rev40: the offer is a quarterly chance (about 8% for this person); wait up to 20 years so the test does not depend on luck */ { x.mood = .1; x.quit = null; x.retiring = null; x.retire = 99; x.end = S.week + 300; A.step(); got = S.inbox.find(it => it.kind === 'poach' && it.pid === x.id); if (!got) S.inbox = []; }
     out.poach = !!got; if (got) { x.sal = got.sal; x.mood = .8; for (let i = 0; i < 4; i++) { A.step(); S.inbox = []; } out.stayed = A.ceoOf(c) === x; }
     return out;
   });
@@ -1684,7 +1684,7 @@ async function testRealism(b) {
     out.keypadShares = Math.abs(+document.querySelector('#tr-go').dataset.n - 25e-6) < 1e-12;
     A.newGame(8182, 'normal', 'T', 't', 'std', false); out.rivalsStd = A.S.rivals.every(r => r.cash > 50);
     /* listed companies change hands without the rivals: PE funds, founders, carve-outs, peers */
-    A.newGame(31, 'normal', 'T', 't', 'std', false); A.S.won = false; for (let i = 0; i < 260; i++) A.step(); const kinds = ['PEによる買収提案', '創業者MBO', 'カーブアウト上場', '同業による買収提案'].filter(k => A.S.news.some(n => n.t.includes(k)));
+    A.newGame(31, 'normal', 'T', 't', 'std', false); A.S.won = false; const seenN = new Set(); for (let i = 0; i < 260; i++) { A.step(); for (const n of A.S.news) if (n.w === A.S.week) seenN.add(n.t); } /* rev40: every week's news is read as it arrives (the list keeps only the latest 150, so a 5-year check of the final list missed early events) */ const kinds = ['PEによる買収提案', '創業者MBO', 'カーブアウト上場', '同業による買収提案'].filter(k => [...seenN].some(t => t.includes(k)));
     out.events = kinds.length >= 3 && A.econCheck(A.S) === '' && !!A.parseSave(A.exportText());
     return out;
   });
@@ -2489,8 +2489,11 @@ async function testRev18(b) {
     /* merger: the notes go with the debt; ids stay unique */
     { ({S, c, q} = buy(8104)); const c1 = c, n1 = c1.sns[0].id; let d = null; for (let i = 0; i < 80 && !d; i++) { const x = A.peDealGen(); if (x && x.small && x.type === 'succ' && A.dealEbitda(x, false) > 0) d = x; } const c2 = A.peAcquire(d, 'P', A.dealAsk(d), .5, false), n2 = c2.sns[0].id;
       const tot = sumSn(c1) + sumSn(c2); const L = S.cos.filter(x => !x.priv && !x.ctrl && x.ni > 0 && x.ind !== c1.ind && x.debt < x.rev * .2).sort((a, b) => b.rev - a.rev)[0]; /* a large, little-indebted company of another industry (no antitrust review) */ L.own.P = L.shares * .6; L.ctrl = 'P'; L.cash += 5000; /* a listed subsidiary buys both (the PE owner selling) */
-      for (const B of [c1, c2]) { const mq = A.mergeQuote(L, B, 0, true, true); info.mq = Object.assign(info.mq || {}, {[B.id]: [mq.go, mq.reason, mq.fin, mq.anti]}); A.execMerge(L, B, 0, true, null, true); } const c1x = L; const ids = (c1x.sns || []).map(n => n.id); info.merge = {ids, tot: +tot.toFixed(6), now: +sumSn(c1x).toFixed(6), debt: +c1x.debt.toFixed(6)};
-      out.merge = ids.includes(n1) && ids.includes(n2) && Math.abs(sumSn(c1x) - tot) < 1e-9 && sumSn(c1x) <= c1x.debt + 1e-9 && !S.cos.includes(c2) && !S.cos.includes(c1) && !chk() && loads(); }
+      const sub = {}; for (const B of [c1, c2]) { const mq = A.mergeQuote(L, B, 0, true, true); sub[B.id] = mq.sub; info.mq = Object.assign(info.mq || {}, {[B.id]: [mq.go, mq.reason, mq.fin, mq.anti, mq.sub]}); A.execMerge(L, B, 0, true, null, true); }
+      /* rev40 (BUG-119): a buyer from another industry keeps each company as a wholly owned subsidiary, so its notes stay inside its own debt; a buyer in the same industry absorbs it and takes the notes */
+      const where = B => sub[B.id] ? B : L, ids = [...new Set([where(c1), where(c2)])].flatMap(x => (x.sns || []).map(n => n.id)), tot2 = [...new Set([where(c1), where(c2)])].reduce((a, x) => a + sumSn(x), 0);
+      info.merge = {ids, tot: +tot.toFixed(6), now: +tot2.toFixed(6), sub};
+      out.merge = ids.includes(n1) && ids.includes(n2) && new Set(ids).size === ids.length && Math.abs(tot2 - tot) < 1e-9 && [c1, c2, L].every(x => sumSn(x) <= x.debt + 1e-9) && [c1, c2].every(B => sub[B.id] ? S.cos.includes(B) && B.own[L.id] === B.shares && B.priv : !S.cos.includes(B)) && !chk() && loads(); }
     /* restructuring: the notes are cut like other claims and never come back (tried over several deals until one restructuring succeeds) */
     { let okAll = true, seen = false; for (let k = 0; k < 16 && !seen; k++) { ({S, c, q} = buy(8104 + k)); if (!c || !c.sns) continue; const before = sumSn(c); c.crisis = {due: S.week + 8}; A.startReorg(c); const it = S.inbox.find(i => i.kind === 'reorg' && i.cid === c.id); if (it) A.ibxChoose(it.id, k % 2 ? 'inst' : 'des'); if (!c.reorg) continue;
         const hc = c.reorg.hc; c.reorg.end = S.week + 1; A.step(); A.step(); const alive = S.cos.includes(c) && !c.reorg && S.news.some(n => n.t.includes('【再建成功】') && n.t.includes(c.name));
@@ -3201,6 +3204,124 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testBug40(b) {
+  const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); const ok3 = !(typeof m === 'string' && m.includes('読み込めません')) && A.S !== S0; const e = A.econCheck(A.S); if (!(ok1 && ok3 && e === '')) (info.loadFail = info.loadFail || []).push([ok1, ok3, e]); return ok1 && ok3 && e === ''; };
+    let S; const fresh = (seed, sc) => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', sc || 'std', true); S = A.S; S.won = true; S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.rep = 'off'; S.settings.confirm = false; return S; };
+    const eq = c => c.cash + c.assets - c.debt, newsN = re => S.news.filter(n => re.test(n.t || n.text || '')).length;
+    const snap = c => JSON.stringify([c.cash, c.debt, c.assets, c.shares, c.price, c.own, c.ops && c.ops.lines, c.ops && c.ops.pipe, c.ops && c.ops.log && c.ops.log.length]);
+    const own = c => { c.own.P = c.shares * .6; A.recomputeCtrl(); A.opsEnsure(); return c; };
+    const pair = (i1, i2) => { const L1 = S.cos.filter(x => x.ind === i1 && !x.priv && !x.ctrl), L2 = S.cos.filter(x => x.ind === i2 && !x.priv && !x.ctrl); for (const a of L1) for (const b of L2) if (a !== b) { const c0 = a.cash; a.cash += 5000; const ok = A.mergeQuote(a, b, .3, true).go; if (ok) return [a, b]; a.cash = c0; } return [null, null]; };
+    /* TC-115-01: government bonds + a margin purchase + a crash: every share is sold, a loan is left; no 'forced sale of 0 stocks' afterwards */
+    { fresh(4001); A.step(); S.player.cash = 50; const g = A.govBuy('g2', 30); const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => b.price * b.shares - a.price * a.shares)[3];
+      const n = 34 / c.price; const bt = A.execBuy('P', c, n); const loan0 = S.player.loan; info.m115 = {g: !!g, buy: bt && bt.cost, loan0};
+      c.price *= .35; c.mood = -2; A.step(); const soldNews = newsN(/【強制決済】/), held = c.own.P || 0, loan1 = S.player.loan;
+      const zeroA = newsN(/【強制決済】0銘柄/); let more = 0; const L = []; for (let i = 0; i < 4; i++) { const n0 = newsN(/【強制決済】|【強制売却】/); A.step(); more += newsN(/【強制決済】|【強制売却】/) - n0; L.push(S.player.loan); }
+      const resN = newsN(/【信用残債】/); info.m115b = {soldNews, held, loan1, L, more, resN, nw: A.netWorth('P')};
+      out.tc115_01 = soldNews === 1 && held === 0 && loan1 > 0 && more === 0 && zeroA === 0 && resN === 1 && L.every((x, i) => x > 0 && x <= (i ? L[i - 1] : loan1) + 1e-9 && (i ? L[i - 1] : loan1) - x < .1) /* cash coming in is applied to the loan as before; it is never written off */ && !S.player.mcall && Number.isFinite(A.netWorth('P'));
+      const ld = loads(); S = A.S; const n1 = newsN(/【強制決済】|【強制売却】|【信用残債】/); for (let i = 0; i < 3; i++) A.step(); const again = newsN(/【強制決済】|【強制売却】|【信用残債】/) - n1;
+      /* TC-115-02 (part): repay, then a new margin position gets the normal margin call */
+      S.player.cash += 40; const pay = Math.min(S.player.loan, S.player.cash); S.player.cash -= pay; S.player.loan -= pay; S.player.cash = 5; const c2 = S.cos.filter(x => !x.priv && !x.ctrl).sort((a, b) => b.price * b.shares - a.price * a.shares)[5];
+      A.execBuy('P', c2, 12 / c2.price); const lo = S.player.loan; c2.price *= .62; A.step(); const mc = !!S.player.mcall || newsN(/【強制売却】/) > 0;
+      info.m115c = {again, lo, mc, loanRes: S.player.loanRes}; out.tc115_reload_new = ld && again === 0 && lo > 0 && mc && S.player.loanRes == null; }
+    /* TC-117: a fund whose GP cannot pay its share buys nothing and changes nothing */
+    { fresh(4002); A.step(); S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'}); S.player.cash = 2000; const f = A.fundRaise('buyout', .05); info.fw = f ? '' : (A.fundRaiseWhy ? A.fundRaiseWhy(.05) : 'null'); for (let i = 0; i < 13; i++) { A.step(); S.inbox = []; }
+      const c = S.cos.filter(x => !x.priv).sort((a, b) => a.price * a.shares - b.price * b.shares)[6]; const s0 = snap(c), f0 = JSON.stringify([f.calledLP, f.calledGP, f.callBlock || 0]), led0 = (S.ledger || []).length, cash0 = S.player.cash;
+      S.player.cash = 0; const r1 = A.execBuy(f.id, c, c.shares * .01); const ok1 = r1 === null && snap(c) === s0 && JSON.stringify([f.calledLP, f.calledGP, f.callBlock || 0]) === f0 && (S.ledger || []).length === led0 && !c.own[f.id];
+      S.player.cash = cash0; const r2 = A.execBuy(f.id, c, c.shares * .01); const ok2 = !!r2 && c.own[f.id] > 0 && f.calledLP + f.calledGP > 0;
+      const room = A.fundRoom(f), r3 = A.execBuy(f.id, c, room * 3 / c.price); info.f117 = {r1, r2: !!r2, room, r3: !!r3, gpR: f.gp / (f.lp + f.gp)};
+      out.tc117 = ok1 && ok2 && (r3 === null || A.fundRoom(f) >= -1e-9);
+      /* TC-116: a fund that ends has no live commitment left */
+      const f2 = f; if (c.own[f.id]) A.execSell(f.id, c, c.own[f.id]); const left = A.fundRoom(f2); A.fundFinish(f2); A.renderAll && A.renderAll(true);
+      const card = A.fundCard(f2); info.f116 = {left, after: A.fundRoom(f2), lp: f2.lp, called: f2.calledLP, rel: f2.relLP};
+      out.tc116 = left > 0 && A.fundRoom(f2) === 0 && !A.fundCanCall(f2, .01) && /解除済み/.test(card) && Math.abs(f2.relLP + f2.relGP - left) < 1e-6 && loads(); }
+    /* TC-118 / TC-122 (merger): B's development project and rental building survive A's absorption of B, and B's project is later sold with the whole price paid to A */
+    { fresh(4003); A.step(); A.sitesEnsure(); const R = S.cos.filter(x => x.ind === 'realty' && !x.priv && !x.ctrl).sort((a, b) => a.rev - b.rev); const Am = R[1], Bm = R[0]; info.realty = R.map(x => +x.rev.toFixed(0)); Bm.cash += 2000; Am.cash += 4000;
+      const st1 = S.sites.find(x => x.zone === 'com'), st2 = S.sites.find(x => x.zone === 'res'); A.devBuy(Bm.id, st1.id, false); A.devBuy(Bm.id, st2.id, false); const P1 = S.devp.find(x => x.own === Bm.id && x.site === st1), P2 = S.devp.find(x => x.own === Bm.id && x.site === st2); P1.fraud = P2.fraud = null;
+      A.devStart(P1, 'office', 'std', .9, 'sell'); A.devStart(P2, 'resi', 'std', .9, 'hold'); P2.done = S.week + 1; for (let i = 0; i < 3; i++) A.step();
+      const prop = S.props.find(x => x.own === Bm.id); const keep = JSON.stringify([P1.id, P1.site.id, P1.land, P1.cost, P1.spent, P1.st, P1.done, P1.kind, P1.how]);
+      const e0 = eq(Am) + eq(Bm), b0 = Bm.assets; info.why118 = A.mergeQuote(Am, Bm, .3, true); const q = A.execMerge(Am, Bm, .3, true); if (!q) return {out, info}; const e1 = eq(Am), exp = e0 - q.cost - (q.anti === 'cond' ? b0 * .25 * .1 : 0) + (Am.own[Bm.id] ? 0 : 0);
+      info.m118 = {q: q && {cost: q.cost, anti: q.anti, sub: q.sub}, e0, e1, exp, prop: !!prop, P1own: P1.own};
+      const okT = !!q && !q.sub && P1.own === Am.id && !!prop && prop.own === Am.id && JSON.stringify([P1.id, P1.site.id, P1.land, P1.cost, P1.spent, P1.st, P1.done, P1.kind, P1.how]) === keep && Math.abs(e1 - exp) < 1e-6;
+      const ld = loads(); S = A.S; const P1b = S.devp.find(x => x.id === P1.id), Ab = A.coById(Am.id); A.devPurge && A.devPurge();
+      out.tc118_01 = okT && ld && !!P1b && P1b.own === Ab.id && S.props.some(x => x.id === prop.id && x.own === Ab.id);
+      if (P1b) { P1b.done = S.week + 1; Ab.cash += 50; const V = () => (P1b.land + P1b.cost) * A.devMult() * (P1b.grade === 'hi' ? 1.05 : 1); let c0 = Ab.cash, a0 = Ab.assets, sale = 0, wk = 0, basis = 0;
+        for (let i = 0; i < 3 && S.devp.includes(P1b); i++) { c0 = Ab.cash - Ab.debt; a0 = Ab.assets; const others = S.devp.filter(x => x !== P1b); S.devp = [P1b]; wk = Math.max(0, P1b.cost - P1b.spent) / Math.max(1, P1b.done - (S.week + 1) + 1); basis = P1b.land + P1b.spent + wk; sale = V() * .97; S.week++; A.devStep(); S.week--; S.devp = S.devp.concat(others); } /* the other projects (rivals' own) are set aside for this measured week */
+        info.m118s = {wk, basis, sale, land: P1b.land, cost: P1b.cost, spent: P1b.spent, mult: A.devMult(), grade: P1b.grade, kind: P1b.kind, pre: P1b.pre, sold: !S.devp.includes(P1b), dc: Ab.cash - Ab.debt - c0, exp: sale - wk, da: Ab.assets - a0, expA: wk - basis};
+        out.tc118_sale = !S.devp.includes(P1b) && Math.abs(Ab.cash - Ab.debt - c0 - (sale - wk)) < 1e-6 /* cash net of any borrowing for this week's work */ && Math.abs(Ab.assets - a0 - (wk - basis)) < 1e-6; }
+      /* TC-118-03: a refused merger touches nothing */
+      fresh(4004); A.step(); A.sitesEnsure(); const R2 = S.cos.filter(x => x.ind === 'realty' && !x.priv && !x.ctrl).sort((a, b) => b.rev - a.rev); const A2 = R2[0], B2 = R2[1]; B2.cash += 500; A.devBuy(B2.id, S.sites[0].id, false);
+      const all0 = JSON.stringify([S.cos.map(c => [c.id, c.cash, c.debt, c.assets, c.shares, c.own]), S.devp.map(x => [x.id, x.own, x.spent]), S.props.length, (S.ledger || []).length]); const qf = A.execMerge(A2, B2, .0, false);
+      out.tc118_03 = qf === null && JSON.stringify([S.cos.map(c => [c.id, c.cash, c.debt, c.assets, c.shares, c.own]), S.devp.map(x => [x.id, x.own, x.spent]), S.props.length, (S.ledger || []).length]) === all0; info.m118f = A.mergeQuote(A2, B2, 0, false).reason; }
+    /* TC-119-01: two tech companies: capacity, plant being built and product lines all carried over */
+    { fresh(4005); for (let i = 0; i < 2; i++) A.step(); const T = S.cos.filter(x => x.ind === 'tech' && !x.priv && !x.ctrl).sort((a, b) => a.rev - b.rev); const Ac = T[1], Bc = T[0]; info.why119 = A.mergeQuote(Ac, Bc, .3, true).reason; Ac.cash += 5000; A.opsEnsure();
+      Bc.ops.build.push({amt: 3, done: S.week + 6, what: '工場'}); const capA = Ac.ops.cap, capB = Bc.ops.cap, segA = Ac.ops.lines.filter(l => l.on).map(l => l.seg), segB = Bc.ops.lines.filter(l => l.on).map(l => l.seg), opSum = A.opProfit(Ac) + A.opProfit(Bc), nb = Ac.ops.build.length;
+      const q = A.execMerge(Ac, Bc, .3, true); const segs = Ac.ops.lines.filter(l => l.on).map(l => l.seg), ids = Ac.ops.lines.map(l => l.id);
+      info.m119 = {q: !!q, capA, capB, cap: Ac.ops.cap, segA, segB, segs, op: [opSum, A.opProfit(Ac)], build: Ac.ops.build.length};
+      const union = new Set(segA.concat(segB)); out.tc119_01 = !!q && Math.abs(Ac.ops.cap - capA - capB) < 1e-9 && segs.length === union.size && [...union].every(x => segs.includes(x)) && new Set(ids).size === ids.length && Ac.ops.build.length === nb + 1 && segs.length <= 6;
+      info.m119.opRatio = A.opProfit(Ac) / opSum;
+      let bad = ''; for (let i = 0; i < 52; i++) { A.step(); if (!Number.isFinite(A.opProfit(Ac)) || !Number.isFinite(Ac.price)) { bad = 'nan' + i; break; } } out.tc119_52 = bad === '' && Ac.ops.cap > capA && loads(); }
+    /* TC-119-02: pharma research and airline routes; TC-119-03: across industries the target is kept as a subsidiary */
+    { fresh(4006); A.step(); A.opsEnsure(); const [Pa, Pb] = pair('pharma', 'pharma'), [X, Y] = pair('retail', 'steel'); info.pairs = [!!Pa, !!X]; if (!Pa || !X) return {out, info};
+      const nd = Pa.ops.drugs.length + Pb.ops.drugs.length, np = Pa.ops.pipe.length + Pb.ops.pipe.length, qa = A.execMerge(Pa, Pb, .3, true), idsP = Pa.ops.drugs.map(d => d.id).concat(Pa.ops.pipe.map(x => x.id));
+            info.m119b = {pharma: !!qa && [nd, Pa.ops.drugs.length, np, Pa.ops.pipe.length]};
+      out.tc119_02_pharma = !!qa && Pa.ops.drugs.length === nd && Pa.ops.pipe.length === np && new Set(idsP).size === idsP.length;
+            const yo = JSON.stringify(Y.ops.lines || Y.ops.cap), ex = eq(X), ey = eq(Y), qx = A.mergeQuote(X, Y, .3, true); info.whyX = qx.reason; const n0 = S.cos.length, qs = A.execMerge(X, Y, .3, true);
+      info.m119c = {sub: qs && qs.sub, note: qx.note, own: Y.own, priv: Y.priv, ctrl: [X.ctrl, Y.ctrl], dx: eq(X) - ex + (qs ? qs.cost : 0), dy: eq(Y) - ey};
+      out.tc119_03 = !!qs && qs.sub && /子会社/.test(qx.note) && S.cos.length === n0 && S.cos.includes(Y) && Y.priv && Object.keys(Y.own).join() === X.id && Math.abs(Y.own[X.id] - Y.shares) < 1e-9 && JSON.stringify(Y.ops.lines || Y.ops.cap) === yo && Math.abs(eq(X) - ex + qs.cost) < 1e-6 && Math.abs(eq(Y) - ey) < 1e-9 && Y.ctrl === X.ctrl;
+      let bad = ''; for (let i = 0; i < 52; i++) { A.step(); if (!Number.isFinite(Y.price) || !Number.isFinite(X.price)) { bad = 'nan'; break; } } out.tc119_03_run = bad === '' && loads(); }
+    /* TC-118-02 (another industry buys a developer): the developer is kept as a subsidiary, so its projects and buildings stay where they are and keep running */
+    { fresh(4041); A.step(); A.sitesEnsure(); A.opsEnsure(); const [X, D] = pair('tech', 'realty'); if (X) { D.cash += 1000; const st = S.sites.find(x => x.zone === 'com'); A.devBuy(D.id, st.id, false); const P = S.devp.find(x => x.own === D.id && x.site === st); P.fraud = null; A.devStart(P, 'office', 'std', .9, 'sell');
+        const q = A.execMerge(X, D, .3, true); P.done = S.week + 2; for (let i = 0; i < 3; i++) A.step(); info.m118b = {q: !!q && q.sub, own: P.own, alive: S.cos.includes(D), sold: !S.devp.includes(P)};
+        out.tc118_02_cross = !!q && q.sub && S.cos.includes(D) && D.own[X.id] === D.shares && !S.devp.includes(P) && newsN(/【竣工・売却】/) >= 1 && loads(); } else out.tc118_02_cross = false; }
+    /* TC-119-02 (routes): the first seed with an allowed airline or shipping merger */
+    { let Aa = null, Ab = null, nr = 0, qr = null; for (let sd = 4011; sd < 4041 && !qr; sd++) { fresh(sd); A.step(); A.opsEnsure(); for (const ind of ['air', 'ship']) { if (qr) break; [Aa, Ab] = pair(ind, ind); if (Aa) { nr = new Set(Aa.ops.routes.map(x => x.a + '-' + x.b).concat(Ab.ops.routes.map(x => x.a + '-' + x.b))).size; qr = A.execMerge(Aa, Ab, .3, true); info.routeSeed = [sd, ind, nr]; } } }
+      const ids = qr ? Aa.ops.routes.map(x => x.id) : []; out.tc119_02_routes = !!qr && Aa.ops.routes.length === nr && new Set(ids).size === ids.length && loads(); }
+    /* TC-120: base research cannot be sold; extra projects still can; refills by failure/approval still happen */
+    { fresh(4007); A.step(); const c = own(S.cos.find(x => x.ind === 'pharma' && !x.priv)); A.opsSetMode(c, 'direct'); const cash0 = c.cash, base = c.ops.pipe.filter(x => x.base).map(x => x.id);
+      const errs1 = base.map(id => A.opsDo(c, {k: 'lout', id}, 'P')); const unchanged = c.cash === cash0 && c.ops.pipe.filter(x => x.base).length === base.length;
+      for (let i = 0; i < 52; i++) A.step(); const c2 = c.cash, errs2 = c.ops.pipe.filter(x => x.base).map(x => A.opsDo(c, {k: 'lout', id: x.id}, 'P')), same2 = c.cash === c2;
+      c.cash += c.rev * 2; A.opsDo(c, {k: 'lin', v: 2}, 'P'); const ex = c.ops.pipe.find(x => !x.base), c3 = c.cash, e3 = A.opsDo(c, {k: 'lout', id: ex.id}, 'P');
+      const html = A.opsTab ? A.opsTab(c) : ''; const btnBase = base.some(id => html.includes(`data-x="${id}"`) && /権利を売る/.test(html));
+      info.p120 = {errs1: errs1.slice(0, 1), n: base.length, refill: c.ops.pipe.filter(x => x.base).length, log: c.ops.log.slice(0, 3).map(x => x[1]), e3};
+      out.tc120 = errs1.every(e => /基本研究/.test(e)) && unchanged && same2 && errs2.every(e => /基本研究/.test(e)) && e3 === '' && c.cash > c3 && c.ops.pipe.filter(x => x.base).length === 8; }
+    /* TC-121: dropping a product line with no cash and no borrowing room is refused and changes nothing; with room, it borrows exactly what it needs */
+    { fresh(4008); A.step(); const c = own(S.cos.find(x => x.ind === 'retail' && !x.priv)); A.opsSetMode(c, 'direct'); if (c.ops.lines.filter(l => l.on).length < 2) { c.cash += c.rev; A.opsDo(c, {k: 'lnew', seg: ['super', 'conv', 'drug', 'mall'].find(s => !c.ops.lines.some(l => l.seg === s)) || 'conv'}, 'P'); }
+      A.opsCalc(c); const l = c.ops.lines.filter(x => x.on)[1]; c.cash = 0; c.debt = A.maxDebt(c); const s0 = snap(c), e1 = A.opsDo(c, {k: 'ldrop', id: l.id}, 'P'); const same = snap(c) === s0;
+      c.debt = Math.max(0, A.maxDebt(c) - c.rev); const d0 = c.debt, loss = c.rev * .02 * (l._w || .3), e2 = A.opsDo(c, {k: 'ldrop', id: l.id}, 'P');
+      info.l121 = {e1, same, e2, cash: c.cash, dd: c.debt - d0, loss};
+      out.tc121 = /資金が足りません/.test(e1) && same && e2 === '' && c.cash >= 0 && Math.abs(c.debt - d0 - loss) < 1e-9 && !c.ops.lines.some(x => x.id === l.id); }
+    /* TC-122: a finished building sold by a developer company: cash rises by the whole price less this week's work; the profit is reported over time but not paid twice */
+    { fresh(4009); A.step(); A.sitesEnsure(); const c = S.cos.filter(x => x.ind === 'realty' && !x.priv && !x.ctrl).sort((a, b) => b.rev - a.rev)[0]; c.cash += 3000; const st = S.sites.find(x => x.zone === 'com'); A.devBuy(c.id, st.id, false); const P = S.devp.find(x => x.own === c.id); P.fraud = null; A.devStart(P, 'office', 'std', .9, 'sell');
+      P.done = S.week + 1; const c0 = c.cash, a0 = c.assets, wk = Math.max(0, P.cost - P.spent) / Math.max(1, P.done - (S.week + 1) + 1), V = (P.land + P.cost) * A.devMult(), sale = V * .97, basis = P.land + P.spent + wk;
+      S.week++; A.devStep(); S.week--; const dc = c.cash - c0, da = c.assets - a0, prof = sale - basis, xp = c.ops.xPaid;
+      out.tc122_01 = !S.devp.includes(P) && Math.abs(dc - (sale - wk)) < 1e-6 && Math.abs(da - (wk - basis)) < 1e-6 && Math.abs(xp - prof * 52 * .03) < 1e-6;
+      /* TC-122-02: over the following year the profit shows in operating profit, and exactly that amount is held back from cash (so the sale is received once) */
+      A.sitesEnsure(); const sl = S.sites.find(x => x.zone === 'ind'); if (sl) { A.devBuy(c.id, sl.id, false); const pl = S.devp.find(x => x.site === sl); if (pl) pl.fraud = null; } /* a plot held as land: rival developers run one project at a time, so no other sale mixes into the measurement */
+      let held = 0, rep = 0; for (let i = 0; i < 260; i++) { A.opsCalc(c); const X = c.ops.X || 0, fx = A.fxMult ? A.fxMult(c) : 1; held += Math.sign(c.ops.xPaid || 0) * Math.min(Math.abs(c.ops.xPaid || 0), Math.abs(X)) * fx / 52; rep += X * fx / 52; A.step(); }
+      info.d122 = {dc, exp: sale - wk, da, expA: wk - basis, prof, held, rep};
+      out.tc122_02 = Math.abs(held - prof) / Math.max(1e-6, Math.abs(prof)) < .05 && held <= rep + 1e-6;
+      /* TC-122-03: a sale at a loss and a building kept to let */
+      A.sitesEnsure(); const s2 = S.sites.find(x => x.zone === 'com'), s3 = S.sites.find(x => x.zone === 'res'); c.cash += 3000; A.devBuy(c.id, s2.id, false); A.devBuy(c.id, s3.id, false); const Q = S.devp.find(x => x.site === s2), H = S.devp.find(x => x.site === s3); Q.fraud = H.fraud = null;
+      A.devStart(Q, 'office', 'std', .9, 'sell'); A.devStart(H, 'resi', 'std', .9, 'hold'); Q.done = H.done = S.week + 1; Q.spent += Q.cost * 2; /* an overrun makes it a loss */
+      const cq = c.cash, wq = Math.max(0, Q.cost - Q.spent) / 1, wh = Math.max(0, H.cost - H.spent) / 1, sq = (Q.land + Q.cost) * A.devMult() * .97, bq = Q.land + Q.spent + wq, VH = (H.land + H.cost) * A.devMult(), np0 = S.props.length; S.week++; A.devStep(); S.week--;
+      const hp = S.props.find(x => x.id === 'D' + H.id); info.d122c = {dc: c.cash - cq, exp: sq - wq - wh, loss: sq - bq, hp: !!hp};
+      out.tc122_03 = Math.abs(c.cash - cq - (sq - wq - wh)) < 1e-6 && sq < bq && !!hp && hp.own === c.id && Math.abs(hp.v - +VH.toFixed(3)) < 1e-9 && loads(); }
+    /* construction never borrows past the company's limit: the work stops instead, and restarts when there is money */
+    { fresh(4010); A.step(); A.sitesEnsure(); const c = S.cos.filter(x => x.ind === 'realty' && !x.priv && !x.ctrl).sort((a, b) => b.rev - a.rev)[0]; c.cash += 3000; const st = S.sites.find(x => x.zone === 'com'); A.devBuy(c.id, st.id, false); const P = S.devp.find(x => x.own === c.id); P.fraud = null; A.devStart(P, 'office', 'std', .9, 'sell');
+      c.cash = 0; c.debt = A.maxDebt(c); const d0 = c.debt, done0 = P.done, sp0 = P.spent; S.week++; A.devStep(); S.week--; const halted = P.done === done0 + 1 && P.spent === sp0 && c.debt <= Math.max(d0, A.maxDebt(c)) + 1e-9 && P.halt === 1;
+      c.cash = 1e4; S.week++; A.devStep(); S.week--; const resumed = P.spent > sp0;
+      info.cap = {halted, resumed, debt: c.debt, max: A.maxDebt(c)}; out.devCap = halted && resumed && newsN(/【工事中断】/) >= 1; }
+    return {out, info};
+  });
+  console.log('rev40 bugs', JSON.stringify(r.info).slice(0, 3000));
+  for (const [k, v] of Object.entries(r.out)) ok('rev40 BUG-115..122: ' + k, v);
+  ok('rev40 BUG-115..122: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testVcIpo39(b) {
   const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
   const r = await p.evaluate(() => {
@@ -3241,7 +3362,7 @@ async function testVcIpo39(b) {
       /* a hostile bid meets the normal defences: here the management picks a white knight and the holders are paid in cash at a premium */
       const cashP = S.player.cash, t = A.launchTob('P', C, C.price * 1.6, .51, false); for (let i = 0; i < 8 && S.tobs.some(x => x.cid === C.id); i++) A.step();
       info.tob = [t, C.own.P / C.shares, C.ctrl, S.cos.includes(C)]; info.mkt = S.news.filter(n => /テストV9001/.test(n.t || n.text || '')).slice(0, 4).map(n => (n.t || n.text).slice(0, 80));
-      out.tc07_tob = t !== false && (C.ctrl === 'P' || (!S.cos.includes(C) && S.player.cash > cashP && !Object.keys(S.player.cost).includes(C.id)));
+      out.tc07_tob = t !== false && (C.ctrl === 'P' || ((!S.cos.includes(C) || (C.priv && Object.keys(C.own).length === 1 && !C.own.P && !C.own.U)) && S.player.cash > cashP && !Object.keys(S.player.cost).includes(C.id))); /* rev40: a buyer from another industry keeps it as a subsidiary */
       out.tc07_load = loads();
     }
     /* TC-IPO-07b: a venture you hold a majority of (company 45% + you 20%) is under your control from the listing day: no jump in net worth; you set its dividend; a bid for the rest */
@@ -3313,7 +3434,7 @@ async function testOps37(b) {
     { fresh(3805); A.step(); const t = own(S.cos.find(x => x.ind === 'telecom' && !x.priv)); A.opsSetMode(t, 'direct'); A.opsDo(t, {k: 'netcap', v: .06}, 'P'); const n0 = t.ops.net; for (let i = 0; i < 26; i++) A.step(); out.telecom = t.ops.net > n0 + 3 && t.ops.F > 0 && A.opsDo(t, {k: 'arpu', v: 1.1}, 'P') === '' && t.ops.P > 1.05;
       const bk = own(S.cos.find(x => x.ind === 'bank' && !x.priv)); A.opsSetMode(bk, 'direct'); A.opsDo(bk, {k: 'std', v: .1}, 'P'); S.econ.credit = .8; for (let i = 0; i < 100; i++) { A.step(); S.econ.credit = .8; } info.bank = {loss: bk.ops.loss}; out.bank = bk.ops.loss > 0 && /自己資本比率/.test(A.opsTab(bk)); }
     /* ④ pharma: the line-up is today's sales; licensing out pays cash; licensing in costs cash; approvals and failures happen over time */
-    { fresh(3806); A.step(); const c = own(S.cos.find(x => x.ind === 'pharma' && !x.priv)); A.opsSetMode(c, 'direct'); const p0 = c.ops.pipe.find(x => x.st >= 2), ev = A.pipeEV(c, p0), cash0 = c.cash; A.opsDo(c, {k: 'lout', id: p0.id}, 'P');
+    { fresh(3806); A.step(); const c = own(S.cos.find(x => x.ind === 'pharma' && !x.priv)); A.opsSetMode(c, 'direct'); c.cash += c.rev * 2; A.opsDo(c, {k: 'lin', v: 2}, 'P'); /* BUG-120: only a project outside the base research budget can be sold */ const p0 = c.ops.pipe.find(x => x.st >= 2 && !x.base), ev = A.pipeEV(c, p0), cash0 = c.cash; A.opsDo(c, {k: 'lout', id: p0.id}, 'P');
       const got = c.cash - cash0; c.cash += c.rev; const c1 = c.cash; A.opsDo(c, {k: 'lin', v: 3}, 'P'); const paid = c1 - c.cash; let ev2 = 0; for (let i = 0; i < 520; i++) { A.step(); } const logs = c.ops.log.map(x => x[1]).join('|');
       info.pharma = {ev, got, paid, A: c.ops.A}; out.pharma = got > ev * .45 && got < ev * .75 && paid > 0 && /承認|失敗/.test(logs) && c.ops.A > .2; }
     /* ⑤ development from the head office: due diligence, construction, completion; the net worth, balance sheet and capital allocation agree throughout */
@@ -4129,6 +4250,7 @@ async function balance(b) {
     await testRev35(b);
     await testOps37(b);
     await testVcIpo39(b);
+    await testBug40(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
