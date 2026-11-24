@@ -3204,6 +3204,62 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testBug120b(b) {
+  const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); const ok3 = !(typeof m === 'string' && m.includes('読み込めません')) && A.S !== S0; const e = A.econCheck(A.S); return ok1 && ok3 && e === ''; };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.rep = 'off'; S.settings.confirm = false; return S; };
+    const pharma = () => { const c = S.cos.find(x => x.ind === 'pharma' && !x.priv); c.own.P = c.shares * .6; A.recomputeCtrl(); A.opsEnsure(); A.opsSetMode(c, 'direct'); return c; };
+    const st = c => JSON.stringify([c.cash, c.debt, c.ops.pipe, c.ops.pseq, c.ops.sold || 0, c.ops.log.length]);
+    /* TC-120-01: a new project cannot be sold the week it starts */
+    { fresh(4201); A.step(); const c = pharma(); const n0 = c.ops.pipe.length, e1 = A.opsDo(c, {k: 'pstart'}, 'P'), np = c.ops.pipe[c.ops.pipe.length - 1], s0 = st(c), e2 = A.opsDo(c, {k: 'lout', id: np.id}, 'P');
+      info.t1 = {e1, e2}; out.tc01 = e1 === '' && c.ops.pipe.length === n0 + 1 && /基礎研究/.test(e2) && st(c) === s0 && c.ops.pipe.includes(np); }
+    /* TC-120-02: twenty tries of start-and-sell: nothing sold, no money made, at most 16 projects */
+    { fresh(4202); A.step(); const c = pharma(); const cash0 = c.cash; let sold = 0, started = 0, refused = 0;
+      for (let i = 0; i < 20; i++) { const e = A.opsDo(c, {k: 'pstart'}, 'P'); if (e === '') started++; else refused++; const np = c.ops.pipe.filter(x => !x.base && x.st === 0).pop(); if (np && A.opsDo(c, {k: 'lout', id: np.id}, 'P') === '') sold++; }
+      info.t2 = {started, refused, sold, n: c.ops.pipe.length, dc: c.cash - cash0}; out.tc02 = sold === 0 && c.cash === cash0 && c.ops.pipe.length <= 16 && started === 16 - 8 && refused === 20 - started; }
+    /* TC-120-03: the research runs through the weekly turn: research spending is charged; after a year each new project has either passed to phase 1 or ended */
+    { fresh(4203); A.step(); const c = pharma(); c.cash += c.rev; A.opsCalc(c); const F0 = c.ops.F; for (let i = 0; i < 4; i++) A.opsDo(c, {k: 'pstart'}, 'P'); A.opsCalc(c); const F1 = c.ops.F, ids = c.ops.pipe.filter(x => !x.base && x.st === 0).map(x => x.id);
+      for (let i = 0; i < 53; i++) A.step(); const left = ids.map(id => c.ops.pipe.find(x => x.id === id)), logs = c.ops.log.map(x => x[1]).join('|');
+      info.t3 = {F0, F1, per: (F1 - F0) / 4, exp: 0.0005 * c.rev * 52, st: left.map(x => x ? x.st : 'end')};
+      out.tc03 = F1 > F0 && left.every(x => !x || x.st === 1) && left.some(x => x) !== undefined && (left.some(x => !x) ? /基礎研究で失敗/.test(logs) : true) && left.filter(x => x).every(x => x.left > 0); }
+    /* TC-120-04: a project that has passed basic research sells once, at the quoted price, and leaves the list for good */
+    { fresh(4204); A.step(); const c = pharma(); c.cash += c.rev; for (let i = 0; i < 8; i++) A.opsDo(c, {k: 'pstart'}, 'P'); for (let i = 0; i < 53; i++) A.step();
+      const pp = c.ops.pipe.find(x => !x.base && x.st >= 1 && x.src === 'own'); info.t4a = c.ops.pipe.filter(x => !x.base).map(x => x.st);
+      if (pp) { const px = A.loutPx(c, pp), ev = A.pipeEV(c, pp), c0 = c.cash, e = A.opsDo(c, {k: 'lout', id: pp.id}, 'P'), c1 = c.cash, again = A.opsDo(c, {k: 'lout', id: pp.id}, 'P');
+        for (let i = 0; i < 260; i++) A.step(); info.t4 = {px, ev, got: c1 - c0, e, again, drug: c.ops.drugs.some(d => d.id === pp.id)};
+        out.tc04 = e === '' && Math.abs(c1 - c0 - px) < 1e-9 && px > ev * .5 - 1e-9 && px < ev * .7 + 1e-9 && !c.ops.pipe.some(x => x.id === pp.id) && /計画がありません/.test(again) && !c.ops.drugs.some(d => d.id === pp.id) && loads(); } else out.tc04 = false; }
+    /* TC-120-05: buying a phase-2/3 candidate costs money (refused without it); reselling at once returns less than was paid */
+    { fresh(4205); A.step(); const c = pharma(); c.cash = 0; c.debt = A.maxDebt(c); const s0 = st(c), e0 = A.opsDo(c, {k: 'lin', v: 3}, 'P'); const same = st(c) === s0;
+      c.debt = 0; c.cash = c.rev * 3; const res = [];
+      for (const v of [2, 3]) { const c0 = c.cash, e = A.opsDo(c, {k: 'lin', v}, 'P'), np = c.ops.pipe[c.ops.pipe.length - 1], paid = c0 - c.cash, px = A.loutPx(c, np), c1 = c.cash, e2 = A.opsDo(c, {k: 'lout', id: np.id}, 'P'); res.push({v, e, paid, rec: np.paid, px, got: c.cash - c1, e2, net: c.cash - c0}); }
+      info.t5 = {e0, same, res}; out.tc05 = /資金が足りません/.test(e0) && same && res.every(x => x.e === '' && Math.abs(x.paid - x.rec) < 1e-9 && x.e2 === '' && Math.abs(x.got - x.px) < 1e-9 && x.net < 0); }
+    /* TC-120-06: the 8 base projects can never be sold; they still move week by week */
+    { fresh(4206); A.step(); const c = pharma(); const base = c.ops.pipe.filter(x => x.base), s0 = st(c), es = base.map(x => A.opsDo(c, {k: 'lout', id: x.id}, 'P')), same = st(c) === s0, lefts = base.map(x => x.left); A.step();
+      out.tc06 = base.length === 8 && es.every(e => /基本研究/.test(e)) && same && base.every((x, i) => !c.ops.pipe.includes(x) || x.left === lefts[i] - 1 || x.left === 52 || x.st > 0) && c.ops.pipe.filter(x => x.base).length === 8; }
+    /* the screen: no sell button for a project that cannot be sold; the reason and the price are shown */
+    { fresh(4207); A.step(); const c = pharma(); A.opsDo(c, {k: 'pstart'}, 'P'); c.cash += c.rev; A.opsDo(c, {k: 'lin', v: 2}, 'P'); const np = c.ops.pipe.find(x => x.src === 'own'), lp = c.ops.pipe.find(x => x.src === 'lic'); const h = A.opsTab(c);
+      const has = id => new RegExp(`data-act="opsx?[^"]*"[^>]*data-x="${id}"[^>]*>権利を売る|権利を売る[^<]*</button>`).test(h);
+      const btnFor = id => { const i = h.indexOf(`data-x="${id}"`); return h.split('<div class="orow">').filter(row => row.includes(`data-x="${id}"`)).some(row => row.includes('権利を売る</button>')); };
+      info.ui = {own: btnFor(np.id), lic: btnFor(lp.id), txt: /権利売却：不可（基礎研究の審査通過後に売却可能）/.test(h), txt2: /権利売却：可能（売却見込額/.test(h)};
+      out.ui = !btnFor(np.id) && btnFor(lp.id) && info.ui.txt && info.ui.txt2; }
+    /* TC-120-08: 3 seeds x 520 weeks with a directly run drug maker starting research every quarter and selling what may be sold: approvals and patent expiries happen; no NaN; the same seed gives the same game */
+    { const run = seed => { fresh(seed); A.step(); const c = pharma(); let appr = 0, exp = 0, sold = 0, bad = ''; const drugs0 = new Set(c.ops.drugs.map(d => d.id));
+        for (let w = 0; w < 520; w++) { if (w % 13 === 0) { if (c.ops.pipe.filter(x => !x.base).length < 2 && c.cash > c.rev * .2) A.opsDo(c, {k: 'pstart'}, 'P'); /* a sensible manager keeps a couple of extra projects (16 of them at once runs a company out of cash) */ const q = c.ops.pipe.find(x => !x.base && x.st >= 3); if (q && w % 52 === 0 && A.opsDo(c, {k: 'lout', id: q.id}, 'P') === '') sold++; for (const x of c.ops.pipe.filter(x => x.st === 0 && !x.base)) if (A.opsDo(c, {k: 'lout', id: x.id}, 'P') === '') bad = 'sold-st0'; }
+          const ids0 = new Set(c.ops.drugs.map(d => d.id)); A.step(); if (!S.cos.includes(c)) { bad = bad || 'gone@' + w + ' ' + S.news.filter(n => n.t.includes(c.name)).slice(0, 3).map(n => n.t.slice(0, 70)).join(' / '); break; } const ids1 = new Set(c.ops.drugs.map(d => d.id)); for (const id of ids1) if (!ids0.has(id)) appr++; for (const id of ids0) if (!ids1.has(id)) exp++;
+          if (![c.cash, c.debt, c.ops.F, A.opProfit(c), c.price].every(Number.isFinite) || c.cash < -1e-9 || c.debt < -1e-9) { bad = bad || 'nan@' + w; break; } }
+        return {appr, exp, sold, bad, sig: JSON.stringify([+c.cash.toFixed(6), +c.debt.toFixed(6), c.ops.pseq, c.ops.drugs.length, c.ops.pipe.length]), ok: loads()}; };
+      const R = [4211, 4212, 4213].map(run), again = run(4211); info.t8 = R.map(x => [x.appr, x.exp, x.sold, x.bad]);
+      out.tc08 = R.every(x => x.appr > 0 && x.exp > 0 && x.bad === '' && x.ok) && again.sig === R[0].sig; }
+    return {out, info};
+  });
+  console.log('rev41 BUG-120', JSON.stringify(r.info).slice(0, 2500));
+  for (const [k, v] of Object.entries(r.out)) ok('rev41 BUG-120 (research rights): ' + k, v);
+  ok('rev41 BUG-120: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testBug40(b) {
   const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
   const r = await p.evaluate(() => {
@@ -4251,6 +4307,7 @@ async function balance(b) {
     await testOps37(b);
     await testVcIpo39(b);
     await testBug40(b);
+    await testBug120b(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
