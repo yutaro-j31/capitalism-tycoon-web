@@ -3012,6 +3012,46 @@ async function testWeekly30(b) {
   ok('weekly results: shown after +1週 by default; group sales/profit vs last week, by company, 12-week chart; old setting migrated; off respected; bad record refused', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 300));
   ok('no page errors in weekly-results tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testRev31(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    let S;
+    const traderCo = (seed, cash) => { A.newGame(seed, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; S.player.cash = 5; A.incorporate('Z', 0); A.hqInit(); S.player.cash = cash; A.trClose(); return S; };
+    const fundCo = seed => { traderCo(seed, 5000); S.allUnlocked = true; S.stage = 4; Object.assign(S.dept.inv, {on: true, staff: 3}); S.pe.track.push({name: 'x', type: 'succ', inv: 50, ret: 90, moic: 1.8, irr: .25, w0: 0, w1: 100, why: 't'}, {name: 'y', type: 'succ', inv: 40, ret: 70, moic: 1.75, irr: .2, w0: 0, w1: 100, why: 't'});
+      const pp = S.hr.people[S.hr.pool[0]]; for (const k in pp.sk) pp.sk[k] = 70; A.hireInto(pp, 'HQ', 'PEH', 'fixed', null); const f = A.fundRaise('buyout', .05, pp.id); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } S.pe.deals = []; f.cfg.mode = 'manual'; f.invEnd = S.week + 200; return f; };
+    const deal = () => { let d = null; for (let i = 0; i < 300 && !d; i++) { const x = A.peDealGen(); if (x && A.dealEbitda(x, false) > 0 && x.type !== 'turn') d = x; else if (x) S.pe.deals = S.pe.deals.filter(y => y !== x); } d.dd = 2; d.risk = null; d.exp = S.week + 20; d.n = 0; d.ai = 0; d.bids = []; return d; };
+    const setRoom = (f, room) => { const T = 1000, k = T - room; f.gp = T * .05; f.lp = T - f.gp; f.lp0 = f.lp; f.gp0 = f.gp; f.calledGP = k * .05; f.calledLP = k - f.calledGP; };
+    const totalOf = (d, bd) => { const pt = bd.parts || {}; return A.peQuote(d, bd.eq, bd.lev, bd.owner).out * (1 - (bd.co || 0)) + (pt.integ || 0) + (pt.recap || 0) + (pt.wc || 0); };
+    /* BUG-96 (residual): settlement needs 0.0175 more than reserved; the room beyond the reservation, after the fee reserve, is 0.0150 → refused, nothing changes */
+    { const f = fundCo(3101), feeRes = 1000 * .02 / 52 * 4, X = .01748436, Y = .01497109;
+      const run = (y) => { const d = deal(); setRoom(f, 1e4); A.peBid(d, 0, 0, false, f.id); const T = totalOf(d, d.bid); d.bid.need = T - X; setRoom(f, d.bid.need + y + feeRes);
+        const snap = JSON.stringify([f.calledLP, f.calledGP, S.player.cash, S.cos.length, d.bid.need]), res = A.peResolve(d); const o = {res, same: JSON.stringify([f.calledLP, f.calledGP, S.player.cash, S.cos.length, d.bid ? d.bid.need : null]) === snap, room: A.fundRoom(f)}; d.bid = null; S.pe.deals = S.pe.deals.filter(x => x !== d); return o; }; /* the next case starts with no other bid holding money */
+      const a = run(Y); info.b96 = {short: a}; out.b96refuse = a.res === 'fail' && a.same;
+      const bb = run(.02); info.b96.fits = bb; out.b96fits = bb.res === 'won' && bb.room >= feeRes - 1e-9; }
+    /* BUG-101 / 102: the balance sheet and the capital allocation add up to the net worth with government bonds and your bonds */
+    { A.newGame(3102, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; S.stage = 4; S.player.cash = 30; A.trClose();
+      const chk = () => { const gw = A.grossWorth(), bs = A.bsNow(), ca = A.capAlloc(); return {gw, bs: bs.eq, ca: ca.net}; }, c0 = chk(); A.govBuy('g10', 10); const c1 = chk(); A.sbIssue('sb', 5, 5); const c2 = chk();
+      S.econ.rate += 1; const c3 = chk(); S.econ.rate -= 1; info.bs = {c0, c1, c2, c3}; const okc = c => Math.abs(c.bs - c.gw) < 1e-6 && Math.abs(c.ca - c.gw) < 1e-6;
+      out.b101 = [c0, c1, c2, c3].every(okc) && A.bsNow().A.some(x => x[0] === 'gov' && x[2] > 9) && A.bsNow().L.some(x => x[0] === 'sb' && x[2] === 5);
+      out.b102 = /国債/.test(A.capAllocBox()) && /発行した社債/.test(A.capAllocBox()); }
+    /* BUG-103: the first bond issue of a game: the opening cash is before the issue; operating −0.05, financing +5, investing 0 */
+    { A.newGame(3103, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.allUnlocked = true; S.stage = 4; S.player.cash = 30; delete S.player.pl; delete S.player.plW; delete S.player.plY; A.trClose();
+      A.ui.sbK = 'sb'; A.ui.sbY = 5; click('sbiss', null, 5); const L = A.liveRec('pl'), C = A.cfOf(L); info.b103 = {cash0: L.cash0, cash1: L.cash1, C};
+      out.b103 = Math.abs(L.cash0 - 30) < 1e-9 && Math.abs(C.tot - 4.95) < 1e-9 && Math.abs(C.op + .05) < 1e-9 && Math.abs(C.fin - 5) < 1e-9 && Math.abs(C.inv) < 1e-9 && L.sb0 === 0 && L.sb1 === 5;
+      const id = S.player.sb[0].id, c0 = S.player.cash; click('sbcall', id); const C2 = A.cfOf(A.liveRec('pl')); out.b103call = Math.abs(C2.fin - 0) < 1e-9 && Math.abs(C2.op + .05 + .05) < 1e-9 && Math.abs(c0 - S.player.cash - 5.05) < 1e-9 && Math.abs(C2.tot - C2.op - C2.inv - C2.fin) < 1e-12;
+      /* a convertible turning into shares moves no cash */ A.sbIssue('cb', 4, 3); A.step(); const cb = S.player.sb[0]; cb.mat = S.week + 1; /* issued last week; converted this week */ cb.cvPx = A.selfPx() * .5; const f0 = A.cfOf(A.liveRec('pl')).fin; A.step(); const W = (S.player.plWH || [])[0], CW = A.cfOf(W); info.b103cb = {f0, CW, sb0: W.sb0, sb1: W.sb1};
+      out.b103cb = !S.player.sb.length && W.sb1 === 0 && Math.abs(CW.fin) < 1e-9 && loads(); }
+    /* BUG-104: the amount is the total paid (fee included): exactly the free cash can be spent */
+    { A.newGame(3104, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.player.cash = 1; for (const c of S.cos) delete c.own.P; S.player.loan = 0; A.trClose(); A.ui.govK = 'g2'; A.ui.govAmt = 1; A.showBank(); const btn = document.querySelector('#modal [data-act=govbuy]'); info.b104 = {free: A.freeCash(), dis: btn && btn.disabled};
+      out.b104btn = !!btn && !btn.disabled; click('govbuy', null, 1); A.closeModal(); out.b104 = Math.abs(S.player.cash) < 1e-9 && S.gov.length === 1 && Math.abs(S.gov[0].face - 1 / 1.001) < 1e-12; }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev31: PE settlement above its reservation cannot use the fee reserve (BUG-96), balance sheet (BUG-101), cash flows of bonds (BUG-103), capital allocation (BUG-102), bond purchase limit (BUG-104)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 900));
+  ok('no page errors in rev31 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testFix1120(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3792,6 +3832,7 @@ async function balance(b) {
     await testPlay28(b);
     await testRev29(b);
     await testWeekly30(b);
+    await testRev31(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
