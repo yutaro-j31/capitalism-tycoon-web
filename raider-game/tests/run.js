@@ -3204,6 +3204,28 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testNames44(b) {
+  const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}, R = A.NAME_REG, G = {}, F = {}; for (const r of R) { for (const x of r.g) (G[x] = G[x] || new Set()).add(r.k); for (const x of r.f) (F[x] = F[x] || new Set()).add(r.k); }
+    const ok1 = n => { if (!/・/.test(n)) return true; const [g, f] = n.split('・'); return !!G[g] && !!F[f] && [...G[g]].some(k => F[f].has(k)); };
+    /* every foreign name made in a new game pairs a given name and a family name from the same region */
+    let all = new Set(), bad = []; for (const [seed, sc] of [[11, 'std'], [22, 'trader'], [33, 'giants']]) { A.closeModal(); A.newGame(seed, 'normal', 'N', 'n', sc, sc !== 'trader'); A.S.won = A.S.lost = true; for (let w = 0; w < 156; w++) { A.S.inbox = []; A.step(); if (w % 26 === 0) for (const x of Object.values(A.S.hr.people)) all.add(x.n); } for (const x of Object.values(A.S.hr.people)) all.add(x.n); }
+    for (const n of all) if (!ok1(n)) bad.push(n); info.n = all.size; info.bad = bad.slice(0, 5); info.foreign = [...all].filter(n => /・/.test(n)).length;
+    out.paired = bad.length === 0 && info.foreign > 50;
+    /* an older save: clearly mismatched names are renamed once; others and Japanese names are kept; loading twice changes nothing more */
+    A.closeModal(); A.newGame(44, 'normal', 'N', 'n', 'std', true); const S = A.S; const ps = Object.values(S.hr.people).filter(x => /・/.test(x.n)).slice(0, 4), jp = Object.values(S.hr.people).find(x => !/・/.test(x.n));
+    ps[0].n = 'ジフン・オカフォー'; ps[1].n = 'アミット・ガルシア'; ps[2].n = 'エマ・グラント'; ps[3].n = 'アイラ・ドゥアルテ'; S.hr.nameV = 2; const jn = jp.n;
+    const t = A.exportText(); A.importText(t); const P = id => A.S.hr.people[id]; const n1 = ps.map(x => P(x.id).n); A.importText(A.exportText()); const n2 = ps.map(x => P(x.id).n);
+    info.mig = n1; info.chk = [P(jp.id).n === jn, JSON.stringify(n1) === JSON.stringify(n2), A.S.hr.nameV, new Set(Object.values(A.S.hr.people).map(x => x.n)).size, Object.keys(A.S.hr.people).length]; out.migrate = n1[0] !== 'ジフン・オカフォー' && ok1(n1[0]) && n1[1] !== 'アミット・ガルシア' && ok1(n1[1]) && n1[2] === 'エマ・グラント' && n1[3] === 'アイラ・ドゥアルテ' && P(jp.id).n === jn && JSON.stringify(n1) === JSON.stringify(n2) && A.S.hr.nameV === 3; /* (the test's own injected names may repeat someone's, so uniqueness is not checked here) */
+    return {out, info};
+  });
+  console.log('rev44 names', JSON.stringify(r.info).slice(0, 600));
+  for (const [k, v] of Object.entries(r.out)) ok('rev44 names: ' + k, v);
+  ok('rev44 names: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testSearch43(b) {
   const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
   const r = await p.evaluate(() => {
@@ -4467,6 +4489,7 @@ async function balance(b) {
     await testBug123(b);
     await testBug127(b);
     await testSearch43(b);
+    await testNames44(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
