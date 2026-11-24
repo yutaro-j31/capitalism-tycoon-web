@@ -2999,7 +2999,7 @@ async function testWeekly30(b) {
     const cs = S.cos.filter(x => !x.priv && !x.ctrl).slice(0, 2); for (const c of cs) c.own.P = c.shares * .6; A.recomputeCtrl(); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; } A.closeModal(); document.querySelector('#modal').hidden = true; A.renderAll(true);
     out.default = S.settings.rep === 'w' && A.wantReport(); document.querySelector('[data-act=step]').click(); A.renderAll(true); const m = document.querySelector('#modal');
     const a = S.wk[S.wk.length - 1], rev = cs.reduce((t, c) => t + c.rev / 52, 0); info.wk = {a, rev};
-    out.report = !m.hidden && /週間業績/.test(m.textContent) && /グループ売上/.test(m.textContent) && m.querySelectorAll('.wkbars i').length === Math.min(12, S.wk.length) && m.querySelectorAll('.rows .orow').length === 2;
+    out.report = !m.hidden && /週間業績/.test(m.textContent) && /推計売上（グループ・週換算）/.test(m.textContent) && m.querySelectorAll('.wkbars [data-act=wkbar]').length === Math.min(12, S.wk.length) && m.querySelectorAll('.rows .orow').length === 2; /* rev32: labels say the figures are weekly estimates; bars are buttons */
     out.figures = Math.abs(a.rev - rev) < 1e-9 && a.w === S.week && Object.keys(S.wkCos.cur).length === 2 && Object.keys(S.wkCos.prev).length === 2;
     /* a quarterly setting from an old save becomes weekly once; a choice made after that is kept */
     const t = JSON.parse(A.exportText()); t.settings = {rep: 'q'}; delete t.wk; out.migrate = !!A.parseSave(JSON.stringify(t));
@@ -3051,6 +3051,41 @@ async function testRev31(b) {
   const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
   ok('rev31: PE settlement above its reservation cannot use the fee reserve (BUG-96), balance sheet (BUG-101), cash flows of bonds (BUG-103), capital allocation (BUG-102), bond purchase limit (BUG-104)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 900));
   ok('no page errors in rev31 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+async function testRev32(b) {
+  const {p, errs} = await page(b, {viewport: {width: 320, height: 640}});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {};
+    let S;
+    /* BUG-105: a beginner's reward paid at the end of the week is in that week's records (individual trader, first purchase) */
+    { A.closeModal(); A.newGame(3201, 'normal', 'T', 't', 'trader', false); S = A.S; S.won = false; document.querySelector('#modal').hidden = true; A.renderAll(true);
+      const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((x, y) => x.price - y.price)[0]; A.execBuy('P', c, Math.min(c.shares * .001, S.player.cash * .2 / c.price)); A.renderAll(true);
+      const t0 = Object.keys(S.tut || {}).length; document.querySelector('[data-act=step]').click(); const a = S.wk[S.wk.length - 1], W = S.player.plWH[0];
+      info.b105 = {rewards: Object.keys(S.tut || {}).length - t0, nw: a.nw, my: A.myWorth(), nw1: W.nw1, np: A.netWorth('P')};
+      out.b105 = Math.abs(a.nw - A.myWorth()) < 1e-9 && Math.abs(W.nw1 - A.netWorth('P')) < 1e-9 && info.b105.rewards > 0;
+      /* several weeks, a quarter end, and after save → load */ A.closeModal(); for (let i = 0; i < 14; i++) { A.step(); A.closeModal(); }
+      out.b105q = Math.abs(S.wk[S.wk.length - 1].nw - A.myWorth()) < 1e-9 && Math.abs(S.player.plWH[0].nw1 - A.netWorth('P')) < 1e-9 && !!A.parseSave(A.exportText()); }
+    /* BUG-105 for a company game with personal money (BUG-108 the two figures differ by the personal assets) */
+    { A.closeModal(); A.newGame(3202, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.pres.cash = 5; document.querySelector('#modal').hidden = true; A.renderAll(true); document.querySelector('[data-act=step]').click(); const m = document.querySelector('#modal'), a = S.wk[S.wk.length - 1], W = S.player.plWH[0];
+      info.b108 = {total: a.nw, company: W.nw1, pres: A.presWealth()}; out.b108 = Math.abs(a.nw - W.nw1 - A.presWealth() - A.holdingsMkt('U')) < 1e-9 && /あなたの総純資産（会社の持分＋個人資産）/.test(m.textContent) && /会社（本体）の純資産・あなたの持分/.test(m.textContent) && /外部株主の分を除いた/.test(m.textContent);
+      /* BUG-107: the figures are named as weekly estimates and explained */ out.b107 = /週換算の推計/.test(m.textContent) && /推計売上（グループ・週換算）/.test(m.textContent) && /推計営業利益/.test(m.textContent) && /推計純利益/.test(m.textContent);
+      /* nothing overflows at 320px */ const Wd = document.documentElement.clientWidth; out.w320 = [...m.querySelectorAll('.sheet *')].filter(e => e.getBoundingClientRect().right > Wd + 1).length === 0; A.closeModal(); }
+    /* BUG-106: the change against last week, judged at the yen shown */
+    { const base = {w: 10, rev: 1, op: 1, ni: 1, hold: 1, div: 0, nw: 100, ret: 0}; const box = (x, y) => { S.wk = [Object.assign({}, base, y, {w: 9}), Object.assign({}, base, x)]; S.wkCos = {cur: {}, prev: {}}; return A.wkBox(); };
+      const same = box({}, {}), plus1 = box({nw: 100 + 1e-8}, {}), minus1 = box({nw: 100 - 1e-8}, {}), tiny = box({nw: 100 + 1e-12}, {}), flip = box({ni: .5}, {ni: -.5});
+      S.wk = [Object.assign({}, base)]; const first = A.wkBox();
+      info.b106 = {same: (same.match(/±0円/g) || []).length, up: /▲1円/.test(plus1), down: /▼1円/.test(minus1), tiny: /±0円/.test(tiny) && !/▲0円/.test(tiny), flip: (flip.match(/class="up">▲[^<]*/g) || []).slice(0, 3), first: /前週比 —/.test(first) && !/▲|▼|±0円/.test(first), bad: /▲0円|▼0円/.test(same)};
+      out.b106 = !/▲0円|▼0円/.test(same) && (same.match(/±0円/g) || []).length >= 5 && /▲1円/.test(plus1) && /▼1円/.test(minus1) && /±0円/.test(tiny) && !/▲0円/.test(tiny) && /class="up">▲100,000,000円/.test(flip) && /前週比 —/.test(first) && !/▲|▼|±0円/.test(first); }
+    /* UI-01: a zero line; profits above, losses below; all zero on the line; one huge week still fits */
+    { const mk = vals => { S.wk = vals.map((v, k) => ({w: k + 1, rev: 1, op: 1, ni: v, hold: 0, div: 0, nw: 1, ret: 0})); S.wkCos = {cur: {}, prev: {}}; const el = document.createElement('div'); el.innerHTML = A.wkBox(); document.body.appendChild(el); const zero = el.querySelector('.wkbars > i'), z = parseFloat(zero.style.top); const bars = [...el.querySelectorAll('.wkbars [data-act=wkbar] i')].map(i => ({top: parseFloat(i.style.top), h: parseFloat(i.style.height)})); el.remove(); return {z, bars}; };
+      const mixed = mk([2, -1, 0, 3]), allPos = mk([1, 2]), allNeg = mk([-1, -2]), allZero = mk([0, 0, 0]), huge = mk([1, 1, 1000]);
+      const above = (r, k) => Math.abs(r.bars[k].top + r.bars[k].h - r.z) < 1e-6, below = (r, k) => Math.abs(r.bars[k].top - r.z) < 1e-6;
+      info.ui01 = {mixed, a: [above(mixed, 0), below(mixed, 1), above(mixed, 3)], pz: allPos.z, nz: allNeg.z, zero: allZero.bars, huge: huge.bars}; out.ui01 = above(mixed, 0) && below(mixed, 1) && above(mixed, 3) && Math.abs(mixed.bars[2].top - mixed.z) < 1.5 && allPos.z === 64 && allNeg.z === 0 && allZero.bars.every(x => x.h <= 1) && huge.bars.every(x => x.top >= -1e-6 && x.top + x.h <= 64 + 1e-6); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev32: weekly records close after rewards (BUG-105), ±0 shown neutral (BUG-106), estimates named (BUG-107), total vs company net worth named (BUG-108), zero line in the profit chart', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 700));
+  ok('no page errors in rev32 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 async function testFix1120(b) {
   const {p, errs} = await page(b);
@@ -3833,6 +3868,7 @@ async function balance(b) {
     await testRev29(b);
     await testWeekly30(b);
     await testRev31(b);
+    await testRev32(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

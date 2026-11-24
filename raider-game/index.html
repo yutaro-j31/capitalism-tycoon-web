@@ -4818,9 +4818,11 @@ function step(){
   rumorStep(); if (S.week % 13 === 0) frdStep();
   if (S.week % 13 === 0) { corpTax(); presTax(); newsQuarter(); routeStep(); }
   if (S.week % 52 === 26) gwStep(); /* rev29: the yearly impairment test */
-  trStep(tr0); wkRec();
-  recordNW(); plCloseKey('plW', 'plWH', 2); if (S.week % 13 === 0) plClose(); if (S.week % 52 === 0) plCloseKey('plY', 'plYH', 3);
-  snSyncAll(); if (mgSync()) recomputeCtrl(); acqFlush(); roadRec(); planClose(); checkEnd(); checkAch(); trClose();
+  trStep(tr0);
+  recordNW();
+  snSyncAll(); if (mgSync()) recomputeCtrl(); acqFlush(); roadRec(); planClose(); checkEnd(); checkAch();
+  wkRec(); plCloseKey('plW', 'plWH', 2); if (S.week % 13 === 0) plClose(); if (S.week % 52 === 0) plCloseKey('plY', 'plYH', 3); /* BUG-105: the week's records close after the week's rewards and achievements, so they show the net worth as the week ends */
+  trClose();
 }
 function checkEnd(){
   const nw = myWorth();
@@ -5783,16 +5785,19 @@ function wkRec(){ const cos = {}; let rev = 0, op = 0, ni = 0; for (const c of S
   const L = S.player.plW || {}, hold = PL_ITEMS.filter(([k]) => k !== 'div').reduce((a, [k]) => a + (L[k] || 0), 0), div = L.div || 0;
   S.wk = (S.wk || []).concat([{w: S.week, rev, op, ni, hold, div, nw: myWorth(), ret: S.tr && S.tr.rets.length ? S.tr.rets[S.tr.rets.length - 1] : null}]).slice(-52); S.wkCos = {prev: (S.wkCos && S.wkCos.cur) || {}, cur: cos}; }
 function wkBox(){ const W = S.wk || [], a = W[W.length - 1], b = W[W.length - 2]; if (!a) return '';
-  const d = (x, y) => y == null ? '' : `<small class="${x >= y ? 'up' : 'down'}">${x >= y ? '▲' : '▼'}${fm(Math.abs(x - y))}</small>`;
-  const prof = x => x.ni + x.hold + x.div, last = W.slice(-12), mx = Math.max(1e-9, ...last.map(x => Math.abs(prof(x))));
-  const bars = `<div class="wkbars" style="display:flex;align-items:flex-end;gap:3px;height:56px;margin:6px 0">${last.map(x => { const v = prof(x), h = Math.max(2, Math.abs(v) / mx * 52); return `<i title="${shortDate(x.w)} ${fm(v)}" style="flex:1;height:${h.toFixed(0)}px;border-radius:3px 3px 0 0;background:${v >= 0 ? 'var(--up)' : 'var(--down)'};opacity:${x === a ? 1 : .55}"></i>`; }).join('')}</div>`;
+  const d = (x, y) => { if (y == null) return '<small class="note">前週比 —</small>'; const yen = Math.round((x - y) * 1e8); return yen > 0 ? `<small class="up">▲${fm(yen / 1e8)}</small>` : yen < 0 ? `<small class="down">▼${fm(-yen / 1e8)}</small>` : '<small class="note">±0円</small>'; }; /* BUG-106: judged at the yen shown; no change is neutral; nothing to compare is a dash */
+  const prof = x => x.ni + x.hold + x.div, last = W.slice(-12), vals = last.map(prof), pos = Math.max(0, ...vals), neg = Math.max(0, ...vals.map(v => -v)), H = 64, span = pos + neg, y0 = span > 0 ? H * pos / span : H / 2; /* UI-01: a zero line; profits rise above it, losses hang below */
+  const bars = `<div class="wkbars" role="list" aria-label="直近12週の利益" style="position:relative;display:flex;gap:3px;height:${H}px;margin:6px 0 2px;border-bottom:0"><i aria-hidden="true" style="position:absolute;left:0;right:0;top:${y0.toFixed(1)}px;height:1px;background:var(--line)"></i>${last.map((x, k) => { const v = vals[k], h = Math.max(v === 0 ? 1 : 2, span > 0 ? Math.abs(v) / span * H : 0), top = v >= 0 ? Math.max(0, y0 - h) : Math.min(y0, H - h); /* the minimum height grows away from the zero line and stays inside the chart */
+    return `<button type="button" role="listitem" data-act="wkbar" data-v="${x.w}" aria-label="${shortDate(x.w)}の利益 ${fm(v)}" style="flex:1;min-width:0;position:relative;height:${H}px;padding:0;border:0;background:none"><i style="position:absolute;left:0;right:0;top:${top.toFixed(1)}px;height:${h.toFixed(1)}px;border-radius:2px;background:${v > 0 ? 'var(--up)' : v < 0 ? 'var(--down)' : 'var(--line)'};opacity:${x === a ? 1 : .55}"></i></button>`; }).join('')}</div>
+    <p class="note" style="margin-top:0">${shortDate(last[0].w)}〜${shortDate(a.w)}・最高 ${fm(Math.max(...vals))}・最低 ${fm(Math.min(...vals))}（棒をタップすると金額を表示）</p>`;
   const C = S.wkCos || {cur: {}, prev: {}}, ids = Object.keys(C.cur).sort((x, y) => C.cur[y][0] - C.cur[x][0]).slice(0, 6);
-  return `<div class="kv"><div><span>グループ売上（今週）</span><b>${fm(a.rev)}</b>${d(a.rev, b && b.rev)}</div><div><span>営業利益</span><b class="${a.op >= 0 ? '' : 'down'}">${fm(a.op)}</b>${d(a.op, b && b.op)}</div>
-    <div><span>子会社の純利益</span><b class="${a.ni >= 0 ? '' : 'down'}">${fm(a.ni)}</b>${d(a.ni, b && b.ni)}</div><div><span>本体の収支（配当を除く）</span><b class="${a.hold >= 0 ? '' : 'down'}">${fm(a.hold)}</b>${d(a.hold, b && b.hold)}</div>
-    <div><span>受取配当</span><b>${fm(a.div)}</b></div><div><span>運用成績（今週）</span><b class="${(a.ret || 0) >= 0 ? 'up' : 'down'}">${a.ret == null ? '—' : spc(a.ret)}</b></div>
-    <div><span>あなたの純資産</span><b>${fm(a.nw)}</b>${d(a.nw, b && b.nw)}</div></div>
-    <p class="lbl">直近12週の利益（子会社の純利益＋本体の収支＋配当）</p>${bars}
-    ${ids.length ? `<p class="lbl">会社別（今週・前週比）</p><div class="rows">${ids.map(id => { const c = coById(id), x = C.cur[id], y = C.prev[id]; return c ? `<div class="orow"><span>${esc(c.name)}<br><small>売上 ${fm(x[0])} ${y ? d(x[0], y[0]) : '<small>新規</small>'}</small></span><span class="num">営業利益 ${fm(x[1])}<br>${y ? d(x[1], y[1]) : ''}</span></div>` : ''; }).join('')}</div>` : '<p class="note">支配している会社はまだありません。会社を買う・創業すると、ここに会社ごとの週の売上と利益が並びます。</p>'}`; }
+  return `<p class="note">売上と利益は各社の年間ペース（年換算の売上・利益）を52で割った<b>週換算の推計</b>です。実際の取引を週ごとに集計した数字ではありません。</p>
+    <div class="kv"><div><span>推計売上（グループ・週換算）</span><b>${fm(a.rev)}</b>${d(a.rev, b && b.rev)}</div><div><span>推計営業利益（週換算）</span><b class="${a.op >= 0 ? '' : 'down'}">${fm(a.op)}</b>${d(a.op, b && b.op)}</div>
+    <div><span>推計純利益（子会社・週換算）</span><b class="${a.ni >= 0 ? '' : 'down'}">${fm(a.ni)}</b>${d(a.ni, b && b.ni)}</div><div><span>本体の収支（今週の実績・配当を除く）</span><b class="${a.hold >= 0 ? '' : 'down'}">${fm(a.hold)}</b>${d(a.hold, b && b.hold)}</div>
+    <div><span>受取配当（今週の実績）</span><b>${fm(a.div)}</b>${d(a.div, b && b.div)}</div><div><span>運用成績（今週）</span><b class="${(a.ret || 0) >= 0 ? 'up' : 'down'}">${a.ret == null ? '—' : spc(a.ret)}</b></div>
+    <div><span>あなたの総純資産（会社の持分＋個人資産）</span><b>${fm(a.nw)}</b>${d(a.nw, b && b.nw)}</div></div>
+    <p class="lbl">直近12週の利益（推計純利益＋本体の収支＋配当）</p>${bars}
+    ${ids.length ? `<p class="lbl">会社別（週換算の推計・前週比）</p><div class="rows">${ids.map(id => { const c = coById(id), x = C.cur[id], y = C.prev[id]; return c ? `<div class="orow"><span>${esc(c.name)}<br><small>推計売上 ${fm(x[0])} ${y ? d(x[0], y[0]) : '<small class="note">新規</small>'}</small></span><span class="num">推計営業利益 ${fm(x[1])}<br>${y ? d(x[1], y[1]) : ''}</span></div>` : ''; }).join('')}</div>` : '<p class="note">支配している会社はまだありません。会社を買う・創業すると、ここに会社ごとの週換算の売上と利益が並びます。</p>'}`; }
 /* the weekly / quarterly results with a newspaper */
 function wantReport(){ const m = (S.settings || {}).rep || 'w'; return m === 'w' || (m === 'q' && S.week % 13 === 0); }
 const NEWS_ICON = {warn: '📉', earn: '📈', deal: '🏢', econ: '🌐', you: '★'};
@@ -5800,7 +5805,7 @@ function showReport(){
   const m = S.settings.rep || 'w', L = m === 'w' ? (S.player.plWH || [])[0] : (S.player.plHist || [])[0]; if (!L) return;
   const C = cfOf(L), op = PL_ITEMS.reduce((a, [k]) => a + (L[k] || 0), 0), since = L.w0, sec = ui.paper || 'top';
   const pool = S.news.filter(n => n.w > since && n.w <= S.week), pick = sec === 'top' ? pool.filter(n => n.k !== 'you').slice(0, 4) : pool.filter(n => ({mkt: ['earn', 'warn'], biz: ['deal', 'you'], eco: ['econ']})[sec].includes(n.k)).slice(0, 4);
-  openModal(`<h2>${m === 'w' ? `週間業績 <small>${shortDate(Math.max(0, S.week - 1))}〜${shortDate(S.week)}</small>` : '四半期業績'}</h2>${m === 'w' ? wkBox() + '<p class="lbl">本体のお金の動き（今週）</p>' : ''}<div class="kv"><div><span>純資産</span><b>${fm(L.nw1)}</b></div><div><span>増減</span><b class="${L.nw1 >= L.nw0 ? 'up' : 'down'}">${L.nw1 >= L.nw0 ? '+' : ''}${fm(L.nw1 - L.nw0)}</b></div><div><span>本業の収支</span><b>${fm(op)}</b></div></div>
+  openModal(`<h2>${m === 'w' ? `週間業績 <small>${shortDate(Math.max(0, S.week - 1))}〜${shortDate(S.week)}</small>` : '四半期業績'}</h2>${m === 'w' ? wkBox() + '<p class="lbl">本体のお金の動き（今週）</p>' : ''}<div class="kv"><div><span>会社（本体）の純資産・あなたの持分</span><b>${fm(L.nw1)}</b></div><div><span>増減</span><b class="${L.nw1 >= L.nw0 ? 'up' : 'down'}">${L.nw1 >= L.nw0 ? '+' : ''}${fm(L.nw1 - L.nw0)}</b></div><div><span>本業の収支</span><b>${fm(op)}</b></div></div><p class="note">「会社（本体）の純資産・あなたの持分」は会社の純資産のうち外部株主の分を除いたものです（個人の現金や個人口座の株は含みません）。${m === 'w' ? '上の「あなたの総純資産」はこれに個人の資産を足したものです。' : ''}</p>
     <div class="rtable pl" style="margin-top:8px"><div><span>営業活動</span><span>${fm(C.op)}</span></div><div><span>投資活動</span><span>${fm(C.inv)}</span></div><div><span>財務活動</span><span>${fm(C.fin)}</span></div><div class="sum"><span><b>現金の増減</b></span><span><b>${fm(C.tot)}</b></span></div></div>
     <div class="paper"><div class="paper-h">ATLAS経済新聞<small>${dateOf(S.week)}</small></div><div class="paper-t">${[['top', 'トップ'], ['mkt', '株式市場'], ['biz', '企業'], ['eco', '経済']].map(([k, l]) => `<button class="${sec === k ? 'on' : ''}" data-act="paper" data-v="${k}">${l}</button>`).join('')}</div>
     <div class="paper-g">${pick.map(n => `<div><i>${/赤字|急落|破綻|ショック|下落|ストライキ|不祥事|危機/.test(n.t) ? '📉' : NEWS_ICON[n.k] || '・'}</i><b>${esc(n.t.replace(/^【[^】]+】/, ''))}</b><small>${(n.t.match(/^【([^】]+)】/) || [])[1] || ''}</small></div>`).join('') || '<p>大きな出来事はありませんでした。</p>'}</div></div>
@@ -6923,6 +6928,7 @@ function act0(a, el){ LTAG = '';
     case 'fsec': { const f = fundBy(el.dataset.id), why = fundSecondary(f, coById(v)); toast(why || 'セカンダリー売却しました', !!why); } break;
     case 'fcont': { const why = fundCont(fundBy(el.dataset.id)); toast(why || '継続ファンドへ移管しました', !!why); } break;
     case 'mmstrat': { const why = mmSetStrat(v); if (why) toast(why, true); } break;
+    case 'wkbar': { const x = (S.wk || []).find(y => y.w === +v); if (x) toast(`${shortDate(x.w)}の週：利益 ${fm(x.ni + x.hold + x.div)}（推計純利益 ${fm(x.ni)}・本体の収支 ${fm(x.hold)}・配当 ${fm(x.div)}）`); } return;
     case 'rsch': { const why = rschBuy(c); toast(why || '調査を依頼しました', !!why); } break;
     case 'bankr': { const a = bankRepay(+v); if (a) toast(`銀行に${fm(a)}を返済しました`); bankRefresh(); } return;
     case 'cmpadd': if (c) { ui.cmp = (ui.cmp || []).filter(id => id !== c.id && coById(id)); ui.cmp.push(c.id); if (ui.cmp.length > 4) ui.cmp.shift(); toast(`比較に追加（${ui.cmp.length}社）`); } break;
