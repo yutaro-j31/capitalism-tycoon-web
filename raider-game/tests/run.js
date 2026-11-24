@@ -2989,6 +2989,28 @@ async function testRev29(b) {
   ok('rev29: government bonds, own bonds and convertibles, rating; capital gains tax and loss carry-forward, goodwill and impairment; research, analysts, rumours, fraud; LP terms, secondaries, continuation funds, managed-money strategies', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info));
   ok('no page errors in rev29 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testWeekly30(b) {
+  const {p, errs} = await page(b);
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {};
+    /* +1週 opens the week's results by default: group sales and profit this week against last week, by company, a 12-week chart */
+    A.closeModal(); A.newGame(3001, 'normal', 'B', 'b', 'std', true); let S = A.S; S.won = true; S.allUnlocked = true; S.stage = 4;
+    const cs = S.cos.filter(x => !x.priv && !x.ctrl).slice(0, 2); for (const c of cs) c.own.P = c.shares * .6; A.recomputeCtrl(); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; } A.closeModal(); document.querySelector('#modal').hidden = true; A.renderAll(true);
+    out.default = S.settings.rep === 'w' && A.wantReport(); document.querySelector('[data-act=step]').click(); A.renderAll(true); const m = document.querySelector('#modal');
+    const a = S.wk[S.wk.length - 1], rev = cs.reduce((t, c) => t + c.rev / 52, 0); info.wk = {a, rev};
+    out.report = !m.hidden && /週間業績/.test(m.textContent) && /グループ売上/.test(m.textContent) && m.querySelectorAll('.wkbars i').length === Math.min(12, S.wk.length) && m.querySelectorAll('.rows .orow').length === 2;
+    out.figures = Math.abs(a.rev - rev) < 1e-9 && a.w === S.week && Object.keys(S.wkCos.cur).length === 2 && Object.keys(S.wkCos.prev).length === 2;
+    /* a quarterly setting from an old save becomes weekly once; a choice made after that is kept */
+    const t = JSON.parse(A.exportText()); t.settings = {rep: 'q'}; delete t.wk; out.migrate = !!A.parseSave(JSON.stringify(t));
+    S.settings.rep = 'off'; A.closeModal(); const before = S.week; document.querySelector('[data-act=step]').click(); out.off = S.week === before + 1 && !A.wantReport();
+    /* the record is bounded and refused when broken */ const t2 = JSON.parse(A.exportText()); t2.wk = [{w: 1, rev: NaN, op: 0, ni: 0, hold: 0, nw: 0}]; out.refuse = !A.parseSave(JSON.stringify(t2));
+    /* the UI only reads: no RNG drawn to render the report */ const rs = S.rs; A.showReport(); A.wkBox(); out.noRng = S.rs === rs; A.closeModal();
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('weekly results: shown after +1週 by default; group sales/profit vs last week, by company, 12-week chart; old setting migrated; off respected; bad record refused', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 300));
+  ok('no page errors in weekly-results tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testFix1120(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3768,6 +3790,7 @@ async function balance(b) {
     await testRev27(b);
     await testPlay28(b);
     await testRev29(b);
+    await testWeekly30(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
