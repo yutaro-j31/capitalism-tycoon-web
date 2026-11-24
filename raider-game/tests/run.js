@@ -3120,6 +3120,45 @@ async function testRev33(b) {
   ok('rev33: net-worth history, weekly results and the week\'s records from the same final state (BUG-109), rewards as their own cash-flow line (BUG-110), the week\'s return shown neutral at ±0.0% (UI-02)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 900));
   ok('no page errors in rev33 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testRev34(b) {
+  const {p, errs} = await page(b, {viewport: {width: 375, height: 800}});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {};
+    let S;
+    const fresh = (seed, scen) => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', scen, scen === 'std'); S = A.S; S.won = scen === 'std'; document.querySelector('#modal').hidden = true; A.renderAll(true); };
+    const firstBuy = () => { const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((x, y) => x.price - y.price)[0]; A.plEnsure(); A.execBuy('P', c, Math.min(c.shares * .001, S.player.cash * .1 / c.price)); return c; };
+    const ident = L => Math.abs((L.nw1 - L.nw0) - (A.PL_ITEMS.reduce((a, [k]) => a + (L[k] || 0), 0) + (L.odiv || 0) + (L.rew || 0) + L.other)) < 1e-9;
+    /* the same week twice from the same seed: once with the reward, once with it already received. Only the reward line may differ; the move in holdings is identical */
+    const twin = (seed, scen) => { const run = pre => { fresh(seed, scen); if (pre) S.tut = Object.assign({}, S.tut, pre); firstBuy(); const t0 = Object.assign({}, S.tut); A.step(); A.closeModal(); const W = S.player.plWH[0];
+        return {got: Object.keys(S.tut).filter(k => t0[k] == null), W, rets: JSON.stringify(S.tr.rets), wk: S.wk[S.wk.length - 1].nw, hist: S.nwHist.P[S.nwHist.P.length - 1], my: A.myWorth(), cash: S.player.cash}; };
+      const a = run(null), pre = Object.fromEntries(a.got.map(k => [k, 0])), bb = run(pre); return {a, b: bb}; };
+    /* TC-111-01: corporate start, first purchase */
+    { const {a, b: bb} = twin(3401, 'std'); const rew = a.W.rew || 0; info.tc01 = {got: a.got, rew, otherWith: a.W.other, otherWithout: bb.W.other, cashDiff: a.cash - bb.cash};
+      out.tc01 = a.got.length > 0 && rew > 0 && Math.abs(a.W.other - bb.W.other) < 1e-9 && Math.abs(a.cash - bb.cash - rew) < 1e-9 && ident(a.W) && ident(bb.W) && !(bb.W.rew) && Math.abs(a.wk - a.my) < 1e-9 && Math.abs(a.hist - a.my) < 1e-9 && Math.abs(A.cfOf(a.W).oth - rew) < 1e-9 && Math.abs(A.cfOf(a.W).inv - A.cfOf(bb.W).inv) < 1e-9;
+      /* the statements show the reward on its own line */ S.acct = null; A.closeModal(); fresh(3401, 'std'); firstBuy(); A.step(); A.closeModal(); A.ui.tab = 'pres'; A.ui.hqTab = 'acc'; A.renderAll(true); const card = A.plCard(); A.ui.fsPer = 'w'; A.ui.fsKind = 'pl'; const fs = A.fsView ? A.fsView() : '';
+      out.tc01ui = /達成報酬（はじめの一歩）/.test(card) && /達成報酬（はじめの一歩）/.test(fs); }
+    /* TC-111-02: several rewards in one period — two in the same week (first purchase and a 5% stake: 1 + 2), and two in different weeks of one quarter */
+    { const big = () => { const c = S.cos.filter(x => !x.priv && !x.ctrl && !x.pill).sort((x, y) => x.price * x.shares - y.price * y.shares)[0]; S.player.cash = Math.max(S.player.cash, c.price * c.shares * .1 + 10); A.trClose(); A.plEnsure(); A.execBuy('P', c, c.shares * .06); return c; };
+      fresh(3402, 'std'); big(); A.step(); A.closeModal(); const W = S.player.plWH[0]; info.tc02 = {same: {rew: W.rew, got: Object.keys(S.tut)}}; const sameOk = Math.abs((W.rew || 0) - 3) < 1e-9 && ident(W) && Math.abs(A.cfOf(W).oth - 3) < 1e-9;
+      fresh(3412, 'std'); while (S.week % 13 >= 10) { A.step(); A.closeModal(); } A.plEnsure(); const q0 = S.player.pl.w0; firstBuy(); A.step(); A.closeModal(); const w1 = S.player.plWH[0].rew || 0; big(); A.step(); A.closeModal(); const w2 = S.player.plWH[0].rew || 0, Q = A.liveRec('pl');
+      info.tc02.split = {w1, w2, q: Q.rew, q0, w0: Q.w0}; out.tc02 = sameOk && Math.abs(w1 - 1) < 1e-9 && Math.abs(w2 - 2) < 1e-9 && Math.abs((Q.rew || 0) - 3) < 1e-9 && Q.w0 === q0 && ident(Q) && ident(S.player.plWH[0]); }
+    /* TC-111-03: individual trader: same scaled reward, not in the investment record */
+    { const {a, b: bb} = twin(3403, 'trader'); info.tc03 = {rew: a.W.rew, other: [a.W.other, bb.W.other]}; out.tc03 = (a.W.rew || 0) > 0 && Math.abs(a.W.other - bb.W.other) < 1e-9 && a.rets === bb.rets && ident(a.W); }
+    /* TC-111-04: across a quarter and a year end: every closed record adds up, each reward once */
+    { fresh(3404, 'std'); firstBuy(); let ok = true, sumW = 0; for (let i = 0; i < 60; i++) { A.step(); A.closeModal(); const W = S.player.plWH[0]; sumW += W.rew || 0; ok = ok && ident(W); if (S.week % 13 === 0) ok = ok && ident(S.player.plHist[0]); if (S.week % 52 === 0) ok = ok && ident(S.player.plYH[0]); }
+      const qs = (S.player.plHist || []).reduce((a, L) => a + (L.rew || 0), 0) + (A.liveRec('pl').rew || 0); info.tc04 = {sumW, qs}; out.tc04 = ok && Math.abs(sumW - qs) < 1e-9 && !(S.player.pl.rew > 0 && S.player.pl.w0 > S.week); }
+    /* TC-111-05: a week with no reward: the move in holdings is the whole residual */
+    { const W = S.player.plWH[0]; out.tc05 = !(W.rew) && Math.abs(W.other - ((W.nw1 - W.nw0) - A.PL_ITEMS.reduce((a, [k]) => a + (W[k] || 0), 0) - (W.odiv || 0))) < 1e-9; }
+    /* TC-111-06: a save whose records have no reward field loads, plays and does not pay rewards again */
+    { fresh(3406, 'std'); firstBuy(); A.step(); A.closeModal(); const t = JSON.parse(A.exportText()); for (const k of ['pl', 'plW', 'plY']) if (t.player[k]) delete t.player[k].rew; for (const k of ['plWH', 'plHist', 'plYH']) for (const L of t.player[k] || []) delete L.rew;
+      const err = A.importText(JSON.stringify(t)); S = A.S; const n0 = Object.keys(S.tut).length, c0 = S.player.cash; const card = A.plCard(); A.step(); A.closeModal(); info.tc06 = {err, n0, n1: Object.keys(S.tut).length};
+      out.tc06 = !err && /達成報酬/.test(card) && ident(S.player.plWH[0]) && !(S.player.plWH[0].rew > 0) && Object.keys(S.tut).length === n0; }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev34 (BUG-111): a beginner reward is its own line in the statements, never in the move of holdings; weekly/quarter/year add up; trader record untouched; old records load', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 900));
+  ok('no page errors in rev34 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testFix1120(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3903,6 +3942,7 @@ async function balance(b) {
     await testRev31(b);
     await testRev32(b);
     await testRev33(b);
+    await testRev34(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
