@@ -4829,6 +4829,7 @@ function step(){
   trStep(tr0);
   snSyncAll(); if (mgSync()) recomputeCtrl(); acqFlush(); roadRec(); planClose(); checkEnd(); checkAch();
   for (const c of S.cos) opsRecord(c);
+  devPurge();
   recordNW(); wkRec(); /* BUG-109: the net-worth history and the weekly results are taken from the same final state of the week (after rewards); one entry a week */ plCloseKey('plW', 'plWH', 2); if (S.week % 13 === 0) plClose(); if (S.week % 52 === 0) plCloseKey('plY', 'plYH', 3); /* BUG-105: the week's records close after the week's rewards and achievements, so they show the net worth as the week ends */
   if (S.acct && S.week - S.acct.w >= accLag()) acctSnap(); /* BUG-113: the accounting department's statements are taken when the week has closed (same moment for BS, PL and CF); the delay by its capacity is kept */
   trClose();
@@ -4868,7 +4869,7 @@ const finSig = o => { const p = o.player, base = [p.cash, p.loan, p.bank, p.tl, 
   const b5 = (o.fmt || 0) >= 5 ? b4.concat([o.tr ? [o.tr.eq1 == null ? null : o.tr.eq1, o.tr.flow || 0, o.tr.rets, o.tr.mc || 0, o.tr.mcW == null ? null : o.tr.mcW] : null]) : b4;
   const b6x = (o.fmt || 0) >= 7 ? [o.tr ? [o.tr.mid, o.tr.k, o.tr.fl, o.tr.ax, o.tr.fix == null ? null : o.tr.fix, o.tr.fixN == null ? null : o.tr.fixN, o.tr.lk == null ? null : o.tr.lk, o.tr.dI || 0] : null, /* format 7 is signed exactly as rev12 wrote it (tr.seen is checked for type, not signed, so existing saves keep their checksum) */ o.ldropA || null] : [];
   return hashStr(JSON.stringify((o.fmt || 0) >= 6 ? b5.concat([o.tr ? [o.tr.cum, o.tr.skip, o.tr.n, o.tr.pk, o.tr.mdd, !!o.tr.part] : null, o.ledger || null, o.lagg || null, o.ledgerW0 == null ? null : o.ledgerW0, o.ldrop == null ? null : o.ldrop, !!o.lpart], b6x) : b5)); }; /* 5: the track record too: it decides what investors offer */ /* a checksum of the player's money and contracts */
-function stamp(){ snSyncAll(); if (S.player && mgSync()) recomputeCtrl(); /* rev29: margin positions that closed give back their votes; control is settled before the save is written (it was left to the next week, and the load repair then changed it) */ if (S.tr && finite(S.tr.eq1)) { const g = grossWorth(); trSeen(g); S.tr.mid = g - S.tr.eq1 - (S.tr.flow || 0); } S.chk = finSig(S); return S; } /* written into every save and export. tr.mid: this week's investment result so far (net worth − base − money moved) */
+function stamp(){ devPurge(); snSyncAll(); if (S.player && mgSync()) recomputeCtrl(); /* rev29: margin positions that closed give back their votes; control is settled before the save is written (it was left to the next week, and the load repair then changed it) */ if (S.tr && finite(S.tr.eq1)) { const g = grossWorth(); trSeen(g); S.tr.mid = g - S.tr.eq1 - (S.tr.flow || 0); } S.chk = finSig(S); return S; } /* written into every save and export. tr.mid: this week's investment result so far (net worth − base − money moved) */
 function fmtCheck(o){ /* a current-format save must still hold every debt and contract it was written with */
   const p = o.player;
   if ((o.fmt || 0) >= 3 && !(o.pres && finite(o.pres.cash))) return '個人の口座の記録がない';
@@ -6255,6 +6256,7 @@ function devStart(p, kind, grade, f, how){ if (!p || p.st !== 'land') return '�
   const q = devPlan(p, kind, grade, f); if (devCash(p.own) < q.cost * .2) return `着工には資金が要ります（建築費の20% ${fm(q.cost * .2)}）`;
   Object.assign(p, {st: 'build', kind, grade: grade === 'hi' ? 'hi' : 'std', gfa: q.gfa, cost: q.cost, w0: S.week, done: S.week + q.weeks, how: kind === 'condo' ? 'sell' : (how === 'hold' ? 'hold' : 'sell'), pre: 0});
   news(`【着工】${ownerName(p.own)}が${p.site.n}で${DEVK[kind].n}（${p.grade === 'hi' ? '高級' : '標準'}・延床${grp(q.gfa)}m²）を着工。建築費${fm(q.cost)}・${shortDate(p.done)}竣工予定`, p.own === 'P' || (coById(p.own) && coById(p.own).ctrl === 'P') ? 'you' : 'deal', p.site.city); return ''; }
+function devPurge(){ if (S && S.devp && S.devp.length) S.devp = S.devp.filter(p => p.own === 'P' || coById(p.own)); } /* a company that is gone (merged, delisted, liquidated) takes its land and buildings with it */
 function devStep(){ sitesEnsure();
   for (const p of (S.devp || []).slice()) {
     const mine = p.own === 'P' || (coById(p.own) && coById(p.own).ctrl === 'P');
@@ -7225,7 +7227,7 @@ function tapMap(px, py){
    ===================================================================== */
 const NEED = {tender: 'tob', activist: 'activist', proxy: 'proxy', negotiate: 'neg', short: 'short', buyopt: 'options', divsell: 'divest', spinoff: 'divest', holdipo: 'holdipo', research: 'research', tmode: 'tob', pbuy: 'realty', pebid: 'pe', pedd: 'pe', pesearch: 'pe', pepriv: 'privatize'};
 function act(a, el){ plEnsure(); const m = !ui.sim && S && S.tr ? {S0: S, k: S.tr.k || 0, g: grossWorth(), f: S.tr.flow || 0} : null; if (m) trSeen(m.g);
-  try { return act0(a, el); } finally { if (S && S.player && !ui.sim && mgSync()) recomputeCtrl(); /* rev29: a sale that repaid the margin loan restores votes now, not next week */ if (m && S === m.S0 && S.tr && (S.tr.k || 0) === m.k) { const d = (grossWorth() - m.g) - ((S.tr.flow || 0) - m.f); if (Math.abs(d) > 1e-9) trAx(a, d); S.tr.seen = grossWorth() - (S.tr.eq1 || 0) - (S.tr.flow || 0); } /* BUG-30: every action that changed net worth this week (trades, options, deals, events), for checking a save */
+  try { return act0(a, el); } finally { if (S) devPurge(); if (S && S.player && !ui.sim && mgSync()) recomputeCtrl(); /* rev29: a sale that repaid the margin loan restores votes now, not next week */ if (m && S === m.S0 && S.tr && (S.tr.k || 0) === m.k) { const d = (grossWorth() - m.g) - ((S.tr.flow || 0) - m.f); if (Math.abs(d) > 1e-9) trAx(a, d); S.tr.seen = grossWorth() - (S.tr.eq1 || 0) - (S.tr.flow || 0); } /* BUG-30: every action that changed net worth this week (trades, options, deals, events), for checking a save */
     if (S) { acqFlush(); roadRec(); } if (!ui.sim && S) save(); } } /* saved at once, whichever way the action returns */
 function act0(a, el){ LTAG = '';
   if (NEED[a] && !has(NEED[a]) && !(a === 'pbuy' && propOpen(S.props.find(x => x.id === el.dataset.id)))) return;
