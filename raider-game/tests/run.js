@@ -3204,6 +3204,34 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testSearch43(b) {
+  const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); return ok1 && !(typeof m === 'string' && m.includes('読み込めません')) && A.S !== S0 && A.econCheck(A.S) === ''; };
+    const run = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); const S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.confirm = false; A.step();
+      const c = S.cos.find(x => x.ind === 'tech' && !x.priv); c.own.P = c.shares * .6; A.recomputeCtrl(); A.opsEnsure(); c.cash += 50; S.player.cash += 50;
+      const q = {ind: 'pharma', focus: 'fin', car: 'senior', bg: 'consult', tier: 'exec'}; const cash0 = c.cash, e = A.srchOrder(c.id, 'CFO', q), paid = cash0 - c.cash, x = S.hr.srch[0];
+      for (let i = 0; i < 4; i++) A.step(); const it = S.inbox.find(i => i.kind === 'srchres' && i.sid === x.id), C = x.cands.map(A.person);
+      const fit = C.every(p => p.ind === 'pharma' && p.age >= 50 && p.age <= 59 && p.bg === 'コンサル・金融出身' && p.exp.pharma > 0) && C.length === 4;
+      const avgFin = C.reduce((a, p) => a + p.sk.fin, 0) / C.length; A.ui.hire = {t: c.id, r: 'CFO'}; A.ui.hch = 'search'; const html = A.hirePanel(c.id, 'CFO');
+      const ok = loads(); const S2 = A.S, c2 = A.coById(c.id), x2 = S2.hr.srch[0], best = x2.cands.map(A.person).sort((a, b2) => b2.sk.fin - a.sk.fin)[0], fee = best.sal * .35, cb = c2.cash, d0 = c2.debt;
+      const hr = A.srchHire(x2.id, best.id); const seated = A.exOf ? A.exOf(c2, 'CFO') === best : (c2.ex || {}).CFO === best.id;
+      return {e, paid, inbox: !!it, fit, avgFin, ui: /求人依頼/.test(html) && /経歴/.test(html), ok, hr, seated, fee: [cb - c2.cash + (c2.debt - d0), fee], closed: !!x2.closed, back: x2.cands.every(id => S2.hr.pool.includes(id)), sig: JSON.stringify(C.map(p => [p.n, p.age, p.sk]))}; };
+    const R = run(4701), R2 = run(4701); info.r = Object.assign({}, R, {sig: undefined});
+    out.order = R.e === '' && Math.abs(R.paid - .3) < 1e-9 && R.inbox; out.criteria = R.fit && R.avgFin > 60; out.ui = R.ui; out.hire = R.ok && R.hr === 'ok' && R.seated && Math.abs(R.fee[0] - R.fee[1]) < 1e-6 && R.closed && R.back; out.determinism = R.sig === R2.sig;
+    /* refused: no money, bad criteria, too many open: nothing changes */
+    { A.closeModal(); A.newGame(4702, 'normal', 'B', 'b', 'std', true); const S = A.S; S.won = S.lost = true; A.step(); S.player.cash = 0; S.player.loan = 0; const s0 = JSON.stringify([S.player.cash, S.hr.srch || null, S.hr.srchSeq || 0]);
+      const e1 = A.srchOrder('HQ', 'CFO', {ind: 'any', focus: 'fin', car: 'mid', bg: 'any', tier: 'std'}), e2 = A.srchOrder('HQ', 'CFO', {ind: 'xx', focus: 'fin', car: 'mid', bg: 'any', tier: 'std'});
+      out.refuse = e1 !== '' && e2 !== '' && JSON.stringify([S.player.cash, S.hr.srch || null, S.hr.srchSeq || 0]) === s0; info.ref = [e1, e2]; }
+    return {out, info};
+  });
+  console.log('rev43 search', JSON.stringify(r.info).slice(0, 1200));
+  for (const [k, v] of Object.entries(r.out)) ok('rev43 recruitment search: ' + k, v);
+  ok('rev43 recruitment search: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testBug127(b) {
   const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
   const r = await p.evaluate(() => { try { return (() => {
@@ -4438,6 +4466,7 @@ async function balance(b) {
     await testBug120b(b);
     await testBug123(b);
     await testBug127(b);
+    await testSearch43(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
