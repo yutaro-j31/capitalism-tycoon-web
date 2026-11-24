@@ -2999,7 +2999,8 @@ async function testWeekly30(b) {
     const cs = S.cos.filter(x => !x.priv && !x.ctrl).slice(0, 2); for (const c of cs) c.own.P = c.shares * .6; A.recomputeCtrl(); for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; } A.closeModal(); document.querySelector('#modal').hidden = true; A.renderAll(true);
     out.default = S.settings.rep === 'w' && A.wantReport(); document.querySelector('[data-act=step]').click(); A.renderAll(true); const m = document.querySelector('#modal');
     const a = S.wk[S.wk.length - 1], rev = cs.reduce((t, c) => t + c.rev / 52, 0); info.wk = {a, rev};
-    out.report = !m.hidden && /週間業績/.test(m.textContent) && /推計売上（グループ・週換算）/.test(m.textContent) && m.querySelectorAll('.wkbars [data-act=wkbar]').length === Math.min(12, S.wk.length) && m.querySelectorAll('.rows .orow').length === 2; /* rev32: labels say the figures are weekly estimates; bars are buttons */
+    out.report = !m.hidden && /週間業績/.test(m.textContent) && /本体（単体）/.test(m.textContent) && !/推計売上|グループ売上/.test(m.textContent) && m.querySelectorAll('.wkbars [data-act=wkbar]').length === Math.min(12, S.wk.length) && m.querySelectorAll('.rows .orow').length === 0; /* rev37: the weekly results are the head office alone (the subsidiaries' weeks are on their pages and in the group tab) */
+    out.group = /子会社の週次実績/.test(A.groupWkBox()) && cs.every(c => A.groupWkBox().includes(c.name));
     out.figures = Math.abs(a.rev - rev) < 1e-9 && a.w === S.week && Object.keys(S.wkCos.cur).length === 2 && Object.keys(S.wkCos.prev).length === 2;
     /* a quarterly setting from an old save becomes weekly once; a choice made after that is kept */
     const t = JSON.parse(A.exportText()); t.settings = {rep: 'q'}; delete t.wk; out.migrate = !!A.parseSave(JSON.stringify(t));
@@ -3009,7 +3010,7 @@ async function testWeekly30(b) {
     return {out, info};
   });
   const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
-  ok('weekly results: shown after +1週 by default; group sales/profit vs last week, by company, 12-week chart; old setting migrated; off respected; bad record refused', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 300));
+  ok('weekly results: shown after +1週 by default; the head office alone with a 12-week chart (the subsidiaries in the group tab); old setting migrated; off respected; bad record refused', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 300));
   ok('no page errors in weekly-results tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 async function testRev31(b) {
@@ -3069,16 +3070,16 @@ async function testRev32(b) {
     { A.closeModal(); A.newGame(3202, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.pres.cash = 5; document.querySelector('#modal').hidden = true; A.renderAll(true); document.querySelector('[data-act=step]').click(); const m = document.querySelector('#modal'), a = S.wk[S.wk.length - 1], W = S.player.plWH[0];
       info.b108 = {total: a.nw, company: W.nw1, pres: A.presWealth()}; out.b108 = Math.abs(a.nw - W.nw1 - A.presWealth() - A.holdingsMkt('U')) < 1e-9 && !/あなたの総純資産/.test(m.textContent) && /会社（本体）の純資産・あなたの持分/.test(m.textContent) && /外部株主の分を除いた/.test(m.textContent) && /本社 › 社長/.test(m.textContent); /* rev36: your own holdings moved to the President tab */
       { const box = A.myAssetsBox(), num = t => +(t.match(/総純資産<\/span><b>([^<]*)</) || [])[1].replace(/[^0-9.-]/g, ''); info.b108.box = num(box); out.b108me = /あなたの保有資産/.test(box) && /個人の現金/.test(box) && Math.abs(num(box) - Math.round(A.myWorth() * 1e8)) <= 1 && /あなたの保有資産/.test(A.renderPres()); }
-      /* BUG-107: the figures are named as weekly estimates and explained */ out.b107 = /週換算の推計/.test(m.textContent) && /推計売上（グループ・週換算）/.test(m.textContent) && /推計営業利益/.test(m.textContent) && /推計純利益/.test(m.textContent);
+      /* BUG-107: the figures are named as weekly estimates and explained */ out.b107 = !/推計売上|推計営業利益|推計純利益/.test(m.textContent) && /本体（単体）/.test(m.textContent); /* rev37: the estimates are gone from the weekly results (head office alone), so they can no longer be mistaken for actuals */
       /* nothing overflows at 320px */ const Wd = document.documentElement.clientWidth; out.w320 = [...m.querySelectorAll('.sheet *')].filter(e => e.getBoundingClientRect().right > Wd + 1).length === 0; A.closeModal(); }
     /* BUG-106: the change against last week, judged at the yen shown */
     { const base = {w: 10, rev: 1, op: 1, ni: 1, hold: 1, div: 0, nw: 100, ret: 0}; const box = (x, y) => { S.wk = [Object.assign({}, base, y, {w: 9}), Object.assign({}, base, x)]; S.wkCos = {cur: {}, prev: {}}; return A.wkBox(); };
-      const same = box({}, {}), plus1 = box({rev: 1 + 1e-8}, {}), minus1 = box({rev: 1 - 1e-8}, {}), tiny = box({rev: 1 + 1e-12}, {}), flip = box({ni: .5}, {ni: -.5});
+      const same = box({}, {}), plus1 = box({hold: 1 + 1e-8}, {}), minus1 = box({hold: 1 - 1e-8}, {}), tiny = box({hold: 1 + 1e-12}, {}), flip = box({hold: .5}, {hold: -.5});
       S.wk = [Object.assign({}, base)]; const first = A.wkBox();
       info.b106 = {same: (same.match(/±0円/g) || []).length, up: /▲1円/.test(plus1), down: /▼1円/.test(minus1), tiny: /±0円/.test(tiny) && !/▲0円/.test(tiny), flip: (flip.match(/class="up">▲[^<]*/g) || []).slice(0, 3), first: /前週比 —/.test(first) && !/▲|▼|±0円/.test(first), bad: /▲0円|▼0円/.test(same)};
-      out.b106 = !/▲0円|▼0円/.test(same) && (same.match(/±0円/g) || []).length >= 5 && /▲1円/.test(plus1) && /▼1円/.test(minus1) && /±0円/.test(tiny) && !/▲0円/.test(tiny) && /class="up">▲100,000,000円/.test(flip) && /前週比 —/.test(first) && !/▲|▼|±0円/.test(first); }
+      out.b106 = !/▲0円|▼0円/.test(same) && (same.match(/±0円/g) || []).length >= 2 && /▲1円/.test(plus1) && /▼1円/.test(minus1) && /±0円/.test(tiny) && !/▲0円/.test(tiny) && /class="up">▲100,000,000円/.test(flip) && /前週比 —/.test(first) && !/▲|▼|±0円/.test(first); }
     /* UI-01: a zero line; profits above, losses below; all zero on the line; one huge week still fits */
-    { const mk = vals => { S.wk = vals.map((v, k) => ({w: k + 1, rev: 1, op: 1, ni: v, hold: 0, div: 0, nw: 1, ret: 0})); S.wkCos = {cur: {}, prev: {}}; const el = document.createElement('div'); el.innerHTML = A.wkBox(); document.body.appendChild(el); const zero = el.querySelector('.wkbars > i'), z = parseFloat(zero.style.top); const bars = [...el.querySelectorAll('.wkbars [data-act=wkbar] i')].map(i => ({top: parseFloat(i.style.top), h: parseFloat(i.style.height)})); el.remove(); return {z, bars}; };
+    { const mk = vals => { S.wk = vals.map((v, k) => ({w: k + 1, rev: 1, op: 1, ni: 0, hold: v, div: 0, nw: 1, ret: 0})); S.wkCos = {cur: {}, prev: {}}; const el = document.createElement('div'); el.innerHTML = A.wkBox(); document.body.appendChild(el); const zero = el.querySelector('.wkbars > i'), z = parseFloat(zero.style.top); const bars = [...el.querySelectorAll('.wkbars [data-act=wkbar] i')].map(i => ({top: parseFloat(i.style.top), h: parseFloat(i.style.height)})); el.remove(); return {z, bars}; };
       const mixed = mk([2, -1, 0, 3]), allPos = mk([1, 2]), allNeg = mk([-1, -2]), allZero = mk([0, 0, 0]), huge = mk([1, 1, 1000]);
       const above = (r, k) => Math.abs(r.bars[k].top + r.bars[k].h - r.z) < 1e-6, below = (r, k) => Math.abs(r.bars[k].top - r.z) < 1e-6;
       info.ui01 = {mixed, a: [above(mixed, 0), below(mixed, 1), above(mixed, 3)], pz: allPos.z, nz: allNeg.z, zero: allZero.bars, huge: huge.bars}; out.ui01 = above(mixed, 0) && below(mixed, 1) && above(mixed, 3) && Math.abs(mixed.bars[2].top - mixed.z) < 1.5 && allPos.z === 64 && allNeg.z === 0 && allZero.bars.every(x => x.h <= 1) && huge.bars.every(x => x.top >= -1e-6 && x.top + x.h <= 64 + 1e-6); }
@@ -3199,6 +3200,65 @@ async function testRev35(b) {
   const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
+async function testOps37(b) {
+  const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {}; const loads = () => !!A.parseSave(A.exportText());
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.rep = 'off'; return S; };
+    const own = c => { c.own.P = c.shares * .6; A.recomputeCtrl(); A.opsEnsure(); return c; };
+    /* migration: an old save (no business data, prices at 1.00) earns exactly what it did */
+    { fresh(3801); for (let i = 0; i < 5; i++) A.step(); for (const c of S.cos) delete c.ops; S.cmdty = {}; const b0 = S.cos.map(c => [c.rev, A.opProfit(c)]); A.opsEnsure(); for (const c of S.cos) A.opsCalc(c);
+      const d = Math.max(...S.cos.map((c, i) => Math.abs(A.opProfit(c) - b0[i][1]) / Math.max(1e-6, Math.abs(b0[i][1])))); info.mig = d; out.migration = d < 1e-9 && new Set(S.cos.map(c => c.ops.type)).size === 6; }
+    /* modes: a new subsidiary starts on policy; switching locks for 4 weeks; the CEO's proposals can be approved, partly approved or rejected */
+    { fresh(3802); A.step(); const c = own(S.cos.find(x => x.ind === 'food' && !x.priv)); const m0 = A.opsMode(c); const w1 = A.opsSetMode(c, 'direct'), w2 = A.opsSetMode(c, 'policy'); for (let i = 0; i < 4; i++) A.step(); const w3 = A.opsSetMode(c, 'policy');
+      out.modes = m0 === 'policy' && w1 === '' && /4週間/.test(w2) && w3 === '' && A.opsMode(c) === 'policy';
+      c.q0 = {s: (c.sh || .3) * 1.2}; c.cash = c.rev; let it = null; for (let i = 0; i < 14 && !it; i++) { A.step(); it = S.inbox.find(x => x.kind === 'opsprop' && x.cid === c.id); }
+      info.prop = it ? it.acts.map(x => x.a.k) : null; out.proposal = !!it && it.acts.length > 0 && it.acts.every(x => isFinite(x.est));
+      if (it) { const n0 = c.ops.log.length; click('opspick', it.id, 0); click('opsans', it.id, 'some'); out.partial = !S.inbox.includes(it) && c.ops.log.length === n0 + 1; }
+      const ceo = A.S.hr.people[c.ex && c.ex.CEO]; if (ceo) { const m1 = ceo.mood; for (let k = 0; k < 3; k++) { S.inbox.push({id: 990100 + k, kind: 'opsprop', cid: c.id, acts: [{a: {k: 'lp', id: c.ops.lines[0].id, v: 1}, why: 't', est: 1}], who: 'CEO', exp: S.week + 2}); A.opsPropAnswer(S.inbox[S.inbox.length - 1], 'no'); } out.reject3 = ceo.mood < m1; } else out.reject3 = true; }
+    /* ① products: a dearer line loses appeal; a quality budget lifts quality over time; a new line ramps up; refresh and drop */
+    { fresh(3803); A.step(); const c = own(S.cos.find(x => x.ind === 'auto' && !x.priv)); A.opsSetMode(c, 'direct'); const l = c.ops.lines[0], A0 = c.ops.A;
+      A.opsDo(c, {k: 'lp', id: l.id, v: 1.2}, 'P'); const A1 = c.ops.A, P1 = c.ops.P; A.opsDo(c, {k: 'lp', id: l.id, v: 1}, 'P'); A.opsDo(c, {k: 'lrd', id: l.id, v: .05}, 'P'); const q0 = l.q, F0 = c.ops.F; for (let i = 0; i < 26; i++) A.step();
+      const free = A.opsIdeas ? (c.ops.lines.length) : 0; const seg = ['kei', 'sedan', 'suv', 'ev', 'van'].find(x => !c.ops.lines.some(y => y.seg === x)); c.cash += c.rev; const e = A.opsDo(c, {k: 'lnew', seg}, 'P'), nl = c.ops.lines.find(y => y.seg === seg);
+      info.prod = {A0, A1, P1, q0, q1: l.q, F0}; out.prod = A1 < A0 && P1 > 1 && l.q > q0 + 5 && F0 > 0 && e === '' && nl && nl.ramp < .1 && A.opsDo(c, {k: 'ldrop', id: nl.id}, 'P') === '' && A.opsDo(c, {k: 'lref', id: l.id}, 'P') === '' && l.age === 0 && loads(); }
+    /* ② commodities: idling saves fixed costs; a hedge fixes the price; building finishes after its lead time; airlines and shipping have routes */
+    { fresh(3804); A.step(); const c = own(S.cos.find(x => x.ind === 'steel' && !x.priv)); A.opsSetMode(c, 'direct'); c.cash += c.rev; const fx0 = A.opProfit(c);
+      A.opsDo(c, {k: 'idle', v: .2}, 'P'); const F1 = c.ops.F; A.opsDo(c, {k: 'idle', v: -.2}, 'P'); A.S.cmdty.steel.px = 1.3; A.opsCalc(c); A.opsDo(c, {k: 'hedge', kind: 'sell', v: .5, q: 2}, 'P'); A.S.cmdty.steel.px = .7; A.opsCalc(c); const Ph = c.ops.P;
+      const cap0 = c.ops.cap; A.opsDo(c, {k: 'build', v: .1}, 'P'); const done = c.ops.build[0].done; info.cmd = {F1, Ph, done: done - S.week};
+      out.cmdty = F1 < 0 && Ph > .7 * .6 + 1.3 * .4 * 0 && Ph > .85 && done - S.week === 104 && /80%/.test(A.opsDo(c, {k: 'hedge', kind: 'sell', v: .5, q: 2}, 'P'));
+      const air = S.cos.find(x => x.ind === 'air'), ship = S.cos.find(x => x.ind === 'ship'); out.routes = air.ops.routes.length >= 2 && ship.ops.routes.length >= 2 && air.ops.routes.every(r => A.S && r.a && r.b);
+      A.ui.tab = 'market'; A.ui.sel = null; A.renderAll(true); info.hits = A.routeHits.length; }
+    /* ③ telecom and bank */
+    { fresh(3805); A.step(); const t = own(S.cos.find(x => x.ind === 'telecom' && !x.priv)); A.opsSetMode(t, 'direct'); A.opsDo(t, {k: 'netcap', v: .06}, 'P'); const n0 = t.ops.net; for (let i = 0; i < 26; i++) A.step(); out.telecom = t.ops.net > n0 + 3 && t.ops.F > 0 && A.opsDo(t, {k: 'arpu', v: 1.1}, 'P') === '' && t.ops.P > 1.05;
+      const bk = own(S.cos.find(x => x.ind === 'bank' && !x.priv)); A.opsSetMode(bk, 'direct'); A.opsDo(bk, {k: 'std', v: .1}, 'P'); S.econ.credit = .8; for (let i = 0; i < 100; i++) { A.step(); S.econ.credit = .8; } info.bank = {loss: bk.ops.loss}; out.bank = bk.ops.loss > 0 && /自己資本比率/.test(A.opsTab(bk)); }
+    /* ④ pharma: the line-up is today's sales; licensing out pays cash; licensing in costs cash; approvals and failures happen over time */
+    { fresh(3806); A.step(); const c = own(S.cos.find(x => x.ind === 'pharma' && !x.priv)); A.opsSetMode(c, 'direct'); const p0 = c.ops.pipe.find(x => x.st >= 2), ev = A.pipeEV(c, p0), cash0 = c.cash; A.opsDo(c, {k: 'lout', id: p0.id}, 'P');
+      const got = c.cash - cash0; c.cash += c.rev; const c1 = c.cash; A.opsDo(c, {k: 'lin', v: 3}, 'P'); const paid = c1 - c.cash; let ev2 = 0; for (let i = 0; i < 520; i++) { A.step(); } const logs = c.ops.log.map(x => x[1]).join('|');
+      info.pharma = {ev, got, paid, A: c.ops.A}; out.pharma = got > ev * .45 && got < ev * .75 && paid > 0 && /承認|失敗/.test(logs) && c.ops.A > .2; }
+    /* ⑤ development from the head office: due diligence, construction, completion; the net worth, balance sheet and capital allocation agree throughout */
+    { fresh(3807); S.player.cash = 2000; A.hqInit(); Object.assign(S.dept.inv, {on: true, staff: 3}); A.trClose(); A.sitesEnsure(); const site = S.sites.filter(x => x.zone === 'res').sort((x, y) => A.sitePrice(x) - A.sitePrice(y))[0];
+      const agree = () => { const g = A.grossWorth(); return Math.abs(A.bsNow().eq - g) < 1e-6 && Math.abs(A.capAlloc().net - g) < 1e-6; }; const g0 = A.grossWorth(), px = A.sitePrice(site);
+      click('devbuy', null, site.id, {own: 'P', dd: '1'}); const pj = S.devp.find(x => x.own === 'P'); const ok1 = !!pj && pj.st === 'dd' && Math.abs(A.grossWorth() - (g0 - px * .005)) < 1e-6 && agree();
+      A.step(); A.step(); A.step(); click('devplan', pj.id, 'condo', {f: 'kind'}); click('devstart', pj.id); const ok2 = pj.st === 'build' && pj.kind === 'condo' && agree();
+      let w = 0; while (S.devp.includes(pj) && w++ < 200) { A.step(); if (!agree()) break; } info.dev = {w, st: pj.st, fraud: pj.fraud}; out.dev = ok1 && ok2 && !S.devp.includes(pj) && w < 200 && agree() && /竣工/.test(S.news.map(n => n.t).join('|')) && loads();
+      /* hold as a rental: the building joins your properties */ A.sitesEnsure(); const s2 = S.sites.find(x => x.zone !== 'ind'); A.devBuy('P', s2.id, false); const p2 = S.devp.find(x => x.own === 'P'); A.devStart(p2, A.S.sites ? (p2.site.zone === 'com' ? 'office' : 'resi') : 'resi', 'hi', .8, 'hold'); p2.done = S.week + 1; p2.fraud = null; const n0 = S.props.filter(x => x.own === 'P').length; A.step(); A.step();
+      const nb = S.props.filter(x => x.own === 'P'); out.devHold = nb.length === n0 + 1 && nb.some(x => x.dev && x.grade === 'hi') && agree(); }
+    /* the land fraud: rare, cut tenfold by due diligence; when it comes out the land is lost */
+    { fresh(3808); let a = 0, bb = 0; for (let i = 0; i < 20000; i++) { const x = A.hrnd('fraud:P:L' + i); if (x < .003) a++; if (x < .0003) bb++; } info.fraudRate = [a, bb]; out.fraudRate = a > 30 && a < 95 && bb < a / 4; S.player.cash = 2000; A.hqInit(); Object.assign(S.dept.inv, {on: true, staff: 3}); A.sitesEnsure(); const s = S.sites[0]; A.devBuy('P', s.id, false); const pj = S.devp.find(x => x.own === 'P'); pj.fraud = S.week + 1; const g0 = A.grossWorth(); A.step(); A.step();
+      out.fraud = !S.devp.includes(pj) && A.grossWorth() < g0 - pj.land * .7 && /地面師/.test(S.news.map(n => n.t).join('|')); }
+    /* a building drawn for each kind and grade */ { const k = ['office', 'retail', 'logi', 'resi', 'apt', 'condo'].map(x => A.bldSVG(x, 'std', 1) + A.bldSVG(x, 'hi', 1)); out.svg = k.every(x => /<svg/.test(x) && /polygon/.test(x)) && k[0] !== k[1]; }
+    /* the AI runs the other companies with the same actions */ { fresh(3809); for (let i = 0; i < 104; i++) A.step(); const acted = S.cos.filter(c => c.ctrl !== 'P' && (c.ops.log || []).length).length; info.ai = acted; out.ai = acted >= 10; }
+    /* the same seed gives the same businesses */ { const run = () => { fresh(3810); for (let i = 0; i < 40; i++) A.step(); return JSON.stringify(S.cos.map(c => [c.ops.A, c.ops.P, c.ops.cap, c.rev])) + JSON.stringify(S.cmdty) + JSON.stringify(S.devp); }; out.det = run() === run(); }
+    /* the business tab at 320px for each type; the group tab lists the subsidiaries' weeks */
+    { fresh(3811); for (let i = 0; i < 3; i++) A.step(); const W = document.documentElement.clientWidth, bad = []; for (const t of ['prod', 'cmdty', 'sub', 'bank', 'pipe', 'dev']) { const c = own(S.cos.find(x => x.ops.type === t && !x.priv) || S.cos.find(x => x.ops.type === t)); A.opsSetMode(c, 'direct'); A.ui.tab = 'market'; A.ui.sel = c.id; A.ui.ctab = 'ops'; A.renderAll(true); const body = document.querySelector('#pbody'); const o = [...body.querySelectorAll('*')].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > W + 1 && !e.closest('.hscroll,.seg,.hqnav'); }).length; if (o || !/事業/.test(body.textContent)) bad.push(t + ':' + o); }
+      A.step(); info.w320 = bad; out.w320 = !bad.length && /子会社の週次実績/.test(A.groupWkBox()); }
+    return {out, info};
+  });
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('ops37: business operations — migration unchanged, modes and CEO proposals, products, commodities and routes, telecom, bank, pharma, development with fraud and buildings, AI with the same actions, determinism, 320px', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
+  ok('no page errors in ops37 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
 async function testFix1120(b) {
   const {p, errs} = await page(b);
@@ -3474,7 +3534,7 @@ async function testRev23(b) {
       out.b82recap = Math.abs(d0 - d1 - ir.amt) < 1e-9 && Math.abs(k1 - k0 - ir.amt) < 1e-9 && c2.debt === d1 && f.calledLP + f.calledGP === k1;
       click('fundact', ip.id, 'ok'); out.b82plan = c2.pe.p100 != null && c2.dm === 'auto' && !!c2.pe.pol && !S.inbox.some(i => i.kind === 'fundact' && i.cid === c2.id && i.act === 'plan');
       /* stale approvals: mode switched, lead replaced, too late, after the exit */
-      const fx = A.fundAsk(f, 'exit', {cid: c2.id, name: c2.name, why: 't'}), ie = S.inbox.find(i => i.kind === 'fundact' && i.act === 'exit'); f.cfg.mode = 'auto'; const s2 = snap(c2, f); click('fundact', ie.id, 'ok'); out.b82mode = fx && !c2.pe.sale && snap(c2, f) === s2;
+      const fx = A.fundAsk(f, 'exit', {cid: c2.id, name: c2.name, why: 't'}), ie = S.inbox.find(i => i.kind === 'fundact' && i.act === 'exit'); f.cfg.mode = 'auto'; const s2 = snap(c2, f); click('fundact', ie.id, 'ok'); out.b82mode = (fx || !!ie) && !c2.pe.sale && snap(c2, f) === s2; /* rev37: the fund may already have proposed this exit on its own; either way approving it in auto mode must change nothing */
       f.cfg.mode = 'propose'; A.fundAsk(f, 'exit', {cid: c2.id, name: c2.name, why: 't'}); const ie2 = S.inbox.find(i => i.kind === 'fundact' && i.act === 'exit'); ie2.exp = S.week - 1; click('fundact', ie2.id, 'ok'); out.b82late = !c2.pe.sale;
       A.fundAsk(f, 'exit', {cid: c2.id, name: c2.name, why: 't'}); const ie3 = S.inbox.find(i => i.kind === 'fundact' && i.act === 'exit'); ie3.lead = 'nobody'; click('fundact', ie3.id, 'ok'); out.b82lead = !c2.pe.sale;
       /* declined: not proposed again for 8 weeks */ A.fundAsk(f, 'exit', {cid: c2.id, name: c2.name, why: 't'}); const ie4 = S.inbox.find(i => i.kind === 'fundact' && i.act === 'exit'); click('fundact', ie4.id, 'no'); out.b82decline = !A.fundAsk(f, 'exit', {cid: c2.id, name: c2.name, why: 't'}) && !c2.pe.sale && loads(); }
@@ -3985,6 +4045,7 @@ async function balance(b) {
     await testRev33(b);
     await testRev34(b);
     await testRev35(b);
+    await testOps37(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
