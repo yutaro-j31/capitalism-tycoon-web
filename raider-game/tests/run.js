@@ -3204,6 +3204,52 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testRealEstate47(b) {
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
+  const r = await p.evaluate(() => { try { return (() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); return ok1 && !(typeof m === 'string' && m.includes('読み込めません')) && A.S !== S0 && A.econCheck(A.S) === ''; };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.confirm = false; A.step(); A.sitesEnsure(); return S; };
+    const site = (city, zone, area, far) => ({id: 'T' + Math.random().toString(36).slice(2, 7), city, k: 99, n: CITYN(city) + 'テストの用地', zone, area, far, pxm2: .02, risky: false});
+    const CITYN = ct => (A.S.cos.find(c => c.city === ct) || {name: ct}).name ? ct : ct;
+    const plot = (own, city, zone, area, far) => { S.devSeq = (S.devSeq || 0) + 1; const pl = {id: S.devSeq + 9000, own, site: {id: 'X' + S.devSeq, city, k: 0, n: '東京テスト' + S.devSeq + 'の用地', zone, area, far, pxm2: .02, risky: false}, land: area * .02, spent: 0, st: 'land', w: S.week, ready: S.week, fraud: null}; S.devp.push(pl); return pl; };
+    /* site conditions: area, floor-area ratio, power */
+    { fresh(5201); const a = plot('P', 'tyo', 'com', 3000, 8), bsm = plot('P', 'spk', 'ind', 3000, 2), t = plot('P', 'tyo', 'com', 7000, 5);
+      info.can = {mixed: A.devCan(a, 'mixed'), arena: A.devCan(a, 'arena'), dcSpk: A.devCan(bsm, 'dc'), tower5: A.devCan(t, 'tower'), mixedBig: A.devCan(t, 'mixed'), hotelRes: A.devCan(plot('P', 'tyo', 'res', 3000, 3), 'hotel')};
+      out.conditions = /5,000m²/.test(info.can.mixed) && /6,000m²/.test(info.can.arena) && /電力/.test(info.can.dcSpk) && /容積率/.test(info.can.tower5) && info.can.mixedBig === '' && /住宅地/.test(info.can.hotelRes) && A.devCan(a, 'hotel') === '' && A.devCan(plot('P', 'tyo', 'ind', 3000, 2), 'dc') === '';
+      const qo = A.devPlan(a, 'office', 'std', 1), qh = A.devPlan(plot('P', 'tyo', 'res', 3000, 3), 'house', 'std', 1), qp = A.devPlan(a, 'parking', 'std', 1); info.plans = {qo, qh, qp};
+      out.plans = qh.gfa === 2400 && qp.gfa === 3000 && qp.weeks < 20 && qh.weeks < qo.weeks && qp.cost < qo.cost / 20; }
+    /* every new kind can be built, finished and sold (cash in = price, land and work leave the books once) or kept and let (rent is a finite, positive number) */
+    { fresh(5202); S.player.cash = 1e6; A.hqInit && A.hqInit(); const kinds = [['hotel', 'com', 'tyo'], ['tower', 'com', 'tyo'], ['mixed', 'com', 'tyo'], ['house', 'res', 'tyo'], ['factory', 'ind', 'osa'], ['lab', 'com', 'osa'], ['dc', 'ind', 'tyo'], ['parking', 'res', 'fuk'], ['medical', 'com', 'ngo'], ['care', 'res', 'ngo'], ['solar', 'ind', 'spk'], ['arena', 'com', 'tyo']], res = [];
+      for (const [k, z, ct] of kinds) for (const how of ['sell', 'hold']) { const pl = plot('P', ct, z, 7000, z === 'com' ? 8 : z === 'res' ? 3 : 2); const e = A.devStart(pl, k, 'std', 1, how); if (e) { res.push([k, how, 'start', e]); continue; } pl.done = S.week + 1; const c0 = S.player.cash, n0 = S.props.length; S.week++; A.devStep(); S.week--;
+        const gone = !S.devp.includes(pl); if (how === 'sell') res.push([k, how, gone && S.player.cash > c0 - pl.cost ? 'ok' : 'bad']); else { const pr = S.props.find(x => x.id === 'D' + pl.id); res.push([k, how, gone && pr && pr.kind === (k === 'condo' ? 'resi' : k) && A.propRentY(pr) > 0 && Number.isFinite(A.propRentY(pr)) ? 'ok' : 'bad']); } }
+      info.build = res.filter(x => x[2] !== 'ok'); out.buildAll = res.length === 24 && res.every(x => x[2] === 'ok');
+      /* operated kinds over a year: hotel by the season (self-run) or flat (let to an operator); a data centre fills up; solar and arena stay within range */
+      const H = S.props.find(x => x.kind === 'hotel'), D = S.props.find(x => x.kind === 'dc'), So = S.props.find(x => x.kind === 'solar'), Ar = S.props.find(x => x.kind === 'arena'); const hs = [], ls = [], ds = [], ss = [], as = [];
+      const H2 = Object.assign({}, H, {id: H.id + 'L', opm: 'lease'}); for (let w = 0; w < 52; w++) { A.step(); hs.push(A.propOpF(H)); ls.push(A.propOpF(H2)); ds.push(D.ramp); ss.push(A.propOpF(So)); as.push(A.propOpF(Ar)); }
+      info.op = {hotel: [Math.min(...hs), Math.max(...hs)], lease: [Math.min(...ls), Math.max(...ls)], dc: [ds[0], ds[51]], solar: [Math.min(...ss), Math.max(...ss)], arena: [Math.min(...as), Math.max(...as)]};
+      out.hotel = Math.max(...hs) - Math.min(...hs) > .2 && ls.every(x => x === .86); out.dc = ds[0] < .4 && ds[51] === 1; out.solarArena = ss.every(x => x >= .4 && x <= 1.8) && as.every(x => x >= .65 && x <= 1.45);
+      out.load = loads(); }
+    /* tower flats are sold off the plan while it is built */
+    { fresh(5203); S.player.cash = 1e6; const pl = plot('P', 'tyo', 'com', 4000, 9); A.devStart(pl, 'tower', 'hi', 1, 'sell'); for (let i = 0; i < 20; i++) A.step(); info.pre = pl.pre; out.presale = pl.pre > .2; }
+    /* land assembly: two plots of the same owner, city and zoning; refused otherwise, nothing changes */
+    { fresh(5204); S.player.cash = 1e5; const a = plot('P', 'tyo', 'com', 3000, 8), b2 = plot('P', 'tyo', 'com', 2500, 6), c = plot('P', 'tyo', 'res', 2500, 3), d = plot('P', 'osa', 'com', 2500, 8); const f = plot('P', 'tyo', 'com', 1000, 8); f.fraud = S.week + 5;
+      const s0 = JSON.stringify([S.devp, S.player.cash]); const e1 = A.devMerge(a.id, c.id), e2 = A.devMerge(a.id, d.id), e3 = A.devMerge(a.id, f.id); const same = JSON.stringify([S.devp, S.player.cash]) === s0;
+      const land = a.land + b2.land, c0 = S.player.cash, e4 = A.devMerge(a.id, b2.id); info.merge = {e1, e2, e3, e4, area: a.site.area, far: a.site.far, fee: c0 - S.player.cash};
+      out.merge = e1 && e2 && e3 && same && e4 === '' && a.site.area === 5500 && Math.abs(a.land - land) < 1e-9 && Math.abs(c0 - S.player.cash - land * .01) < 1e-9 && !S.devp.includes(b2) && A.devCan(a, 'mixed') === '' && loads(); }
+    /* rival developers only start what their site allows; 520 weeks: nothing breaks; new kinds come to market */
+    { fresh(5205); let bad = '', kinds = new Set(); for (let w = 0; w < 520; w++) { S.inbox = []; A.step(); for (const x of S.devp) if (x.st === 'build') kinds.add(x.kind); for (const x of S.props) kinds.add(x.kind); const e = A.econCheck(A.S); if (e) { bad = e + '@' + w; break; } if (S.props.some(x => !Number.isFinite(A.propRentY(x)) || !Number.isFinite(x.v))) { bad = 'nan@' + w; break; } }
+      info.long = {bad, kinds: [...kinds]}; out.long = bad === '' && ['hotel', 'medical', 'care', 'parking', 'house', 'factory', 'dc'].some(k => kinds.has(k)) && loads(); }
+    /* the same seed and actions give the same finished values */
+    { const run = () => { fresh(5206); S.player.cash = 1e6; const pl = plot('P', 'tyo', 'com', 7000, 8); A.devStart(pl, 'arena', 'std', 1, 'hold'); pl.done = S.week + 1; for (let i = 0; i < 3; i++) A.step(); const pr = S.props.find(x => x.id === 'D' + pl.id); return pr ? pr.v : null; };
+      const v1 = run(), v2 = run(); info.det = [v1, v2]; out.determinism = v1 != null && v1 === v2; }
+    return {out, info}; })(); } catch (e) { return {out: {crash: false}, info: {err: e.message, stack: String(e.stack).slice(0, 300)}}; } });
+  console.log('rev47 real estate', JSON.stringify(r.info).slice(0, 2500));
+  for (const [k, v] of Object.entries(r.out)) ok('rev47 real estate: ' + k, v);
+  ok('rev47 real estate: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testIcons46(b) {
   const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
   const r = await p.evaluate(() => {
@@ -4581,6 +4627,7 @@ async function balance(b) {
     await testNames44(b);
     await testBug128(b);
     await testIcons46(b);
+    await testRealEstate47(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
