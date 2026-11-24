@@ -161,6 +161,7 @@ async function testUI(b) {
     await p.click('[data-act=allu][data-v="1"]');
     await p.click('[data-act=newgame]'); await p.click('[data-act=speed][data-v="0"]');
     await p.click('[data-act=step]');
+    if (await p.$('#modal:not([hidden]) [data-act=close]')) await p.click('#modal:not([hidden]) [data-act=close]'); /* the weekly results open after +1週 (default since rev30): the player closes them */
     const id = await p.evaluate(() => { const A = window.__atlas, S = A.S; S.won = true; S.player.cash += 300;
       const c = S.cos.filter(c => !c.ctrl && c.ind !== 'air' && c.ind !== 'telecom').sort((a, b) => a.price * a.shares - b.price * b.shares)[0];
       A.execBuy('P', c, c.shares * .8); return c.id; });
