@@ -3201,6 +3201,85 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testVcIpo39(b) {
+  const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
+  const r = await p.evaluate(() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); const ok3 = !(typeof m === 'string' && m.includes('読み込めません')) && A.S !== S0; const e = A.econCheck(A.S); if (!(ok1 && ok3 && e === '')) info.loadFail = [ok1, ok3, e]; return ok1 && ok3 && e === ''; };
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.rep = 'off'; S.settings.confirm = false; return S; };
+    const venture = (id, val, sP, sU, cP, cU, extra) => { const base = {id, name: 'テスト' + id, ind: 'tech', what: 'ソフトウェア', st: 2, val, q: .6, w: S.week - 120, grade: 'A'}; const G = [];
+      if (sP) G.push(Object.assign({}, base, {stake: sP, cost: cP, pres: false}, extra || {})); if (sU) G.push(Object.assign({}, base, {stake: sU, cost: cU, pres: true})); S.vc.hold.push(...G); return G; };
+    /* TC-IPO-01..05: one venture held by the company (20%) and by you personally (10%), with open offers and a seconded officer */
+    { fresh(3901); for (let i = 0; i < 3; i++) A.step(); S.pres.cash += 5;
+      const pid = Object.keys(S.hr.people).find(k => { const q = S.hr.people[k]; return q && q.at == null && !q.vc; }) || null;
+      const G = venture('V9001', 120, .2, .1, 10, 3, {ex: pid}); if (pid) S.hr.people[pid].vc = 'V9001';
+      for (const kind of ['vcoffer', 'vcfollow', 'vcask']) S.inbox.push({id: 990900 + kind.length, kind, hid: 'V9001', pres: false, px: 100, add: .01, cost: 1, type: 'fund', amt: 1, buyer: 'X', exp: S.week + 4});
+      S.vc.deals.push({id: 'V9001', name: 'テストV9001', ind: 'tech', what: 'x', st: 2, val: 120, q: .6, grade: 'A', w: S.week});
+      const tax0 = [S.player.cg || 0, S.pres.cg || 0], cash0 = [S.player.cash, S.pres.cash], gw0 = A.grossWorth(), mw0 = A.myWorth(), n0 = S.cos.length, listed0 = S.cos.filter(c => !c.priv).length;
+      const c = A.vcIPO(G[0], G);
+      info.c = c && {tk: c.tk, px: c.price, sh: c.shares, P: c.own.P, U: c.own.U, cash: c.cash, rev: c.rev, m: c.margin, fair: A.fair(c), mood: c.mood, mcap: A.mcap(c), ctrl: c.ctrl};
+      const raise = c.vcIpo.raise, sh0 = c.shares * (1 - .15);
+      out.tc01_listed = !!c && !c.priv && !c.pill && S.cos.length === n0 + 1 && S.cos.filter(x => x.tk === c.tk).length === 1 && S.vc.ipo.V9001 === c.id && A.vcListed('V9001') === c && Math.abs(A.mcap(c) - (120 + raise / (1 - .03))) / 120 < .01 && c.born == null;
+      out.tc02_holders = Math.abs(c.own.P * c.price - 24) < 1e-6 && Math.abs(c.own.U * c.price - 12) < 1e-6 && Math.abs(A.grossWorth() - gw0) < 1e-6 && Math.abs(A.myWorth() - mw0) < 1e-6
+        && S.player.cash === cash0[0] && S.pres.cash === cash0[1] && (S.player.cg || 0) === tax0[0] && (S.pres.cg || 0) === tax0[1] && Math.abs(A.costOf('P', c.id) - 10) < 1e-9 && Math.abs(S.pres.cost[c.id] - 3) < 1e-9;
+      info.worth = [gw0, A.grossWorth(), mw0, A.myWorth()];
+      out.tc03_newShares = Math.abs(c.own.P / c.shares - .2 * .85) < 1e-9 && Math.abs(c.own.U / c.shares - .1 * .85) < 1e-9 && raise > 0 && Math.abs(raise - sh0 * .15 / .85 * c.price * .97) < 1e-6 && c.cash >= raise;
+      out.tc04_history = S.vc.track[0].k === 'ipo' && S.vc.track[1].k === 'ipo' && /上場/.test(S.vc.track[0].why) && S.vc.track.slice(0, 2).every(t => t.cid === c.id) && Math.abs(S.vc.track.find(t => !t.pres).got - 24) < 1e-9 && !S.vc.hold.some(h => h.id === 'V9001');
+      out.tc05_cleanup = !S.inbox.some(i => i.hid === 'V9001') && !S.vc.deals.some(d => d.id === 'V9001') && (!pid || !S.hr.people[pid].vc);
+      info.pid = pid;
+      /* TC-IPO-06: never listed twice, not even after a reload */
+      const again = A.vcIPO(G[0], G); S.vc.deals.push({id: 'V9001', name: 'x', ind: 'tech', what: 'x', st: 2, val: 120, q: .6, grade: 'A', w: S.week}); const inv = A.vcInvest('V9001', .05, 'co'); S.vc.deals = S.vc.deals.filter(d => d.id !== 'V9001');
+      const ok = loads(); const c2 = A.S.cos.find(x => x.vcId === 'V9001');
+      out.tc06_once = again === null && inv === false && ok && A.S.vc.ipo.V9001 === c.id && !!c2 && A.S.cos.filter(x => x.vcId === 'V9001').length === 1 && A.vcIPO(G[0], G) === null;
+      S = A.S; const C = A.coById(c.id);
+      /* TC-IPO-07: the shares trade like any other: sell some (gain against the carried-over cost), buy personally, dividends, a takeover bid */
+      const heldP = C.own.P, basis = A.costOf('P', C.id) * (heldP * .25) / heldP, cg0 = S.player.cg || 0, s = A.execSell('P', C, heldP * .25), led = S.ledger && S.ledger[0];
+      const cashU = S.pres.cash, bU = A.execBuy('U', C, 0.01);
+      info.sell = s && {s: JSON.stringify(s).slice(0, 200), basis, cost1: A.costOf('P', C.id), bU: JSON.stringify(bU)};
+      out.tc07_trade = !!s && Math.abs(A.costOf('P', C.id) - (10 - basis)) < 1e-6 && Math.abs((S.player.cg || 0) - cg0 - (s.proceeds - basis)) < 1e-6 && !!bU && S.pres.cash < cashU && C.own.U > 0;
+      /* a hostile bid meets the normal defences: here the management picks a white knight and the holders are paid in cash at a premium */
+      const cashP = S.player.cash, t = A.launchTob('P', C, C.price * 1.6, .51, false); for (let i = 0; i < 8 && S.tobs.some(x => x.cid === C.id); i++) A.step();
+      info.tob = [t, C.own.P / C.shares, C.ctrl, S.cos.includes(C)]; info.mkt = S.news.filter(n => /テストV9001/.test(n.t || n.text || '')).slice(0, 4).map(n => (n.t || n.text).slice(0, 80));
+      out.tc07_tob = t !== false && (C.ctrl === 'P' || (!S.cos.includes(C) && S.player.cash > cashP && !Object.keys(S.player.cost).includes(C.id)));
+      out.tc07_load = loads();
+    }
+    /* TC-IPO-07b: a venture you hold a majority of (company 45% + you 20%) is under your control from the listing day: no jump in net worth; you set its dividend; a bid for the rest */
+    { fresh(3905); for (let i = 0; i < 3; i++) A.step(); const G = venture('V9005', 90, .45, .2, 20, 8); const gw0 = A.grossWorth(), mw0 = A.myWorth(); const c = A.vcIPO(G[0], G);
+      info.ctl = {ctrl: c.ctrl, gw: [gw0, A.grossWorth()], mw: [mw0, A.myWorth()]};
+      out.tc07_control = c.ctrl === 'P' && Math.abs(A.grossWorth() - gw0) < 1e-6 && Math.abs(A.myWorth() - mw0) < 1e-6;
+      c.payout = .4; c.cash += 20; const d0 = S.player.divs || 0, U0 = S.pres.cash; for (let i = 0; i < 14; i++) A.step();
+      info.div = [(S.player.divs || 0) - d0, c.ni, S.cos.includes(c)]; out.tc07_div = S.cos.includes(c) && (S.player.divs || 0) > d0;
+      const t = A.launchTob('P', c, c.price * 1.3, .9, false); for (let i = 0; i < 8 && S.tobs.some(x => x.cid === c.id); i++) A.step();
+      info.tob2 = [t, c.own.P / c.shares]; out.tc07_tob_control = t !== false && c.own.P / c.shares > .45 * .85 + .01 && c.ctrl === 'P';
+      out.tc07b_load = loads();
+    }
+    /* TC-IPO-08: the price is consistent with the business: fair value matches at listing and there is no jump afterwards; nothing breaks over 260 weeks */
+    { fresh(3902); for (let i = 0; i < 3; i++) A.step(); const G = venture('V9002', 60, .15, 0, 6, 0); const c = A.vcIPO(G[0], G); const f0 = A.fair(c), px0 = c.price; const P = [px0];
+      for (let i = 0; i < 26; i++) { A.step(); P.push(c.price); }
+      const jumps = P.slice(1).map((x, i) => Math.abs(Math.log(x / P[i]))); info.fit = {f0, px0, mood: c.mood, p26: P[26], maxJ: Math.max(...jumps)};
+      out.tc08_fit = Math.abs(Math.log(f0 * Math.exp(0) / px0)) < .3 && Math.max(...jumps) < .15 && P[26] > px0 * .5 && P[26] < px0 * 2;
+      let bad = ''; for (let i = 0; i < 234; i++) { A.step(); if (!(c.price > 0 && isFinite(c.price) && isFinite(c.cash))) { bad = 'nan@' + i; break; } }
+      const tb = A.trBaseCheck ? A.trBaseCheck(S) : ''; info.long = {bad, tb, price: c.price, alive: S.cos.includes(c)};
+      out.tc08_long = bad === '' && loads();
+    }
+    /* TC-IPO-04 (labels from the engine): ventures run through quarters; an exit by listing becomes shares, a sale pays cash, a failure is recorded as one */
+    { fresh(3903); for (let i = 0; i < 2; i++) A.step(); const k = {ipo: 0, acq: 0, fail: 0}, seen = new Set(); let cashAcq = 0;
+      for (let j = 0; j < 60; j++) venture('V95' + String(j).padStart(2, '0'), 30 + j, .1, 0, 3, 0);
+      for (let qq = 0; qq < 40 && S.vc.hold.length; qq++) { for (const h of S.vc.hold.slice()) { if (!S.vc.hold.includes(h)) continue; const c0 = S.player.cash; A.vcEvent(h); if (!S.vc.hold.includes(h)) { const t = S.vc.track[0]; if (t && !seen.has(h.id)) { seen.add(h.id); k[t.k] = (k[t.k] || 0) + 1; if (t.k === 'acq') cashAcq += S.player.cash - c0 - t.got; if (t.k === 'ipo' && !(S.vc.ipo[h.id] && A.coById(t.cid))) k.bad = (k.bad || 0) + 1; } } } S.week += 13; }
+      info.labels = k; out.tc04_engine = k.ipo > 0 && k.acq > 0 && k.fail > 0 && !k.bad && Math.abs(cashAcq) < 1e-6 && S.cos.filter(c => c.vcId).length === k.ipo && new Set(S.cos.map(c => c.tk)).size === S.cos.length;
+    }
+    /* determinism: the same seed and the same actions give the same game */
+    { const run = () => { fresh(3904); for (let i = 0; i < 2; i++) A.step(); const G = venture('V9004', 80, .2, .05, 8, 2); A.vcIPO(G[0], G); for (let i = 0; i < 30; i++) A.step(); return JSON.stringify(A.S.cos.map(c => [c.id, c.tk, +c.price.toFixed(9), +(c.own.P || 0).toFixed(9)])) + A.S.rngN; };
+      const a = run(), b2 = run(); out.determinism = a === b2; }
+    return {out, info};
+  });
+  console.log('rev39 vc ipo', JSON.stringify(r.info).slice(0, 1600));
+  for (const [k, v] of Object.entries(r.out)) ok('rev39 vc ipo: ' + k, v);
+  ok('rev39 vc ipo: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testOps37(b) {
   const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
   const r = await p.evaluate(() => {
@@ -4049,6 +4128,7 @@ async function balance(b) {
     await testRev34(b);
     await testRev35(b);
     await testOps37(b);
+    await testVcIpo39(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
