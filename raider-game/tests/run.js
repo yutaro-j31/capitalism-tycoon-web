@@ -3204,6 +3204,64 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testBug127(b) {
+  const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
+  const r = await p.evaluate(() => { try { return (() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); const ok3 = !(typeof m === 'string' && m.includes('読み込めません')) && A.S !== S0; const e = A.econCheck(A.S); if (!(ok1 && ok3 && e === '')) (info.lf = info.lf || []).push([ok1, ok3, e, String(A.trialErr || '').slice(0, 120)]); return ok1 && ok3 && e === ''; };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = true; S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.rep = 'off'; S.settings.confirm = false; A.step(); A.opsEnsure(); return S; };
+    const ph = () => S.cos.filter(x => x.ind === 'pharma' && !x.priv && !x.ctrl);
+    const pend = c => (c.xl || []).filter(e => e.rep == null).reduce((a, e) => a + e.amt, 0);
+    const trade = (c, n) => { let loss = 0; for (let i = 0; i < n; i++) { const c0 = c.cash; c.cash += 1e4; const c1 = c.cash; if (A.opsDo(c, {k: 'lin', v: 2}, 'P') !== '') return null; const pj = c.ops.pipe[c.ops.pipe.length - 1]; A.opsDo(c, {k: 'lout', id: pj.id}, 'P'); loss += c.cash - c1; c.cash -= 1e4; } return loss; };
+    const pair = () => { const L = ph(); for (const a of L) for (const b2 of L) if (a !== b2) { const c0 = a.cash, d0 = a.debt, d1 = b2.debt; a.cash += 1e5; a.debt = 0; b2.debt = 0; if (A.mergeQuote(a, b2, .3, true).go) return [a, b2]; a.cash = c0; a.debt = d0; b2.debt = d1; } return [null, null]; };
+    const stt = c => JSON.stringify([c.cash, c.debt, c.assets, c.ops.pipe.length, c.ops.pseq, c.xl || []]);
+    window.__at = 1; /* TC-127-01/02: new research and bought-in candidates share one limit; 393 tries end at 16; every state saves */
+    { fresh(4501); const c = ph()[0]; c.cash += 1e6; let ok = 0, no = 0, lastE = ''; for (let i = 0; i < 393; i++) { const e = A.opsDo(c, {k: i % 3 ? 'lin' : 'pstart', v: 2}, 'P'); if (e === '') ok++; else { no++; lastE = e; } }
+      const s0 = stt(c), e1 = A.opsDo(c, {k: 'pstart'}, 'P'), e2 = A.opsDo(c, {k: 'lin', v: 3}, 'P'); info.c1 = {ok, no, n: c.ops.pipe.length, e1, e2};
+      out.tc127_01 = c.ops.pipe.length === 16 && /16件まで/.test(e1) && /16件まで/.test(e2) && stt(c) === s0; out.tc127_02 = ok === 8 && no === 385 && loads(); }
+    window.__at = 2; /* TC-127-03: a merger that would leave more than 400 projects is refused before anything moves; at 400 it goes through and saves */
+    { fresh(4502); const [a, b2] = pair(); const fill = (c, n) => { while (c.ops.pipe.length < n) c.ops.pipe.push({id: ++c.ops.pseq, n: 'T' + c.ops.pseq, st: 1, left: 30, base: false, src: 'own', rdK: 1}); };
+      fill(a, 200); fill(b2, 201); const all0 = JSON.stringify(S.cos.map(c => [c.id, c.cash, c.debt, c.assets, c.shares, c.own, (c.ops && c.ops.pipe || []).length])), q0 = A.mergeQuote(a, b2, .3, true), r0 = A.execMerge(a, b2, .3, true);
+      const same = JSON.stringify(S.cos.map(c => [c.id, c.cash, c.debt, c.assets, c.shares, c.own, (c.ops && c.ops.pipe || []).length])) === all0;
+      b2.ops.pipe.pop(); const r1 = A.execMerge(a, b2, .3, true); info.c3 = {q0: q0.reason, r1: !!r1, n: a.ops.pipe.length};
+      out.tc127_03 = r0 === null && /400件/.test(q0.reason) && same && !!r1 && a.ops.pipe.length === 400 && loads(); }
+    window.__at = 3; /* TC-127-04: a company already above the limit (as an 11:53 save could hold) loads, keeps everything, refills nothing, and takes nothing new */
+    { fresh(4503); const c = ph()[0]; while (c.ops.pipe.length < 450) c.ops.pipe.push({id: ++c.ops.pseq, n: 'O' + c.ops.pseq, st: 2, left: 60, base: false, src: 'lic', paid: 1, rdK: 1}); const n0 = c.ops.pipe.length;
+      const ok = loads(); S = A.S; const c2 = A.coById(c.id); const e = A.opsDo(c2, {k: 'lin', v: 2}, 'P'); A.step(); info.c4 = {ok, n: c2.ops.pipe.length, e};
+      out.tc127_04 = ok && c2.ops.pipe.length >= n0 - 60 && c2.ops.pipe.length <= n0 && /16件まで/.test(e) && c2.ops.pipe.filter(x => x.base).length <= 8 && loads(); }
+    window.__at = 4; /* TC-125-01/02: B's open loss passes to A and is reported once in A's next quarter; reported history is not repeated */
+    { fresh(4342); const [a, b2] = pair(); while (S.week % 13 !== 11) A.step(); trade(a, 1); A.step(); A.step(); /* a's first trade is now reported */ const repA = a.qh[a.qh.length - 1].xo;
+      a.cash += 1e4; A.opsDo(a, {k: 'lin', v: 2}, 'P'); const pa = a.ops.pipe[a.ops.pipe.length - 1]; a.ops.pipe = a.ops.pipe.filter(x => x !== pa); a.assets -= pa.bv; a.cash += pa.bv + 5; A.xlAdd(a, 5, 'テスト用の利益'); a.cash -= 1e4; /* +5 open gain for a (test entry, cash matched) */
+      const lb = trade(b2, 1), pA = pend(a), pB = pend(b2), cashSum = a.cash + b2.cash, a0 = a.assets + b2.assets; const q = A.execMerge(a, b2, .3, true); const pAfter = pend(a);
+      do { A.step(); } while (S.week % 13 !== 0); const xoQ = a.qh[a.qh.length - 1].xo; for (let i = 0; i < 13; i++) A.step(); const xoN = a.qh[a.qh.length - 1].xo;
+      info.c5 = {repA, lb, pA, pB, pAfter, xoQ, xoN}; out.tc125_01 = !!q && Math.abs(pB - lb) < 1e-9 && Math.abs(pAfter - (pA + pB)) < 1e-9 && Math.abs(xoQ - (pA + pB)) < 1e-6 && xoN === 0 && !S.cos.includes(b2);
+      out.tc125_02 = repA !== 0 && a.xl.filter(e => e.rep != null && /テスト用の利益/.test(e.why)).length === 1 && pend(a) === 0; }
+    window.__at = 5; /* TC-125-03: three absorptions in a row, the same week and across a quarter end */
+    { fresh(4504); const [a] = pair(); if (!a) { out.tc125_03 = false; } else { let exp = 0; const log = []; for (let k = 0; k < 3; k++) { const L = ph().filter(x => x !== a); let bx = null; for (const c of L) { c.debt = 0; a.debt = 0; if (A.mergeQuote(a, c, .3, true).go) { bx = c; break; } } if (!bx) break; exp += trade(bx, 2) + 0; const q = A.execMerge(a, bx, .3, true); log.push(!!q); if (k === 1) { while (S.week % 13 !== 0) A.step(); A.step(); } }
+        const rep = a.qh.slice(-2).reduce((s2, h) => s2 + (h.xo || 0), 0) - 0, open = pend(a); info.c6 = {log, exp, rep, open}; out.tc125_03 = log.length >= 2 && log.every(x => x) && Math.abs(a.qh[a.qh.length - 1].xo + open - exp) < 1e-6; } }
+    window.__at = 6; /* TC-125-04: across industries the target survives with its own ledger; a refused merger leaves both ledgers alone */
+    { fresh(4505); const P = ph()[0]; P.cash += 1e4; const lb = trade(P, 1); const X = S.cos.filter(x => x.ind === 'tech' && !x.priv && !x.ctrl).sort((a, b2) => b2.rev - a.rev)[0]; X.cash += 1e5; X.debt = 0; const pX = pend(X), pP = pend(P);
+      const q = A.execMerge(X, P, .3, true); const sub = q && q.sub; const okSub = sub ? Math.abs(pend(P) - pP) < 1e-12 && pend(X) === pX : false;
+      const [a, b2] = pair(); const r0 = a ? (() => { b2.cash += 1e4; trade(b2, 1); const s0 = JSON.stringify([a.xl || [], b2.xl || []]); const r = A.execMerge(a, b2, -.5, false); return r === null && JSON.stringify([a.xl || [], b2.xl || []]) === s0; })() : false;
+      info.c7 = {sub, okSub, r0}; out.tc125_04 = okSub && r0; }
+    window.__at = 7; /* TC-126-01/02/03: 60, 61, 70 trades in one quarter; 600 entries; save/load across the quarter end */
+    { const res = []; for (const n of [60, 61, 70]) { fresh(4342 + n); const c = ph()[0]; c.cash += 1e4; /* enough equity to absorb the losses (a company that cannot fails, as it should) */ while (S.week % 13 !== 1) A.step(); const loss = trade(c, n); const pd = pend(c); const ok = loads(); S = A.S; const c2 = A.coById(c.id); const pd2 = pend(c2); const w0 = S.week; while (S.week % 13 !== 0) A.step(); A.step(); if (!c2.qh) { res.push({n, bad: 'noqh', w0, w: S.week, alive: S.cos.includes(c2), priv: c2.priv, pd, loss}); continue; } const xo = c2.qh[c2.qh.length - 1].xo; for (let i = 0; i < 13; i++) A.step(); res.push({n, loss, pd, pd2, xo, next: c2.qh[c2.qh.length - 1].xo, ok}); }
+      info.c8 = res; out.tc126_01 = res.every(x => Math.abs(x.pd - x.loss) < 1e-6 && x.pd2 === x.pd && Math.abs(x.xo - x.loss) < 1e-6 && x.next === 0 && x.ok);
+      fresh(4600); const c = ph()[0]; let tot = 0; for (let i = 0; i < 600; i++) { const v = (i % 2 ? 1 : -1) * (1 + i / 100); A.xlAdd(c, v, 't' + i); tot += v; } info.c9 = {n: c.xl.length, pd: pend(c), tot, sum: c.xl.filter(e => e.sum).map(e => e.n), cnt: c.xl.filter(e => e.rep == null).reduce((a, e) => a + (e.n || 1), 0)}; out.tc126_02 = c.xl.length <= 500 + 60 && Math.abs(pend(c) - tot) < 1e-9 && c.xl.some(e => e.sum) && c.xl.filter(e => e.rep == null).reduce((a, e) => a + (e.n || 1), 0) === 600 && loads();
+      out.tc126_03 = res.every(x => x.ok && x.pd2 === x.pd); }
+    window.__at = 8; /* TC-124-02/04: the results screen separates the yearly run-rate from the quarter's actual profit and one-offs; actual profit = the weekly profit really earned */
+    { fresh(4342); const c = ph()[0]; c.own.P = c.shares * .6; A.recomputeCtrl(); A.opsEnsure(); while (S.week % 13 !== 1) A.step(); let wsum = 0; const loss = trade(c, 1); for (let i = 0; i < 13; i++) { if (S.week % 13 !== 0) wsum += A.niA(c) / 52; A.step(); } const h = c.qh[c.qh.length - 1];
+      A.ui.sel = c.id; const html = A.qhBox ? A.qhBox(c) : ''; info.c10 = {qni: h.qni, qw: h.qw, xo: h.xo, qt: h.qt, ni: h.ni, loss};
+      out.tc124_02 = h.qt != null && Math.abs(h.qt - h.qni - h.xo) < 1e-9 && Math.abs(h.xo - loss) < 1e-9 && h.qw === 13 && /四半期純利益（特別損益込み）/.test(html) && /特別損失/.test(html) && /年換算/.test(html);
+      out.tc124_04 = Math.abs(h.ni - A.pubSnap(c).ni) >= 0 && h.ni !== h.qt; }
+    return {out, info};
+  })(); } catch (e) { return {out: {crash: false}, info: {err: e.message, stack: String(e.stack).slice(0, 300), at: window.__at}}; } });
+  console.log('rev43 at', await p.evaluate(() => window.__at)); console.log('rev43 BUG-125..127', JSON.stringify(r.info).slice(0, 3500));
+  for (const [k, v] of Object.entries(r.out)) ok('rev43 BUG-124..127: ' + k, v);
+  ok('rev43 BUG-124..127: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testBug123(b) {
   const {p, errs} = await page(b, {viewport: {width: 320, height: 800}});
   const r = await p.evaluate(() => {
@@ -4379,6 +4437,7 @@ async function balance(b) {
     await testBug40(b);
     await testBug120b(b);
     await testBug123(b);
+    await testBug127(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
