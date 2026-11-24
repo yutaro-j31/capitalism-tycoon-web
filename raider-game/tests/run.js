@@ -3159,6 +3159,46 @@ async function testRev34(b) {
   ok('rev34 (BUG-111): a beginner reward is its own line in the statements, never in the move of holdings; weekly/quarter/year add up; trader record untouched; old records load', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 900));
   ok('no page errors in rev34 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testRev35(b) {
+  const fixture = fs.readFileSync(path.join(FIX, 'rev33-reward-pre111.json'), 'utf8');
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
+  const r = await p.evaluate(raw => {
+    const A = window.__atlas, out = {}, info = {};
+    let S;
+    const fresh = (seed, scen) => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', scen || 'std', (scen || 'std') === 'std'); S = A.S; S.won = true; S.settings.rep = 'off'; };
+    const cfOk = L => { const C = A.cfOf(L); return Math.abs(C.op + C.inv + C.fin + (C.oth || 0) - (L.cash1 - L.cash0)) < 1e-9; };
+    const plOk = L => Math.abs((L.nw1 - L.nw0) - (A.PL_ITEMS.reduce((a, [k]) => a + (L[k] || 0), 0) + (L.odiv || 0) + (L.rew || 0) + L.other)) < 1e-9 * Math.max(1, Math.abs(L.nw1));
+    /* TC-112-01: the very first action of a new game is a purchase made straight away (no act wrapper): the opening cash is the starting cash */
+    { fresh(3511); const cash0 = S.player.cash, c = S.cos.filter(x => !x.priv && !x.ctrl).sort((x, y) => x.price - y.price)[0]; A.execBuy('P', c, c.shares * .002); const cost = cash0 - S.player.cash; A.step(); const W = S.player.plWH[0], C = A.cfOf(W);
+      info.tc112a = {cash0: W.cash0, start: cash0, cost, C}; out.tc112a = Math.abs(W.cash0 - cash0) < 1e-9 && Math.abs(C.inv + cost) < cost * .02 + 1e-9 && Math.abs(C.oth - 1) < 1e-9 && cfOk(W) && Math.abs(S.player.pl.cash0 - S.player.cash) > 0 && plOk(W); }
+    /* TC-112-02: the first action is a bank loan of 1; repaid later as negative financing */
+    { fresh(3512); S.allUnlocked = true; S.stage = 4; const got = A.bankBorrow(1); A.step(); const W = S.player.plWH[0], C = A.cfOf(W); A.bankRepay(.5); A.step(); const W2 = S.player.plWH[0], C2 = A.cfOf(W2);
+      info.tc112b = {got, fin: C.fin, fin2: C2.fin}; out.tc112b = got === 1 && Math.abs(C.fin - 1) < 1e-9 && cfOk(W) && Math.abs(C2.fin + .5) < 1e-9 && cfOk(W2); }
+    /* TC-112-03: government bonds and an own bond issue as the first actions; a sale after a purchase */
+    { fresh(3513); S.allUnlocked = true; S.stage = 4; const cash0 = S.player.cash; A.govBuy('g2', 5); A.sbIssue('sb', 3, 3); A.step(); const W = S.player.plWH[0], C = A.cfOf(W);
+      const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((x, y) => x.price - y.price)[0]; A.execBuy('P', c, c.shares * .002); A.step(); A.execSell('P', c, c.own.P); A.step(); const W3 = S.player.plWH[0];
+      info.tc112c = {cash0: W.cash0, start: cash0, C}; out.tc112c = Math.abs(W.cash0 - cash0) < 1e-9 && Math.abs(C.fin - 3) < 1e-9 && C.inv < -4.9 && cfOk(W) && cfOk(W3) && A.cfOf(W3).inv > 0; }
+    /* TC-113-01: the statements the accounting department shows as the latest are the week's closed figures (reward included) */
+    { fresh(3514); const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((x, y) => x.price - y.price)[0]; A.execBuy("P", c, c.shares * .002); A.hqInit(); S.acct.w = -100; A.step(); const Ac = S.acct;
+      info.tc113a = {w: Ac.w, week: S.week, eq: Ac.bs.eq, bs: A.bsNow().eq, rew: Ac.wk[0] && Ac.wk[0].rew};
+      out.tc113a = Ac.w === S.week && Math.abs(Ac.bs.eq - A.bsNow().eq) < 1e-9 && Ac.wk[0] && Math.abs((Ac.wk[0].rew || 0) - 1) < 1e-9 && Ac.wk[0].w === S.week && plOk(Ac.wk[0]) && /最新（.*週末の締め）/.test(A.fsView()); }
+    /* TC-113-02: the delay by the department's capacity is kept (no department: every 8 weeks; full: every week), through a quarter and a year end */
+    { const gaps = setup => { fresh(3515); A.hqInit(); setup(); const ws = []; let last = S.acct.w; for (let i = 0; i < 60; i++) { A.step(); if (S.acct.w !== last) { ws.push(S.acct.w - last); last = S.acct.w; if (!(Math.abs(S.acct.bs.eq - A.bsNow().eq) < 1e-9)) ws.push(NaN); } } return {ws, lag: A.accLag()}; };
+      const none = gaps(() => {}), full = gaps(() => { S.dept = S.dept || {}; S.dept.acc = Object.assign(S.dept.acc || {}, {on: true, staff: 50, ab: 90, mo: 90}); });
+      info.tc113b = {none: [none.lag, none.ws.slice(0, 6)], full: [full.lag, full.ws.slice(0, 6)]}; out.tc113b = none.ws.length > 0 && none.ws.every(g => g === none.lag) && full.ws.every(g => g === full.lag) && full.lag < none.lag; }
+    /* TC-114-01: a save made by the version before BUG-111: the closed quarter held the reward twice; it adds up after loading */
+    { const err = A.importText(raw); S = A.S; const Q = S.player.plHist[0]; info.tc114a = {err, rew: Q.rew, other: Q.other, d: Q.nw1 - Q.nw0}; out.tc114a = !err && Q.rew === 1 && plOk(Q) && Math.abs(Q.other - (Q.nw1 - Q.nw0 - 1)) < 1e-6 && Q.other < .5; }
+    /* TC-114-02: repairing again changes nothing; a current record, a record without a reward, and a mix are left as they are */
+    { const snap = () => JSON.stringify([S.player.plWH, S.player.plHist, S.player.plYH, S.acct]); const s0 = snap(); A.plRewRepair(); const s1 = snap();
+      fresh(3516); const c = S.cos.filter(x => !x.priv && !x.ctrl).sort((x, y) => x.price - y.price)[0]; A.execBuy('P', c, c.shares * .002); for (let i = 0; i < 14; i++) A.step(); const t0 = snap(); A.plRewRepair(); out.tc114b = s0 === s1 && snap() === t0 && S.player.plHist.every(plOk); }
+    /* TC-114-03: load the old save → save → load → a week on: everything adds up and the save is accepted */
+    { A.importText(raw); S = A.S; const txt = A.exportText(); const err = A.importText(txt); S = A.S; A.step(); const ok = [...S.player.plHist, ...S.player.plWH].every(L => plOk(L) && cfOk(L)); info.tc114c = {err, ok}; out.tc114c = !err && ok && !!A.parseSave(A.exportText()) && plOk(S.player.plHist[0]); }
+    return {out, info};
+  }, fixture);
+  const bad = Object.entries(r.out).filter(([, v]) => v !== true).map(([k]) => k);
+  ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
+  ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
+}
 async function testFix1120(b) {
   const {p, errs} = await page(b);
   const r = await p.evaluate(() => {
@@ -3943,6 +3983,7 @@ async function balance(b) {
     await testRev32(b);
     await testRev33(b);
     await testRev34(b);
+    await testRev35(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
