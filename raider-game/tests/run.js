@@ -3775,6 +3775,33 @@ async function testRealEstate47(b) {
   await p.close();
 }
 
+async function testPlay59(b) {
+  /* rev59 full playtest fixes: the HQ secretary never says "undefined"; a department's proposal does not repeat its name; on narrow phones the map buttons are not covered by the legend and "地球儀" / "+1週" stay on one line */
+  const out = {};
+  for (const w of [320, 390]) {
+    const {p, errs} = await page(b, {viewport: {width: w, height: 800}});
+    const r = await p.evaluate(async () => { const A = window.__atlas, o = {}; A.closeModal(); A.newGame(5901, 'normal', 'B', 'b', 'std', true); const S = A.S; A.hqInit(); Object.assign(S.dept.inv, {on: true, staff: 3});
+      const seen = []; for (let i = 0; i < 260 && !seen.some(x => x.who === '投資部'); i++) { S.player.cash = Math.max(S.player.cash, 300); A.step(); for (const x of S.inbox) if (x.kind === 'pitch' && !seen.includes(x)) seen.push(x); }
+      o.noSameWhoRole = seen.every(i => i.who !== i.role); o.nPitch = seen.filter(x => x.who === '投資部').length;
+      document.querySelector('[data-act=tab][data-v=pres]').click(); const bad = [];
+      for (const h of [...document.querySelectorAll('[data-act=hqtab]')].map(e => e.dataset.v)) { const el = document.querySelector(`[data-act=hqtab][data-v="${h}"]`); el.click(); const sec = document.querySelector('.hqhead .sec p'); if (!sec || /undefined|null|NaN/.test(sec.textContent) || !sec.textContent.trim()) bad.push(h); }
+      o.secretaryOk = bad.length === 0; o.bad = bad;
+      const mw = document.getElementById('mapwrap'); if (mw.classList.contains('folded')) document.getElementById('mapfold').click();
+      const g = document.getElementById('a3d-globebtn').getBoundingClientRect(), zoom = document.querySelector('[data-act=zoom]').getBoundingClientRect(), lg = document.getElementById('legend').getBoundingClientRect(), ctl = document.querySelector('.mapctl').getBoundingClientRect();
+      o.globeOneLine = Math.abs(g.height - zoom.height) < 1 && document.getElementById('a3d-globebtn').scrollHeight <= g.height + 1;
+      o.legendClear = lg.right <= ctl.left + 1 || lg.top >= ctl.bottom;
+      const st = [...document.querySelectorAll('button[data-act=step]')].find(e => e.offsetParent), sp = document.querySelector('button[data-act=speed]');
+      o.stepOneLine = !!st && Math.abs(st.getBoundingClientRect().height - sp.getBoundingClientRect().height) < 1;
+      return o; });
+    for (const k of ['noSameWhoRole', 'secretaryOk', 'globeOneLine', 'legendClear', 'stepOneLine']) out[`${k}@${w}`] = r[k];
+    out[`invPitchSeen@${w}`] = r.nPitch > 0; /* the investment department really sent one */
+    ok(`rev59 play ${w}px: no page errors`, errs.length === 0, errs.slice(0, 2).join(' | '));
+    if (!r.secretaryOk) console.log('rev59 secretary bad', r.bad);
+    await p.close();
+  }
+  for (const [k, v] of Object.entries(out)) ok('rev59 play: ' + k, v);
+}
+
 async function testHandover58(b) {
   /* rev58 hand-over rules for the ATLAS3D section (owner's instruction): the section is not edited, moved or removed; the four game-side buttons stay; no Google Fonts or other external fetches.
      A3D_SHA is the section as handed over (Muse rev56-3d + the rev57 VIS-03 port the owner allowed once). A new section from Muse means a new hash here — never edit the section to match. */
@@ -5300,6 +5327,7 @@ async function balance(b) {
     await test3D56(b);
     await testVis57(b);
     await testHandover58(b);
+    await testPlay59(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

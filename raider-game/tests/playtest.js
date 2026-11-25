@@ -47,7 +47,8 @@ function inPage(seed) { /* installs window.__pt */
       if (c.cash < -1e-6) bad.push(`会社の現金がマイナス`);
       let held = 0; for (const k in c.own) { if (!(c.own[k] >= 0)) bad.push(`持株がマイナス`); held += c.own[k]; }
       if (held > c.shares * (1 + 1e-6)) bad.push(`発行株数を超える保有`);
-      const t = {}; for (const k in c.own) { const b = k[0] === 'C' ? (S.cos.find(x => x.id === k) || {}).ctrl : /^F\d+$/.test(k) ? 'P' : k; if (b) t[b] = (t[b] || 0) + c.own[k]; }
+      const mg = Math.min(((S.player.mg || {})[c.id] > 0 ? S.player.mg[c.id] : 0), c.own.P || 0); /* rev54 rule: the player's shares bought on margin carry no votes */
+      const t = {}; for (const k in c.own) { const b = k[0] === 'C' ? (S.cos.find(x => x.id === k) || {}).ctrl : /^F\d+$/.test(k) ? 'P' : k; if (b) t[b] = (t[b] || 0) + (k === 'P' ? Math.max(0, c.own[k] - mg) : c.own[k]); }
       let nc = null, bv = 0, sv = 0; for (const b of Object.keys(t).sort()) { if (t[b] > bv) { sv = bv; bv = t[b]; nc = b; } else if (t[b] > sv) sv = t[b]; }
       if (nc && !(bv > c.shares * .5 || (bv >= c.shares * .4 - 1e-9 && sv < bv * .5 && A.ownCap(c, nc) >= 1))) nc = null; if ((nc || null) !== (c.ctrl || null)) bad.push(`支配者の不一致`);
       if (c.ex) for (const r in c.ex) if (c.ex[r] && !S.hr.people[c.ex[r]]) bad.push('存在しない幹部を参照');
@@ -73,7 +74,7 @@ function inPage(seed) { /* installs window.__pt */
     for (const w of ['nw', 'bp', 'loan', 'cash', 'short']) { btn(`[data-act=why][data-v=${w}]`); scan('内訳 ' + w, M); modals(); }
     A.ui.sel = null; tab('market'); scan('ヘッダー', q('#stats')); scan('凡例', q('#legend'));
     try { const B = A.bsNow(), nw = A.netWorth('P') / (1 - (S.player.outside || 0)); if (Math.abs(B.eq - nw) > 1e-6 * Math.max(1, Math.abs(nw))) note('貸借対照表の純資産が本体価値と合わない', `${B.eq} vs ${nw}`); } catch (e) { note('bsNow例外', e.message); }
-    const L = (S.player.plHist || [])[0]; if (L) { try { const C = A.cfOf(L); if (Math.abs(C.op + C.inv + C.fin - (L.cash1 - L.cash0)) > 1e-6) note('キャッシュフローの合計が現金の増減と合わない', ''); } catch (e) { note('cfOf例外', e.message); } }
+    const L = (S.player.plHist || [])[0]; if (L) { try { const C = A.cfOf(L); if (Math.abs(C.op + C.inv + C.fin + (C.oth || 0) - (L.cash1 - L.cash0)) > 1e-6) /* BUG-110: rewards are their own line (oth) */ note('キャッシュフローの合計が現金の増減と合わない', ''); } catch (e) { note('cfOf例外', e.message); } }
   }
   function strategy(){ /* a simple human-like plan: buy cheap small caps, then TOB, then run companies */
     const S = A.S, nw = A.netWorth('P');

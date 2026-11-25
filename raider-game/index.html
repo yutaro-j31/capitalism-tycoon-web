@@ -409,6 +409,13 @@ body.has-dock .pbody{padding-bottom:84px}
 .dev-visual>.note,.dev-visual>.preview{min-width:0;overflow-wrap:anywhere}
 .dev-visual>.prop2d{max-width:100%;height:auto}
 @media (max-width:699px){.dev-visual{flex-direction:column;align-items:stretch}.dev-visual>.prop2d{align-self:center}}
+/* rev59 playtest: the map buttons stay clear of the legend, and "地球儀" fits on one line (system fonts are wider since the web font was removed) */
+#mapwrap .mapctl{z-index:3}
+#mapwrap .legend{max-width:calc(100% - 74px)}
+/* rev59 playtest: "+1週" stayed on one line only from 375px up */
+button[data-act=step]{white-space:nowrap}
+@media (max-width:360px){button[data-act=speed],button[data-act=step],button[data-act=help]{padding-left:4px;padding-right:4px}}
+#mapwrap .mapctl #a3d-globebtn{padding:0;white-space:nowrap;letter-spacing:-.06em;font-size:11px!important}
 </style>
 </head>
 <body>
@@ -1280,10 +1287,10 @@ function pitchStep(){
     else if (S.week % 52 < 10 && deptsOn().length) send(hr.n, 'CHRO（人事責任者）', `新卒採用の季節です。入社は${dateOf(gradJoinW())}。若手を採っておくと数年後に安い人件費で戦力になります。`, {t: 'go', tab: 'pres', hq: 'hr'}, '新卒採用の画面を開きます');
   }
   if (S.dept && S.dept.inv && S.dept.inv.on && S.dept.inv.staff >= 2 && due('inv', 10)) {
-    const head = '投資部';
-    if (hashStr('inv' + S.week) % 2 && S.vc.deals.length) { const d = S.vc.deals.slice().sort((a, b) => (b.grade < a.grade ? 1 : -1))[0]; if (d && d.grade === 'A') send(head, '投資部', `${d.name}（${d.what}・${VC_STAGE[d.st].n}）は私たちの評価でA。5%（${fm(d.val * .05)}）出資しましょう。`, {t: 'vc', did: d.id}, `5%を${fm(d.val * .05)}で出資します`); }
+    const head = '投資部'; /* rev59: the role is the research team ("投資部（投資部）" was shown) */
+    if (hashStr('inv' + S.week) % 2 && S.vc.deals.length) { const d = S.vc.deals.slice().sort((a, b) => (b.grade < a.grade ? 1 : -1))[0]; if (d && d.grade === 'A') send(head, 'リサーチ担当', `${d.name}（${d.what}・${VC_STAGE[d.st].n}）は私たちの評価でA。5%（${fm(d.val * .05)}）出資しましょう。`, {t: 'vc', did: d.id}, `5%を${fm(d.val * .05)}で出資します`); }
     else { const L = (S.props || []).filter(p => !p.own && canSpendP(propQuote(p, 1, .5).need)).sort((a, b) => propRentY(b) / propVal(b) - propRentY(a) / propVal(a)); const p = L[0];
-      if (p) send(head, '投資部', `${CITY[p.city].n}の${p.name}は利回り${pc(propRentY(p) / propVal(p), 1)}。金利${S.econ.rate.toFixed(1)}%の今なら、ローン50%で買えば賃料で利払いを賄えます。`, {t: 'prop', pid: p.id}, `${fm(propInfo(p).ask)}で購入します（ローン50%）`); }
+      if (p) send(head, 'リサーチ担当', `${CITY[p.city].n}の${p.name}は利回り${pc(propRentY(p) / propVal(p), 1)}。金利${S.econ.rate.toFixed(1)}%の今なら、ローン50%で買えば賃料で利払いを賄えます。`, {t: 'prop', pid: p.id}, `${fm(propInfo(p).ask)}で購入します（ローン50%）`); }
   }
   for (const c of S.cos.filter(x => x.ctrl === 'P' && x.debt > 1)) { const cfo = exOf(c, 'CFO'); if (!cfo || c.dueW == null || c.dueW - S.week !== 6) continue;
     if (refiOutlook(c)[1] === 'down' && c.cash > c.debt * .05) send(cfo.n, `${c.name} CFO`, `6週後の借り換え（${fm(c.debt * TRANCHE)}）は返済能力（DSCR ${dscr(c).toFixed(2)}倍）が基準に届かず、拒否される恐れがあります。先に手元資金で${fm(Math.min(c.cash * .8, c.debt * TRANCHE))}返済させてください。`, {t: 'repay', cid: c.id, amt: Math.min(c.cash * .8, c.debt * TRANCHE)}, '繰り上げ返済します'); }
@@ -5888,7 +5895,7 @@ function secretaryMsg(){
   if (S.board.lastQ !== qNow() && t === 'board') return '今四半期の取締役会はまだ開いていません。配当とあなたの報酬を決めましょう。';
   if (t === 'hr' && deptsOn().includes('hr') && cov('hr') < .6) return '人事部の手が回っていません。社員の士気が下がりがちです。';
   if (t === 'inv' && S.vc.deals.length) return `ベンチャー投資の候補が${S.vc.deals.length}件あります。投資部の人数を増やすと、もっと多くの会社を調べられます。`;
-  return {legal: 'こちらは法務部とIR広報部です。会社の規模と案件に応じて、必要な人数が変わります。', acc: 'こちらは経理部です。本体の数字はここで確認できます。', hr: 'こちらは人事部です。今日はどういったご用件でしょうか。', board: 'こちらは取締役フロアです。四半期に一度、取締役会を開けます。', inv: 'こちらは投資部です。新しい投資の機会を探しています。', floor: `このビルにはあと${FLOORS[office().lvl] - deptsOn().length}フロア空きがあります。部門を追加できます。`, me: `社長室です。${S.pname}さんの個人資産と目標はこちらです。`}[t];
+  return {legal: 'こちらは法務部とIR広報部です。会社の規模と案件に応じて、必要な人数が変わります。', acc: 'こちらは経理部です。本体の数字はここで確認できます。', hr: 'こちらは人事部です。今日はどういったご用件でしょうか。', board: 'こちらは取締役フロアです。四半期に一度、取締役会を開けます。', inv: 'こちらは投資部です。新しい投資の機会を探しています。', floor: `このビルにはあと${FLOORS[office().lvl] - deptsOn().length}フロア空きがあります。部門を追加できます。`, me: `社長室です。${S.pname}さんの個人資産と目標はこちらです。`, grp: 'こちらはグループの一覧です。子会社・投資先・グループ全体の数字を確認できます。'}[t] || ''; /* rev59: the group tab had no message and showed "undefined" */
 }
 const floorCv = (k, h) => `<canvas class="floor" data-floor="${k}" style="height:${h || 170}px" aria-hidden="true"></canvas>`;
 function drawFloors(){ // isometric office floors: desks fill up with people as you hire (drawn fresh, original art)
