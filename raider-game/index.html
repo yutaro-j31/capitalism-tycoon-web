@@ -14756,17 +14756,18 @@ function getAsphalt(){ if(!_asphaltTex) _asphaltTex=noiseTexture('#262b33',['#31
 function getConcrete(){ if(!_concreteTex) _concreteTex=noiseTexture('#8b929c',['#7a818b','#9aa1ab','#6d747e'],2000,256,23); return _concreteTex; }
 function getGravel(){ if(!_gravelTex) _gravelTex=noiseTexture('#5d5648',['#6e675a','#4c463c','#7d7668'],3600,256,37); return _gravelTex; }
 function getSand(){ if(!_sandTex) _sandTex=noiseTexture('#b99c66',['#cbb27e','#a8895a','#d8c28e'],2600,256,53); return _sandTex; }
-/* rev61: fine safety-net texture for renovation scaffolding (mostly holes, thin threads) */
+/* rev61: fine safety-net texture for renovation scaffolding (mostly holes, thin threads).
+   rev63: colours muted to a blue-grey so the wrap does not read as a pale box. */
 function scaffoldNetTexture(){
   if(_scaffoldTex) return _scaffoldTex;
   var cv=cnv(128,128), g=cv.getContext('2d');
-  g.fillStyle='rgba(172,200,216,0.26)'; g.fillRect(0,0,128,128);
-  g.strokeStyle='rgba(104,140,164,0.55)'; g.lineWidth=1;
-  for(var i=0;i<=128;i+=8){
+  g.fillStyle='rgba(140,158,170,0.28)'; g.fillRect(0,0,128,128);
+  g.strokeStyle='rgba(88,104,118,0.62)'; g.lineWidth=1;
+  for(var i=0;i<=128;i+=7){
     g.beginPath(); g.moveTo(i+0.5,0); g.lineTo(i+0.5,128); g.stroke();
     g.beginPath(); g.moveTo(0,i+0.5); g.lineTo(128,i+0.5); g.stroke();
   }
-  g.strokeStyle='rgba(84,118,142,0.85)'; g.lineWidth=3;
+  g.strokeStyle='rgba(74,90,104,0.80)'; g.lineWidth=3;
   g.strokeRect(1.5,1.5,125,125);
   var t=new THREE.CanvasTexture(cv);
   t.wrapS=t.wrapT=THREE.RepeatWrapping; t.encoding=THREE.sRGBEncoding; t.anisotropy=4;
@@ -16084,12 +16085,17 @@ function buildPropGroup(p){
     /* rev61: the wrap used to be a single translucent box (0x9fc4d8, opacity .30) that floated above the
        streetscape. It is now scaffolding: corner poles, frame rails and a fine safety net, so the building
        under renovation stays readable through it. */
+    /* rev63: the net wraps the sides only — the top is open so the roof stays visible — and the frame
+       colour is a muted steel grey-blue, so the wrap no longer reads as a pale box. */
     var scaf=new THREE.Group();
     var sw=dims.w+1.6, sd=dims.d+1.6, sh=dims.h+1.2;
-    var netT=texClone(scaffoldNetTexture(), Math.max(2, Math.round(sw/3)), Math.max(2, Math.round(sh/3)));
-    var net=new THREE.Mesh(new THREE.BoxGeometry(sw, sh, sd),
-      new THREE.MeshLambertMaterial({map:netT, transparent:true, opacity:0.9, depthWrite:false, side:THREE.DoubleSide}));
-    net.position.y=sh/2; scaf.add(net);
+    var netMatF=new THREE.MeshLambertMaterial({map:texClone(scaffoldNetTexture(), Math.max(2, Math.round(sw/3)), Math.max(2, Math.round(sh/3))), transparent:true, opacity:0.95, depthWrite:false, side:THREE.DoubleSide});
+    var netMatS=new THREE.MeshLambertMaterial({map:texClone(scaffoldNetTexture(), Math.max(2, Math.round(sd/3)), Math.max(2, Math.round(sh/3))), transparent:true, opacity:0.95, depthWrite:false, side:THREE.DoubleSide});
+    [[0, sd/2, 0, netMatF, sw],[0, -sd/2, Math.PI, netMatF, sw],[sw/2, 0, Math.PI/2, netMatS, sd],[-sw/2, 0, -Math.PI/2, netMatS, sd]].forEach(function(sf){
+      var netPlane=new THREE.Mesh(new THREE.PlaneGeometry(sf[4], sh), sf[3]);
+      netPlane.position.set(sf[0], sh/2, sf[1]); netPlane.rotation.y=sf[2];
+      scaf.add(netPlane);
+    });
     var poleM=new THREE.MeshLambertMaterial({color:0x707880});
     [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(function(cn){
       var pole=new THREE.Mesh(new THREE.BoxGeometry(0.22, sh, 0.22), poleM);
@@ -16097,11 +16103,11 @@ function buildPropGroup(p){
     });
     var railN=Math.max(2, Math.round(sh/6));
     for(var ri=1; ri<railN; ri++){
-      var rail=edgeLines(sw, 0.01, sd, 0x9fc4d8, 0.95);
+      var rail=edgeLines(sw, 0.01, sd, 0x66798a, 0.9);
       rail.position.y=sh*ri/railN;
       scaf.add(rail);
     }
-    scaf.add(edgeLines(sw, sh, sd, 0x9fc4d8, 0.95));
+    scaf.add(edgeLines(sw, sh, sd, 0x66798a, 0.9));
     holder.add(scaf);
     var gon=new THREE.Mesh(new THREE.BoxGeometry(dims.w*0.5, 1.6, 1.2), new THREE.MeshLambertMaterial({color:0xd8b13a}));
     gon.position.set(0, dims.h*0.6, dims.d/2+1.4); gon.userData.baseY=dims.h*0.6; gon.userData.amp=dims.h*0.22; gon.userData.ph=hashStr2(p.id)%6;
@@ -16327,9 +16333,13 @@ function openCity(container, cityId, focusPropId){
       streetLamp(t2+16, c-4.5, 0, 1);
     }
   });
+  /* rev63: occluder bookkeeping for the focused view — analytic cylinders for azimuth choice and
+     live scene roots for the line-of-sight fade pass. */
+  var occl=[], occlRoots=[];
   /* landmarks (GLB, background) */
   (LM_DEFS26[cityId]||[]).forEach(function(d){
     excl.push([d[1],d[2],d[3]]);
+    occl.push({root:null, x:d[1], z:d[2], r:d[3], h:75});
     loadGLB(d[0], function(g){
       if(SES!==s || !g) return;
       var holder=new THREE.Group();
@@ -16337,6 +16347,8 @@ function openCity(container, cityId, focusPropId){
       holder.add(g);
       shadowify(holder);
       grp.add(holder);
+      occlRoots.push(holder);
+      if(s.focusProp) fadeOccluders();
     });
   });
   /* real props + in-development sites */
@@ -16354,6 +16366,8 @@ function openCity(container, cityId, focusPropId){
     holder.userData.propId=p.id;
     grp.add(holder); s.propMeshes.push(holder);
     usedSlots.push(slots[i]);
+    occl.push({root:holder, x:slots[i][0], z:slots[i][1], r:Math.max(holder.userData.dims.w, holder.userData.dims.d)*0.62, h:holder.userData.dims.h});
+    if(!(focusPropId && p.id===focusPropId)) occlRoots.push(holder);
     if(focusPropId && p.id===focusPropId) s.focusProp=holder;
   });
   devs.forEach(function(d, j){
@@ -16363,6 +16377,8 @@ function openCity(container, cityId, focusPropId){
     site.position.set(slots[i][0], 0, slots[i][1]);
     grp.add(site);
     usedSlots.push(slots[i]);
+    occl.push({root:site, x:slots[i][0], z:slots[i][1], r:13, h:clamp(Math.round((d.gfa||6000)/1400),3,26)*3.2});
+    occlRoots.push(site);
     if(site.userData.crane && !site.userData.halt) s.cranes.push(site.userData.crane);
   });
   if(s.focusProp){
@@ -16371,16 +16387,71 @@ function openCity(container, cityId, focusPropId){
     var ring=new THREE.Mesh(new THREE.RingGeometry(fr, fr+1.3, 36), new THREE.MeshBasicMaterial({color:0xffd968, transparent:true, opacity:0.8, side:THREE.DoubleSide, depthWrite:false}));
     ring.rotation.x=-Math.PI/2; ring.position.set(fp.x, 0.16, fp.z);
     grp.add(ring); s.focusRing=ring;
-    /* rev61: frame the focused building by its height, the same idea as the dev screen's fitH —
-       the old fixed offset left tall buildings cropped to a wall. Distance grows with height so
-       the whole building and the surrounding blocks stay in view. */
-    var fh=fd.h||20;
-    var fDist=Math.max(58, Math.min(160, fh*2.3));
-    var fDir=new THREE.Vector3(0.568, 0.379, 0.731); fDir.normalize();
-    var fTy=Math.max(8, fh*0.38);
-    s.controls.target.set(fp.x, fTy, fp.z);
-    s.camera.position.set(fp.x+fDir.x*fDist, fTy+fDir.y*fDist, fp.z+fDir.z*fDist);
+    /* rev61 framed the focused building by height alone, but at that ~22 deg elevation a taller
+       neighbour could still hide it completely (rev63 report: the target building never appeared).
+       rev63: the camera is placed by focusView() below, after the background buildings exist. */
     showPropPanel(props.filter(function(p){return p.id===focusPropId;})[0]);
+  }
+  /* rev63: guarantee the focused building is visible. The camera looks down at ~50 deg, its azimuth
+     is picked from 8 candidates by testing the sight corridor against every occluder's cylinder,
+     and anything still crossing the line of sight is faded out for this view. */
+  function focusView(){
+    var fp=s.focusProp.position, fd=s.focusProp.userData.dims||{w:14,d:12,h:20};
+    var fh=fd.h||20;
+    var fTy=Math.max(3, Math.min(26, fh*0.45));
+    var fDist=Math.max(62, Math.min(200, fh*2.0+34));
+    var el=50*Math.PI/180, hd=fDist*Math.cos(el), dy=fDist*Math.sin(el);
+    var baseAz=Math.atan2(0.731, 0.568);
+    var offs=[0, Math.PI/4, -Math.PI/4, Math.PI/2, -Math.PI/2, 3*Math.PI/4, -3*Math.PI/4, Math.PI];
+    var best=null, bestScore=Infinity;
+    offs.forEach(function(off){
+      var az=baseAz+off;
+      var cx=fp.x+Math.cos(az)*hd, cz=fp.z+Math.sin(az)*hd, cy=fTy+dy;
+      var score=0;
+      occl.forEach(function(o){
+        if(o.root && o.root===s.focusProp) return;
+        var px=o.x-fp.x, pz=o.z-fp.z;
+        var t=(px*(cx-fp.x)+pz*(cz-fp.z))/hd;
+        if(t<1 || t>hd-1) return;
+        var qx=px-(cx-fp.x)/hd*t, qz=pz-(cz-fp.z)/hd*t;
+        var dd=Math.sqrt(qx*qx+qz*qz);
+        if(dd>o.r+1.5) return;
+        var hLine=fTy+dy*(t/hd);
+        if(hLine<o.h+1) score+=1+(o.h+1-hLine)/25;
+      });
+      if(score<bestScore){ bestScore=score; best={x:cx, y:cy, z:cz}; }
+    });
+    s.controls.target.set(fp.x, fTy, fp.z);
+    s.camera.position.set(best.x, best.y, best.z);
+    fadeOccluders();
+  }
+  function fadeRoot(root){
+    if(root.userData._faded) return;
+    root.userData._faded=true;
+    root.traverse(function(m){
+      if(m.isMesh || m.isLine){
+        m.material=m.material.clone();
+        if('opacity' in m.material){ m.material.transparent=true; m.material.opacity=0.13; m.material.depthWrite=false; }
+        if(m.isMesh) m.castShadow=false;
+      }
+    });
+  }
+  function fadeOccluders(){
+    if(!s.focusProp || !s.camera) return;
+    var fp=s.focusProp.position, fd=s.focusProp.userData.dims||{w:14,d:12,h:20};
+    var fh=fd.h||20;
+    var camPos=s.camera.position.clone();
+    var rc=new THREE.Raycaster();
+    [0.3, 0.6, 0.9, 1.05].forEach(function(k){
+      var tv=new THREE.Vector3(fp.x, Math.max(1.2, fh*k), fp.z);
+      var dir=tv.clone().sub(camPos), dist=dir.length();
+      if(dist<2) return;
+      rc.set(camPos, dir.normalize()); rc.far=dist-1.5;
+      rc.intersectObjects(occlRoots, true).forEach(function(h){
+        var o=h.object; while(o && occlRoots.indexOf(o)<0) o=o.parent;
+        if(o && o!==s.focusProp) fadeRoot(o);
+      });
+    });
   }
   /* background buildings filling the blocks (prototype density) */
   var types=['office','office','resi','retail','hotel','tower','logi','factory'];
@@ -16403,11 +16474,14 @@ function openCity(container, cityId, focusPropId){
     var bld=makeBuilding(t, w, d, h, (R()*4)|0);
     bld.position.set(x,0,z);
     grp.add(bld);
+    occl.push({root:bld, x:x, z:z, r:Math.max(w,d)*0.62, h:h});
+    occlRoots.push(bld);
   }
   addCityCars(grp, R);
   addStreetTrees(grp, R, excl, scen, usedSlots);
   addClouds(grp, 6);
   shadowify(grp);
+  if(s.focusProp) focusView(); /* rev63: place the focus camera now that every occluder exists */
   /* picking: real props only */
   var ray=new THREE.Raycaster(), ptr=new THREE.Vector2(), downAt=0, downXY=null;
   var dom=s.renderer.domElement;
