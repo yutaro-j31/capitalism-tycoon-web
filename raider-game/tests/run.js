@@ -3775,6 +3775,73 @@ async function testRealEstate47(b) {
   await p.close();
 }
 
+async function testVis57(b) {
+  /* rev57 VIS-03: the 3D construction progress is the building cost paid (spent / cost), not the weeks elapsed; halts freeze it; the slider is a labelled preview */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(async () => {
+    const A = window.__atlas, X = window.ATLAS3D, out = {}, info = {}, wait = ms => new Promise(f => setTimeout(f, ms));
+    A.closeModal(); A.newGame(5701, 'normal', 'B', 'b', 'std', true); let S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); Object.assign(S.dept.inv, {on: true, staff: 2});
+    for (let i = 0; i < 2; i++) { A.step(); S.inbox = []; }
+    A.sitesEnsure(); const site = S.sites.find(x => x.city === 'tyo' && x.zone === 'com') || S.sites.find(x => x.zone === 'com');
+    S.player.cash = 5000; const why = A.devBuy('P', site.id, true); const d = S.devp.find(x => x.own === 'P' && x.site.id === site.id);
+    const ph = () => X.devPhase(d), num = v => typeof v === 'number' && isFinite(v);
+    /* 1: survey */ out.t01_survey0 = !why && d.st === 'dd' && ph().r === 0 && ph().key === 'land';
+    d.ready = S.week; d.st = 'land'; const why2 = A.devStart(d, 'office', 'std', 1, 'hold');
+    info.cost = d.cost; info.wks = d.done - d.w0;
+    /* 2 */ out.t02_start0 = !why2 && d.st === 'build' && ph().r === 0 && ph().pct === 0 && d.spent === 0;
+    /* 3: no money for 3 weeks from the start */
+    const steps = n => { for (let i = 0; i < n; i++) { A.step(); S.inbox = []; } };
+    const done0 = d.done; S.player.cash = 0; S.player.loan = 0; const rows = [];
+    for (let i = 0; i < 3; i++) { steps(1); S.player.cash = 0; rows.push([d.spent, d.done, d.halt, ph().key, ph().pct]); }
+    info.halt3 = rows; out.t03_halt0 = d.spent === 0 && d.done === done0 + 3 && rows.every(x => x[3] === 'halt' && x[4] === 0);
+    /* 4: halt part-way */
+    S.player.cash = 5000; steps(20); const sp1 = d.spent, pct1 = ph().pct, r1 = ph().r; info.mid = [sp1, pct1];
+    const dn1 = d.done; for (let i = 0; i < 3; i++) { S.player.cash = 0; steps(1); } S.player.cash = 0;
+    out.t04_haltKeeps = sp1 > 0 && d.spent === sp1 && ph().pct === pct1 && Math.abs(ph().r - r1) < 1e-12 && ph().key === 'halt' && d.done === dn1 + 3;
+    /* 5: refill then step — grows by what was paid */
+    S.player.cash = 5000; const sp2 = d.spent; steps(1); const paid = d.spent - sp2;
+    out.t05_resume = paid > 0 && Math.abs(X.devProgress(d) - d.spent / d.cost) < 1e-12 && ph().key !== 'halt';
+    /* 6: several halts — never backwards, never ahead of payments */
+    let mono = true, prev = X.devProgress(d);
+    for (let k = 0; k < 6; k++) { S.player.cash = k % 2 ? 5000 : 0; steps(2); const v = X.devProgress(d); if (v < prev - 1e-12 || Math.abs(v - d.spent / d.cost) > 1e-12) mono = false; prev = v; }
+    out.t06_monotonic = mono;
+    /* 9: old or damaged records */
+    const bad = [{st: 'build'}, {st: 'build', cost: 0, spent: 0}, {st: 'build', cost: NaN, spent: 1}, {st: 'build', cost: 10, spent: Infinity}, {st: 'build', cost: 10}, {st: 'build', cost: -3, spent: 1}, {st: 'build', cost: 10, spent: -1}];
+    out.t09_oldData = bad.every(x => { const q = X.devPhase(x); return q.key === 'unknown' && q.r === 0 && !/NaN|Infinity|竣工$/.test(q.label); }) && X.devPhase({st: 'build', cost: 10, spent: 0, haltNeed: 1}).r === 0;
+    /* 10 + 11: the development screen shows the same progress; preview is labelled and changes nothing */
+    S.player.cash = 0; steps(1); const before = A.exportText(), rs = JSON.stringify(S.rs);
+    X.open({mode: 'dev', devId: d.id}); await wait(1200);
+    const pctTxt = () => document.getElementById('a3d-devpct').textContent, lab = () => document.getElementById('a3d-devphase').textContent;
+    info.devScreen = [pctTxt(), lab(), ph().label];
+    out.t10_same = pctTxt() === ph().pct + '%' && lab() === ph().label && Math.round(X._ses().devCtl.state().r * 1000) === Math.round(ph().r * 1000);
+    const sl = document.getElementById('a3d-devslider'); sl.value = 900; sl.dispatchEvent(new Event('input', {bubbles: true}));
+    const prevOn = /プレビュー/.test(lab()) && /プレビュー/.test(document.getElementById('a3d-devmode').textContent) && !document.getElementById('a3d-devreal').hidden;
+    document.getElementById('a3d-devplay').click(); await wait(400); document.getElementById('a3d-devplay').click();
+    document.getElementById('a3d-devreal').click();
+    const back = lab() === ph().label && pctTxt() === ph().pct + '%' && document.getElementById('a3d-devreal').hidden;
+    info.preview = [prevOn, back];
+    X.close(); await wait(200);
+    out.t11_preview = prevOn && back && A.exportText() === before && JSON.stringify(S.rs) === rs;
+    /* 8: last week short of money, then completion */
+    S.player.cash = 5000; let g = 0; while (d.done - S.week > 1 && g++ < 400) steps(1);
+    S.player.cash = 0; steps(2); S.player.cash = 0; const lastHalt = S.devp.includes(d) && ph().key === 'halt' && !/竣工$/.test(ph().label) && X.devProgress(d) < 1;
+    S.player.cash = 5000; g = 0; while (S.devp.includes(d) && g++ < 20) steps(1);
+    out.t08_lastWeek = lastHalt && !S.devp.includes(d) && S.props.some(x => x.id === 'D' + d.id && x.own === 'P');
+    /* 7: a subsidiary's project uses the same rule */
+    const c = S.cos.find(x => !x.priv && x.cash > 0) || S.cos[0]; const site2 = S.sites.find(x => x.zone === 'com' && !S.devp.some(q => q.site.id === x.id));
+    c.cash = 1e4; const w3 = A.devBuy(c.id, site2.id, false); const d2 = S.devp[S.devp.length - 1]; d2.ready = S.week; d2.st = 'land'; A.devStart(d2, 'office', 'std', 1, 'sell');
+    steps(4); const okA = X.devProgress(d2) > 0 && Math.abs(X.devProgress(d2) - d2.spent / d2.cost) < 1e-12; const spc = d2.spent;
+    c.cash = 0; c.debt = 1e6; steps(2); const okB = d2.spent === spc ? X.devPhase(d2).key === 'halt' && Math.abs(X.devProgress(d2) - spc / d2.cost) < 1e-12 : Math.abs(X.devProgress(d2) - d2.spent / d2.cost) < 1e-12;
+    info.sub = [w3, d2.own === c.id, spc, d2.spent, X.devPhase(d2).key];
+    out.t07_subsidiary = !w3 && d2.own === c.id && okA && okB;
+    out.econ = A.econCheck(S) === '';
+    return {out, info}; });
+  console.log('rev57 vis03', JSON.stringify(r.info).slice(0, 700));
+  for (const [k, v] of Object.entries(r.out)) ok('rev57 vis03: ' + k, v);
+  ok('rev57 vis03: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function test3D56(b) {
   /* rev56 (iPhone feedback on the 3D map): globe not covered by the 2D map's overlays, no panel on open, ✕ on panels and settings, clear far view, solid buildings for sale, bloom and shadows on by default; opening 3D never touches the game */
   const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
@@ -5199,6 +5266,7 @@ async function balance(b) {
     await testPE54(b);
     await testPE55(b);
     await test3D56(b);
+    await testVis57(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

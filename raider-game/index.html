@@ -14894,6 +14894,8 @@ function bindDevOnce(){
   if(!slider || slider._a3dBound) return; slider._a3dBound=true;
   slider.addEventListener('input', function(){ var s=SES; if(s && s.devCtl){ s.devCtl.pause(); s.devCtl.setR(slider.value/1000); } });
   if(playBtn) playBtn.addEventListener('click', function(){ var s=SES; if(s && s.devCtl) s.devCtl.toggle(); });
+  var realBtn=document.getElementById('a3d-devreal');
+  if(realBtn) realBtn.addEventListener('click', function(){ var s=SES; if(s && s.devCtl) s.devCtl.real(); });
 }
 function disposeSession(){
   if(!SES) return;
@@ -15902,7 +15904,8 @@ function buildDevSite(d, S){
   }
   var floors=clamp(Math.round((d.gfa||6000)/1400),3,26);
   var vis=clamp(Math.round(ph.r*floors),1,floors);
-  return makeConstructionSite(20,16,vis,3.2);
+  var site=makeConstructionSite(20,16,vis,3.2); site.userData.halt= ph.key==='halt'; /* rev57: a halted site's crane stands still, as on the development screen */
+  return site;
 }
 function propSlots(scen, excl){
   var pts=[];
@@ -16028,7 +16031,7 @@ function openCity(container, cityId, focusPropId){
     site.position.set(slots[i][0], 0, slots[i][1]);
     grp.add(site);
     usedSlots.push(slots[i]);
-    if(site.userData.crane) s.cranes.push(site.userData.crane);
+    if(site.userData.crane && !site.userData.halt) s.cranes.push(site.userData.crane);
   });
   if(s.focusProp){
     var fp=s.focusProp.position, fd=s.focusProp.userData.dims||{w:14,d:12};
@@ -16123,14 +16126,23 @@ function devPhase(d, S){
   if(d.st==='dd') return {key:'land', label:'更地（権利調査中）', r:0};
   if(d.st==='land') return {key:'land', label:'更地（用地）', r:0};
   if(d.st==='build'){
-    var span=Math.max(1,(d.done||0)-(d.w0||0));
-    var r=clamp(((S? S.week:0)-(d.w0||0))/span, 0, 1);
-    if(d.haltNeed) return {key:'halt', label:'建設中（資金不足で中断中）', r:r};
-    if(r<0.2) return {key:'found', label:'基礎工事', r:r};
-    if(r<1) return {key:'build', label:'建設中 '+Math.round(r*100)+'%', r:r};
-    return {key:'done', label:'竣工', r:1};
+    /* rev57 VIS-03: progress is the building cost actually paid (spent / cost), never the weeks elapsed — a halted week pays nothing, so the
+       progress and stage stay where they were while only the opening date moves back. Land, survey fees, loans and pre-sales are not part of it. */
+    var r=devProgress(d), known=r!=null, pct=known? Math.floor(r*100) : null;
+    if(d.haltNeed) return {key:'halt', label:'建設中（資金不足で中断中）'+(known? ' '+pct+'%' : ''), r:known? Math.min(r,0.999):0, known:known, pct:pct};
+    if(!known) return {key:'unknown', label:'建設中（進捗不明）', r:0, known:false, pct:null};
+    if(r>=0.9995) return {key:'paid', label:'建築費支払済み（竣工処理待ち）', r:0.999, known:true, pct:100}; /* paid in full is not the same as completed: the building is opened by the weekly step */
+    if(r<0.2) return {key:'found', label:'基礎工事 '+pct+'%', r:r, known:true, pct:pct};
+    return {key:'build', label:'建設中 '+pct+'%', r:r, known:true, pct:pct};
   }
-  return {key:'land', label:'更地', r:0};
+  return {key:'land', label:'更地', r:0, known:true, pct:0};
+}
+function devProgress(d){
+  if(!d || d.st==='dd' || d.st==='land') return 0;
+  if(d.st!=='build') return null; /* completed projects are shown from the property records, not from here */
+  var c=Number(d.cost), sp=Number(d.spent);
+  if(!isFinite(c) || c<=0 || !isFinite(sp) || sp<0) return null; /* old or damaged data: unknown, never guessed from the weeks */
+  return clamp(sp/c, 0, 1);
 }
 function openDev(container, devId, propId){
   var s=setupSession(container, {mode:'dev'});
@@ -16145,8 +16157,9 @@ function openDev(container, devId, propId){
   var floors=clamp(Math.round(gfa/1400), 3, 30);
   var cityId=(d && d.site && d.site.city)||'tyo';
   baseEnv({dev:true});
-  s.camera.position.set(64, 46, 86);
-  addOrbit(s.camera, s.renderer.domElement, {min:30, max:500, maxPolar:1.45, target:new THREE.Vector3(0,12,0)});
+  var fitH=floors*2.9, fk=Math.max(1, fitH/45); /* rev57: the camera starts far enough out to see the finished building whole (tall towers were cut off in the preview) */
+  s.camera.position.set(64*fk, 46*fk, 86*fk);
+  addOrbit(s.camera, s.renderer.domElement, {min:30, max:500, maxPolar:1.45, target:new THREE.Vector3(0,Math.max(12, fitH*0.35),0)});
   // surroundings (prototype dev environment): distant skyline ring + front road + neighbour buildings
   var R=rng(99);
   if(s.bdMats){
@@ -16305,22 +16318,33 @@ function openDev(container, devId, propId){
     '<div><span>延床</span><b>'+Number(gfa).toLocaleString('ja-JP')+'m²</b></div>'+
     (d && d.done? '<div><span>竣工予定</span><b>第'+d.done+'週</b></div>':'')+
     (d && d.haltNeed? '<div><span>中断の不足額</span><b>'+fmtOk(d.haltNeed)+'</b></div>':'')+
+    (d && d.st==='build' && phase.known? '<div><span>建築費の支払い</span><b>'+fmtOk(d.spent)+' / '+fmtOk(d.cost)+'</b></div>':'')+
     '</div>'+
     (phase.key==='halt'? '<p class="a3d-warn">資金不足で中断中です。クレーンと作業員は停止しています。</p>':'')+
+    (phase.key==='unknown'? '<p class="a3d-warn">古いデータのため工事の進捗を確認できません（推定値は表示しません）。</p>':'')+
+    (phase.key==='paid'? '<p class="a3d-note">建築費は支払い済みです。竣工は週送りで処理されます。</p>':'')+
     '<div class="a3d-devctl"><button type="button" class="a3d-btn" id="a3d-devplay">▶ 再生</button>'+
     '<input type="range" id="a3d-devslider" min="0" max="1000" value="'+Math.round(curR*1000)+'">'+
-    '<span id="a3d-devpct">'+Math.round(curR*100)+'%</span></div>'+
-    '<p class="a3d-note">スライダーは着工→竣工予定の再生です。初期位置は実データの現在位置です。</p>';
+    '<span id="a3d-devpct">'+(phase.known? phase.pct+'%' : '—')+'</span></div>'+
+    '<div id="a3d-devmode" class="a3d-note"><b>実績</b>を表示中（支払い済みの建築費で進みます）</div>'+
+    '<button type="button" class="a3d-btn" id="a3d-devreal" hidden>実績に戻す</button>'+
+    '<p class="a3d-note">スライダーと再生は完成までの<b>プレビュー</b>です。実際の工事の進み具合は変わりません。</p>';
   showPanel(infoHtml);
   ui.title.textContent='開発アニメーション';
   var playing=false;
   var slider=document.getElementById('a3d-devslider');
   var playBtn=document.getElementById('a3d-devplay');
+  var preview=false; /* rev57 VIS-03: the slider and play are a preview of the finished building, kept apart from the actual progress */
   function phaseLabel(r){
-    if(r<=0.001) return phase.key==='land'? phase.label : '更地';
-    if(r<0.2) return '基礎工事';
-    if(r<1) return phase.key==='halt'? '建設中（資金不足で中断中）' : '建設中 '+Math.round(r*100)+'%';
-    return '竣工';
+    if(!preview) return phase.label;
+    if(r<=0.001) return 'プレビュー：更地';
+    if(r<0.2) return 'プレビュー：基礎工事';
+    if(r<1) return 'プレビュー：建設中';
+    return 'プレビュー：完成イメージ';
+  }
+  function showMode(){
+    var m=document.getElementById('a3d-devmode'); if(m) m.innerHTML= preview? '<b>プレビュー</b>を表示中（実際の工事とは別です）' : '<b>実績</b>を表示中（支払い済みの建築費で進みます）';
+    var rb=document.getElementById('a3d-devreal'); if(rb) rb.hidden=!preview;
   }
   var lastDynKey=null;
   function dynKey(r){ if(r<=0.001) return 'v0'; if(r<0.2) return 'f'+Math.floor(r/0.05); if(r<1) return 'b'+Math.floor(r*floors); return 'done'; }
@@ -16329,12 +16353,15 @@ function openDev(container, devId, propId){
     var k=dynKey(curR);
     if(k!==lastDynKey){ lastDynKey=k; buildDyn(curR); }
     var pl=document.getElementById('a3d-devphase'); if(pl) pl.textContent=phaseLabel(curR);
-    var pc=document.getElementById('a3d-devpct'); if(pc) pc.textContent=Math.round(curR*100)+'%';
+    var pc=document.getElementById('a3d-devpct'); if(pc) pc.textContent= preview? Math.round(curR*100)+'%' : (phase.known? phase.pct+'%' : '—');
     if(!fromSlider && slider) slider.value=Math.round(curR*1000);
+    showMode();
   }
   s.devCtl={ pause:function(){ playing=false; if(playBtn) playBtn.textContent='▶ 再生'; },
-             setR:function(r){ setR(r, true); },
-             toggle:function(){ playing=!playing; if(playBtn) playBtn.textContent= playing? '⏸ 一時停止':'▶ 再生'; if(curR>=1 && playing) setR(0); } };
+             setR:function(r){ preview=true; setR(r, true); },
+             toggle:function(){ preview=true; playing=!playing; if(playBtn) playBtn.textContent= playing? '⏸ 一時停止':'▶ 再生'; if(curR>=1 && playing) setR(0); else showMode(); },
+             real:function(){ playing=false; if(playBtn) playBtn.textContent='▶ 再生'; preview=false; setR(phase.r); },
+             state:function(){ return {preview:preview, r:curR, actual:phase.r, key:phase.key}; } };
   bindDevOnce();
   var frozenAll= phase.key==='halt';
   s.tick=function(dt, t){
@@ -16513,7 +16540,7 @@ document.addEventListener('click', function(ev){
 if(!GL_OK){
   var gb0=document.getElementById('a3d-globebtn'); if(gb0) gb0.style.display='none';
 }
-window.ATLAS3D={ open:open3D, close:close3D, _set:SET };
+window.ATLAS3D={ open:open3D, close:close3D, _set:SET, devPhase:function(d){ return devPhase(d, getS()); }, devProgress:devProgress, _ses:function(){ return SES; } }; /* rev57: read-only progress helpers for the tests and the 2D screens */
 })();
 
 </script>
