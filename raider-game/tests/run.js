@@ -3775,6 +3775,29 @@ async function testRealEstate47(b) {
   await p.close();
 }
 
+async function testFix60(b) {
+  /* rev60 (items from the Muse/ChatGPT reports): floor-area ratios shown without a floating-point tail; starting work during the rights survey says so; the DIP card says why its button is missing */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(() => { const A = window.__atlas, out = {}, info = {};
+    A.closeModal(); A.newGame(6001, 'normal', 'B', 'b', 'std', true); const S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); Object.assign(S.dept.inv, {on: true, staff: 2}); S.player.cash = 400; A.sitesEnsure();
+    { const free = S.sites.filter(s => s.zone === 'com'); free[0].far = 8.8; free[1].far = 2.2; } /* the values reported: 880.0000000000001% and 220.00000000000003% */
+    const html = (S.sites || []).map(s => s.city).filter((c, i, a) => a.indexOf(c) === i).map(c => { A.ui.devCity = c; return A.devBox('P', true); }).join('');
+    const tails = html.match(/容積率\d+\.\d+%/g) || []; info.tails = tails.slice(0, 3); info.farSites = (S.sites || []).filter(s => s.far * 100 !== Math.round(s.far * 100)).length;
+    out.farNoTail = tails.length === 0 && info.farSites > 0 && /容積率\d+%/.test(html);
+    const s0 = S.sites.find(s => !S.devp.some(d => d.site.id === s.id)); A.devBuy('P', s0.id, true); const d = S.devp.find(x => x.site.id === s0.id);
+    out.surveyMsg = d.st === 'dd' && A.devStart(d, 'office', 'std', 1, 'hold') === '権利調査中です' && d.st === 'dd';
+    const x = S.cos.filter(y => !y.priv && !y.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[3]; x.crisis = {due: S.week + 8}; x.debt = Math.max(x.debt, x.assets * .9);
+    const bnd = A.bondBuy(x, 1); A.startReorg(x); const it = S.inbox.find(i => i.kind === 'reorg' && i.cid === x.id); info.reorg = [!!bnd, !!it];
+    const card = () => { document.querySelector('[data-act=tab][data-v=inbox]').click(); const el = [...document.querySelectorAll('.offer')].find(e => e.textContent.includes('再建計画への対応')); return el ? el.innerHTML : ''; };
+    S.player.cash = x.debt * .1 * .4; S.player.loan = 0; const poor = card(); S.player.cash = x.debt * .1 * 3; const rich = card();
+    out.dipWhy = !!it && /DIP融資には手元資金/.test(poor) && /あと/.test(poor) && !/data-v="dip"/.test(poor) && !/DIP融資には手元資金/.test(rich) && /DIP融資（/.test(rich);
+    return {out, info}; });
+  console.log('rev60 fixes', JSON.stringify(r.info));
+  for (const [k, v] of Object.entries(r.out)) ok('rev60 fix: ' + k, v);
+  ok('rev60 fix: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testPlay59(b) {
   /* rev59 full playtest fixes: the HQ secretary never says "undefined"; a department's proposal does not repeat its name; on narrow phones the map buttons are not covered by the legend and "地球儀" / "+1週" stay on one line */
   const out = {};
@@ -5328,6 +5351,7 @@ async function balance(b) {
     await testVis57(b);
     await testHandover58(b);
     await testPlay59(b);
+    await testFix60(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
