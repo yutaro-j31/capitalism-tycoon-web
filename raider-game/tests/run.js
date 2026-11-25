@@ -802,7 +802,7 @@ async function testFeedback13(b) {
     const nw0 = A.netWorth('P'), cash0 = S.player.cash; A.execBuy('P', c, A.sharesForMoney(c, 30)); const nwBuy = A.netWorth('P'); A.execSell('P', c, c.own.P);
     out.impact = {paper: +(nwBuy - nw0).toFixed(3), trip: +(S.player.cash - cash0).toFixed(3)};
     /* (G) head-office costs come out of cash; negative cash is an overdraft that the bank collects after 8 weeks */
-    S.player.cash = 0; S.player.loan = 0; A.hqInit(); A.setOffice(2, 'tyo'); S.dept.acc.staff = 10; const loan0 = S.player.loan;
+    S.player.cash = 0; S.player.loan = 0; A.hqInit(); Object.assign(S.office, {lvl: 2, city: 'tyo'}); /* set directly (rev51: a move up is optional and needs the money) */ S.dept.acc.staff = 10; const loan0 = S.player.loan;
     A.deptStep(); out.od1 = S.player.cash < 0 && S.player.loan === loan0;
     const t = S.cos.find(x => !x.priv && !x.ctrl && x !== c); A.execBuy('P', t, A.sharesForMoney(t, 5)); S.player.cash = -2; S.player.loan = 0;
     A.overdraftStep(); const w = S.week; out.od2 = S.player.od === w; S.week += 8; A.overdraftStep(); out.od3 = S.player.cash >= -1e-9 && S.player.od == null;
@@ -3204,6 +3204,59 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testFunds51(b) {
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
+  const r = await p.evaluate(() => { try { return (() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); const e = A.econCheck(A.S); return ok1 && A.S !== S0 && e === ''; };
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.confirm = false; A.hqInit && A.hqInit(); A.sitesEnsure(); return S; };
+    /* artificial: cash set by the test around a real short sale (execShort); the collateral is half the short's current value */
+    const shortTo = (free, raise) => { const c = S.cos.find(x => !x.priv && !x.ctrl && x.price > 0); S.player.cash = 0; S.player.shorts = {}; A.execShort(c, A.sharesForShort(c, raise)); const lock = A.shortLiab() * .5; S.player.cash = free + lock; return {c, lock}; };
+    const st = () => JSON.stringify([S.player.cash, S.player.bank, S.player.loan, S.player.tl, S.player.shorts, S.player.plW, S.inbox.map(i => i.id)]);
+    const held = () => S.player.cash >= A.shortLiab() * .5 - 1e-9;
+    /* RE-12 */
+    { fresh(5201); S.player.cash = 100; A.bankBorrow(5); const {lock} = shortTo(.07645479154030799, 10); click('bankr', null, 5); out.T01 = Math.abs(S.player.bank - (5 - .07645479154030799)) < 1e-9 && Math.abs(S.player.cash - lock) < 1e-9 && A.freeCash() < 1e-9; info.T01 = {bank: S.player.bank, cash: S.player.cash, lock}; }
+    { fresh(5202); S.player.cash = 100; A.bankBorrow(5); shortTo(3, 10); const c0 = S.player.cash; const a = A.bankRepay(1); out.T02 = a === 1 && Math.abs(c0 - S.player.cash - 1) < 1e-9 && Math.abs(S.player.bank - 4) < 1e-9; }
+    { fresh(5203); S.player.cash = 100; A.bankBorrow(5); shortTo(5, 10); const a = A.bankRepay(5); out.T03 = Math.abs(a - 5) < 1e-9 && S.player.bank === 0 && A.freeCash() < 1e-9 && held(); }
+    { fresh(5204); S.player.cash = 100; A.bankBorrow(5); shortTo(0, 10); const s0 = st(); const a = A.bankRepay(5); out.T04 = a === 0 && st() === s0; }
+    { fresh(5205); S.player.cash = 100; A.bankBorrow(5); const {lock} = shortTo(0, 10); S.player.cash = lock * .5; const s0 = st(); const a1 = A.bankRepay(5); S.player.cash = -2; const s1 = st(); const a2 = A.bankRepay(5); out.T05 = a1 === 0 && a2 === 0 && st() === s1; }
+    { fresh(5206); S.player.cash = 100; A.bankBorrow(5); shortTo(3, 10); const s0 = st(); const z = [-1, NaN, Infinity, undefined, 0].map(v => A.bankRepay(v)).concat([-1, NaN, Infinity, undefined, 0].map(v => A.loanRepay(v))); out.T06 = z.every(x => x === 0) && st() === s0; }
+    { fresh(5207); S.player.cash = 100; A.bankBorrow(8); S.player.loan = 3; shortTo(2, 10); const box = A.debtBox(), bank = A.bankHTML ? A.bankHTML() : ''; const shown = (box.match(/返せる額を返す（200,000,000円）/g) || []).length === 2 && bank.includes('返せる額を返す（200,000,000円）'); /* bank and margin loan: both show what can be paid now */ const b0 = S.player.bank; click('bankr', null, A.S.player.bank); out.T07 = shown && Math.abs(b0 - S.player.bank - 2) < 1e-9 && held(); info.T07 = {shown}; }
+    { fresh(5208); S.player.cash = 100; A.bankBorrow(8); const {c} = shortTo(3, 10); A.bankHTML && A.bankHTML(); c.price *= 1.4; const f = A.freeCash(), b0 = S.player.bank; click('bankr', null, 3); out.T08 = Math.abs(b0 - S.player.bank - Math.max(0, f)) < 1e-9 && held(); }
+    /* AUD-01: CFO */
+    const cfo = () => { const m = Object.values(S.hr.people).find(x => !x.at); m.at = 'HQ'; m.role = 'CFO'; S.hr.hq.CFO = m.id; m.dlg = {bank: true, prop: true}; return m; };
+    const buf = () => Math.max(5, Math.max(0, A.grossWorth()) * .05);
+    { fresh(5209); S.player.cash = 100; A.bankBorrow(20); cfo(); shortTo(12, 10); const bf = buf(), f0 = A.freeCash(); A.dlgStep(); out.T09 = Math.abs(A.freeCash() - bf) < 1e-6 && held() && S.player.bank < 20; info.T09 = {bf, f0, f1: A.freeCash(), bank: S.player.bank}; }
+    { fresh(5210); S.player.loan = 20; cfo(); shortTo(12, 10); const bf = buf(); A.dlgStep(); out.T10 = Math.abs(A.freeCash() - bf) < 1e-6 && held() && S.player.loan < 20; }
+    { fresh(5211); S.player.cash = 1e4; const x = S.props.find(y => y.id === 'R-tyo-02'); A.buyProp('P', x, .5, A.propQuote(x, 1, .5).price); S.player.cash = 100; A.bankBorrow(10); S.player.loan = 10; cfo(); shortTo(25, 10); const bf = buf(), m0 = x.mort; A.dlgStep();
+      out.T11 = held() && A.freeCash() >= Math.min(bf, 10) - 1e-6 && S.player.bank < 10 && S.player.loan < 10 + 1e-9 && x.mort <= m0; info.T11 = {free: A.freeCash(), bf, bank: S.player.bank, loan: S.player.loan, mortPaid: m0 - x.mort}; }
+    /* AUD-02: term loans and the margin loan */
+    { fresh(5212); S.player.cash = 300; A.takeLoan(0); const l = S.player.tl[0]; shortTo(l.a - .01, 10); const s0 = st(); click('loanoff', null, l.id); out.T12 = st() === s0 && S.player.tl.length === 1; S.player.cash += .02; const c0 = S.player.cash; click('loanoff', null, l.id); out.T13 = S.player.tl.length === 0 && Math.abs(c0 - S.player.cash - l.a) < 1e-9 && held(); }
+    { fresh(5213); const {lock} = shortTo(0, 10); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0)[6]; A.execBuy('P', c, A.sharesForMoney(c, 6)); const L0 = S.player.loan; S.player.cash = lock + 1; click('loanpay', null, 6); const a = S.player.loan; S.player.cash = A.shortLiab() * .5 + .5; click('repayloan', null, 'all'); out.T14 = L0 > 5 && Math.abs(L0 - a - 1) < 1e-9 && Math.abs(a - S.player.loan - .5) < 1e-9 && held(); info.T14 = {L0, a, l: S.player.loan}; } /* a real margin loan (from a margin purchase), then both repayment buttons */
+    /* RE-13: the inbox */
+    const pitch = x => { S.inbox = S.inbox.filter(i => i.id !== 9951); S.inbox.unshift({id: 9950, kind: 'pitch', who: 'a', role: 'a', text: 'other', act: {t: 'x'}, why: 'x', exp: S.week + 8}); S.inbox.splice(1, 0, {id: 9951, kind: 'pitch', who: '投資部', role: '投資部', text: 't', act: {t: 'prop', pid: x.id}, why: 'x', exp: S.week + 4}); return S.inbox.find(i => i.id === 9951); };
+    const same = (it, w) => { const i = S.inbox.findIndex(z => z.id === 9951); return i === 1 && S.inbox[i].exp === w && JSON.stringify(S.inbox[i].act) === JSON.stringify(it.act); };
+    { fresh(5215); const x = S.props.find(y => y.id === 'R-par-01'), q = A.propQuote(x, 1, .5); shortTo(q.need - .3, 10); const it = pitch(x), exp = it.exp; const xs = JSON.stringify(x); click('pitch', 9951, '1'); out.T15 = same(it, exp) && JSON.stringify(x) === xs && it.act.ltv == null;
+      const q0 = A.propQuote(x, 1, 0); shortTo(q0.need - .3, 10); click('pitch', 9951, '2'); out.T16 = same(it, exp) && !x.own && it.act.ltv == null;
+      shortTo(q0.need + .1, 10); const c0 = S.player.cash; click('pitch', 9951, '2'); click('pitch', 9951, '2'); out.T17 = x.own === 'P' && x.mort === 0 && Math.abs(c0 - S.player.cash - q0.need) < 1e-9 && !S.inbox.some(i => i.id === 9951) && S.news.filter(n => n.t.includes(x.name) && n.t.includes('不動産取得')).length === 1; }
+    { fresh(5216); const x = S.props.find(y => y.id === 'R-ams') || S.props.find(y => y.id === 'R-par-02'), q = A.propQuote(x, 1, 0); shortTo(q.need + .05, 10); const it = pitch(x); x.v *= 1.05; const s0 = JSON.stringify([x.own, S.player.cash]); click('pitch', 9951, '2'); out.T18 = JSON.stringify([x.own, S.player.cash]) === s0 && S.inbox.some(i => i.id === 9951) && held(); }
+    { fresh(5217); const x = S.props.find(y => y.id === 'R-par-03'); pitch(x); S.rivals[0].cash = 1e5; A.buyProp(S.rivals[0].id, x, 0); const c0 = S.player.cash; click('pitch', 9951, '2'); const gone1 = !S.inbox.some(i => i.id === 9951) && S.player.cash === c0; pitch(x); click('pitch', 9951, '1'); out.T19 = gone1 && !S.inbox.some(i => i.id === 9951) && S.player.cash === c0; }
+    { fresh(5218); const x = S.props.find(y => y.id === 'R-sin-02'); pitch(x); click('pitch', 9951, '0'); click('pitch', 9951, '0'); const once = !S.inbox.some(i => i.id === 9951) && !x.own; out.T20 = once && S.inbox.some(i => i.id === 9950); }
+    { fresh(5219); const x = S.props.find(y => y.id === 'R-sin-03'), q = A.propQuote(x, 1, .5); shortTo(q.need - .5, 10); const it = pitch(x), exp = it.exp; click('pitch', 9951, '1'); const ok = loads(); S = A.S; const k = S.inbox.find(i => i.id === 9951); out.T21 = ok && !!k && k.exp === exp && k.act.pid === x.id && S.inbox.findIndex(i => i.id === 9951) === 1; }
+    /* T22-T26: contractual payments, forced settlement, other accounts, the property rules, the optional head-office spending */
+    { fresh(5220); S.player.cash = 300; A.takeLoan(0); A.bankBorrow(10); const l = S.player.tl[0], a0 = l.a, b0 = S.player.bank; shortTo(0, 10); const c0 = S.player.cash; A.step(); S = A.S; out.T22 = (S.player.tl[0] ? S.player.tl[0].a < a0 : true) && S.player.bank === b0 && S.player.cash !== c0; }
+    { fresh(5221); const {c} = shortTo(1, 10); const n = S.player.shorts[c.id].n, L0 = S.player.loan; c.price *= 3; A.step(); S = A.S; out.T23 = Number.isFinite(S.player.cash) && Number.isFinite(S.player.loan) && (!S.player.shorts[c.id] || S.player.shorts[c.id].n <= n) && A.econCheck(S) === ''; info.T23 = {cash: S.player.cash, loan: S.player.loan, still: !!S.player.shorts[c.id]}; }
+    { fresh(5222); const {lock} = shortTo(2, 10); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0)[4]; A.execBuy('P', c, A.sharesForMoney(c, 6)); const m = held() && Math.abs(S.player.loan - 4) < .05; const L0 = S.player.loan; shortTo(1, 10); const r1 = A.execBuy('P', c, A.sharesForMoney(c, 3), A.freeCash()); const cashOnly = held() && S.player.loan === L0;
+      S.pres.cash = 1; const pr0 = JSON.stringify([S.player.cash, S.player.loan]); A.execBuy('U', c, A.sharesForMoney(c, 5)); out.T24 = m && cashOnly && S.pres.cash >= -1e-9 && JSON.stringify([S.player.cash, S.player.loan]) === pr0; info.T24 = {loan: S.player.loan}; }
+    { fresh(5223); S.player.cash = 1e4; S.player.shorts = {}; const x = S.props.find(y => y.id === 'R-osa-02'); const q = A.propQuote(x, 1, .5); const c0 = S.player.cash; A.buyProp('P', x, .5, q.price); const r = A.renoQuote(x); A.propReno(x); const m0 = x.mort; A.propRefi(x, .3); const ok = Math.abs(c0 - S.player.cash - q.need - r.cost - (m0 - x.mort)) < 1e-6; shortTo(0, 10); const s0 = JSON.stringify([x.mort, x.reno, S.player.cash]); A.repayMort(x); A.propRefi(x, 0); out.T25 = ok && JSON.stringify([x.mort, x.reno, S.player.cash]) === s0; }
+    { fresh(5224); Object.assign(S.dept.inv, {on: true, staff: 1}); const {lock} = shortTo(0, 10); const o0 = S.office.lvl, ct0 = S.office.city, s0 = st(); const mv = A.setOffice(Math.min(o0 + 1, 3), 'osa'); const g = A.gradOffer('inv', 2), bz = A.payBonus(5); const same0 = st() === s0 && S.office.lvl === o0 && S.office.city === ct0;
+      S.player.cash = lock + 50; const mv2 = A.setOffice(Math.min(o0 + 1, 3), 'osa'); out.T26 = !mv && g === 0 && bz === 0 && same0 && mv2 === true && held(); info.T26 = {mv, g, bz}; }
+    return {out, info}; })(); } catch (e) { return {out: {threw: false}, info: {err: String(e.stack).slice(0, 600)}}; } });
+  console.log('rev51 funds', JSON.stringify(r.info).slice(0, 2000));
+  for (const [k, v] of Object.entries(r.out)) ok('rev51 funds: ' + k, v);
+  ok('rev51 funds: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+}
 async function testRealEstate50(b) {
   const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
   const r = await p.evaluate(() => { try { return (() => {
@@ -4879,6 +4932,7 @@ async function balance(b) {
     await testRealEstate48(b);
     await testRealEstate49(b);
     await testRealEstate50(b);
+    await testFunds51(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
