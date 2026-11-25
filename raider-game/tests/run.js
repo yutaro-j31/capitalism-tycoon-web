@@ -53,6 +53,11 @@ async function page(browser, opt) {
   p.on('console', m => { if (m.type() === 'error' && !/fonts\.g|Failed to load resource|CORS/.test(m.text())) errs.push(m.text()); });
   await p.goto(URL);
   await p.waitForTimeout(300);
+  /* rev62: the standard scenario now starts with 100,000,000円 (owner). The tests below were written for the earlier starts (50/30/10億円 by difficulty)
+     and check mechanics, not the starting amount, so a standard game made through the API keeps that start; the new start itself is checked by testCash62. */
+  await p.evaluate(() => { const A = window.__atlas; if (!A || A.__legacyStart) return; const ng = A.newGame, LEG = {easy: 50, normal: 30, hard: 10};
+    A.newGame = function (seed, diff, co, pn, scen, allU, opt) { return ng.call(this, seed, diff, co, pn, scen, allU, opt || ((scen || 'std') === 'std' ? {cash: LEG[diff] || 30} : undefined)); }; A.__legacyStart = true;
+    A.ui.startCashBy = LEG; /* the new-game button too (its other scenarios already start with these amounts) */ });
   return {p, ctx, errs};
 }
 
@@ -3775,6 +3780,28 @@ async function testRealEstate47(b) {
   await p.close();
 }
 
+async function testCash62(b) {
+  /* rev62 (owner): the standard scenario starts with 100,000,000円 at every difficulty; the other scenarios keep 50/30/10億円 (trader 0.2/0.1/0.05億円); the goal is unchanged */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(async () => { const out = {}, info = {}, A = window.__atlas, M = document.getElementById('modal'), wait = ms => new Promise(f => setTimeout(f, ms));
+    delete A.ui.startCashBy; /* this test checks what a player really gets */
+    const txt = {}; for (const d of ['easy', 'normal', 'hard']) { document.querySelector(`[data-act=diff][data-v=${d}]`).click(); await wait(30); txt[d] = (M.innerText.match(/元手[^。]*。/) || [''])[0]; }
+    info.txt = txt; out.setupText = Object.values(txt).every(t => t === '元手100,000,000円。');
+    document.querySelector('[data-act=diff][data-v=normal]').click(); document.querySelector('[data-act=newgame]').click(); await wait(200);
+    const S = A.S; out.newGameButton = S.scen === 'std' && S.player.cash === 1 && Math.abs(A.netWorth('P') - 1) < 1e-9 && /元手100,000,000円/.test(S.news.map(n => n.t).join(' '));
+    const cash = {}; for (const sc of ['std', 'bubble', 'yen', 'giants', 'trader']) for (const d of ['easy', 'normal', 'hard']) { A.newGame(1, d, 'B', 'b', sc, false, sc === 'std' ? {cash: -1} : undefined); cash[sc + '/' + d] = +A.S.player.cash.toFixed(3); }
+    info.cash = cash;
+    out.stdAll1 = cash['std/easy'] === 1 && cash['std/normal'] === 1 && cash['std/hard'] === 1;
+    out.othersKept = ['bubble', 'yen', 'giants'].every(sc => cash[sc + '/easy'] === 50 && cash[sc + '/normal'] === 30 && cash[sc + '/hard'] === 10) && cash['trader/easy'] === .2 && cash['trader/normal'] === .1 && cash['trader/hard'] === .05;
+    A.newGame(2, 'normal', 'B', 'b', 'std', false, {cash: -1}); const t = A.exportText(); const S0 = A.S; A.importText(t); out.loads = A.S !== S0 && A.S.player.cash === 1 && A.econCheck(A.S) === '';
+    for (let i = 0; i < 26; i++) A.step(); out.plays = A.econCheck(A.S) === '' && isFinite(A.netWorth('P'));
+    return {out, info}; });
+  console.log('rev62 cash', JSON.stringify(r.info));
+  for (const [k, v] of Object.entries(r.out)) ok('rev62 cash: ' + k, v);
+  ok('rev62 cash: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testDip61(b) {
   /* rev61 DIP loans (owner decision: option B) — the lender picks 1%, 3%, 5% or 10% of the company's debt; a larger loan raises the odds more; amounts the free cash cannot pay are not offered (and say so); a refused choice changes nothing; older 'dip' buttons still mean 10% */
   const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
@@ -5383,6 +5410,7 @@ async function balance(b) {
     await testPlay59(b);
     await testFix60(b);
     await testDip61(b);
+    await testCash62(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

@@ -863,7 +863,7 @@ const SCEN = {
   giants: {n: '巨人の時代', desc: 'ライバル3人は資金2倍で、すでに各2社を支配している。最初から追う展開。'},
   trader: {n: '個人トレーダーから', desc: '元手10,000,000円（やさしいは20,000,000円、むずかしいは5,000,000円）の個人トレーダーとして始めます。運用実績を積んで会社を設立し、会社になると投資家から運用を任せてもらえるようになります（運用委託は会社の事業）。その先に財閥を目指します。株は1株単位で売買します。'},
 };
-function newGame(seed, diff, company, pname, scen, allU){
+function newGame(seed, diff, company, pname, scen, allU, opt){ /* opt.cash: a starting cash given by the caller (tools and tests only; the new-game screen never passes it) */
   ui.fcol = ui.flogo = null; ui.pendingAward = false; ui.pendingUnlock = null; /* nothing from the last game is shown in a new one */ /* a founding choice never carries over to another game */
   const D = DIFF[diff] || DIFF.normal; try { ui.nwShown = null; ui.nwAnim = false; } catch (e) { /* ui not ready yet */ } /* no count-up from the previous game's figure */
   S = {
@@ -871,7 +871,7 @@ function newGame(seed, diff, company, pname, scen, allU){
     company: (company || '').trim().slice(0, 20) || DEF_CO, pname: (pname || '').trim().slice(0, 16) || DEF_PN, rs: (seed ^ 0x5bd1e995) | 0, week: 0, nextId: 1,
     econ: {gdp: 2.6, rate: 4.0, sent: 1.0, fx: FX0, fxBand: 15, fxHist: [FX0], indS: Object.fromEntries(Object.keys(IND).map(k => [k, 1]))},
     stage: 1, allUnlocked: !!allU, research: {pts: 0, budget: 0, done: {}},
-    player: {cash: D.cash, loan: 0, bank: 0, tl: [], cost: {}, divs: 0, shorts: {}, opts: [], ban: {}, rep: .5, outside: 0},
+    player: {cash: opt && opt.cash > 0 && (SCEN[scen] ? scen : 'std') !== 'trader' ? opt.cash : startCash(diff, SCEN[scen] ? scen : 'std'), loan: 0, bank: 0, tl: [], cost: {}, divs: 0, shorts: {}, opts: [], ban: {}, rep: .5, outside: 0},
     tips: [], optSeq: 1, reports: [],
     rivals: RIVAL_DEF.map(r => ({id: r.id, n: r.n, tag: r.tag, cash: r.cash * D.rc, agg: Math.min(1, r.agg * D.ra), sell: r.sell, prem: r.prem, style: r.style})),
     cos: [], news: [], inbox: [], tobs: [], tobSeq: 1, ipo: 0, idx: 1000, idxHist: [1000],
@@ -3533,7 +3533,8 @@ function makeGrowthCo(def){ /* a full listed company, scaled down to a market va
 }
 const indivName = () => `${S.pname}（個人投資家）`;
 const TRADER_CASH = {easy: .2, normal: .1, hard: .05};
-const startCash = (diff, scen) => scen === 'trader' ? (TRADER_CASH[diff] || .1) : (DIFF[diff] || DIFF.normal).cash; /* what the game really starts with */
+const STD_CASH = 1; /* rev62 (owner): the standard scenario starts with 100,000,000円 at every difficulty; the other scenarios keep the difficulty's amount */
+const startCash = (diff, scen) => scen === 'trader' ? (TRADER_CASH[diff] || .1) : scen === 'std' ? STD_CASH : (DIFF[diff] || DIFF.normal).cash; /* what the game really starts with */
 const diffDesc = (k, scen) => `元手${fm(startCash(k, scen))}。` + (DIFF[k].desc || '').replace(/^元手[^。]*。/, ''); /* the difficulty text follows the scenario */
 function applyScenario(){
   const e = S.econ;
@@ -8601,7 +8602,7 @@ function startNew(){
   // Seed from a counter in storage so each new game differs, without Math.random/Date in the sim.
   let n = 1; try { n = (+localStorage.getItem(SAVE_KEY + '_n') || 0) + 1; localStorage.setItem(SAVE_KEY + '_n', String(n)); } catch (e) { /* ignore */ }
   backupSave();
-  newGame((0x2545F491 * n + 7) | 0, ui.diff, ui.cname, ui.pname, ui.scen, ui.allU);
+  newGame((0x2545F491 * n + 7) | 0, ui.diff, ui.cname, ui.pname, ui.scen, ui.allU, ui.startCashBy ? {cash: ui.startCashBy[ui.diff]} : undefined); /* ui.startCashBy: tools/tests only (no screen sets it) */
   S.color = BRAND_COL[ui.ccol || 0]; S.logo = ui.clogo || 0; applyBrand();
   ui.sel = null; ui.city = null; ui.tab = 'market'; ui.speed = 0; /* the player starts the clock */
   closeModal(); save(); renderLegend(); renderTicker(); renderAll(true);
