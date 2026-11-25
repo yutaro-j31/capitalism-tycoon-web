@@ -512,7 +512,11 @@ function propImgHTML(kind, grade, size, building){ const src = building ? PROP2D
    Engine: deterministic weekly simulation (seeded PRNG only).
    Money unit: $ millions. Share unit: millions of shares.
    ===================================================================== */
-const SAVE_KEY = 'atlas_capital_save_v1';
+const DEMO = false; /* rev65 demo build: tools/make-demo.py sets this to true (standard scenario, stages 1–2, five years). The full game never changes behaviour while it is false. */
+const DEMO_WEEKS = 260; /* the demo ends after five years, or when the third stage ("経営者") is reached */
+const DEMO_BLOCK = /^(dev|fund|ipo|mm|nl|pe|sb|vc|found)/; /* actions kept for the full game: development, funds, IPOs, managed money, newsletters, PE, own bonds, ventures, founding */
+const DEMO_INBOX = new Set(['pe', 'pesec', 'pepol', 'peexit', 'vcoffer', 'vcfollow', 'vcask', 'mmoffer', 'fundrev', 'fundact', 'opsprop']);
+const SAVE_KEY = DEMO ? 'atlas_capital_demo_v1' : 'atlas_capital_save_v1'; /* the demo never writes over a full game's save */
 const GOAL = 1000; // 1,000億円 (internal money unit: 1億円)
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const $ = s => document.querySelector(s);
@@ -3678,7 +3682,7 @@ const peDesk = () => !!(S && ((S.dept && S.dept.inv && S.dept.inv.on) || S.cos.s
 const trWeeks = () => S && S.tr ? (Number.isInteger(S.tr.n) && S.tr.n >= S.tr.rets.length ? S.tr.n : S.tr.rets.length) : 0; /* weeks of track record (whole period) */
 const COMPANY_ONLY = {pe: 1, actor: 1, found: 1, expand: 1, lbo: 1, divest: 1, privatize: 1, holdipo: 1, research: 1, research34: 1}; /* needs a company (departments, subsidiaries, debt of its own) */
 const TRADER_STAGE = {lbo: 3, pe: 1}; /* a trader's company can buy small private companies from the start */ /* a trader's company may use LBO one stage earlier: the bridge to buying companies */
-const has = f => { if (!S) return true;
+const has = f => { if (!S) return true; if (DEMO && (FEAT_STAGE[f] || 1) > 2) return false; /* demo: stages 1–2 only */
   if (preCo()) { if (f === 'short' || f === 'options') return trWeeks() >= 26; if (COMPANY_ONLY[f]) return false; return S.allUnlocked || (S.stage || 1) >= (FEAT_STAGE[f] || 1); } /* an individual: TOB, activism, property and the rest come with the stages */
   if (f === 'pe' && !peDesk()) return false;
   if ((f === 'short' || f === 'options') && isTrader() && trWeeks() >= 26) return true; /* earned as an individual: incorporating does not take it away */
@@ -3696,6 +3700,7 @@ function stageFor(){
 function checkStage(){
   if (S.allUnlocked) return;
   const st = stageFor();
+  if (DEMO && st >= 3) { demoEnd('stage'); return; }
   if (st > S.stage) { const from = S.stage, had = Object.keys(FEAT_STAGE).filter(k => has(k)); /* already usable before this stage (a trader's shorting after 26 weeks): not announced as new */ S.stage = st; news(`【成長】${S.company}は「${STAGES[st].n}」の段階へ。新しい機能が解放されました`, 'you'); ui.pendingUnlock = [from + 1, st, had]; }
 }
 
@@ -4086,7 +4091,7 @@ function negotiate(k, c, n, price, actor){
 }
 
 /* ---------- inbox ---------- */
-function addInbox(item){ item.id = S.inboxSeq++; S.inbox.push(item); ui.inboxFlash = true; const st = item.kind === 'story', pz = autoPause(st ? 'story' : (item.kind === 'pitch' || item.kind === 'debate') ? 'pitch' : 'inbox'); toast((st ? '新しい出来事が届きました' : item.kind === 'debate' ? '幹部の意見が割れています（受信箱）' : item.kind === 'pitch' ? `${item.who}（${item.role}）から提案が届きました` : '受信箱に新しい提案が届きました') + (pz ? '（時間を停止しました）' : '')); }
+function addInbox(item){ if (DEMO && DEMO_INBOX.has(item.kind)) return item; /* demo: no proposals for full-game features */ item.id = S.inboxSeq++; S.inbox.push(item); ui.inboxFlash = true; const st = item.kind === 'story', pz = autoPause(st ? 'story' : (item.kind === 'pitch' || item.kind === 'debate') ? 'pitch' : 'inbox'); toast((st ? '新しい出来事が届きました' : item.kind === 'debate' ? '幹部の意見が割れています（受信箱）' : item.kind === 'pitch' ? `${item.who}（${item.role}）から提案が届きました` : '受信箱に新しい提案が届きました') + (pz ? '（時間を停止しました）' : '')); }
 function resolveInbox(id, accept){
   const it = S.inbox.find(i => i.id === id); if (!it) return; const at = S.inbox.indexOf(it);
   S.inbox = S.inbox.filter(i => i !== it);
@@ -5137,6 +5142,7 @@ function mmAccept(it){ if (!it || !finite(it.amt) || !(it.amt > 0)) return 0; /*
   const amt = Math.min(it.amt, room), L = mmList(); L.push({id: m.seq = (m.seq || 1) + 1, who: it.who, val: amt, w: S.week, hwm: amt}); mmSync();
   news(`【運用委託】${it.who}から${fm(amt)}を預かりました（預かり資産${fm(m.aum)}・年2%の管理報酬と利益の20%の成功報酬。預かったお金はお客様のもので、あなたの現金にはなりません）`, 'you'); return amt; }
 function step(){
+  if (DEMO && (S.demoEnd || S.week >= DEMO_WEEKS)) { demoEnd(S.demoEnd || 'time'); return; } /* the demo's clock stops at its end */
   GS = null; LTAG = '';
   pubInit(); /* companies listed since last week publish their first figures */
   const tr0 = trSnap();
@@ -5402,7 +5408,18 @@ function trialLoad(o){ /* a save is accepted only if it opens, draws every tab a
   catch (e) { trialErr = String(e && e.stack || e).slice(0, 400); return false; }
   finally { S = S0; GS = null; LTAG = L0; for (const k of Object.keys(ui)) if (!(k in u0)) delete ui[k]; Object.assign(ui, u0); ui.sim = false; } /* BUG-49: the trial leaves nothing behind (the group cache and the forced-sale tag are global) */
 }
-function parseSave(text){ try { const o = migrate(JSON.parse(text)); return o && trialLoad(o) ? o : null; } catch (e) { return null; } }
+function demoSaveOk(o){ return !!o && (o.scen || 'std') === 'std' && !o.allUnlocked && (o.stage || 1) <= 2; } /* the demo plays only games it could have made itself */
+function demoBlocked(a, el){ const v = el && el.dataset ? el.dataset.v : null; return DEMO_BLOCK.test(a) || (a === 'allu' && v === '1') || (a === 'scen' && v && v !== 'std'); }
+function demoEnd(why){
+  if (!S.demoEnd) { S.demoEnd = why; news(why === 'stage' ? `【体験版】${S.company}は「経営者」の段階に届きました。体験版はここまでです` : '【体験版】5年間の体験期間が終わりました', 'you'); try { save(); } catch (e) { /* storage refused */ } }
+  ui.speed = 0; if (ui.sim) return;
+  openModal(`<h2>体験版はここまでです</h2><p class="lede">${S.demoEnd === 'stage' ? '経営権の取得（または純資産15,000,000,000円）に届き、「経営者」の段階に入りました。' : '5年間の体験期間が終わりました。'}遊んでいただきありがとうございます。</p>
+    <div class="kv"><div><span>会社の純資産</span><b>${fm(netWorth('P'))}</b></div><div><span>経過</span><b>${Math.floor(S.week / 52)}年${S.week % 52}週</b></div><div><span>難易度</span><b>${(DIFF[S.diff] || DIFF.normal).n}</b></div></div>
+    <h3>製品版でできること</h3><ul class="ul"><li>子会社の経営（配当・価格・広告・増資・社債・合併）と会社の創業</li><li>委任状争奪戦・オプション・研究ツリー</li><li>LBO・事業売却・持株会社の上場・非公開化（「財閥」の段階）</li><li>PE投資とファンドの組成・運用、ベンチャー投資、自社のIPO</li><li>不動産開発と建設の3Dアニメーション</li><li>ほかの4シナリオ（バブル崩壊直後・超円高・巨人の時代・個人トレーダーから）</li></ul>
+    <p class="note">「セーブを書き出す」で保存したテキストは、製品版の「セーブファイルから続きを遊ぶ」で読み込めます。</p>
+    <div class="btnrow"><button type="button" class="btn gold" data-act="savemgr">セーブを書き出す</button><button type="button" class="btn" data-act="restart">体験版を最初から</button></div>`);
+}
+function parseSave(text){ try { const o = migrate(JSON.parse(text)); return o && trialLoad(o) && (!DEMO || demoSaveOk(o)) ? o : null; } catch (e) { return null; } }
 function loadSave(){
   let raw = null; try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return null; }
   const o = raw ? parseSave(raw) : null; if (o) return o;
@@ -7651,7 +7668,7 @@ function tapMap(px, py){
    input handling
    ===================================================================== */
 const NEED = {tender: 'tob', activist: 'activist', proxy: 'proxy', negotiate: 'neg', short: 'short', buyopt: 'options', divsell: 'divest', spinoff: 'divest', holdipo: 'holdipo', research: 'research', tmode: 'tob', pbuy: 'realty', pebid: 'pe', pedd: 'pe', pesearch: 'pe', pepriv: 'privatize'};
-function act(a, el){ plEnsure(); const m = !ui.sim && S && S.tr ? {S0: S, k: S.tr.k || 0, g: grossWorth(), f: S.tr.flow || 0} : null; if (m) trSeen(m.g);
+function act(a, el){ if (DEMO && demoBlocked(a, el)) { toast('この機能は製品版で使えます', true); return; } plEnsure(); const m = !ui.sim && S && S.tr ? {S0: S, k: S.tr.k || 0, g: grossWorth(), f: S.tr.flow || 0} : null; if (m) trSeen(m.g);
   try { return act0(a, el); } finally { if (S) devPurge(); if (S && S.player && !ui.sim && mgSync()) recomputeCtrl(); /* rev29: a sale that repaid the margin loan restores votes now, not next week */ if (m && S === m.S0 && S.tr && (S.tr.k || 0) === m.k) { const d = (grossWorth() - m.g) - ((S.tr.flow || 0) - m.f); if (Math.abs(d) > 1e-9) trAx(a, d); S.tr.seen = grossWorth() - (S.tr.eq1 || 0) - (S.tr.flow || 0); } /* BUG-30: every action that changed net worth this week (trades, options, deals, events), for checking a save */
     if (S) { acqFlush(); roadRec(); } if (!ui.sim && S) save(); } } /* saved at once, whichever way the action returns */
 function act0(a, el){ LTAG = '';
@@ -8534,7 +8551,7 @@ function showStart(fresh){
   openModal(`<h1><b>ATLAS</b><br>CAPITAL</h1><p class="lede">日本と世界の${CITIES.length}都市・${CO_DEF.length}社の株式市場で、買い占め・TOB・合併を駆使して巨大コングロマリットを築く投資シミュレーション。</p>
   <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:0 0 8px;font-weight:500">新しいゲームの設定</h3>
   <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:0 0 8px;font-weight:500">シナリオ</h3>
-  <div class="seg" role="radiogroup" aria-label="シナリオ">${Object.keys(SCEN).map(k => `<button role="radio" aria-checked="${ui.scen === k}" class="${ui.scen === k ? 'on' : ''}" data-act="scen" data-v="${k}" data-fresh="${fresh ? 1 : ''}" style="font-family:var(--f-body);font-size:13px;min-height:40px">${SCEN[k].n}</button>`).join('')}</div>
+  <div class="seg" role="radiogroup" aria-label="シナリオ">${Object.keys(SCEN).map(k => `<button role="radio" aria-checked="${ui.scen === k}" class="${ui.scen === k ? 'on' : ''}" data-act="scen" data-v="${k}" data-fresh="${fresh ? 1 : ''}" style="font-family:var(--f-body);font-size:13px;min-height:40px">${SCEN[k].n}${DEMO && k !== 'std' ? ' 🔒' : ''}</button>`).join('')}</div>
   ${ui.scen === 'trader' ? '<p class="note">個人トレーダーとして始めます。会社名・カラー・ロゴは、会社を設立するときに決めます。</p>' : `  <div class="field name"><label for="cname">会社名</label><input id="cname" class="txt" type="text" maxlength="20" autocomplete="off" placeholder="${DEF_CO}" value="${esc(ui.cname)}" data-act-input="cname"></div>
   <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:0 0 8px;font-weight:500">会社のカラーとロゴ</h3>
   <div class="filters" role="radiogroup" aria-label="会社のカラー">${BRAND_COL.map((c, i) => `<button class="swatch ${(ui.ccol || 0) === i ? 'on' : ''}" style="background-color:${c}" data-act="ccol" data-v="${i}" data-fresh="${fresh ? 1 : ''}" aria-label="カラー${i + 1}"></button>`).join('')}</div>
@@ -8543,7 +8560,7 @@ function showStart(fresh){
   <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:12px 0 8px;font-weight:500">難易度</h3>
   <div class="seg" role="radiogroup" aria-label="難易度">${Object.keys(DIFF).map(k => `<button role="radio" aria-checked="${ui.diff === k}" class="${ui.diff === k ? 'on' : ''}" data-act="diff" data-v="${k}" data-fresh="${fresh ? 1 : ''}" style="font-family:var(--f-body);font-size:14px;min-height:44px;flex:1">${DIFF[k].n}</button>`).join('')}</div>
   <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:12px 0 8px;font-weight:500">機能の解放</h3>
-  <div class="seg" role="radiogroup" aria-label="機能の解放">${[[false, '段階的に（おすすめ）'], [true, '最初から全部（上級者）']].map(([v, l]) => `<button role="radio" aria-checked="${ui.allU === v}" class="${ui.allU === v ? 'on' : ''}" data-act="allu" data-v="${v ? 1 : 0}" data-fresh="${fresh ? 1 : ''}" style="font-family:var(--f-body);font-size:13px;min-height:40px">${l}</button>`).join('')}</div>${ui.allU ? '<p class="note">資産額による段階の制限をなくします。部門が必要な機能（PEは投資部など）は、本社で部門を作ると使えます。</p>' : ''}
+  <div class="seg" role="radiogroup" aria-label="機能の解放">${[[false, '段階的に（おすすめ）'], [true, '最初から全部（上級者）']].map(([v, l]) => `<button role="radio" aria-checked="${ui.allU === v}" class="${ui.allU === v ? 'on' : ''}" data-act="allu" data-v="${v ? 1 : 0}" data-fresh="${fresh ? 1 : ''}" style="font-family:var(--f-body);font-size:13px;min-height:40px">${l}${DEMO && v ? ' 🔒' : ''}</button>`).join('')}</div>${ui.allU ? '<p class="note">資産額による段階の制限をなくします。部門が必要な機能（PEは投資部など）は、本社で部門を作ると使えます。</p>' : ''}
   <div class="goal" style="margin-top:8px">${diffDesc(ui.diff, ui.scen)}${ui.scen !== 'std' ? `<br><b>${SCEN[ui.scen].n}</b>：${SCEN[ui.scen].desc}` : ''}<br>目標：純資産 <b class="num" style="color:var(--gold)">100,000,000,000円</b>。3人のライバルより先に到達せよ。</div>
   <div class="btnrow">${has ? `<button class="btn gold" data-act="continue">続きから（${esc(S.company)}・${DIFF[S.diff].n}）</button>` : ''}<label class="btn filebtn">セーブファイルから続きを遊ぶ<input type="file" id="savefile" accept=".json,.txt,application/json,text/plain" hidden></label><button class="btn ${has ? '' : 'gold'}" data-act="newgame">「${D.n}${ui.scen !== 'std' ? '・' + SCEN[ui.scen].n : ''}」で新しく始める</button></div>
   <h3 style="font-size:12px;letter-spacing:.14em;color:var(--mute);margin:18px 0 8px;font-weight:500">遊び方</h3>${HOWTO}`);
@@ -8583,6 +8600,7 @@ const loadNotice = what => ui.importUnsaved ? `${what}を読み込みました�
 function exportText(){ return JSON.stringify(stamp()); }
 function importText(text, fromBak){
   const o = parseSave(text);
+  if (!o && DEMO) { let raw = null; try { raw = migrate(JSON.parse(text)); } catch (e) { /* not a save */ } if (raw && !demoSaveOk(raw)) return '体験版で読み込めるのは、標準シナリオ・段階的な解放・「大株主」の段階までのセーブだけです。今のゲームはそのままです。'; }
   if (!o) return '読み込めませんでした。テキストが途中で切れているか、このゲームのセーブではありません。今のゲームはそのままです。';
   const prev = S;
   try { S = o; if (!S.mk) mkInit(); repairSave(); applyBrand(); hqInit(); recordCheck(); } catch (e) { S = prev; applyBrand(); return '読み込めませんでした（セーブの中身が壊れています）。今のゲームはそのままです。'; }

@@ -3780,6 +3780,45 @@ async function testRealEstate47(b) {
   await p.close();
 }
 
+async function testDemo65(b) {
+  /* rev65 BOOTH demo (tools/make-demo.py): standard scenario only, stages 1–2, ends at the third stage or after five years, its own save slot; the full game is unchanged */
+  const out = path.join(require('os').tmpdir(), 'atlas-demo-test.html');
+  require('child_process').execFileSync('python3', [path.join(ROOT, 'tools', 'make-demo.py'), out]);
+  const ctx = await b.newContext({viewport: {width: 390, height: 844}}); const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.addInitScript(() => { try { if (!localStorage.getItem('__seeded')) { localStorage.setItem('atlas_capital_save_v1', 'FULL-GAME-SAVE'); localStorage.setItem('__seeded', '1'); } } catch (e) { /* ignore */ } });
+  await p.goto('file://' + out); await p.waitForTimeout(500);
+  const r = await p.evaluate(async () => { const A = window.__atlas, out = {}, info = {}, wait = ms => new Promise(f => setTimeout(f, ms)), M = document.getElementById('modal');
+    out.title = document.title === 'Atlas Capital 体験版' && /体験版/.test(document.querySelector('.brand').textContent);
+    const scBtns = [...M.querySelectorAll('[data-act=scen]')]; out.locksShown = scBtns.filter(e => /🔒/.test(e.textContent)).length === 4 && !/🔒/.test(scBtns.find(e => e.dataset.v === 'std').textContent) && /🔒/.test(M.querySelector('[data-act=allu][data-v="1"]').textContent);
+    M.querySelector('[data-act=scen][data-v=bubble]').click(); await wait(30); M.querySelector('[data-act=allu][data-v="1"]').click(); await wait(30);
+    M.querySelector('[data-act=newgame]').click(); await wait(200); let S = A.S;
+    out.startsStd = S.scen === 'std' && !S.allUnlocked && S.stage === 1 && S.player.cash === 1;
+    out.ownSlot = !!localStorage.getItem('atlas_capital_demo_v1') && localStorage.getItem('atlas_capital_save_v1') === 'FULL-GAME-SAVE';
+    S.stage = 2; out.stage2On = A.has('tob') && A.has('short') && A.has('realty'); out.stage3Off = !A.has('ceo') && !A.has('options') && !A.has('lbo') && !A.has('pe');
+    const before = A.exportText(); const el = document.createElement('button'); el.dataset.v = 'x'; for (const a of ['vcopen', 'devbuy', 'pebid', 'fundact', 'iponew', 'sbiss', 'mmacc', 'nlstart', 'found']) A.act(a, el); out.blockedNoChange = A.exportText() === before;
+    for (let i = 0; i < 80; i++) { A.step(); } info.kinds = [...new Set(S.inbox.map(i => i.kind))]; out.noFullInbox = !S.inbox.some(i => ['pe', 'pesec', 'vcoffer', 'vcask', 'mmoffer', 'fundact'].includes(i.kind));
+    /* the third stage ends the demo */
+    S.player.cash = 200; A.step(); const w = S.week; out.stageEnds = S.demoEnd === 'stage' && S.stage === 2 && /体験版はここまで/.test(M.innerText) && !!M.querySelector('[data-act=savemgr]');
+    A.step(); A.step(); out.clockStops = S.week === w;
+    const demoTxt = A.exportText(); info.demoLen = demoTxt.length;
+    /* five years */
+    A.closeModal(); A.newGame(6501, 'normal', 'B', 'b', 'std', false); S = A.S; S.week = 259; A.step(); const w2 = S.week; A.step(); out.fiveYears = w2 === 260 && S.demoEnd === 'time' && S.week === 260;
+    /* saves the demo cannot have made are refused */
+    A.closeModal(); A.newGame(6502, 'normal', 'B', 'b', 'bubble', false); const bub = A.exportText(); A.newGame(6503, 'normal', 'B', 'b', 'std', true); const allu = A.exportText(); A.newGame(6504, 'normal', 'B', 'b', 'std', false); const cur = A.S;
+    const m1 = A.importText(bub), m2 = A.importText(allu); out.refusesFull = /体験版で読み込める/.test(m1 || '') && /体験版で読み込める/.test(m2 || '') && A.S === cur;
+    return {out, info, demoTxt}; });
+  console.log('rev65 demo', JSON.stringify(r.info));
+  for (const [k, v] of Object.entries(r.out)) ok('rev65 demo: ' + k, v);
+  ok('rev65 demo: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await ctx.close();
+  /* the full game loads a demo save and goes on past the demo's end */
+  const {p: q, errs: e2} = await page(b, {viewport: {width: 390, height: 844}});
+  const f = await q.evaluate(t => { const A = window.__atlas; A.closeModal(); const m = A.importText(t); const S = A.S; const w = S.week; A.step(); return {ok: !m, w0: w, w1: A.S.week, stage: A.S.stage, demoOff: !document.getElementById('modal').innerText.includes('体験版はここまで')}; }, r.demoTxt);
+  ok('rev65 demo: the full game continues a demo save', f.ok && f.w1 === f.w0 + 1 && f.demoOff, JSON.stringify(f));
+  ok('rev65 demo: full game no page errors', e2.length === 0, e2.slice(0, 2).join(' | '));
+  await q.close();
+}
+
 async function testCash62(b) {
   /* rev62 (owner): the standard scenario starts with 100,000,000円 at every difficulty; the other scenarios keep 50/30/10億円 (trader 0.2/0.1/0.05億円); the goal is unchanged */
   const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
@@ -5411,6 +5450,7 @@ async function balance(b) {
     await testFix60(b);
     await testDip61(b);
     await testCash62(b);
+    await testDemo65(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
