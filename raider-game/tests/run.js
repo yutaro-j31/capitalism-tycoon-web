@@ -3775,6 +3775,36 @@ async function testRealEstate47(b) {
   await p.close();
 }
 
+async function testDip61(b) {
+  /* rev61 DIP loans (owner decision: option B) — the lender picks 1%, 3%, 5% or 10% of the company's debt; a larger loan raises the odds more; amounts the free cash cannot pay are not offered (and say so); a refused choice changes nothing; older 'dip' buttons still mean 10% */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(() => { const A = window.__atlas, out = {}, info = {};
+    const setup = (seed) => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); const S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.player.cash = 400;
+      const x = S.cos.filter(y => !y.priv && !y.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[3]; x.crisis = {due: S.week + 8}; x.debt = Math.max(x.debt, x.assets * .9);
+      A.bondBuy(x, 1); A.startReorg(x); return {S, x, it: S.inbox.find(i => i.kind === 'reorg' && i.cid === x.id)}; };
+    const card = () => { document.querySelector('[data-act=tab][data-v=inbox]').click(); const el = [...document.querySelectorAll('.offer')].find(e => e.textContent.includes('再建計画への対応')); return el ? el.innerHTML : ''; };
+    const snap = (S, x) => JSON.stringify([S.player.cash, x.cash, x.debt, x.reorg.dip || 0, (S.dips || []).length]);
+    { const {S, x, it} = setup(6101); S.player.cash = x.debt; S.player.loan = 0; const h = card(); const vs = (h.match(/data-v="dip\d+"/g) || []).map(m => m.slice(8, -1)); info.opts = vs; info.debt = +x.debt.toFixed(3);
+      out.fourOptions = JSON.stringify(vs) === '["dip1","dip3","dip5","dip10"]' && /負債.*の1%・3%・5%・10%から選ぶ/.test(h);
+      const o0 = A.reorgOdds(x), d0 = x.debt, c0 = S.player.cash, xc0 = x.cash; A.ibxChoose(it.id, 'dip3'); const lent = x.reorg.dip;
+      out.lends3 = Math.abs(lent - d0 * .03) < 1e-9 && Math.abs(S.player.cash - (c0 - lent)) < 1e-9 && Math.abs(x.debt - (d0 + lent)) < 1e-9 && Math.abs(x.cash - (xc0 + lent)) < 1e-9 && S.dips.length === 1 && S.dips[0].amt === lent;
+      info.boost3 = +(A.reorgOdds(x) - o0).toFixed(4); out.boostMatches = Math.abs((A.reorgOdds(x) - o0) - Math.min(.25, lent / x.debt * 2)) < 1e-9 || A.reorgOdds(x) === .85;
+      const s1 = snap(S, x); A.ibxChoose(it.id, 'dip10'); out.onlyOnce = snap(S, x) === s1;
+      out.cardAfter = !/data-v="dip\d+"/.test(card()); }
+    { const res = []; for (const q of [1, 3, 5, 10]) { const {S, x, it} = setup(6102); S.player.cash = x.debt; const o0 = A.reorgOdds(x); A.ibxChoose(it.id, 'dip' + q); res.push(A.reorgOdds(x) - o0); }
+      info.boosts = res.map(v => +v.toFixed(4)); out.moreIsMore = res.every((v, i) => i === 0 || v > res[i - 1] - 1e-12) && res[3] > res[0]; }
+    { const {S, x, it} = setup(6103); S.player.loan = 0; S.player.cash = x.debt * .04; const h = card(); const vs = (h.match(/data-v="dip\d+"/g) || []).map(m => m.slice(8, -1));
+      out.affordableOnly = JSON.stringify(vs) === '["dip1","dip3"]' && /10%には/.test(h);
+      const s0 = snap(S, x); A.ibxChoose(it.id, 'dip10'); A.ibxChoose(it.id, 'dip7'); A.ibxChoose(it.id, 'dipx'); out.refusedNoChange = snap(S, x) === s0 && S.inbox.includes(it); }
+    { const {S, x, it} = setup(6104); S.player.cash = x.debt; const d0 = x.debt; A.ibxChoose(it.id, 'dip'); out.legacyIs10 = Math.abs(x.reorg.dip - d0 * .1) < 1e-9; }
+    { const {S, x, it} = setup(6105); S.player.cash = x.debt; A.ibxChoose(it.id, 'dip5'); const txt = A.exportText(); const S0 = A.S; A.importText(txt); out.loads = A.S !== S0 && A.econCheck(A.S) === '' && A.S.cos.find(y => y.id === x.id).reorg.dip > 0; }
+    return {out, info}; });
+  console.log('rev61 dip', JSON.stringify(r.info));
+  for (const [k, v] of Object.entries(r.out)) ok('rev61 dip: ' + k, v);
+  ok('rev61 dip: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testFix60(b) {
   /* rev60 (items from the Muse/ChatGPT reports): floor-area ratios shown without a floating-point tail; starting work during the rights survey says so; the DIP card says why its button is missing */
   const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
@@ -3789,8 +3819,8 @@ async function testFix60(b) {
     const x = S.cos.filter(y => !y.priv && !y.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[3]; x.crisis = {due: S.week + 8}; x.debt = Math.max(x.debt, x.assets * .9);
     const bnd = A.bondBuy(x, 1); A.startReorg(x); const it = S.inbox.find(i => i.kind === 'reorg' && i.cid === x.id); info.reorg = [!!bnd, !!it];
     const card = () => { document.querySelector('[data-act=tab][data-v=inbox]').click(); const el = [...document.querySelectorAll('.offer')].find(e => e.textContent.includes('再建計画への対応')); return el ? el.innerHTML : ''; };
-    S.player.cash = x.debt * .1 * .4; S.player.loan = 0; const poor = card(); S.player.cash = x.debt * .1 * 3; const rich = card();
-    out.dipWhy = !!it && /DIP融資には手元資金/.test(poor) && /あと/.test(poor) && !/data-v="dip"/.test(poor) && !/DIP融資には手元資金/.test(rich) && /DIP融資（/.test(rich);
+    S.player.cash = x.debt * .005; S.player.loan = 0; const poor = card(); /* below the smallest DIP amount (1% of the debt) */ S.player.cash = x.debt * .1 * 3; const rich = card();
+    out.dipWhy = !!it && /DIP融資は最小でも/.test(poor) && /あと/.test(poor) && !/data-v="dip\d*"/.test(poor) && !/最小でも/.test(rich) && /data-v="dip10"/.test(rich); /* rev61: the card offers amounts (owner: option B); the reason for a missing amount is still shown */
     return {out, info}; });
   console.log('rev60 fixes', JSON.stringify(r.info));
   for (const [k, v] of Object.entries(r.out)) ok('rev60 fix: ' + k, v);
@@ -5352,6 +5382,7 @@ async function balance(b) {
     await testHandover58(b);
     await testPlay59(b);
     await testFix60(b);
+    await testDip61(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
