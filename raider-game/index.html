@@ -14600,10 +14600,11 @@ function regTex(t){ TEXREG.push(t); return t; }
 var texCache={}, texCacheDay={};
 var _asphaltTex=null, _concreteTex=null, _gravelTex=null, _sandTex=null, _suburbTex=null, _skyTexD=null, _skyTexN=null, _sunTex=null;
 var _groundTexA=null, _groundTexS=null;
+var _scaffoldTex=null;
 function resetTexCaches(){
   TEXREG.forEach(function(t){ try{ t.dispose(); }catch(e){} });
   TEXREG=[]; texCache={}; texCacheDay={};
-  _asphaltTex=null; _concreteTex=null; _gravelTex=null; _sandTex=null; _suburbTex=null; _skyTexD=null; _skyTexN=null; _sunTex=null; _groundTexA=null; _groundTexS=null;
+  _asphaltTex=null; _concreteTex=null; _gravelTex=null; _sandTex=null; _suburbTex=null; _skyTexD=null; _skyTexN=null; _sunTex=null; _groundTexA=null; _groundTexS=null; _scaffoldTex=null;
 }
 function shade(hex, amt){
   var n=parseInt(hex.slice(1),16);
@@ -14755,6 +14756,23 @@ function getAsphalt(){ if(!_asphaltTex) _asphaltTex=noiseTexture('#262b33',['#31
 function getConcrete(){ if(!_concreteTex) _concreteTex=noiseTexture('#8b929c',['#7a818b','#9aa1ab','#6d747e'],2000,256,23); return _concreteTex; }
 function getGravel(){ if(!_gravelTex) _gravelTex=noiseTexture('#5d5648',['#6e675a','#4c463c','#7d7668'],3600,256,37); return _gravelTex; }
 function getSand(){ if(!_sandTex) _sandTex=noiseTexture('#b99c66',['#cbb27e','#a8895a','#d8c28e'],2600,256,53); return _sandTex; }
+/* rev61: fine safety-net texture for renovation scaffolding (mostly holes, thin threads) */
+function scaffoldNetTexture(){
+  if(_scaffoldTex) return _scaffoldTex;
+  var cv=cnv(128,128), g=cv.getContext('2d');
+  g.fillStyle='rgba(172,200,216,0.26)'; g.fillRect(0,0,128,128);
+  g.strokeStyle='rgba(104,140,164,0.55)'; g.lineWidth=1;
+  for(var i=0;i<=128;i+=8){
+    g.beginPath(); g.moveTo(i+0.5,0); g.lineTo(i+0.5,128); g.stroke();
+    g.beginPath(); g.moveTo(0,i+0.5); g.lineTo(128,i+0.5); g.stroke();
+  }
+  g.strokeStyle='rgba(84,118,142,0.85)'; g.lineWidth=3;
+  g.strokeRect(1.5,1.5,125,125);
+  var t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.encoding=THREE.sRGBEncoding; t.anisotropy=4;
+  _scaffoldTex=regTex(t);
+  return t;
+}
 function texClone(t, rx, ry){ var c=t.clone(); c.repeat.set(rx,ry); c.needsUpdate=true; return regTex(c); }
 /* road texture (asphalt + edge lines + dashed center) */
 function roadTexture(horizontal){
@@ -16063,8 +16081,28 @@ function buildPropGroup(p){
   }
   var S=getS();
   if(p.reno && S && p.reno.end>S.week){
-    var shell=new THREE.Mesh(new THREE.BoxGeometry(dims.w+1.6, dims.h+1.2, dims.d+1.6), new THREE.MeshLambertMaterial({color:0x9fc4d8, transparent:true, opacity:0.30}));
-    shell.position.y=(dims.h+1.2)/2; holder.add(shell);
+    /* rev61: the wrap used to be a single translucent box (0x9fc4d8, opacity .30) that floated above the
+       streetscape. It is now scaffolding: corner poles, frame rails and a fine safety net, so the building
+       under renovation stays readable through it. */
+    var scaf=new THREE.Group();
+    var sw=dims.w+1.6, sd=dims.d+1.6, sh=dims.h+1.2;
+    var netT=texClone(scaffoldNetTexture(), Math.max(2, Math.round(sw/3)), Math.max(2, Math.round(sh/3)));
+    var net=new THREE.Mesh(new THREE.BoxGeometry(sw, sh, sd),
+      new THREE.MeshLambertMaterial({map:netT, transparent:true, opacity:0.9, depthWrite:false, side:THREE.DoubleSide}));
+    net.position.y=sh/2; scaf.add(net);
+    var poleM=new THREE.MeshLambertMaterial({color:0x707880});
+    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(function(cn){
+      var pole=new THREE.Mesh(new THREE.BoxGeometry(0.22, sh, 0.22), poleM);
+      pole.position.set(cn[0]*sw/2, sh/2, cn[1]*sd/2); scaf.add(pole);
+    });
+    var railN=Math.max(2, Math.round(sh/6));
+    for(var ri=1; ri<railN; ri++){
+      var rail=edgeLines(sw, 0.01, sd, 0x9fc4d8, 0.95);
+      rail.position.y=sh*ri/railN;
+      scaf.add(rail);
+    }
+    scaf.add(edgeLines(sw, sh, sd, 0x9fc4d8, 0.95));
+    holder.add(scaf);
     var gon=new THREE.Mesh(new THREE.BoxGeometry(dims.w*0.5, 1.6, 1.2), new THREE.MeshLambertMaterial({color:0xd8b13a}));
     gon.position.set(0, dims.h*0.6, dims.d/2+1.4); gon.userData.baseY=dims.h*0.6; gon.userData.amp=dims.h*0.22; gon.userData.ph=hashStr2(p.id)%6;
     holder.add(gon); holder.userData.gondola=gon;
@@ -16237,8 +16275,14 @@ function openCity(container, cityId, focusPropId){
   var grp=baseEnv({scen:scen});
   s.cityGrp=grp;
   addBackdrop(grp, scen.backdrop||'skyline', R);
-  s.camera.position.set(58, 44, 74);
-  addOrbit(s.camera, s.renderer.domElement, {min:15, max:320, maxPolar:1.45, target:new THREE.Vector3(0,8,0)});
+  /* rev61: open on a wide overview of the whole city, landmarks included (the old start sat at street
+     level between a few buildings). Fit a sphere of radius 98 around the city centre into the frustum
+     at whatever aspect the frame currently has, from a raised three-quarter view. */
+  var fitR=98, halfV=23*Math.PI/180, halfH=Math.atan(Math.tan(halfV)*s.camera.aspect);
+  var fitD=Math.max(150, Math.min(520, fitR/Math.sin(Math.min(halfV, halfH))));
+  var dirV=new THREE.Vector3(0.52, 0.56, 0.645); dirV.normalize();
+  s.camera.position.copy(dirV.multiplyScalar(fitD)).add(new THREE.Vector3(0,8,0));
+  addOrbit(s.camera, s.renderer.domElement, {min:15, max:560, maxPolar:1.45, target:new THREE.Vector3(0,8,0)});
   /* ground (prototype: asphalt / sand, textured) */
   var ground=new THREE.Mesh(new THREE.PlaneGeometry(150,150),
     new THREE.MeshLambertMaterial({map:cityGroundTexture(scen.ground==='sand'), color:(scen.ground==='sand'?0xe2c491:0xb0b6bf)}));
@@ -16322,13 +16366,20 @@ function openCity(container, cityId, focusPropId){
     if(site.userData.crane && !site.userData.halt) s.cranes.push(site.userData.crane);
   });
   if(s.focusProp){
-    var fp=s.focusProp.position, fd=s.focusProp.userData.dims||{w:14,d:12};
+    var fp=s.focusProp.position, fd=s.focusProp.userData.dims||{w:14,d:12,h:20};
     var fr=Math.max(fd.w, fd.d)*0.85;
     var ring=new THREE.Mesh(new THREE.RingGeometry(fr, fr+1.3, 36), new THREE.MeshBasicMaterial({color:0xffd968, transparent:true, opacity:0.8, side:THREE.DoubleSide, depthWrite:false}));
     ring.rotation.x=-Math.PI/2; ring.position.set(fp.x, 0.16, fp.z);
     grp.add(ring); s.focusRing=ring;
-    s.controls.target.set(fp.x, 10, fp.z);
-    s.camera.position.set(fp.x+42, 38, fp.z+54);
+    /* rev61: frame the focused building by its height, the same idea as the dev screen's fitH —
+       the old fixed offset left tall buildings cropped to a wall. Distance grows with height so
+       the whole building and the surrounding blocks stay in view. */
+    var fh=fd.h||20;
+    var fDist=Math.max(58, Math.min(160, fh*2.3));
+    var fDir=new THREE.Vector3(0.568, 0.379, 0.731); fDir.normalize();
+    var fTy=Math.max(8, fh*0.38);
+    s.controls.target.set(fp.x, fTy, fp.z);
+    s.camera.position.set(fp.x+fDir.x*fDist, fTy+fDir.y*fDist, fp.z+fDir.z*fDist);
     showPropPanel(props.filter(function(p){return p.id===focusPropId;})[0]);
   }
   /* background buildings filling the blocks (prototype density) */
