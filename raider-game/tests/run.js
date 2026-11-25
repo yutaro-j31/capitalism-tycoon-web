@@ -3204,6 +3204,67 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testPE54(b) {
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
+  const r = await p.evaluate(() => { try { return (() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S; A.importText(txt); return ok1 && A.S !== S0 && A.econCheck(A.S) === ''; };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.confirm = false; A.hqInit(); Object.assign(S.dept.inv, {on: true, staff: Math.max(1, S.dept.inv.staff)}); S.player.shorts = {}; S.player.loan = 0; S.player.mg = {}; S.player.mgB = {}; return S; };
+    /* artificial: a deal is generated and its auction is settled at once; cash and listed holdings (margin room) are set by the test */
+    const deal = () => { let d = (S.pe.deals || []).find(x => !x.bid); if (!d) d = A.peDealGen({}); d.ai = 0; d.n = 0; d.dd = 2; return d; };
+    const room = amt => { const h = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0).sort((a, b) => b.price * b.shares - a.price * a.shares)[0]; S.player.cash = amt * 2; A.execBuy('P', h, A.sharesForMoney(h, amt)); S.player.loan = 0; S.player.mg = {}; S.player.mgB = {}; };
+    const settle = d => { d.bid.end = S.week; return A.peResolve(d); };
+    const findCo = d => S.cos.find(c => c.name === d.name && c.pe && !c.pe.closed);
+    /* 1: all cash */
+    { fresh(5701); const d = deal(), eq = A.dealAsk(d); const v0 = A.peVoteQuote(d, eq, .5, 0); S.player.cash = v0.own * 1.5; const ok = A.peBid(d, 0, .5, false, 'P'); const r1 = settle(d); const c = findCo(d);
+      out['01_cash'] = ok && r1 === 'won' && !!c && c.ctrl === 'P' && !(S.player.mg || {})[c.id] && Math.abs(A.gfrac(c, 'P') - 1) < 1e-9 && S.player.loan === 0; }
+    /* 2: part on margin, control kept */
+    { fresh(5702); const d = deal(), eq = A.dealAsk(d); const v0 = A.peVoteQuote(d, eq, .5, 0); room(v0.own); S.player.cash = v0.shareCash * .7 + v0.feeCash; const v = A.peVoteQuote(d, eq, .5, 0); const ok = A.peBid(d, 0, .5, false, 'P'); const r1 = settle(d); const c = findCo(d);
+      const n0 = S.news.filter(n => c && n.t.includes(c.name) && n.t.includes('経営権')).length;
+      out['02_partMargin'] = ok && r1 === 'won' && !!c && c.ctrl === 'P' && Math.abs((S.player.mgB || {})[c.id] - v.borrowed) < 1e-6 && Math.abs((S.player.mg || {})[c.id] - c.shares * v.borrowed / v.shareCash) < 1e-6 && Math.abs(A.gfrac(c, 'P') - v.votes) < 1e-6 && n0 === 1; info['02'] = {votes: v.votes, borrowed: v.borrowed, ctrlNews: n0}; }
+    /* 3: mostly on margin: refused at the bid; refused again at settlement if the money changes after the bid */
+    { fresh(5703); const d = deal(), eq = A.dealAsk(d); const v0 = A.peVoteQuote(d, eq, .5, 0); room(v0.own * 1.5); S.player.cash = v0.shareCash * .3; const v = A.peVoteQuote(d, eq, .5, 0); const st = JSON.stringify([S.player.cash, S.player.loan, d.bid || null, S.cos.length]); const ok = A.peBid(d, 0, .5, false, 'P');
+      const refusedBid = !ok && !v.ctrl && JSON.stringify([S.player.cash, S.player.loan, d.bid || null, S.cos.length]) === st;
+      S.player.cash = v0.own * 1.2; const ok2 = A.peBid(d, 0, .5, false, 'P'); S.player.cash = v0.shareCash * .3; const n = S.cos.length, deals0 = S.pe.deals.length, L0 = S.player.loan; const r2 = settle(d);
+      out['03_refused'] = refusedBid && ok2 && r2 === 'fail' && S.cos.length === n && S.player.loan === L0 && !findCo(d); info['03'] = {votes: v.votes}; }
+    /* 4: LBO debt and the seller's instalments are the company's debt, not margin */
+    { fresh(5704); const d = deal(), eq = A.dealAsk(d); const v = A.peVoteQuote(d, eq, .65, 0); S.player.cash = v.own; const ok = A.peBid(d, 0, .65, false, 'P'); const r1 = settle(d); const c = findCo(d);
+      out['04_lbo'] = ok && r1 === 'won' && !!c && c.ctrl === 'P' && !(S.player.mg || {})[c.id] && Math.abs(c.debt - (d.debt + v.lbo)) < 1e-6 && S.player.loan < 1e-9; info['04'] = {lbo: v.lbo, sn: v.sn}; }
+    /* 5: a co-investor keeps its own shares and votes; the player's margin shares are only out of the player's part */
+    { fresh(5705); const d = deal(), eq = A.dealAsk(d); const part = A.coPartner(d, .25); const v0 = A.peVoteQuote(d, eq, .5, .25, part && part.id); room(v0.own); S.player.cash = v0.shareCash * .85 + v0.feeCash; const v = A.peVoteQuote(d, eq, .5, .25, part && part.id); const ok = A.peBid(d, 0, .5, false, 'P', .25); const r1 = settle(d); const c = findCo(d);
+      out['05_coinvest'] = ok && r1 === 'won' && !!c && Math.abs(c.own[part.id] / c.shares - .25) < 1e-9 && Math.abs(c.own.P / c.shares - .75) < 1e-9 && Math.abs((S.player.mg || {})[c.id] - c.own.P * v.borrowed / v.shareCash) < 1e-6 && c.ctrl === 'P'; info['05'] = {votes: v.votes, partner: part && part.id}; }
+    /* 6: borrowing only for the fee does not limit votes */
+    { fresh(5706); const d = deal(), eq = A.dealAsk(d); const v0 = A.peVoteQuote(d, eq, .5, 0); room(v0.own); S.player.cash = v0.shareCash; const ok = A.peBid(d, 0, .5, false, 'P'); const r1 = settle(d); const c = findCo(d);
+      out['06_feeLoan'] = ok && r1 === 'won' && !(S.player.mg || {})[c.id] && Math.abs(S.player.loan - v0.feeCash) < 1e-6 && c.ctrl === 'P'; }
+    /* 7: no passing control, record or news before the margin shares are on record */
+    { fresh(5707); const d = deal(), eq = A.dealAsk(d); const v0 = A.peVoteQuote(d, eq, .5, .45, (A.coPartner(d, .45) || {}).id); room(v0.own * 2); S.player.cash = v0.shareCash * .1 + v0.feeCash; S.week += 0; const n0 = S.news.length;
+      const vv = A.peVoteQuote(d, eq, .5, .45, (A.coPartner(d, .45) || {}).id); const ok = A.peBid(d, 0, .5, false, 'P', .45); const created = S.cos.filter(c => c.name === d.name).length; const newsP = S.news.slice(0, S.news.length - n0).filter(n => n.t.includes('経営権取得') && n.t.includes(S.company)).length;
+      out['07_noTransient'] = !vv.ctrl && !ok && created === 0 && newsP === 0; }
+    /* 8: a fund's buyout is unaffected (no company margin) */
+    out['08_fund'] = 'covered: testPE（PE fund: a fund deal is owned by the fund...）— ファンドは資金コールで支払い、本社の信用借入を使わない';
+    /* 9: 現引き gives the votes back */
+    { fresh(5709); const d = deal(), eq = A.dealAsk(d); const v0 = A.peVoteQuote(d, eq, .5, 0); room(v0.own); S.player.cash = v0.shareCash * .6 + v0.feeCash; A.peBid(d, 0, .5, false, 'P'); settle(d); const c = findCo(d); const g0 = A.gfrac(c, 'P'); S.player.cash = 1e4; A.mgSettle(c);
+      out['09_settle'] = !!c && g0 < 1 && Math.abs(A.gfrac(c, 'P') - 1) < 1e-9 && !(S.player.mg || {})[c.id]; }
+    /* 10: selling the company (EXIT) closes its margin record */
+    { fresh(5710); const d = deal(), eq = A.dealAsk(d); const v0 = A.peVoteQuote(d, eq, .5, 0); room(v0.own); S.player.cash = v0.shareCash * .6 + v0.feeCash; A.peBid(d, 0, .5, false, 'P'); settle(d); const c = findCo(d); const R = S.rivals[0]; R.cash = 1e6; const got = A.transferShares('P', R.id, c, c.own.P, c.price); A.mgSync();
+      out['10_exit'] = !!c && got > 0 && !(S.player.mg || {})[c.id] && !(S.player.mgB || {})[c.id]; }
+    /* 11: take-private — the shares bought on credit carry no votes; control is kept because every other holder is bought out (the group already held 40%+ to control it) */
+    { fresh(5711); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0 && x.ind !== 'air' && x.ind !== 'telecom').sort((a, b) => a.price * a.shares - b.price * b.shares)[3]; S.player.cash = c.price * c.shares * 2; A.execBuy('P', c, c.shares * .6); A.recomputeCtrl(); S.player.loan = 0; S.player.mg = {}; S.player.mgB = {};
+      const Q0 = A.privQuote(c, .3); const h = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0 && x !== c).sort((a, b) => b.price * b.shares - a.price * a.shares)[0]; S.player.cash = Q0.out * 2; A.execBuy('P', h, A.sharesForMoney(h, Q0.out)); S.player.loan = 0; S.player.mg = {}; S.player.mgB = {}; S.player.cash = Q0.shareCash * .3 + Q0.fee;
+      const Q = A.privQuote(c, .3), r2 = A.peTakePrivate(c, .3); const none = A.privQuote(c, .3);
+      out['11_private'] = Q.ok && Q.ctrl && !!r2 && c.priv && Math.abs((S.player.mgB || {})[c.id] - Q.borrowed) < 1e-6 && c.ctrl === 'P' && A.gfrac(c, 'P') < 1 - 1e-6 && Math.abs(A.gfrac(c, 'P') - Q.votes) < 1e-6; info['11'] = {votes: Q.votes, borrowed: Q.borrowed}; }
+    /* 12: the bid screen shows the holdings, votes, margin, LBO debt and whether control is taken */
+    { fresh(5712); const d = deal(); const v0 = A.peVoteQuote(d, A.dealAsk(d), .5, 0); room(v0.own); S.player.cash = v0.shareCash * .7 + v0.feeCash; A.ui && (A.ui.deal = d.id); const h = A.dealCard ? (() => { window.__atlas.ui = window.__atlas.ui; return ''; })() : ''; const el = document.createElement('div');
+      try { const U = A.ui || {}; U.deal = d.id; U.peOwner = 'P'; U.peBid = 0; U.peLev = .5; U.peCo = 0; el.innerHTML = A.dealCard(d); } catch (e) { info['12'] = String(e); }
+      const t = el.textContent; out['12_screen'] = /経済的持株/.test(t) && /議決権/.test(t) && /信用借入/.test(t) && /LBO借入/.test(t) && /経営権：/.test(t); }
+    /* 13: an old save keeps its companies as they were (no guessed margin) */
+    { fresh(5713); const d = deal(), eq = A.dealAsk(d); const v0 = A.peVoteQuote(d, eq, .5, 0); S.player.cash = v0.own * 1.5; A.peBid(d, 0, .5, false, 'P'); settle(d); const c = findCo(d); S.player.loan = 5; /* artificial: a loan from before, its use unknown */ const before = JSON.stringify([S.player.mg, c.ctrl]); const ok = loads(); S = A.S; const c2 = S.cos.find(x => x.id === c.id);
+      out['13_oldSave'] = ok && JSON.stringify([S.player.mg, c2.ctrl]) === before; }
+    return {out, info}; })(); } catch (e) { return {out: {threw: false}, info: {err: String(e.stack).slice(0, 600)}}; } });
+  console.log('rev54 PE', JSON.stringify(r.info).slice(0, 2000));
+  for (const [k, v] of Object.entries(r.out)) { if (typeof v === 'string') console.log(`SKIP  rev54 PE: ${k} — ${v}`); else ok('rev54 PE: ' + k, v); }
+  ok('rev54 PE: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+}
 async function testFunds53(b) {
   const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
   const r = await p.evaluate(() => { try { return (() => {
@@ -5055,6 +5116,7 @@ async function balance(b) {
     await testFunds51(b);
     await testFunds52(b);
     await testFunds53(b);
+    await testPE54(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
