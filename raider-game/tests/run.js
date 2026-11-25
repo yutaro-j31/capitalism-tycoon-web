@@ -3204,6 +3204,80 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testRealEstate50(b) {
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
+  const r = await p.evaluate(() => { try { return (() => {
+    const A = window.__atlas, out = {}, info = {}, r2m = x => Math.round(x * 100) / 100;
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); const e = A.econCheck(A.S); if (!(ok1 && A.S !== S0 && e === '')) info.loadFail = [ok1, String(m).slice(0, 80), e]; return ok1 && A.S !== S0 && e === ''; };
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.confirm = false; A.hqInit && A.hqInit(); A.sitesEnsure(); return S; };
+    /* artificial set-up: cash chosen by the test, then a real short sale through execShort (half of what it raised is collateral) */
+    const shortTo = (free, raise) => { const c = S.cos.find(x => !x.priv && !x.ctrl && x.price > 0); S.player.cash = 0; S.player.shorts = {}; A.execShort(c, A.sharesForShort(c, raise)); const lock = A.shortLiab() * .5; S.player.cash = free + lock; return {c, lock}; };
+    const state = x => JSON.stringify([x.own, x.mort, x.cost, x.bw, x.everOwned, x.offW, x.lease, x.reno, x.renoN, x.renoC, S.player.cash, S.player.loan, S.player.bank, S.player.shorts, S.player.plW && S.player.plW.fee]);
+    const SH = () => S.props.find(x => x.name === 'シンガポールステーションハイツ') || S.props.find(x => x.city === 'sin' && x.kind === 'resi');
+    /* 11-01/02: the reported case — 50% loan, short collateral; refused through the offer screen and through buyProp itself */
+    { fresh(5001); const x = SH(), q = A.propQuote(x, 1, .5); const {lock} = shortTo(q.need - .89354520845968, 9.884808732913461); const s0 = state(x);
+      A.showProp(x); click('pofferf', x.id, 1); click('pltv', x.id, .5); click('poffer', x.id); const viaUI = state(x) === s0;
+      const viaFn = A.buyProp('P', x, .5, q.price) === false && state(x) === s0; info['11-01'] = {name: x.name, need: q.need, free: A.freeCash(), cash: S.player.cash, lock};
+      out['11-01'] = viaUI && !x.own && S.player.cash > q.need && A.freeCash() < q.need; out['11-02'] = viaFn; }
+    /* 11-03: buying from the city list: the asking-price quote, refused when short */
+    { fresh(5002); const x = S.props.find(y => y.id === 'R-tor-02'); for (const ltv of [0, .5]) { const q = A.propQuote(x, 1, ltv); shortTo(q.need - .5, 20); const s0 = state(x); A.cityProps && A.cityProps(x.city); const row = A.realtySection(); click('pbuy', x.id, ltv); const refused = state(x) === s0;
+        shortTo(q.need + 1, 20); const c0 = S.player.cash; click('pbuy', x.id, ltv, {need: String(q.need), price: String(q.price)}); const paid = c0 - S.player.cash; out['11-03' + (ltv ? 'b' : 'a')] = refused && x.own === 'P' && Math.abs(paid - q.need) < 1e-9 && q.price === r2m(A.propInfo(x).ask) && Math.abs(x.mort - q.loan) < 1e-9; A.sellProp(x); x.offW = 0; } }
+    /* 11-04: from the inbox — not done when short (the proposal stays), done with the money */
+    { fresh(5003); const x = S.props.find(y => y.id === 'R-zur-01'), q = A.propQuote(x, 1, .5); shortTo(q.need - .3, 10); S.inbox = []; S.inbox.push({id: 9901, kind: 'pitch', who: '投資部', role: '投資部', text: 't', act: {t: 'prop', pid: x.id}, why: 'x', exp: S.week + 4}); const s0 = state(x);
+      click('pitch', 9901, '1'); const kept = state(x) === s0 && S.inbox.some(i => i.id === 9901); shortTo(q.need + .3, 10); click('pitch', 9901, '1'); out['11-04'] = kept && x.own === 'P' && !S.inbox.some(i => i.id === 9901) && Math.abs(x.mort - q.loan) < 1e-9; }
+    /* 11-05/06/07: exactly enough, a hundredth of 億 short, then topped up */
+    { fresh(5004); const x = S.props.find(y => y.id === 'R-fra-02'), q = A.propQuote(x, 1, .5); const {lock} = shortTo(q.need, 15); const ok5 = A.buyProp('P', x, .5, q.price) && Math.abs(S.player.cash - lock) < 1e-9 && A.freeCash() < 1e-9; out['11-05'] = ok5;
+      fresh(5005); const y = S.props.find(z => z.id === 'R-fra-02'), q2 = A.propQuote(y, 1, .5); shortTo(q2.need - .01, 15); const s0 = state(y); const no = A.buyProp('P', y, .5, q2.price) === false && state(y) === s0; out['11-06'] = no;
+      S.player.cash += .01; const c0 = S.player.cash, fee0 = (S.player.plW && S.player.plW.fee) || 0, yes = A.buyProp('P', y, .5, q2.price); out['11-07'] = yes && Math.abs(c0 - S.player.cash - q2.need) < 1e-9 && Math.abs(y.mort - q2.loan) < 1e-9 && Math.abs(((S.player.plW && S.player.plW.fee) || 0) - fee0 + q2.fee) < 1e-9; }
+    /* 11-08: no short sale — cash and loan purchases as before */
+    { fresh(5006); S.player.shorts = {}; S.player.cash = 1e4; const a = S.props.find(y => y.id === 'R-mex-02'), b2 = S.props.find(y => y.id === 'R-bom-02'), qa = A.propQuote(a, 1, 0), qb = A.propQuote(b2, 1, .5); const c0 = S.player.cash;
+      out['11-08'] = A.buyProp('P', a, 0, qa.price) && A.buyProp('P', b2, .5, qb.price) && Math.abs(c0 - S.player.cash - qa.need - qb.need) < 1e-9 && a.mort === 0 && Math.abs(b2.mort - qb.loan) < 1e-9; }
+    /* 11-09: the short rises after the screen was drawn: the latest free cash decides */
+    { fresh(5007); const x = S.props.find(y => y.id === 'R-sel-03'), q = A.propQuote(x, 1, 0); const {c} = shortTo(q.need + .2, 10); A.showProp(x); click('pofferf', x.id, 1); click('pltv', x.id, 0); c.price *= 1.5; const s0 = state(x); click('poffer', x.id); out['11-09'] = state(x) === s0 && A.freeCash() < q.need; }
+    /* 11-10: short of cash and too low an offer: no cooldown; with the money, the low offer keeps the 4-week wait */
+    { fresh(5008); const x = S.props.find(y => y.id === 'R-dxb-01'), q = A.propQuote(x, .8, 0); shortTo(q.need - .5, 10); A.showProp(x); click('pofferf', x.id, .8); click('pltv', x.id, 0); click('poffer', x.id); const noCd = !x.offW && !x.own;
+      shortTo(q.need + 5, 10); A.showProp(x); click('pofferf', x.id, .8); click('pltv', x.id, 0); click('poffer', x.id); out['11-10'] = noCd && !x.own && x.offW === S.week + 4; }
+    /* 11-11: fees 3% / 1%, Japan and abroad, loans 0 / 50 / 60% */
+    { fresh(5009); const res = []; for (const id of ['R-tyo-02', 'R-lon-02']) for (const ltv of [0, .5, .6]) for (const g of [0, 1]) { const x = S.props.find(y => y.id === id), re = S.cos.find(c => c.ind === 'realty'), was = re.ctrl; if (g) re.ctrl = 'P'; const q = A.propQuote(x, 1, ltv);
+        S.player.shorts = {}; S.player.cash = q.need; const ok = A.buyProp('P', x, ltv, q.price); res.push(ok && q.fee === r2m(q.price * (g ? .01 : .03)) && q.loan === r2m(A.propVal(x) * ltv) && Math.abs(S.player.cash) < 1e-9 && Math.abs(x.mort - q.loan) < 1e-9); A.sellProp(x); re.ctrl = was; }
+      out['11-11'] = res.length === 12 && res.every(Boolean); }
+    /* 11-12/13: refurbishment */
+    { fresh(5010); S.player.shorts = {}; S.player.cash = 1e4; const x = S.props.find(y => y.id === 'R-osa-02'); A.buyProp('P', x, 0, A.propQuote(x, 1, 0).price); const q = A.renoQuote(x); shortTo(q.cost - .01, 10); const s0 = state(x); const no = A.propReno(x) === false && state(x) === s0;
+      S.player.cash += .02; const v0 = x.v, c0 = S.player.cash; const yes = A.propReno(x); const paid = c0 - S.player.cash; for (let i = 0; i < 13; i++) { S.week++; A.renoStep(); } const up = x.v - v0; S.week++; A.renoStep(); out['11-12'] = no; out['11-13'] = yes && Math.abs(paid - q.cost) < 1e-9 && x.reno.done && x.renoN === 1 && Math.abs(up - q.valUp / A.propFx(x)) < 1e-9 && x.v === v0 + up; }
+    /* 11-14/15: repaying and refinancing */
+    { fresh(5011); S.player.shorts = {}; S.player.cash = 1e4; const x = S.props.find(y => y.id === 'R-chi-02'); A.buyProp('P', x, .6, A.propQuote(x, 1, .6).price); shortTo(0, 10); const s0 = state(x); const n0 = A.repayMort(x); const z = n0 === 0 && state(x) === s0;
+      shortTo(3, 10); const m0 = x.mort, c0 = S.player.cash; const a = A.repayMort(x); out['11-14'] = z && Math.abs(a - 3) < 1e-9 && Math.abs(m0 - x.mort - 3) < 1e-9 && Math.abs(c0 - S.player.cash - 3) < 1e-9 && A.freeCash() < 1e-9;
+      shortTo(2, 10); const m1 = x.mort, c1 = S.player.cash; const d = A.propRefi(x, 0); const down = Math.abs(-d - 2) < 1e-9 && Math.abs(m1 - x.mort - 2) < 1e-9 && Math.abs(c1 - S.player.cash - 2) < 1e-9;
+      const c2 = S.player.cash, m2 = x.mort, up = A.propRefi(x, .6), tgt = A.propVal(x) * .6; out['11-15'] = down && up > 0 && Math.abs(x.mort - tgt) < 1e-9 && Math.abs(S.player.cash - c2 - (up - up * .01)) < 1e-9 && A.propRefi(x, .9) >= 0 && x.mort <= A.propVal(x) * .6 + 1e-9; }
+    /* 11-16: the CFO repays from free cash, keeping 10億 of it, re-checked before each building */
+    { fresh(5012); S.player.shorts = {}; S.player.cash = 1e4; const xs = ['R-sfo-02', 'R-sha-01', 'R-sin-01'].map(id => S.props.find(y => y.id === id)); for (const x of xs) A.buyProp('P', x, .5, A.propQuote(x, 1, .5).price);
+      const m = Object.values(S.hr.people).find(x => !x.at); m.at = 'HQ'; m.role = 'CFO'; S.hr.hq.CFO = m.id; m.dlg = {prop: true}; const {lock} = shortTo(40, 30); const mort0 = xs.reduce((a, x) => a + x.mort, 0), c0 = S.player.cash; A.dlgStep();
+      const paid = c0 - S.player.cash; out['11-16'] = Math.abs(paid - 30) < 1e-9 && Math.abs(mort0 - xs.reduce((a, x) => a + x.mort, 0) - 30) < 1e-9 && Math.abs(A.freeCash() - 10) < 1e-9 && S.player.cash >= lock; info['11-16'] = {paid, free: A.freeCash(), lock}; }
+    /* 11-17: head office building, land, due diligence, merging, the weekly construction payment */
+    { fresh(5013); S.player.shorts = {}; Object.assign(S.dept.inv, {on: true, staff: 3}); const cost = A.hqbCost('tyo'); shortTo(cost * 1.05 - .01, 10); const s0 = JSON.stringify([S.props.length, S.player.cash]); const hq = A.hqBuild('tyo') === false && JSON.stringify([S.props.length, S.player.cash]) === s0;
+      const site = S.sites[0], px = A.sitePrice(site); shortTo(px - .01, 10); const e1 = A.devBuy('P', site.id, false); const land = !!e1 && S.sites.includes(site); shortTo(px + .01, 10); const e2 = A.devBuy('P', site.id, true); const dd = !!e2 && S.sites.includes(site); shortTo(px + px * .005 + 1, 10); const e3 = A.devBuy('P', site.id, true);
+      const pl = S.devp.find(x => x.own === 'P'); pl.ready = S.week; pl.st = 'land'; S.player.cash = 1e4; S.player.shorts = {}; A.devStart(pl, ZONE_OK = (pl.site.zone === 'ind' ? 'logi' : pl.site.zone === 'res' ? 'resi' : 'office'), 'std', 1, 'sell'); const wk = (pl.cost - pl.spent) / Math.max(1, pl.done - S.week + 1); shortTo(wk - .001, 10); const sp = pl.spent; A.devStep(); const halt = pl.spent === sp && pl.halt === 1; shortTo(1e3, 10); A.devStep();
+      out['11-17'] = hq && land && dd && e3 === '' && halt && pl.spent > sp; info['11-17'] = {e1, e2, e3}; }
+    /* 11-18: interest and the forced sale still run (they are not optional spending) */
+    { fresh(5014); S.player.shorts = {}; S.player.cash = 1e4; const x = S.props.find(y => y.id === 'R-hkg-01'); A.buyProp('P', x, .6, A.propQuote(x, 1, .6).price); S.player.cash = 0; const m0 = x.mort; A.propStep(); const interestPaid = x.mort === m0; x.v = x.mort / A.propFx(x) * .9; const L0 = S.player.loan, c0 = S.player.cash; A.propStep();
+      out['11-18'] = interestPaid && !x.own && x.mort === 0 && Number.isFinite(S.player.cash) && (S.player.cash !== c0 || S.player.loan !== L0); }
+    /* 11-19: a save with a short sale and buildings loads with the same numbers and the same decisions */
+    { fresh(5015); S.player.shorts = {}; S.player.cash = 1e4; const x = S.props.find(y => y.id === 'R-par-02'); A.buyProp('P', x, .5, A.propQuote(x, 1, .5).price); const q = A.propQuote(S.props.find(y => y.id === 'R-par-03'), 1, 0); shortTo(q.need - .2, 10);
+      const before = JSON.stringify([S.player.cash, A.freeCash(), S.player.shorts, x.mort, x.own]); const ok = loads(); S = A.S; const y = S.props.find(z => z.id === 'R-par-03'), x2 = S.props.find(z => z.id === 'R-par-02'); const after = JSON.stringify([S.player.cash, A.freeCash(), S.player.shorts, x2.mort, x2.own]);
+      out['11-19'] = ok && before === after && A.buyProp('P', y, 0, q.price) === false; }
+    /* 11-20: several optional payments in one week never exceed the free cash at each point, a failure leaves the others alone */
+    { fresh(5016); S.player.shorts = {}; S.player.cash = 1e4; const a = S.props.find(y => y.id === 'R-syd-02'), b2 = S.props.find(y => y.id === 'R-syd-03'); A.buyProp('P', a, .5, A.propQuote(a, 1, .5).price); const qb = A.propQuote(b2, 1, .5), rq = A.renoQuote(a);
+      shortTo(qb.need + rq.cost * .5, 20); const f0 = A.freeCash(); const okB = A.buyProp('P', b2, .5, qb.price); const f1 = A.freeCash(); const s0 = state(a); const okR = A.propReno(a); const unchanged = state(a) === s0; const rp = A.repayMort(a);
+      out['11-20'] = okB && Math.abs(f0 - f1 - qb.need) < 1e-9 && !okR && unchanged && Math.abs(rp - f1) < 1e-9 && A.freeCash() < 1e-9 && S.player.cash >= A.shortLiab() * .5 - 1e-9; }
+    /* extra: no cash at all, or cash below the collateral: nothing optional goes through */
+    { fresh(5017); const x = S.props.find(y => y.id === 'R-bue-02'); S.player.shorts = {}; S.player.cash = 0; const s0 = state(x); const a1 = A.buyProp('P', x, .5); S.player.cash = -5; const a2 = A.buyProp('P', x, .6); shortTo(-3, 10); const a3 = A.buyProp('P', x, .6);
+      out.extra = !a1 && !a2 && !a3 && !x.own; }
+    return {out, info}; })(); } catch (e) { return {out: {threw: false}, info: {err: String(e.stack).slice(0, 600)}}; } });
+  console.log('rev50 real estate', JSON.stringify(r.info).slice(0, 2000));
+  for (const [k, v] of Object.entries(r.out)) ok('rev50 real estate: ' + k, v);
+  ok('rev50 real estate: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+}
 async function testRealEstate49(b) {
   const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
   const r = await p.evaluate(() => { try { return (() => {
@@ -4804,6 +4878,7 @@ async function balance(b) {
     await testRealEstate47(b);
     await testRealEstate48(b);
     await testRealEstate49(b);
+    await testRealEstate50(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
