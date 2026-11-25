@@ -369,10 +369,10 @@ async function testPhase6(b) {
     out.sameProps = JSON.stringify(A.genProps()) === JSON.stringify(S.props) && S.props.length >= 50;
     // buying with a 50% loan: cash falls by the equity part, net worth only by the 3% fee
     S.player.cash = 500; const pr = S.props.find(x => x.city === 'tyo'), nw0 = A.netWorth('P'), v = A.propVal(pr);
-    out.bought = A.buyProp('P', pr, .5); out.cashDrop = +(500 - S.player.cash).toFixed(4); out.expect = +(v * .53).toFixed(4); out.nwDrop = +(nw0 - A.netWorth('P')).toFixed(4); out.fee = +(v * .03).toFixed(4);
+    out.bought = A.buyProp('P', pr, .5); out.cashDrop = +(500 - S.player.cash).toFixed(4); const r2m = x => Math.round(x * 100) / 100; /* rev48: prices, fees and loans in whole 百万円 */ out.expect = +(v + r2m(v * .03) - r2m(v * .5)).toFixed(4); out.nwDrop = +(nw0 - A.netWorth('P')).toFixed(4); out.fee = +r2m(v * .03).toFixed(4);
     const c0 = S.player.cash; S.econ.rate = S.econ.rate; A.propStep(); out.rent = S.player.cash > c0;
     const v1 = A.propVal(pr); S.econ.rate += 1; A.propStep(); out.rateHit = A.propVal(pr) < v1 * .98;
-    const ny = S.props.find(x => x.city === 'nyc'), vn = A.propVal(ny); S.econ.fx *= 1.2; out.fx = Math.abs(A.propVal(ny) / vn - 1.2) < 1e-9; S.econ.fx /= 1.2;
+    const ny = S.props.find(x => x.city === 'nyc'), vn = A.propVal(ny); S.econ.fx *= 1.2; out.fx = Math.abs(A.propVal(ny) - Math.round(ny.v * A.propFx(ny) * 100) / 100) < 1e-9 && Math.abs(A.propVal(ny) / vn - 1.2) < .011 / vn; /* rev48: in proportion to the rate, to the 百万円 */ S.econ.fx /= 1.2;
     const c1 = S.player.cash, net = A.sellProp(pr); out.sold = !pr.own && Math.abs(S.player.cash - c1 - net) < 1e-9;
     // rival proposal: the player votes against with a big stake and wins
     const R = S.rivals[0], t = S.cos.filter(c => !c.ctrl && !c.priv).sort((a, b) => a.price * a.shares - b.price * b.shares)[3];
@@ -2406,7 +2406,7 @@ async function testRev17(b) {
     out.b58week = u.own === 'P' && Math.abs(u.v / v0 - 1) < .01 && sm.every(x => x.v < 1) && Math.abs(A.grossWorth() - nwBuy) < .01 && loads();
     for (let i = 0; i < 104; i++) { A.step(); S.inbox = []; } const vs = S.props.filter(x => x.small && /^S\d+$/.test(x.id)).map(x => x.v / A.smallProps().find(y => y.id === x.id).v); /* the original small buildings (new ones from the half-yearly supply have their own price) */
     info.b58long = {lo: +Math.min(...vs).toFixed(3), hi: +Math.max(...vs).toFixed(3)}; out.b58long = vs.every(k => k > .7 && k < 1.3) && loads();
-    { const c0 = S.player.cash, v = A.propVal(u), m = u.mort; const el2 = document.createElement('button'); el2.dataset.id = u.id; A.act('psell', el2); out.b58sell = !u.own && Math.abs(S.player.cash - c0 - (v * .98 - m)) < 1e-6 && loads(); info.b58sell = {got: +(S.player.cash - c0).toFixed(5), v: +v.toFixed(5), m: +m.toFixed(5)}; }
+    { const c0 = S.player.cash, v = A.propVal(u), m = u.mort; const el2 = document.createElement('button'); el2.dataset.id = u.id; A.act('psell', el2); out.b58sell = !u.own && Math.abs(S.player.cash - c0 - (v - Math.round(v * A.propFee('P') * 100) / 100 - m)) < 1e-6 && loads(); /* rev48: an explicit brokerage fee instead of the hidden 2% */ info.b58sell = {got: +(S.player.cash - c0).toFixed(5), v: +v.toFixed(5), m: +m.toFixed(5)}; }
     /* BUG-58: a save of the earlier version (every small building lifted to 1億) is restated from the price it was put on sale at, keeping the move since; the change is shown */
     { const o = JSON.parse(fix), err = A.importText(fix); S = A.S; const u2 = S.props.find(x => x.id === 'S10'), was = o.props.find(x => x.id === 'S10').v, orig = A.smallProps().find(x => x.id === 'S10').v;
       const ax = (S.tr.ax || []).find(x => x[0] === '旧版の評価の修正'); info.b58old = {err: err || null, was: +was.toFixed(5), now: +u2.v.toFixed(5), orig, ax: ax && +ax[1].toFixed(4)};
@@ -2414,7 +2414,7 @@ async function testRev17(b) {
       const t1 = A.exportText(); A.importText(t1); out.b58again = Math.abs(A.S.props.find(x => x.id === 'S10').v - u2.v) < 1e-12 && A.exportText().length > 0; }
     /* BUG-57: an overseas head office written before the build-week rate was kept: only the currency is corrected; the price change since is kept */
     { S = traderCo(1757, 200); A.hqBuild('nyc'); for (let i = 0; i < 60; i++) { A.step(); S.inbox = []; }
-      const o = JSON.parse(A.exportText()), pb = o.props.find(x => x.hqb), H = o.econ.fxHist, back = o.week - +pb.id.slice(3); o.tr.eq1 += (63.2597 - pb.v) * (o.econ.fx / A.FX0); pb.v = 63.2597; pb.cost = 56; delete pb.fx0; o.chk = A.finSig(o); /* as the earlier version wrote it (its weekly result already included the value it showed) */
+      const o = JSON.parse(A.exportText()), pb = o.props.find(x => x.hqb), H = o.econ.fxHist, back = o.week - +pb.id.slice(3); { const r2m = x => Math.round(x * 100) / 100; o.tr.eq1 += r2m(63.2597 * o.econ.fx / A.FX0) - r2m(pb.v * o.econ.fx / A.FX0); } /* rev48: the value it showed is in whole 百万円 */ pb.v = 63.2597; pb.cost = 56; delete pb.fx0; o.chk = A.finSig(o); /* as the earlier version wrote it (its weekly result already included the value it showed) */
       const fx0 = H[H.length - 1 - back], err = A.importText(JSON.stringify(o)), nb = A.hqBld(); info.b57 = {err: err || null, v: nb && +nb.v.toFixed(4), expect: +(63.2597 / (fx0 / A.FX0)).toFixed(4), fromCost: +(56 / (fx0 / A.FX0)).toFixed(4)};
       out.b57 = !err && !!nb && Math.abs(nb.v - 63.2597 / (fx0 / A.FX0)) < 1e-9 && nb.fx0 === fx0 && loads();
       const t = A.exportText(); A.importText(t); out.b57again = Math.abs(A.hqBld().v - nb.v) < 1e-12; }
@@ -2601,7 +2601,7 @@ async function testPri56(b) {
       const q = A.renoQuote(u), nw0 = A.grossWorth(), cash0 = S.player.cash; const ok1 = A.propReno(u); out.renoNow = ok1 && A.propRentY(u) === 0 && Math.abs(cash0 - S.player.cash - q.cost) < 1e-12;
       const y0 = u.y; for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } info.reno = {cost: +q.cost.toFixed(4), y0, y1: u.y, pay: +q.pay.toFixed(1)}; out.renoDone = u.y > y0 && A.propRentY(u) > 0 && loads();
       const r0 = A.propRentY(u); u.rl = 1; const r1 = A.propRentY(u); u.rl = -1; const r2 = A.propRentY(u); u.rl = 0; info.rl = {r0: +r0.toFixed(5), up: +r1.toFixed(5), down: +r2.toFixed(5), occ: +A.occ0(u).toFixed(3)}; out.rentTradeoff = r1 !== r0 && r2 !== r0 && A.occ(Object.assign({}, u, {rl: 1})) < A.occ0(u) + 1e-12;
-      const c1 = S.player.cash, got = A.propRefi(u, .5); const ok50 = got > 0 && S.player.cash > c1 && Math.abs(u.mort / u.v - .5) < 1e-6; A.propRefi(u, .9); out.refi = ok50 && u.mort <= u.v * .6 + 1e-9 && Math.abs(u.mort / u.v - .6) < 1e-6; /* never above 60% */
+      const c1 = S.player.cash, got = A.propRefi(u, .5); const ok50 = got > 0 && S.player.cash > c1 && Math.abs(u.mort / A.propVal(u) - .5) < 1e-6; A.propRefi(u, .9); out.refi = ok50 && u.mort <= A.propVal(u) * .6 + 1e-9 && Math.abs(u.mort / A.propVal(u) - .6) < 1e-6; /* rev48: against the value shown (in whole 百万円) */ /* never above 60% */
       const third = u.renoN; A.propReno(u); for (let i = 0; i < 14; i++) { A.step(); S.inbox = []; } out.renoCap = !A.propReno(u) && A.renoQuote(u) === null && third === 1;
       const nwB = A.grossWorth(), cB = S.player.cash; A.sellProp(u); out.sold = !u.own && S.player.cash > cB && A.grossWorth() < nwB && loads(); }
     /* no arbitrage: refurbish and sell at once loses money */
@@ -3204,6 +3204,97 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testRealEstate48(b) {
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
+  const r = await p.evaluate(async () => { try { return await (async () => {
+    const A = window.__atlas, out = {}, info = {}, r2m = x => Math.round(x * 100) / 100;
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); const e = A.econCheck(A.S); if (!(ok1 && A.S !== S0 && e === '')) info.loadFail = [ok1, String(m).slice(0, 80), e]; return ok1 && !(typeof m === 'string' && m.includes('読み込めません')) && A.S !== S0 && e === ''; };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.confirm = false; A.hqInit && A.hqInit(); A.sitesEnsure(); return S; };
+    const plot = (own, city, zone, area, far) => { S.devSeq = (S.devSeq || 0) + 1; const pl = {id: S.devSeq + 9000, own, site: {id: 'X' + S.devSeq, city, k: 0, n: A.S.cos.length ? '試験' + S.devSeq + 'の用地' : '', zone, area, far, pxm2: .02, risky: false}, land: area * .02, spent: 0, st: 'land', w: S.week, ready: S.week, fraud: null}; S.devp.push(pl); return pl; };
+    const finish = pl => { pl.done = S.week; A.devStep(); return S.props.find(x => x.id === 'D' + pl.id); };
+    /* FX-01/02: a building kept on completion is worth its finished value in yen whatever the rate; afterwards only the rate moves it */
+    { fresh(4801); S.player.cash = 1e5; const res = [];
+      for (const f of [.8, 1, 1.2]) for (const ct of ['nyc', 'tyo']) for (const own of ['P', 'C']) { S.econ.fx = A.FX0 * f; let k = own, c = null; if (own === 'C') { c = S.cos.find(x => !x.priv && x.cash > 1); c.cash += 5e4; k = c.id; }
+        const pl = plot(k, ct, 'com', 3000, 8); const e = A.devStart(pl, 'office', 'std', 1, 'hold'); if (e) { res.push([f, ct, own, 'start ' + e]); continue; } const a0 = c ? c.assets : 0; const V = (pl.land + pl.cost) * A.devMult(); const np = finish(pl);
+        const okV = np && Math.abs(np.v * A.propFx(np) - V) < 1e-6 * V && A.propVal(np) === r2m(V) && np.vfx === 1 && (!c || Math.abs(c.assets - a0 - (V - pl.land)) < 1e-6 * V);
+        const v1 = A.propVal(np), cost = np.cost, mort = np.mort; S.econ.fx *= 1.25; const okF = Math.abs(A.propVal(np) / v1 - (ct === 'tyo' ? 1 : 1.25)) < .011 / v1 && np.cost === cost && np.mort === mort; S.econ.fx /= 1.25;
+        res.push([f, ct, own, okV && okF ? 'ok' : 'bad', +V.toFixed(3), np && A.propVal(np)]); }
+      info.fx = res.filter(x => x[3] !== 'ok'); out.fx01_02 = res.length === 12 && res.every(x => x[3] === 'ok'); S.econ.fx = A.FX0; }
+    /* FX-04: an overseas building finished by the earlier version is kept as it was and marked; loading again changes nothing */
+    { fresh(4802); S.player.cash = 1e5; const pl = plot('P', 'lon', 'com', 3000, 8); A.devStart(pl, 'office', 'std', 1, 'hold'); const np = finish(pl);
+      const o = JSON.parse(A.exportText()), q = o.props.find(x => x.id === np.id); delete q.vfx; q.v = q.v * 1.3; o.tr.eq1 += r2m(q.v * o.econ.fx / A.FX0) - r2m(q.v / 1.3 * o.econ.fx / A.FX0); o.chk = A.finSig(o); const v0 = q.v;
+      const e1 = A.importText(JSON.stringify(o)), a = A.S.props.find(x => x.id === np.id); const e2 = A.importText(A.exportText()), b2 = A.S.props.find(x => x.id === np.id);
+      info.fx04 = {e1: e1 || null, v0, v: a && a.v, vfx: a && a.vfx}; out.fx04 = !!a && Math.abs(a.v - v0) < 1e-12 && a.vfx === 'unknown' && b2.v === a.v && b2.vfx === 'unknown'; S = A.S; }
+    /* AREA-01: a finished building keeps the floor area it was planned with; the rent per m² uses the same area */
+    { fresh(4803); S.player.cash = 1e5; const pl = plot('P', 'osa', 'com', 4000, 7); A.devStart(pl, 'hotel', 'std', 1, 'hold'); const g = pl.gfa, np = finish(pl), I = A.propInfo(np);
+      out.area01 = np.gfa === g && I.area === g && Math.abs(I.rentM2 - A.propRentY(np) * 1e8 / g) < 1e-6 && I.areaLbl === '延床面積' && /試験/.test(I.addr); info.area01 = {g, a: I.area, addr: I.addr}; }
+    /* AREA-02 / MKT-01..04: the initial market */
+    { const seeds = [4811, 4812, 4813], base = []; let okAll = true; for (const sd of seeds) { fresh(sd); const P = S.props, R = P.filter(x => /^R-/.test(x.id)), kinds = new Set(P.map(x => x.kind));
+        base.push(JSON.stringify(P.map(x => [x.id, x.v, x.area || x.gfa]))); okAll = okAll && P.length === 158 && R.length === 78 && kinds.size === 18 && new Set(P.map(x => x.id)).size === 158 && JSON.stringify(P.filter(x => !/^R-/.test(x.id))) === JSON.stringify(A.genProps().filter(x => !/^R-/.test(x.id))); }
+      out.mkt01 = okAll && base.every(x => x === base[0]); /* the market comes from the city list alone: the same in every game */
+      const P = S.props, reg = {}; for (const x of P) { const g = {tyo: 'jp', osa: 'jp', ngo: 'jp', fuk: 'jp', spk: 'jp'}[x.city] || null; } const RG = {jp: 'tyo osa ngo fuk spk', am: 'nyc tor chi sfo mex sao bue', emea: 'lon par fra zur sto dxb los jnb', ap: 'bom sin hkg sha sel syd'};
+      for (const k in RG) reg[k] = P.filter(x => RG[k].split(' ').includes(x.city)).length; info.reg = reg;
+      const perCity = {}; for (const x of P.filter(x => /^R-/.test(x.id))) perCity[x.city] = (perCity[x.city] || 0) + 1;
+      out.mkt02 = reg.jp === 38 && reg.am === 39 && reg.emea === 46 && reg.ap === 35 && Object.keys(perCity).length === 26 && Object.values(perCity).every(n => n === 3) && P.every(x => !x.own && !x.mort && !x.cost);
+      const R = P.filter(x => /^R-/.test(x.id)); out.mkt03 = R.filter(x => x.kind === 'dc').every(x => A.powerOK(x.city) && x.ramp >= .8 && x.ramp <= 1) && R.filter(x => x.kind === 'tower').every(x => x.far >= 6) && R.filter(x => x.kind === 'mixed').every(x => x.land >= 5000) && R.filter(x => x.kind === 'arena').every(x => x.land >= 6000) && R.filter(x => x.kind === 'solar').every(x => x.zone === 'ind');
+      const lbl = x => A.propInfo(x).areaLbl; out.area02 = P.every(x => { const a = A.propInfo(x).area; return Number.isFinite(a) && a > 0; }) && P.filter(x => x.kind === 'solar' || x.kind === 'parking').every(x => lbl(x) === '敷地面積') && P.filter(x => x.kind === 'unit').every(x => lbl(x) === '専有面積') && P.filter(x => x.kind === 'office').every(x => lbl(x) === '延床面積');
+      const sm = P.filter(x => x.small), ref = A.smallProps(); out.mkt04 = sm.length === 10 && sm.every(x => { const q = ref.find(y => y.id === x.id); return q && q.v === x.v && A.propOpen(x); }) && P.filter(x => !x.small).every(x => x.v >= 1);
+      info.list = P.map(x => [x.id, x.city, x.kind, x.name, A.propInfo(x).area, A.propVal(x), x.y]); }
+    /* AREA-03: a year of price moves and a reload: the area and the address stay; an old building with no area is estimated once */
+    { fresh(4804); const pick = S.props.filter((x, i) => i % 9 === 0), b0 = pick.map(x => { const I = A.propInfo(x); return [x.id, I.area, I.addr]; }); for (let i = 0; i < 52; i++) A.step();
+      A.importText(A.exportText()); S = A.S; const b1 = b0.map(([id]) => { const x = S.props.find(y => y.id === id); if (!x) return [id]; const I = A.propInfo(x); return [id, I.area, I.addr]; });
+      const o = JSON.parse(A.exportText()); const N = o.props.find(x => x.id === 'R-tyo-01'); delete N.gfa; o.props.push({id: 'N999', city: 'tyo', kind: 'office', name: '旧版の新築', v: 50, y: .05, own: null, mort: 0, cost: 0}); o.supSeq = Math.max(o.supSeq || 0, 999); o.chk = A.finSig(o); A.importText(JSON.stringify(o)); S = A.S;
+      const n1 = S.props.find(x => x.id === 'N999'), a1 = n1 && n1.area; A.importText(A.exportText()); S = A.S; const n2 = S.props.find(x => x.id === 'N999');
+      out.area03 = JSON.stringify(b0) === JSON.stringify(b1) && !!n1 && n1.areaEst === true && a1 > 0 && n2.area === a1 && n2.lw != null; info.area03 = {a1, a2: n2 && n2.area}; }
+    /* VIS-01/02: every drawing fits its box; every photo decodes */
+    { const kinds = Object.keys(A.PROPY || {}).length ? Object.keys(A.PROPY) : ['office']; const ks = ['office', 'retail', 'logi', 'resi', 'apt', 'unit', 'condo', 'hotel', 'tower', 'mixed', 'house', 'factory', 'lab', 'dc', 'parking', 'medical', 'care', 'solar', 'arena'];
+      const host = document.createElement('div'); document.body.appendChild(host); let bad = [];
+      for (const k of ks) for (const g of ['std', 'hi']) for (const sz of [.1, .5, 1, 2, 4]) { host.innerHTML = A.bldSVGdraw(k, g, sz); const sv = host.querySelector('svg'), vb = sv.viewBox.baseVal, bb = sv.getBBox(); if (bb.x < vb.x || bb.y < vb.y || bb.x + bb.width > vb.x + vb.width || bb.y + bb.height > vb.y + vb.height || sv.dataset.kind !== k) bad.push([k, g, sz]); }
+      host.remove(); out.vis02 = bad.length === 0; info.vis02 = bad.slice(0, 5);
+      const srcs = ks.map(k => [k, A.propImgSrc(k, 'std'), A.propImgSrc(k, 'hi')]).filter(x => x[1]); let dec = 0, fail = [];
+      for (const [k, s1, s2] of srcs) for (const s of [s1, s2]) { const im = new Image(); im.src = s; try { await im.decode(); if (im.naturalWidth > 0) dec++; else fail.push(k); } catch (e) { fail.push(k); } }
+      info.vis01 = {photos: srcs.map(x => x[0]), dec, fail}; out.vis01 = fail.length === 0 && srcs.length >= 16;
+      let fd = 0, ff = 0; for (const s of A.AV_POOL) { const im = new Image(); im.src = s.src || s; try { await im.decode(); if (im.naturalWidth > 0) fd++; else ff++; } catch (e) { ff++; } } info.vis04 = {faces: fd, bad: ff}; out.vis04 = ff === 0 && fd === A.AV_POOL.length; }
+    /* HOT-01/02/03: a fixed lease is fixed; running it yourself moves with demand; the contract stays with the building and pays only its owner */
+    { fresh(4805); S.player.cash = 1e5; const H = S.props.find(x => x.kind === 'hotel' && x.city === 'osa'), Hn = S.props.find(x => x.kind === 'hotel' && x.city === 'nyc');
+      A.buyProp('P', H, 0); A.buyProp('P', Hn, 0); H.opm = null; H.lease = null; const t1 = A.hotelOpm(H), L = JSON.stringify(H.lease), rents = [], self = [];
+      const g0 = S.econ.gdp; for (const gd of [-3, 2, 7]) { S.econ.gdp = gd; H.rl = gd > 5 ? 1 : 0; S.week += 13; rents.push(A.propRentY(H)); } S.econ.gdp = g0; S.week -= 39; H.rl = 0;
+      const Hs = Object.assign({}, H, {id: H.id + 'x', opm: null, lease: null}); for (const gd of [-3, 2, 7]) { S.econ.gdp = gd; self.push(A.propRentY(Hs)); } S.econ.gdp = g0;
+      out.hot01 = t1.ok && rents.every(x => Math.abs(x - rents[0]) < 1e-12) && Math.abs(rents[0] - H.lease.amt) < 1e-12 && Math.max(...self) - Math.min(...self) > .1 * Math.min(...self); info.hot01 = {rents, self};
+      Hn.opm = null; Hn.lease = null; A.hotelOpm(Hn); const r0 = A.propRentY(Hn); S.econ.fx *= 1.2; const r1 = A.propRentY(Hn); S.econ.fx /= 1.2; const i0 = Hn.mort; S.econ.rate += 2; const r2 = A.propRentY(Hn); S.econ.rate -= 2;
+      out.hot02 = Math.abs(r1 / r0 - 1.2) < 1e-9 && Math.abs(r2 - r0) < 1e-12 && Hn.mort === i0;
+      const back = A.hotelOpm(H), again = JSON.stringify(H.lease); const R1 = S.rivals[0]; R1.cash = 1e5; const rc0 = R1.cash; A.sellProp(H); const kept = JSON.stringify(H.lease); A.buyProp(R1.id, H, 0); const paid = rc0 - R1.cash, pc0 = S.player.cash; A.propStep(); const toP = S.player.cash - pc0;
+      const okLoad = loads(); S = A.S; const H2 = S.props.find(x => x.id === H.id);
+      out.hot03 = !back.ok && again === L && kept === L && JSON.stringify(H2.lease) === L && H2.own === R1.id && okLoad && !(toP > 1e-9 && !A.propsOf('P').length); info.hot03 = {back: back.msg, paid, toP}; }
+    /* MKT-05: the choice of what comes to market — 50 seeds × 40 chances, every kind appears where it is allowed */
+    { const cnt = {}; let badDc = 0; for (let sd = 0; sd < 50; sd++) { fresh(9000 + sd); for (let k = 0; k < 40; k++) { S.week = 13 + 26 * k; const n0 = S.props.length; A.propSupply(); const x = S.props[S.props.length - 1]; if (S.props.length > n0) { cnt[x.kind] = (cnt[x.kind] || 0) + 1; if (x.kind === 'dc' && !A.powerOK(x.city)) badDc++; S.props.pop(); } } }
+      info.mkt05 = cnt; out.mkt05 = Object.keys(cnt).length === 18 && badDc === 0; }
+    /* MKT-06: listings run out and supply never stops for good; an owned (mortgaged) listing is never removed */
+    { fresh(4806); S.player.cash = 1e5; let maxU = 0, made = 0, keep = null, lastNew = 0; for (let w = 0; w < 1040; w++) { S.week = w; const n0 = S.supSeq || 0; A.propSupply(); if ((S.supSeq || 0) > n0) { made++; lastNew = w; if (!keep) { keep = S.props[S.props.length - 1]; A.buyProp('P', keep, .5); } } for (const g of ['jp', 'am', 'emea', 'ap']) maxU = Math.max(maxU, A.supUnsold(g)); }
+      const ids = S.props.map(x => x.id); info.mkt06 = {made, maxU, lastNew, keep: keep && keep.id}; out.mkt06 = made >= 30 && maxU <= 6 && lastNew > 900 && !!keep && ids.includes(keep.id) && keep.own === 'P' && new Set(ids).size === ids.length; }
+    /* MKT-07: a catalogue building bought on a loan and sold: price, fee, loan and cash agree; short of cash, nothing happens */
+    { fresh(4807); const x = S.props.find(y => y.id === 'R-sin-02'), v = A.propVal(x), fee = r2m(v * A.propFee('P')), loan = r2m(v * .5); S.player.cash = 1; const snap = JSON.stringify([x, S.player.cash]); const no = A.buyProp('P', x, .5), same = JSON.stringify([x, S.player.cash]) === snap;
+      S.player.cash = 1e4; const c0 = S.player.cash, fpl0 = (S.player.plW && S.player.plW.fee) || 0, yes = A.buyProp('P', x, .5), paid = c0 - S.player.cash; const q = A.sellQuote(x), c1 = S.player.cash, net = A.sellProp(x);
+      out.mkt07 = !no && same && yes && Math.abs(paid - (v + fee - loan)) < 1e-9 && x.mort === 0 && Math.abs(S.player.cash - c1 - net) < 1e-9 && Math.abs(q.net - (q.gross - q.fee - loan)) < 1e-9 && q.fee === r2m(q.gross * A.propFee('P')) && Math.abs(((S.player.plW && S.player.plW.fee) || 0) - fpl0 + fee + q.fee) < 1e-9 && [v, fee, loan, q.gross, q.fee].every(z => Math.abs(z * 100 - Math.round(z * 100)) < 1e-6) && loads(); info.mkt07 = {v, fee, loan, paid, q}; }
+    /* DEV-03: a new data centre fills from 35% in 34 weeks, 17 with a group tech or telecom company */
+    { fresh(4808); S.player.cash = 1e5; const pl = plot('P', 'tyo', 'ind', 8000, 2); A.devStart(pl, 'dc', 'std', 1, 'hold'); const d = finish(pl); let n1 = 0; while (d.ramp < 1 && n1 < 200) { A.propStep(); n1++; }
+      const t = S.cos.find(c => c.ind === 'tech' && !c.ctrl), was = t.ctrl; t.ctrl = 'P'; d.ramp = .35; let n2 = 0; while (d.ramp < 1 && n2 < 200) { A.propStep(); n2++; } t.ctrl = was; info.dev03 = [n1, n2]; out.dev03 = n1 === 34 && n2 === 17; }
+    /* SAVE-02 / LONG-02: saving and loading again and again changes nothing; drawing the property screens draws no random numbers */
+    { fresh(4809); for (let i = 0; i < 30; i++) A.step(); const t0 = A.exportText(); for (let i = 0; i < 3; i++) A.importText(A.exportText()); out.save02 = JSON.stringify(JSON.parse(A.exportText()).props) === JSON.stringify(JSON.parse(t0).props);
+      A.importText(t0); A.realtySection(); A.propFinder(); for (const x of A.S.props.slice(0, 20)) { A.showProp(x); A.closeModal(); } for (let i = 0; i < 20; i++) A.step(); const h1 = JSON.stringify([A.S.props, A.S.player.cash, A.S.cos.map(c => c.price)]);
+      A.importText(t0); for (let i = 0; i < 20; i++) A.step(); const h2 = JSON.stringify([A.S.props, A.S.player.cash, A.S.cos.map(c => c.price)]); out.long02 = h1 === h2; S = A.S; }
+    /* LONG-03: two years holding new kinds (hotel lease, DC, solar, arena) on loans, with the economy running: numbers stay finite and the save loads */
+    { fresh(4810); S.player.cash = 2e4; for (const id of ['R-osa-01', 'R-tyo-03', 'R-sao-03', 'R-chi-03', 'R-lon-03']) A.buyProp('P', S.props.find(x => x.id === id), .5); for (let i = 0; i < 104; i++) { A.step(); S.inbox = []; }
+      const P = S.props, ids = P.map(x => x.id); out.long03 = P.every(x => Number.isFinite(A.propVal(x)) && Number.isFinite(A.propRentY(x)) && Number.isFinite(x.mort)) && new Set(ids).size === ids.length && A.econCheck(S) === '' && loads(); info.long03 = {own: A.propsOf('P').length}; }
+    return {out, info}; })(); } catch (e) { return {out: {threw: false}, info: {err: String(e.stack).slice(0, 600)}}; } });
+  console.log('rev48 real estate', JSON.stringify(Object.assign({}, r.info, {list: undefined})).slice(0, 2500));
+  for (const [k, v] of Object.entries(r.out)) ok('rev48 real estate: ' + k, v);
+  /* VIS-03: the property and development screens at phone and tablet widths */
+  const wide = []; for (const w of [320, 375, 390, 430, 768]) { await p.setViewportSize({width: w, height: 800}); const o = await p.evaluate(() => { const A = window.__atlas, S = A.S, res = []; for (const id of ['R-osa-01', 'R-tyo-01', 'R-tyo-03', 'R-sao-03', 'R-chi-03']) { const x = S.props.find(y => y.id === id); if (!x) continue; A.showProp(x); const m = document.querySelector('.modal') || document.body, bt = [...document.querySelectorAll('.modal button')].every(b => { const rc = b.getBoundingClientRect(); return rc.right <= innerWidth + 1 && rc.left >= -1; }); res.push(document.documentElement.scrollWidth <= innerWidth + 1 && bt); A.closeModal(); } return res; }); wide.push([w, o.every(Boolean) && o.length === 5]); }
+  ok('rev48 real estate: vis03 no overflow at 320–768px', wide.every(x => x[1]), JSON.stringify(wide));
+  ok('rev48 real estate: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  return r.info;
+}
 async function testRealEstate47(b) {
   const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
   const r = await p.evaluate(() => { try { return (() => {
@@ -3225,7 +3316,7 @@ async function testRealEstate47(b) {
         const gone = !S.devp.includes(pl); if (how === 'sell') res.push([k, how, gone && S.player.cash > c0 - pl.cost ? 'ok' : 'bad']); else { const pr = S.props.find(x => x.id === 'D' + pl.id); res.push([k, how, gone && pr && pr.kind === (k === 'condo' ? 'resi' : k) && A.propRentY(pr) > 0 && Number.isFinite(A.propRentY(pr)) ? 'ok' : 'bad']); } }
       info.build = res.filter(x => x[2] !== 'ok'); out.buildAll = res.length === 24 && res.every(x => x[2] === 'ok');
       /* operated kinds over a year: hotel by the season (self-run) or flat (let to an operator); a data centre fills up; solar and arena stay within range */
-      const H = S.props.find(x => x.kind === 'hotel'), D = S.props.find(x => x.kind === 'dc'), So = S.props.find(x => x.kind === 'solar'), Ar = S.props.find(x => x.kind === 'arena'); const hs = [], ls = [], ds = [], ss = [], as = [];
+      const fD = k => S.props.find(x => x.kind === k && /^D/.test(x.id)), H = fD('hotel'), D = fD('dc'), So = fD('solar'), Ar = fD('arena'); /* rev48: the ones just built (the initial market now has catalogue buildings of these kinds too) */ const hs = [], ls = [], ds = [], ss = [], as = [];
       const H2 = Object.assign({}, H, {id: H.id + 'L', opm: 'lease'}); for (let w = 0; w < 52; w++) { A.step(); hs.push(A.propOpF(H)); ls.push(A.propOpF(H2)); ds.push(D.ramp); ss.push(A.propOpF(So)); as.push(A.propOpF(Ar)); }
       info.op = {hotel: [Math.min(...hs), Math.max(...hs)], lease: [Math.min(...ls), Math.max(...ls)], dc: [ds[0], ds[51]], solar: [Math.min(...ss), Math.max(...ss)], arena: [Math.min(...as), Math.max(...as)]};
       out.hotel = Math.max(...hs) - Math.min(...hs) > .2 && ls.every(x => x === .86); out.dc = ds[0] < .4 && ds[51] === 1; out.solarArena = ss.every(x => x >= .4 && x <= 1.8) && as.every(x => x >= .65 && x <= 1.45);
@@ -3617,7 +3708,7 @@ async function testBug40(b) {
       const ld = loads(); S = A.S; const P1b = S.devp.find(x => x.id === P1.id), Ab = A.coById(Am.id); A.devPurge && A.devPurge();
       out.tc118_01 = okT && ld && !!P1b && P1b.own === Ab.id && S.props.some(x => x.id === prop.id && x.own === Ab.id);
       if (P1b) { P1b.done = S.week + 1; Ab.cash += 50; const V = () => (P1b.land + P1b.cost) * A.devMult() * (P1b.grade === 'hi' ? 1.05 : 1); let c0 = Ab.cash, a0 = Ab.assets, sale = 0, wk = 0, basis = 0;
-        for (let i = 0; i < 3 && S.devp.includes(P1b); i++) { c0 = Ab.cash - Ab.debt; a0 = Ab.assets; const others = S.devp.filter(x => x !== P1b); S.devp = [P1b]; wk = Math.max(0, P1b.cost - P1b.spent) / Math.max(1, P1b.done - (S.week + 1) + 1); basis = P1b.land + P1b.spent + wk; sale = V() * .97; S.week++; A.devStep(); S.week--; S.devp = S.devp.concat(others); } /* the other projects (rivals' own) are set aside for this measured week */
+        for (let i = 0; i < 3 && S.devp.includes(P1b); i++) { c0 = Ab.cash - Ab.debt; a0 = Ab.assets; const others = S.devp.filter(x => x !== P1b); S.devp = [P1b]; wk = Math.max(0, P1b.cost - P1b.spent) / Math.max(1, P1b.done - (S.week + 1) + 1); basis = P1b.land + P1b.spent + wk; sale = Math.round(V() * .97 * 100) / 100; /* rev48: sale prices in whole 百万円 */ S.week++; A.devStep(); S.week--; S.devp = S.devp.concat(others); } /* the other projects (rivals' own) are set aside for this measured week */
         info.m118s = {wk, basis, sale, land: P1b.land, cost: P1b.cost, spent: P1b.spent, mult: A.devMult(), grade: P1b.grade, kind: P1b.kind, pre: P1b.pre, sold: !S.devp.includes(P1b), dc: Ab.cash - Ab.debt - c0, exp: sale - wk, da: Ab.assets - a0, expA: wk - basis};
         out.tc118_sale = !S.devp.includes(P1b) && Math.abs(Ab.cash - Ab.debt - c0 - (sale - wk)) < 1e-6 /* cash net of any borrowing for this week's work */ && Math.abs(Ab.assets - a0 - (wk - basis)) < 1e-6; }
       /* TC-118-03: a refused merger touches nothing */
@@ -3664,7 +3755,7 @@ async function testBug40(b) {
       out.tc121 = /資金が足りません/.test(e1) && same && e2 === '' && c.cash >= 0 && Math.abs(c.debt - d0 - loss) < 1e-9 && !c.ops.lines.some(x => x.id === l.id); }
     /* TC-122: a finished building sold by a developer company: cash rises by the whole price less this week's work; the profit is reported over time but not paid twice */
     { fresh(4009); A.step(); A.sitesEnsure(); const c = S.cos.filter(x => x.ind === 'realty' && !x.priv && !x.ctrl).sort((a, b) => b.rev - a.rev)[0]; c.cash += 3000; const st = S.sites.find(x => x.zone === 'com'); A.devBuy(c.id, st.id, false); const P = S.devp.find(x => x.own === c.id); P.fraud = null; A.devStart(P, 'office', 'std', .9, 'sell');
-      P.done = S.week + 1; const c0 = c.cash, a0 = c.assets, wk = Math.max(0, P.cost - P.spent) / Math.max(1, P.done - (S.week + 1) + 1), V = (P.land + P.cost) * A.devMult(), sale = V * .97, basis = P.land + P.spent + wk;
+      P.done = S.week + 1; const c0 = c.cash, a0 = c.assets, wk = Math.max(0, P.cost - P.spent) / Math.max(1, P.done - (S.week + 1) + 1), V = (P.land + P.cost) * A.devMult(), sale = Math.round(V * .97 * 100) / 100, /* rev48: sale prices in whole 百万円 */ basis = P.land + P.spent + wk;
       S.week++; A.devStep(); S.week--; const dc = c.cash - c0, da = c.assets - a0, prof = sale - basis, xp = c.ops.xPaid;
       out.tc122_01 = !S.devp.includes(P) && Math.abs(dc - (sale - wk)) < 1e-6 && Math.abs(da - (wk - basis)) < 1e-6 && Math.abs(xp - prof * 52 * .03) < 1e-6;
       /* TC-122-02: over the following year the profit shows in operating profit, and exactly that amount is held back from cash (so the sale is received once) */
@@ -3675,9 +3766,9 @@ async function testBug40(b) {
       /* TC-122-03: a sale at a loss and a building kept to let */
       A.sitesEnsure(); const s2 = S.sites.find(x => x.zone === 'com'), s3 = S.sites.find(x => x.zone === 'res'); c.cash += 3000; A.devBuy(c.id, s2.id, false); A.devBuy(c.id, s3.id, false); const Q = S.devp.find(x => x.site === s2), H = S.devp.find(x => x.site === s3); Q.fraud = H.fraud = null;
       A.devStart(Q, 'office', 'std', .9, 'sell'); A.devStart(H, 'resi', 'std', .9, 'hold'); Q.done = H.done = S.week + 1; Q.spent += Q.cost * 2; /* an overrun makes it a loss */
-      const cq = c.cash, wq = Math.max(0, Q.cost - Q.spent) / 1, wh = Math.max(0, H.cost - H.spent) / 1, sq = (Q.land + Q.cost) * A.devMult() * .97, bq = Q.land + Q.spent + wq, VH = (H.land + H.cost) * A.devMult(), np0 = S.props.length; S.week++; A.devStep(); S.week--;
+      const cq = c.cash, wq = Math.max(0, Q.cost - Q.spent) / 1, wh = Math.max(0, H.cost - H.spent) / 1, sq = Math.round((Q.land + Q.cost) * A.devMult() * .97 * 100) / 100, bq = Q.land + Q.spent + wq, VH = (H.land + H.cost) * A.devMult(), np0 = S.props.length; S.week++; A.devStep(); S.week--;
       const hp = S.props.find(x => x.id === 'D' + H.id); info.d122c = {dc: c.cash - cq, exp: sq - wq - wh, loss: sq - bq, hp: !!hp};
-      out.tc122_03 = Math.abs(c.cash - cq - (sq - wq - wh)) < 1e-6 && sq < bq && !!hp && hp.own === c.id && Math.abs(hp.v - +VH.toFixed(3)) < 1e-9 && loads(); }
+      out.tc122_03 = Math.abs(c.cash - cq - (sq - wq - wh)) < 1e-6 && sq < bq && !!hp && hp.own === c.id && Math.abs(A.propVal(hp) - Math.round(VH * 100) / 100) < 1e-9 && loads(); } /* rev48 RE-01: the value in yen is the finished value, whatever the currency */
     /* construction never borrows past the company's limit: the work stops instead, and restarts when there is money */
     { fresh(4010); A.step(); A.sitesEnsure(); const c = S.cos.filter(x => x.ind === 'realty' && !x.priv && !x.ctrl).sort((a, b) => b.rev - a.rev)[0]; c.cash += 3000; const st = S.sites.find(x => x.zone === 'com'); A.devBuy(c.id, st.id, false); const P = S.devp.find(x => x.own === c.id); P.fraud = null; A.devStart(P, 'office', 'std', .9, 'sell');
       c.cash = 0; c.debt = A.maxDebt(c); const d0 = c.debt, done0 = P.done, sp0 = P.spent; S.week++; A.devStep(); S.week--; const halted = P.done === done0 + 1 && P.spent === sp0 && c.debt <= Math.max(d0, A.maxDebt(c)) + 1e-9 && P.halt === 1;
@@ -3809,7 +3900,7 @@ async function testOps37(b) {
     /* ⑤ development from the head office: due diligence, construction, completion; the net worth, balance sheet and capital allocation agree throughout */
     { fresh(3807); S.player.cash = 2000; A.hqInit(); Object.assign(S.dept.inv, {on: true, staff: 3}); A.trClose(); A.sitesEnsure(); const site = S.sites.filter(x => x.zone === 'res').sort((x, y) => A.sitePrice(x) - A.sitePrice(y))[0];
       const agree = () => { const g = A.grossWorth(); return Math.abs(A.bsNow().eq - g) < 1e-6 && Math.abs(A.capAlloc().net - g) < 1e-6; }; const g0 = A.grossWorth(), px = A.sitePrice(site);
-      click('devbuy', null, site.id, {own: 'P', dd: '1'}); const pj = S.devp.find(x => x.own === 'P'); const ok1 = !!pj && pj.st === 'dd' && Math.abs(A.grossWorth() - (g0 - px * .005)) < 1e-6 && agree();
+      click('devbuy', null, site.id, {own: 'P', dd: '1'}); const pj = S.devp.find(x => x.own === 'P'); const ok1 = !!pj && pj.st === 'dd' && Math.abs(A.grossWorth() - (g0 - Math.round(px * .005 * 100) / 100)) < 1e-6 && agree(); /* rev48: the fee in whole 百万円 */
       A.step(); A.step(); A.step(); click('devplan', pj.id, 'condo', {f: 'kind'}); click('devstart', pj.id); const ok2 = pj.st === 'build' && pj.kind === 'condo' && agree();
       let w = 0; while (S.devp.includes(pj) && w++ < 200) { A.step(); if (!agree()) break; } info.dev = {w, st: pj.st, fraud: pj.fraud}; out.dev = ok1 && ok2 && !S.devp.includes(pj) && w < 200 && agree() && /竣工/.test(S.news.map(n => n.t).join('|')) && loads();
       /* hold as a rental: the building joins your properties */ A.sitesEnsure(); const s2 = S.sites.find(x => x.zone !== 'ind'); A.devBuy('P', s2.id, false); const p2 = S.devp.find(x => x.own === 'P'); A.devStart(p2, A.S.sites ? (p2.site.zone === 'com' ? 'office' : 'resi') : 'resi', 'hi', .8, 'hold'); p2.done = S.week + 1; p2.fraud = null; const n0 = S.props.filter(x => x.own === 'P').length; A.step(); A.step();
@@ -4303,7 +4394,7 @@ async function testBal(b) {
     { const o0 = JSON.parse(fix); const err = A.importText(fix); S = A.S;
       const ax = (S.tr.ax || []).find(x => x[0] === '旧版の評価の修正'), d = o0.bonds.reduce((a, b) => { const c = S.cos.find(x => x.id === b.cid); return a + b.face * (A.bondPx(c) - A.bondPxV1(c)); }, 0);
       info.old = {err: err || null, ax: ax && +ax[1].toFixed(6), d: +d.toFixed(6), mats: S.bonds.map(b => b.mat)};
-      out.oldLoads = !err && S.valV === 3 && S.bonds.length === o0.bonds.length && S.bonds.every(b => b.mat != null && b.cpn == null) && (Math.abs(d) < 1e-9 || (!!ax && Math.abs(ax[1] - d) < 1e-9)) && loads();
+      out.oldLoads = !err && S.valV === 4 && /* rev48: the valuation version after the rounding to 百万円 */  S.bonds.length === o0.bonds.length && S.bonds.every(b => b.mat != null && b.cpn == null) && (Math.abs(d) < 1e-9 || (!!ax && Math.abs(ax[1] - d) < 1e-9)) && loads();
       out.oldSmall = S.props.filter(x => x.small).length === A.smallProps().length && S.props.filter(x => x.small).every(x => !x.own);
       const t = JSON.parse(A.exportText()); t.valV = 1; t.chk = A.finSig(t); const e2 = A.importText(JSON.stringify(t)); out.forgedOld = !!e2 || Math.abs(d) < 1e-9; info.forged = e2 || null; }
     /* BAL-05: small buildings (数千万円) before the property business opens; rivals leave them alone */
@@ -4354,9 +4445,9 @@ async function testRev15(b) {
     A.setOffice(1, 'tyo'); out.b52let = !bd.hqUse && isFinite(A.propRentY(bd)) && A.propRentY(bd) > 0 && loads(); const c0 = S.player.cash; A.step(); out.b52week = isFinite(S.player.cash) && isFinite(A.grossWorth()) && S.player.cash > c0 - 1 && loads();
     A.setOffice(4); out.b52back = bd.hqUse && A.office().lvl === 4 && loads(); A.step();
     { const o = JSON.parse(A.exportText()); const pb = o.props.find(x => x.hqb); delete pb.y; pb.hqUse = false; o.office.lvl = 1; o.chk = A.finSig(o); const m = A.importText(JSON.stringify(o)); out.b52old = (m == null || !String(m).includes('読み込めません')) && isFinite(A.hqBld().y) && A.hqBld().y === A.PROPY && (A.step(), isFinite(A.S.player.cash)) && loads(); }
-    { const pr = A.hqBld(); A.setOffice(1, 'tyo'); const c1 = A.S.player.cash, val = A.propVal(pr), got = A.sellProp(pr); out.b52sell = got > 0 && Math.abs(A.S.player.cash - c1 - got) < 1e-9 && Math.abs(got - val * .98) < 1e-6 && !A.hqBld() && !pr.hqb && loads(); A.step(); out.b52after = isFinite(A.S.player.cash) && loads(); }
+    { const pr = A.hqBld(); A.setOffice(1, 'tyo'); const c1 = A.S.player.cash, val = A.propVal(pr), got = A.sellProp(pr); out.b52sell = got > 0 && Math.abs(A.S.player.cash - c1 - got) < 1e-9 && Math.abs(got - (val - Math.round(val * A.propFee('P') * 100) / 100)) < 1e-6 && !A.hqBld() && !pr.hqb && loads(); A.step(); out.b52after = isFinite(A.S.player.cash) && loads(); }
     /* BUG-56: an overseas building is worth what it cost on the day it starts (no gain from the rate) */
-    for (const fx of [95, 150, 200]) { S = traderCo(7502, 100); S.econ.fx = fx; const g0 = A.grossWorth(), cost = A.hqbCost('nyc'); A.hqBuild('nyc'); const g1 = A.grossWorth(); out['b56_' + fx] = Math.abs(g1 - (g0 - cost * .05)) < 1e-9 && Math.abs(A.propVal(A.hqBld()) - cost) < 1e-9 && loads(); info['b56_' + fx] = +(g1 - g0).toFixed(4); }
+    for (const fx of [95, 150, 200]) { S = traderCo(7502, 100); S.econ.fx = fx; const g0 = A.grossWorth(), cost = A.hqbCost('nyc'); A.hqBuild('nyc'); const g1 = A.grossWorth(); out['b56_' + fx] = Math.abs(g1 - (g0 - cost * .05)) < .0051 && Math.abs(A.propVal(A.hqBld()) - Math.round(cost * 100) / 100) < 1e-9 && loads(); /* rev48: the building is shown in whole 百万円 */ info['b56_' + fx] = +(g1 - g0).toFixed(4); }
     { S = traderCo(7503, 100); S.econ.fx = 200; const g0 = A.grossWorth(), cost = A.hqbCost('tyo'); A.hqBuild('tyo'); out.b56home = Math.abs(A.grossWorth() - (g0 - cost * .05)) < 1e-9; }
     /* BUG-53: the old company's bonds and DIP loan do not come back after a failure */
     S = traderCo(7504, 30); const bc = S.cos.filter(x => !x.priv && !x.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[3]; bc.crisis = {due: S.week + 8}; bc.debt = Math.max(bc.debt, bc.assets * .9);
@@ -4628,6 +4719,7 @@ async function balance(b) {
     await testBug128(b);
     await testIcons46(b);
     await testRealEstate47(b);
+    await testRealEstate48(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
