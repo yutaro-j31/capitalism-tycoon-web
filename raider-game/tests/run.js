@@ -3204,6 +3204,64 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testFunds53(b) {
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
+  const r = await p.evaluate(() => { try { return (() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S; A.importText(txt); return ok1 && A.S !== S0 && A.econCheck(A.S) === ''; };
+    let S; const fresh = (seed, sc) => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', sc || 'std', sc !== 'trader'); S = A.S; S.won = S.lost = true; S.allUnlocked = true; if (sc !== 'trader') S.stage = 4; S.settings.confirm = false; A.hqInit && A.hqInit(); return S; };
+    /* artificial: cash and short positions set by the test (a real short sale through execShort) */
+    const shortTo = (free, raise) => { const c = S.cos.find(x => !x.priv && !x.ctrl && x.price > 0); S.player.shorts = {}; S.player.cash = 0; A.execShort(c, A.sharesForShort(c, raise || 10)); const lock = A.shortLiab() * .5; S.player.cash = free + lock; return lock; };
+    const held = () => S.player.cash >= A.shortLiab() * .5 - 1e-9;
+    const pub = i => S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0)[i];
+    const rs = () => JSON.stringify([S.player.cash, S.player.loan, S.research.pts, (S.player.plW || {}).rd || 0]);
+    const resFresh = seed => { fresh(seed); S.research.budget = 3; S.player.shorts = {}; S.player.cash = 2e4; for (const id of ['R-tyo-02', 'R-nyc-02', 'R-lon-01']) { const x = S.props.find(y => y.id === id); A.buyProp('P', x, 0, A.propQuote(x, 1, 0).price); } S.player.cash = 0; return A.researchQuote().target; }; /* artificial: net worth mostly in buildings (they count in net worth, not in the buying power), so the budget is large and the money to pay it small */
+    /* RE-17: research */
+    { const t = resFresh(5501); S.player.cash = 0; S.player.loan = 0; const s0 = rs(); A.researchStep(); out['01'] = t > 0 && rs() === s0 && A.researchQuote().spend === 0; info['01'] = {target: t}; }
+    { resFresh(5502); shortTo(0); const s0 = rs(); A.researchStep(); out['02'] = rs() === s0 && held(); }
+    { resFresh(5503); S.player.cash = A.researchQuote().target * .2; const t = A.researchQuote().target, f0 = A.freeCash(); const bp = A.buyingPower(), pts0 = S.research.pts, L0 = S.player.loan, rd0 = (S.player.plW || {}).rd || 0; A.researchStep(); const paid = S.research.pts - pts0;
+      out['03'] = bp < t && Math.abs(paid - bp) < 1e-9 && Math.abs(-(((S.player.plW || {}).rd || 0) - rd0) - paid) < 1e-9 && Math.abs(S.player.loan - L0 - (paid - f0)) < 1e-9 && held(); info['03'] = {t, bp, paid}; }
+    { resFresh(5504); S.player.cash = A.researchQuote().target * 10; const t = A.researchQuote().target; const L0 = S.player.loan, c0 = S.player.cash; A.researchStep(); out['04'] = S.player.loan === L0 && Math.abs(c0 - S.player.cash - t) < 1e-9; }
+    { const t = resFresh(5505); const lock = shortTo(0); S.player.cash = lock + 50; const h = pub(9); A.execBuy('P', h, A.sharesForMoney(h, 50)); S.player.cash = lock; const bp = A.buyingPower(), L0 = S.player.loan; A.researchStep(); out['05'] = held() && S.player.loan - L0 <= bp + 1e-9 && S.player.loan - L0 > 0; info['05'] = {bp, up: S.player.loan - L0}; }
+    { resFresh(5506); const lock = shortTo(0); S.player.cash = lock * .5; S.player.loan = 0; const c0 = S.player.cash, s0 = rs(); A.researchStep(); out['06'] = S.player.cash === c0 && (rs() === s0 || S.player.loan <= A.buyingPower() + 1e-9); }
+    { resFresh(5507); S.player.cash = 0; A.researchStep(); const none = S.research.pts === 0; S.player.cash = A.researchQuote().target * 5; A.researchStep(); out['07'] = none && S.research.pts > 0 && S.research.budget === 3; }
+    { resFresh(5508); S.player.cash = 100; S.research.pts = 1e9; const s0 = rs(); A.researchStep(); const left = A.researchQuote().target; S.research.pts = 0; S.research.budget = 0; const s1 = rs(); A.researchStep(); out['08'] = rs() === s1 && left === 0 && JSON.parse(s0)[0] === 100; }
+    { resFresh(5509); S.player.cash = A.researchQuote().target * .2; const q = A.researchQuote(); const h = A.renderHQ ? '' : ''; const html = document.createElement('div'); try { html.innerHTML = (A.researchHTML ? A.researchHTML() : ''); } catch (e) {} const txt = html.textContent;
+      out['09'] = (!A.researchHTML) ? 'N/A' : txt.includes(A.fm(q.target)) && txt.includes(A.fm(q.spend)) && /縮小|停止/.test(txt); }
+    { fresh(5510, 'trader'); S.research = S.research || {pts: 0, budget: 0, done: {}}; S.research.budget = 3; S.player.cash = .001; S.player.loan = 0; A.researchStep(); out['10'] = S.player.loan === 0 && S.player.cash >= 0; }
+    /* RE-18: PE secondary — fixture: an AI firm owns an unlisted company (none exist at the start) */
+    const secFix = (seed) => { fresh(seed); const qf = S.pe.firms[0]; const c = S.cos.filter(x => !x.priv && !x.ctrl && !x.reorg && x.price > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[2]; const tot = c.price * c.shares; c.priv = true; c.own = {[qf.id]: c.shares}; c.pe = {type: 'buy', owner: qf.id, w0: S.week, ev0: A.peEV(c), e0: A.ebitda(c), rev0: c.rev, m0: A.opMargin(c), inv: tot, flows: [[S.week, -tot]], mq: 55, dd: true, risk: null, promise: 0}; A.recomputeCtrl(); S.player.shorts = {}; S.player.loan = 0; S.player.mg = {}; S.player.mgB = {}; return {c, qf, eq: tot}; };
+    const room = (eq, free) => { S.player.cash = eq * 2; const h = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0).sort((a, b) => b.price * b.shares - a.price * a.shares)[0]; A.execBuy('P', h, A.sharesForMoney(h, eq)); S.player.cash = free; S.player.loan = 0; S.player.mg = {}; S.player.mgB = {}; }; /* artificial: listed holdings worth about the price give margin room */
+    const pst = (c, qf) => JSON.stringify([c.own, c.pe, c.debt, S.player.cash, S.player.loan, S.player.mg, (S.player.cost || {})[c.id] || 0, qf.cash, c.ctrl]);
+    { const {c, eq} = secFix(5511); S.player.cash = eq * 1.01 + 1; const ok = A.peBuySecondary(c, 'P', eq); out['11'] = ok && S.player.loan === 0 && !(S.player.mg || {})[c.id] && c.ctrl === 'P' && A.gfrac(c, 'P') > .99; }
+    { const {c, eq} = secFix(5512); room(eq, eq * .3); const L0 = S.player.loan; const ok = A.peBuySecondary(c, 'P', eq); const borrowed = eq - eq * .3; out['12'] = ok && Math.abs((S.player.mgB || {})[c.id] - borrowed) < 1e-6 && Math.abs((S.player.mg || {})[c.id] - c.shares * borrowed / eq) < 1e-6 && c.ctrl !== 'P' && A.gfrac(c, 'P') < .5; info['12'] = {ctrl: c.ctrl, g: A.gfrac(c, 'P'), loan: S.player.loan - L0}; }
+    { const {c, qf, eq} = secFix(5513); S.player.cash = eq * 1.005 / 2; const s0 = pst(c, qf); const ok = A.peBuySecondary(c, 'P', eq); out['13'] = !ok && pst(c, qf) === s0; info['13'] = {bp: A.buyingPower(), need: eq * 1.01}; }
+    { const {c, qf, eq} = secFix(5514); S.player.cash = eq * .1; const s0 = pst(c, qf); out['14'] = !A.peBuySecondary(c, 'P', eq) && pst(c, qf) === s0; }
+    { const {c, eq} = secFix(5515); S.player.cash = eq; const ok = A.peBuySecondary(c, 'P', eq); out['15'] = ok && !(S.player.mg || {})[c.id] && Math.abs(S.player.loan - eq * .01) < 1e-9 && c.ctrl === 'P'; }
+    { const {c, qf, eq} = secFix(5516); S.player.cash = eq * .1; const a1 = A.peBuySecondary(c, 'P', eq); S.player.cash = eq * 2; const q0 = qf.cash; const a2 = A.peBuySecondary(c, 'P', eq), a3 = A.peBuySecondary(c, 'P', eq); out['16'] = !a1 && a2 && !a3 && c.own.P === c.shares; }
+    { const {c, eq} = secFix(5517); room(eq, eq * .2); const n0 = S.news.length; A.peBuySecondary(c, 'P', eq); const ctrlNews = S.news.slice(0, S.news.length - n0).some(n => n.t.includes('経営権取得') && n.t.includes(S.company + 'が')); /* the player gaining control (the seller losing it is expected) */ out['17'] = c.ctrl !== 'P' && !ctrlNews; info['17'] = {ctrl: c.ctrl, g: A.gfrac(c, 'P'), news: S.news.slice(0, 4).map(n => n.t.slice(0, 40))}; }
+    { const {c, eq} = secFix(5518); room(eq, eq * .3); A.peBuySecondary(c, 'P', eq); const B = S.player.mgB[c.id]; S.player.cash = B * .5; A.mgSettle(c); const half = Math.abs(S.player.mgB[c.id] - B * .5) < 1e-6; S.player.cash = B; A.mgSettle(c); out['18'] = half && !(S.player.mg || {})[c.id] && c.ctrl === 'P' && S.player.cash >= -1e-9; }
+    { const {c, eq} = secFix(5519); room(eq, eq * .5); A.peBuySecondary(c, 'P', eq); const R = S.rivals[0]; R.cash = 1e6; const px = c.price; const got = A.transferShares('P', R.id, c, c.own.P, px); A.mgSync(); out['19'] = got > 0 && !(S.player.mg || {})[c.id] && !(S.player.mgB || {})[c.id] && !c.own.P; }
+    { const {c, qf, eq} = secFix(5520); S.player.cash = eq * 2; const q0 = qf.cash; A.peBuySecondary(c, 'P', eq); out['20'] = Math.abs(qf.cash - q0 - eq) < 1e-6 && c.pe.owner === 'P'; info['20'] = {qGot: qf.cash - q0, eq}; }
+    out['21'] = 'covered: rev40 BUG-117（資金コール拒否）とtestFunds52 T25 — peBuySecondaryはpeCashGateで事前拒否';
+    { fresh(5522); for (let i = 0; i < 5; i++) A.step(); S = A.S; const d = (S.pe.deals || [])[0] || A.peDealGen({}); S.player.cash = 0; S.player.loan = 0; S.player.shorts = {}; const deals0 = JSON.stringify(S.pe.deals.map(x => x.id)), cos0 = S.cos.length; const r1 = d ? A.peAcquire(d, 'P', d.ask || d.ev || 10, .5, 0, 0, null) : 'nodeal';
+      out['22'] = d ? (r1 === null && S.cos.length === cos0 && JSON.stringify(S.pe.deals.map(x => x.id)) === deals0 && S.player.loan === 0) : 'BLOCKED: 案件なし'; }
+    out['23'] = 'covered: testFunds52 T20/T22（TOB・LBO）';
+    out['24'] = 'covered: testFunds52 T07〜T14（相対取引）';
+    out['25'] = 'covered: testFunds52 T26・testFunds51（第三者割当）';
+    out['26'] = 'covered: testFunds52 T01〜T06・T16〜T19（現引き・創刊）';
+    out['27'] = 'covered: testRealEstate50・testFunds51（不動産・銀行・受信箱）';
+    { fresh(5528); S.player.cash = 0; S.player.loan = 0; S.player.shorts = {}; const p0 = JSON.stringify([S.player.cash, S.player.loan]); const c = pub(3);
+      const r1 = A.startProxy(c), r2 = A.foundCompany('tyo', 'tech', 5, .5), r3 = A.peSearch(S.cos.find(x => x.ctrl === 'P') ? S.cos.find(x => x.ctrl === 'P').id : 'x'); const person = Object.values(S.hr.people).find(x => x.at === 'HQ'); /* a head-office officer: paid by the company itself */ const r4 = person ? A.trainExec(Object.assign(person, {trainW: -99}), 'fin') : 'none';
+      out['28'] = !r1 && !c.proxy && !r2 && !r3 && (r4 === false || r4 === 'none') && JSON.stringify([S.player.cash, S.player.loan]) === p0; info['28'] = {r1, r2: !!r2, r3: !!r3, r4}; }
+    { const run = () => { resFresh(5529); S.player.cash = 3; for (let i = 0; i < 30; i++) { A.step(); S = A.S; S.inbox = []; } const {c, eq} = secFix(5530); S.player.cash = eq * .4; A.peBuySecondary(c, 'P', eq); for (let i = 0; i < 10; i++) { A.step(); S = A.S; S.inbox = []; } return JSON.stringify([S.player.cash, S.player.loan, S.player.mg, S.cos.map(x => x.price)]); };
+      out['29'] = run() === run(); }
+    { const {c, eq} = secFix(5531); S.player.cash = eq * .4; A.peBuySecondary(c, 'P', eq); S.research.budget = 2; const b0 = JSON.stringify([S.player.loan, S.player.mg, S.player.mgB, S.research, c.ctrl]); const ok = loads(); S = A.S; const c2 = S.cos.find(x => x.id === c.id); out['30'] = ok && JSON.stringify([S.player.loan, S.player.mg, S.player.mgB, S.research, c2.ctrl]) === b0; }
+    return {out, info}; })(); } catch (e) { return {out: {threw: false}, info: {err: String(e.stack).slice(0, 600)}}; } });
+  console.log('rev53 funds', JSON.stringify(r.info).slice(0, 2500));
+  for (const [k, v] of Object.entries(r.out)) { if (typeof v === 'string') console.log(`SKIP  rev53 funds: ${k} — ${v}`); else ok('rev53 funds: ' + k, v); }
+  ok('rev53 funds: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+}
 async function testFunds52(b) {
   const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
   const r = await p.evaluate(() => { try { return (() => {
@@ -4996,6 +5054,7 @@ async function balance(b) {
     await testRealEstate50(b);
     await testFunds51(b);
     await testFunds52(b);
+    await testFunds53(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
