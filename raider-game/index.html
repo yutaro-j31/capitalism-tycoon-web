@@ -8671,7 +8671,11 @@ html.a3d-nogl .a3d-propbtn, html.a3d-nogl .a3d-devbtn, html.a3d-nogl .a3d-luxbtn
 .a3d-maplayer{position:absolute;inset:0;background:#030814}
 .a3d-maplayer[hidden]{display:none}
 .a3d-mapstage{position:absolute;inset:0}
-.a3d-mappanel{bottom:8px;left:8px;right:8px;max-height:52%}
+.a3d-mappanel{bottom:8px;left:8px;right:8px;max-height:46%}
+#mapwrap.a3d-globe-on .maphint,#mapwrap.a3d-globe-on .legend,#mapwrap.a3d-globe-on .mapctl>button:not(#a3d-globebtn){display:none}
+#mapwrap.a3d-globe-on .mapctl{z-index:9}
+.a3d-pclose{position:absolute;top:6px;right:8px;min-width:36px;min-height:36px;border:0;background:transparent;color:#c9d4e3;font-size:18px;cursor:pointer;z-index:2}
+.a3d-panel,.a3d-settings{position:absolute}
 .a3d-devctl{display:flex;align-items:center;gap:10px;margin-top:10px}
 .a3d-devctl input[type=range]{flex:1;accent-color:#d4af37;height:36px}
 .a3d-devctl span{font-size:13px;color:#f0d98c;min-width:42px;text-align:right}
@@ -14544,7 +14548,7 @@ var GL_OK = webglOK();
 if(!GL_OK){ try{ document.documentElement.classList.add('a3d-nogl'); }catch(e){} }
 
 /* ---------------- settings (in-memory only) ---------------- */
-var SET = { bloom:false, flight:true, fx:'normal', day:true, shadow:false }; // rev55: light defaults for iPhone (bloom and shadows off; either can be turned on in the 3D settings)
+var SET = { bloom:true, flight:true, fx:'normal', day:true, shadow:true }; // rev56: bloom and shadows on from the start (owner's choice after trying it on an iPhone); both can be turned off in the 3D settings
 
 /* ---------------- asset access ---------------- */
 function assetB64(key){ var n=document.getElementById('a3d-asset-'+key); return n? n.textContent.replace(/\s+/g,'') : null; }
@@ -15252,7 +15256,7 @@ function baseEnv(opts){
   opts=opts||{};
   var s=SES, scene=s.scene;
   var scen=opts.scen||null;
-  scene.fog=new THREE.Fog(SET.day?0xa9c6e2:0x46586f, 130, 380);
+  scene.fog=new THREE.Fog(SET.day?0xa9c6e2:0x46586f, 320, 900); /* rev56: the whole city stays clear from the farthest zoom */
   scene.background=new THREE.Color(SET.day?0xa9c6e2:0x46586f);
   addSky(scene);
   makeLights(scene);
@@ -15311,7 +15315,7 @@ function buildShell(){
   ui.panel=el('div','a3d-panel',root); ui.panel.hidden=true;
   ui.pill=el('div','a3d-pill',root); ui.pill.hidden=true;
   var settings=el('div','a3d-settings',root); settings.hidden=true; ui.settings=settings;
-  settings.innerHTML='<h4>3D設定</h4>';
+  settings.innerHTML='<button type="button" class="a3d-pclose" aria-label="設定を閉じる">✕</button><h4>3D設定</h4>'; /* rev56: a close button */
   function row(label, node){ var r=el('div','a3d-setrow',settings); el('span','',r,label); r.appendChild(node); return r; }
   var bloomSel=el('select','a3d-sel'); bloomSel.innerHTML='<option value="0">オフ</option><option value="1">オン</option>'; bloomSel.value=SET.bloom?'1':'0';
   bloomSel.addEventListener('change', function(){ SET.bloom=bloomSel.value==='1'; if(SET.bloom) enableBloom(); });
@@ -15512,14 +15516,14 @@ function openGlobe(container){
     // selected marker pulse
     var mk=s.markers[globe.sel||globe.cur]; if(mk){ var sc=1+Math.sin(t*3.2)*0.16; mk.scale.set(sc,sc,sc); }
   };
-  showCityPanel(globe.cur, true);
+  if(!ui.mapMode) showCityPanel(globe.cur, true); /* rev56: on the map the globe opens unobstructed; a city's panel appears when you tap it */
   if(SET.bloom) enableBloom();
   startLoop();
 }
 function showCityPanel(cid, silent){
   globe.sel=cid;
   var st=cityStats(cid);
-  var html='<h4>'+cityName(cid)+'</h4>'+
+  var html='<button type="button" class="a3d-pclose" aria-label="閉じる">✕</button><h4>'+cityName(cid)+'</h4>'+
     '<div class="a3d-kv"><div><span>上場企業</span><b>'+st.cos+'社</b></div>'+
     '<div><span>物件数</span><b>'+st.props+'件</b></div>'+
     '<div><span>自社保有</span><b>'+st.own+'件</b></div>'+
@@ -15872,7 +15876,7 @@ function buildPropGroup(p){
   if(oc.cls==='sale'){
     b.traverse(function(o){
       if(o.isMesh){
-        o.material=o.material.clone(); o.material.transparent=true; o.material.opacity=0.55;
+        o.material=o.material.clone(); if(o.material.color) o.material.color.multiplyScalar(0.9); /* rev56: buildings for sale are solid (slightly muted), not see-through */
         if(o.material.map) regFacade(o.material, dims.type, variant);
       }
     });
@@ -16456,7 +16460,7 @@ function open3D(opts){
     if(SES && SES.mode!=='globe') disposeSession();
     var layer=ensureMapLayer(); if(!layer){ toast('地図が見つかりません'); return; }
     ui.root.hidden=true;
-    layer.hidden=false; ui.mapMode=true; mapGlobeOn=true;
+    layer.hidden=false; ui.mapMode=true; mapGlobeOn=true; var mw=document.getElementById('mapwrap'); if(mw) mw.classList.add('a3d-globe-on'); /* rev56: the 2D map's hint, legend and zoom buttons do not cover the globe */
     var btn=document.getElementById('a3d-globebtn'); if(btn) btn.textContent='2D';
     openGlobe(ui.mapStage);
     return;
@@ -16474,7 +16478,7 @@ function open3D(opts){
 }
 function closeMapGlobe(){
   disposeSession();
-  var layer=document.getElementById('a3d-maplayer'); if(layer) layer.hidden=true;
+  var layer=document.getElementById('a3d-maplayer'); if(layer) layer.hidden=true; var mw=document.getElementById('mapwrap'); if(mw) mw.classList.remove('a3d-globe-on');
   var btn=document.getElementById('a3d-globebtn'); if(btn) btn.textContent='地球儀';
   mapGlobeOn=false; ui.mapMode=false;
   if(globe.flying) cleanupFlightRefs();
@@ -16487,6 +16491,7 @@ function close3D(){
   ui.root.hidden=true; hidePanel(); setPill(null);
 }
 /* button wiring (delegated; buttons carry no data-act) */
+document.addEventListener('click', function(ev){ /* rev56: ✕ on a panel or the settings closes it; tapping the 3D view closes the settings */ var pc=ev.target && ev.target.closest && ev.target.closest('.a3d-pclose'); if(pc){ var box=pc.closest('.a3d-panel, .a3d-settings'); if(box) box.hidden=true; return; } if(ui && ui.settings && !ui.settings.hidden && ev.target && ev.target.closest && ev.target.closest('.a3d-stage')) ui.settings.hidden=true; })
 document.addEventListener('click', function(ev){
   var t=ev.target;
   if(!t || !t.closest) return;

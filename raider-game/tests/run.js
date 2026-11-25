@@ -3775,6 +3775,43 @@ async function testRealEstate47(b) {
   await p.close();
 }
 
+async function test3D56(b) {
+  /* rev56 (iPhone feedback on the 3D map): globe not covered by the 2D map's overlays, no panel on open, ✕ on panels and settings, clear far view, solid buildings for sale, bloom and shadows on by default; opening 3D never touches the game */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(async () => {
+    const A = window.__atlas, out = {}, info = {}, wait = ms => new Promise(f => setTimeout(f, ms));
+    A.closeModal(); A.newGame(5601, 'normal', 'B', 'b', 'std', true); for (let i = 0; i < 3; i++) { A.step(); A.S.inbox = []; }
+    const before = A.exportText(), rs = JSON.stringify(A.S.rs);
+    const mw = document.getElementById('mapwrap'); if (mw.classList.contains('folded')) document.getElementById('mapfold').click();
+    const shown = sel => [...mw.querySelectorAll(sel)].filter(e => getComputedStyle(e).display !== 'none').length;
+    info.pre = [shown('.maphint'), shown('.legend'), shown('.mapctl>button')];
+    document.getElementById('a3d-globebtn').click(); await wait(1500);
+    const mp = document.querySelector('.a3d-mappanel');
+    out.globeUncovered = mw.classList.contains('a3d-globe-on') && shown('.maphint') === 0 && shown('.legend') === 0 && shown('.mapctl>button') === 1 && shown('#a3d-globebtn') === 1;
+    out.noPanelOnOpen = !!mp && mp.hidden;
+    /* back to the 2D map */
+    document.getElementById('a3d-globebtn').click(); await wait(300);
+    out.overlaysBack = !mw.classList.contains('a3d-globe-on') && shown('.maphint') === info.pre[0] && shown('.mapctl>button') === info.pre[2];
+    window.ATLAS3D.open({mode: 'city', city: 'tyo'}); await wait(1500);
+    const set = document.querySelector('.a3d-settings'), setBtn = [...document.querySelectorAll('.a3d-btn')].find(e => e.textContent === '設定');
+    setBtn.click(); const opened = !set.hidden; const x = set.querySelector('.a3d-pclose'); x && x.click();
+    out.settingsClose = opened && !!x && set.hidden;
+    setBtn.click(); document.querySelector('.a3d-stage').dispatchEvent(new MouseEvent('click', {bubbles: true})); out.settingsTapOutside = set.hidden;
+    const sels = [...set.querySelectorAll('select')].map(e => e.value); info.sels = sels;
+    const src = [...document.scripts].map(s => s.textContent).find(t => t.includes('var SET = {')) || '';
+    out.defaultsOn = /var SET = \{ bloom:true,[^}]*shadow:true \}/.test(src);
+    const fog = src.match(/scene\.fog=new THREE\.Fog\([^,]+, (\d+), (\d+)\)/); info.fog = fog && fog.slice(1);
+    out.fogFar = !!fog && +fog[1] >= 300 && +fog[2] >= 900;
+    out.saleSolid = !/material\.opacity=0\.55/.test(src);
+    window.ATLAS3D.close(); await wait(300);
+    out.gameUntouched = A.exportText() === before && JSON.stringify(A.S.rs) === rs;
+    return {out, info}; });
+  console.log('rev56 3d', JSON.stringify(r.info).slice(0, 400));
+  for (const [k, v] of Object.entries(r.out)) ok('rev56 3d: ' + k, v);
+  ok('rev56 3d: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testIcons46(b) {
   const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
   const r = await p.evaluate(() => {
@@ -5161,6 +5198,7 @@ async function balance(b) {
     await testFunds53(b);
     await testPE54(b);
     await testPE55(b);
+    await test3D56(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
