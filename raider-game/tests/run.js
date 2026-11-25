@@ -1528,8 +1528,8 @@ async function testTrader(b) {
     S.inbox = []; S.mm = {aum: 0, hwm: 0, fees: 0, perf: 0, inv: 0}; S.founded = false;
     /* founding: needs 30,000,000円; net worth falls only by the fee; the cash you keep becomes personal */
     S.player.cash = .1; out.noFound = !A.incorporate('X', 0);
-    S.player.cash += .4; const nw0 = A.myWorth(); out.found = A.incorporate('テスト商事', .05) && S.founded && !A.preCo() && S.company === 'テスト商事';
-    out.nwFee = Math.abs(A.myWorth() - (nw0 - .005)) < 1e-6 && Math.abs(S.pres.cash - .05) < 1e-12;
+    S.player.cash += .4; const nw0 = A.myWorth(), tx0 = A.taxPlan().t; out.found = A.incorporate('テスト商事', .05) && S.founded && !A.preCo() && S.company === 'テスト商事';
+    out.nwFee = Math.abs(A.myWorth() - (nw0 - .005 - tx0)) < 1e-6 && Math.abs(S.pres.cash - .05) < 1e-12; /* rev66: the fee, and the individual's own tax on the quarter so far (settled by the person at founding) */
     out.gateCo = !A.preCo() && A.rewScale() === .02;
     /* the personal account (U) trades cash-only and counts in personal net worth */
     const d = S.cos.filter(x => !x.priv && !x.ctrl && x !== c)[0];
@@ -1670,6 +1670,7 @@ async function testRealism(b) {
     A.trSet(Array(60).fill(.004)); S.tr.mcW = null; S.inbox = []; S.week = 13 * Math.ceil(S.week / 13); A.mmQuarter(); out.noOfferIndividual = !S.inbox.some(i => i.kind === 'mmoffer');
     /* an individual's income is taxed at 20% */
     S.player.pl = Object.assign(S.player.pl || {}, {nl: 1, div: 0, rent: 0, fee: 0, int: 0, hq: 0, rd: 0, pay: 0}); const c0 = S.player.cash; A.corpTax(); out.incomeTax = Math.abs(c0 - S.player.cash - .2) < 1e-9;
+    S.player.pl = {}; /* the quarter whose tax was just paid closes (in play the record rolls over at the quarter end) */
     /* founding: you enter the capital; the rest of the cash stays yours */
     S.player.cash = .6; A.ui.tab = 'pres'; A.renderAll(true); const F = A.foundRange(); out.capRange = Math.abs(F.hi - (A.grossWorth() - .005)) < 1e-9 && F.lo >= .2 - 1e-9;
     const box = document.querySelector('[data-kp="lad"][data-a="foundcap"]'); box.click(); const inp = box.querySelector('input.kp-in'); inp.value = '40,000,000'; inp.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter'}));
@@ -3780,6 +3781,43 @@ async function testRealEstate47(b) {
   await p.close();
 }
 
+async function testFound66(b) {
+  /* rev66 (owner's report): an individual's tax was charged to the new company as corporate tax (and could bankrupt it, which then looked like the company "vanishing" and being founded again);
+     the head-office city and the share count are chosen at founding; the top shows the company's net assets once there is a company; no truce offers; open call < agency < headhunt */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(() => { const A = window.__atlas, out = {}, info = {};
+    const setup = (seed, mult) => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'trader', false); let S = A.S; for (let i = 0; i < 27; i++) A.step(); S = A.S;
+      S.player.cash = 40; const c = S.cos.filter(x => !x.priv && x.price > 0)[5]; A.execBuy('P', c, A.sharesForMoney(c, 38)); c.price *= mult; A.execSell('P', c, c.own.P); return S; };
+    /* 1. the person pays the tax on gains made before founding; the company is not taxed on them */
+    { let S = setup(6602, 3); const tq = A.taxPlan(); A.ui.foundCap = -1; const F = A.foundRange(); const c0 = S.player.cash, pr0 = S.pres.cash;
+      const ok = A.incorporate('税テスト商事', F.keep, null, 100, 'osa'); info.t = [+tq.t.toFixed(3), +F.keep.toFixed(3), ok];
+      const personalTax = S.news.slice(0, 5).some(n => /会社設立前（今四半期）の所得税等/.test(n.t)); const coCash = S.player.cash;
+      out.paidByPerson = ok && tq.t > 1 && personalTax && Math.abs(c0 - coCash - F.keep - .005 - tq.t) < 1e-6 && Math.abs(S.pres.cash - pr0 - F.keep) < 1e-9;
+      let g = 0; const nq = []; while (g++ < 60) { A.step(); for (const n of A.S.news.slice(0, 3)) if (/法人税等/.test(n.t) && !nq.includes(n.t)) nq.push(n.t); } S = A.S;
+      info.after = {founded: S.founded, company: S.company, restarts: S.restarts || 0, corp: nq.slice(0, 2)};
+      out.noCorpTaxOnIt = !nq.some(t => /売買の実現損益4/.test(t)) && S.founded && S.company === '税テスト商事' && !(S.restarts > 0);
+      out.hqCity = A.S.office && A.S.office.city === 'osa' && S.news.some(n => /税テスト商事を大阪で設立/.test(n.t) || /を大阪で設立/.test(n.t)); }
+    /* 2. the share count is free (1,000〜100,000,000) */
+    { const S = setup(6603, 1.2); A.ui.foundCap = -1; const F = A.foundRange(); out.shares = A.incorporate('株数テスト', F.keep, null, 0.0123) && Math.abs(S.player.sh0 - .012) < 1e-12; }
+    { const S = setup(6604, 1.2); A.ui.foundCap = -1; const F = A.foundRange(); A.incorporate('株数テスト2', F.keep, null, 5000); out.sharesBad = S.player.sh0 === 100; }
+    /* 3. the top shows the company's net assets once founded (your own assets are on the president's screen) */
+    { const S = setup(6605, 2); A.ui.foundCap = -1; const F = A.foundRange(); A.incorporate('表示テスト', F.keep, null, 100); S.pres.cash += 7; document.querySelector('[data-act=tab][data-v=market]').click();
+      const lab = document.querySelector('[data-v=nw] span').textContent, val = document.getElementById('nwv').textContent, fmCo = A.fm(A.netWorth('P'));
+      info.top = [lab, val, fmCo, A.fm(A.myWorth())]; out.topCompany = /会社の純資産/.test(lab) && val === fmCo && A.myWorth() > A.netWorth('P') + 6; }
+    /* 4. hiring channels */
+    { A.closeModal(); A.newGame(7001, 'normal', 'B', 'b', 'std', true); for (let w = 0; w < 60; w++) A.step(); const res = [];
+      for (const role of ['CEO', 'CFO', 'COO', 'CMO', 'CTO']) { const k = {CEO: 'gen', CFO: 'fin', COO: 'ops', CMO: 'mkt', CTO: 'tech'}[role]; const v = ch => A.marketFor(role, ch, null).map(x => x.sk[k]); const o = v('open'), a = v('agency'), h = v('hunt');
+        res.push([Math.max(...o), Math.max(...a), Math.max(...h)]); }
+      info.hire = res; out.hireOrder = res.every(([o, a, h]) => o < a && a < h); }
+    /* 5. no truce offers */
+    { A.closeModal(); A.newGame(7002, 'normal', 'B', 'b', 'std', true); let seen = 0; for (let w = 0; w < 520; w++) { A.step(); if (A.S.inbox.some(i => i.kind === 'story' && i.sid === 'truce')) seen++; } out.noTruce = seen === 0; }
+    return {out, info}; });
+  console.log('rev66 found', JSON.stringify(r.info).slice(0, 700));
+  for (const [k, v] of Object.entries(r.out)) ok('rev66 found: ' + k, v);
+  ok('rev66 found: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testDemo65(b) {
   /* rev65 BOOTH demo (tools/make-demo.py): standard scenario only, stages 1–2, ends at the third stage or after five years, its own save slot; the full game is unchanged */
   const out = path.join(require('os').tmpdir(), 'atlas-demo-test.html');
@@ -5451,6 +5489,7 @@ async function balance(b) {
     await testDip61(b);
     await testCash62(b);
     await testDemo65(b);
+    await testFound66(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');

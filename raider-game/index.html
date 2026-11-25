@@ -1038,12 +1038,12 @@ function newsQuarter(){
 const TAX_ITEMS = ['rent', 'fee', 'nl', 'int', 'bond', 'hq', 'rd', 'pay'];
 const NOL_RULE = () => preCo() ? {yrs: 3, use: 1} : {yrs: 10, use: .5}; /* rev29: losses carried forward — an individual 3 years against all income; a company 10 years, up to half of each year's income */
 function taxPlan(){ /* the quarter's tax, worked out from what is on record (no change): income, realised gains on investments, the loss carried forward */
-  const L = S.player.pl || {}, ind = preCo(), rate = ind ? .2 : TAX_RATE, R = NOL_RULE(), inc = (L.div || 0) * .5 + TAX_ITEMS.reduce((a, k) => a + (L[k] || 0), 0), cg = S.player.cg || 0, base = inc + cg;
+  const L = S.player.pl || {}, ind = preCo(), rate = ind ? .2 : TAX_RATE, R = NOL_RULE(), pre = !ind && S.player.incPre && S.player.incPreQ === Math.floor(S.week / 13) ? S.player.incPre : 0, inc = (L.div || 0) * .5 + TAX_ITEMS.reduce((a, k) => a + (L[k] || 0), 0) - pre, cg = S.player.cg || 0, base = inc + cg; /* rev66: pre = income already taxed to the person before founding this quarter */
   const nol = (S.player.nol || []).filter(x => S.week - x.w < 52 * R.yrs), have = nol.reduce((a, x) => a + x.a, 0), used = base > 0 ? Math.min(have, base * R.use) : 0, taxable = Math.max(0, base - used);
   return {L, ind, rate, inc, cg, base, have, used, taxable, t: rate * taxable, R};
 }
 function corpTax(){ /* the holding company's quarterly tax: 30% of the operating result and realised investment gains (half of dividends received exempt); an individual about 20% */
-  const q = taxPlan(), L = q.L; S.player.cg = 0; /* rev29: gains and losses realised on shares, options and bonds are taxed when realised (FIN-05 left them untaxed) */
+  const q = taxPlan(), L = q.L; S.player.cg = 0; S.player.incPre = 0; S.player.incPreQ = null; /* rev29: gains and losses realised on shares, options and bonds are taxed when realised (FIN-05 left them untaxed) */
   let nol = (S.player.nol || []).filter(x => S.week - x.w < 52 * q.R.yrs), left = q.used; for (const x of nol) { const u = Math.min(x.a, left); x.a -= u; left -= u; } nol = nol.filter(x => x.a > 1e-9); /* the oldest losses are used first */
   if (q.base < -1e-9) nol.push({w: S.week, a: -q.base}); S.player.nol = nol; S.player.taxQ = {w: S.week, inc: q.inc, cg: q.cg, used: q.used, t: q.t, nol: nol.reduce((a, x) => a + x.a, 0)};
   if (q.base < -1e-9) news(`【税務】今四半期は${fm(-q.base)}の赤字（実現損を含む）。繰越欠損金として${q.ind ? '3年' : '10年'}間、将来の所得と相殺できます（繰越残高 ${fm(S.player.taxQ.nol)}）`, 'you');
@@ -2912,8 +2912,9 @@ function marketFor(r, ch, c){ // candidates by channel: open call (rough numbers
   const k = roleSkill(r), q = Math.floor(S.week / 13);
   if (ch === 'hunt') return Object.values(S.hr.people).filter(p => p.at && p.at !== 'HQ' && coById(p.at) && bossOf(coById(p.at).ctrl || 'X') !== 'P' && coById(p.at).ctrl !== 'P').sort((a, b) => b.sk[k] - a.sk[k] || (a.id < b.id ? -1 : 1)).slice(0, 8);
   const free = S.hr.pool.map(person).filter(Boolean);
-  if (ch === 'agency') return free.slice().sort((a, b) => (b.sk[k] + (c && b.exp[c.ind] ? 8 : 0)) - (a.sk[k] + (c && a.exp[c.ind] ? 8 : 0)) || (a.id < b.id ? -1 : 1)).slice(0, 8);
-  return free.filter(p => hashStr(p.id + ':' + q + r) % 2 === 0).slice(0, 8); // open call: whoever happens to apply
+  const top = marketFor(r, 'hunt', c), cap = top.length ? top[0].sk[k] - 4 : 85; /* rev66 (owner): open call < agency < headhunt — the very best people are not on the job market, so what is free stays below what a headhunter can reach */
+  if (ch === 'agency') { return free.filter(p => p.sk[k] <= cap).sort((a, b) => (b.sk[k] + (c && b.exp[c.ind] ? 8 : 0)) - (a.sk[k] + (c && a.exp[c.ind] ? 8 : 0)) || (a.id < b.id ? -1 : 1)).slice(0, 8); }
+  return free.filter(p => p.sk[k] <= cap - 6 && hashStr(p.id + ':' + q + r) % 2 === 0).slice(0, 8); // open call: whoever happens to apply (the strongest applicants go through agencies)
 }
 const chFee = (ch, p) => (ch === 'agency' ? p.sal * .25 : ch === 'hunt' ? p.sal * .35 : ch === 'search' ? p.sal * (p.srchFee || .3) : 0) * (1 - .3 * Math.min(1, S && S.dept ? cov('hr') : 0)); // an HR department finds people more cheaply
 function huntOdds(p, offer){ // chance a person employed elsewhere accepts (shown as a guide; rolled when you make the offer)
@@ -3569,17 +3570,24 @@ const TITLES = [[0, '駆け出しの投資家'], [10, '新進気鋭の経営者'
 const isTrader = () => !!(S && S.scen === 'trader');
 const preCo = () => isTrader() && !S.founded; /* before the company exists, the trading account (P) is the person's own */
 const FOUND_MIN = .3, FOUND_FEE = .005, CAP_MIN = .2; /* 30,000,000円 to found, 500,000円 fee, at least 20,000,000円 of capital */
-function foundRange(){ /* the capital you can put in: everything but the fee, or at least 20,000,000円 with as much cash as you like kept back */
-  const g = grossWorth(), keepMax = Math.max(0, S.player.cash - FOUND_FEE), hi = g - FOUND_FEE, lo = Math.max(CAP_MIN, hi - keepMax);
+const foundTax = () => preCo() ? taxPlan().t : 0; /* rev66: the individual's income tax on this quarter so far, settled by the person at founding (it was later charged to the new company as corporate tax) */
+function foundRange(){ /* the capital you can put in: everything but the fee (and the individual's tax), or at least 20,000,000円 with as much cash as you like kept back */
+  const tx = foundTax(), g = grossWorth(), keepMax = Math.max(0, S.player.cash - FOUND_FEE - tx), hi = g - FOUND_FEE - tx, lo = Math.max(CAP_MIN, hi - keepMax);
   const cap = clamp(ui.foundCap == null ? hi : ui.foundCap, lo, Math.max(lo, hi)); return {lo, hi, cap, keep: clamp(hi - cap, 0, keepMax)};
 }
 function foundBrand(){ const ci = BRAND_COL.indexOf(S.color); return {col: ui.fcol != null ? ui.fcol : Math.max(0, ci), logo: ui.flogo != null ? ui.flogo : (S.logo || 0)}; } /* UX-FOUND: the founding screen's choice, held outside the game state until you found */
-function incorporate(name, keep, brand, sh){ /* the whole trading account (shares, loans, positions) goes into the company as an in-kind contribution; you keep the cash you choose */
+function incorporate(name, keep, brand, sh, city){ /* the whole trading account (shares, loans, positions) goes into the company as an in-kind contribution; you keep the cash you choose */
   if (!preCo() || myWorth() < FOUND_MIN - 1e-9) return false;
-  keep = clamp(+keep || 0, 0, Math.max(0, freeCash() - FOUND_FEE)); if (!canSpendP(FOUND_FEE + keep)) return false; /* rev52 AUD-05: the fee and the cash you keep come from free cash; the collateral stays with the shorts that move into the company */ if (grossWorth() - keep - FOUND_FEE < CAP_MIN - 1e-9) return false;
-  S.player.cash -= FOUND_FEE + keep; S.pres.cash += keep; if (S.tr) trFlow('found', -FOUND_FEE - keep); /* moving money to yourself and the fee are not trading losses */ S.founded = true; S.foundW = S.week; S.company = (name || '').trim().slice(0, 20) || S.coName || DEF_CO; S.player.sh0 = SH_OPTS.includes(+sh) ? +sh : 100; /* the shares you choose to issue; all of them are yours */
+  const iq = taxPlan(), itax = iq.t; /* rev66: the individual's tax for the quarter so far */
+  keep = clamp(+keep || 0, 0, Math.max(0, freeCash() - FOUND_FEE - itax)); if (!canSpendP(FOUND_FEE + keep + itax)) return false; if (grossWorth() - keep - FOUND_FEE - itax < CAP_MIN - 1e-9) return false;
+  { /* rev66: the person pays their own income tax before the account goes into the company; their unused losses stay with the person (3 years), and the company starts the quarter with no taxable income of its own */
+    let nol = (S.player.nol || []).filter(x => S.week - x.w < 52 * iq.R.yrs), left = iq.used; for (const x of nol) { const u = Math.min(x.a, left); x.a -= u; left -= u; } nol = nol.filter(x => x.a > 1e-9); if (iq.base < -1e-9) nol.push({w: S.week, a: -iq.base});
+    S.pres.nol = (S.pres.nol || []).concat(nol.map(x => ({w: x.w, a: x.a}))); S.player.nol = []; S.player.cg = 0; S.player.incPre = (S.player.incPre || 0) + iq.inc; S.player.incPreQ = Math.floor(S.week / 13);
+    if (itax > 1e-6) { S.player.cash -= itax; plAdd('tax', -itax); S.pres.tax = (S.pres.tax || 0) + itax; news(`【納税】${esc(S.pname)}さんが会社設立前（今四半期）の所得税等${fm(itax)}を個人として納付（課税される所得${fm(iq.taxable)}・税率${pc(iq.rate, 0)}）`, 'you'); } } /* rev52 AUD-05: the fee and the cash you keep come from free cash; the collateral stays with the shorts that move into the company */ if (grossWorth() - keep - FOUND_FEE < CAP_MIN - 1e-9) return false;
+  S.player.cash -= FOUND_FEE + keep; S.pres.cash += keep; if (S.tr) trFlow('found', -FOUND_FEE - keep); /* moving money to yourself and the fee are not trading losses */ S.founded = true; S.foundW = S.week; S.company = (name || '').trim().slice(0, 20) || S.coName || DEF_CO; S.player.sh0 = foundShOk(+sh) ? r3(+sh) : 100; /* the shares you choose to issue (1,000〜100,000,000株); all of them are yours */
+  if (city && CITY[city]) { S.office = Object.assign(office(), {city}); } /* rev66: the head office (a home office at first) is where you choose */
   if (brand && BRAND_COL[brand.col] && LOGOS[brand.logo] != null) { S.color = BRAND_COL[brand.col]; S.logo = brand.logo; applyBrand(); }
-  hqInit(); fillMissions(); news(`【会社設立】${S.company}を設立。口座の株と借入はすべて会社へ現物出資し、手元に${fm(keep)}を残しました（設立費${fm(FOUND_FEE)}）。発行済み株式${fsh(S.player.sh0)}をあなたが100%持ちます`, 'you');
+  hqInit(); fillMissions(); news(`【会社設立】${S.company}を${CITY[office().city].n}で設立。口座の株と借入はすべて会社へ現物出資し、手元に${fm(keep)}を残しました（設立費${fm(FOUND_FEE)}）。発行済み株式${fsh(S.player.sh0)}をあなたが100%持ちます`, 'you');
   celebrate(true); return true;
 }
 /* company liquidation: one table of everything a failed company owned, owed or had signed, swept in order (BUG-25/29/33).
@@ -3950,7 +3958,9 @@ const ytrTkOf = () => (ui.ytrTk == null ? (S.company.replace(/[^A-Za-z0-9]/g, ''
 const ytrTkWhy = () => { const t = ytrTkOf(); return !/^[A-Z0-9]{2,5}$/.test(t) ? 'ティッカーは英数字2〜5文字にしてください' : S.cos.some(c => (c.tk || '').toUpperCase() === t) ? `${t}はほかの会社が使っています` : ''; };
 const selfListed = () => !!(S.player.ipoW != null || S.player.listed); /* listed only by an actual listing — outside shareholders from stock options do not make it listed */
 const SELF_MKT = {prime: {n: 'プライム市場', min: 300, d: '大企業向け。純資産30,000,000,000円以上'}, standard: {n: 'スタンダード市場', min: 50, d: '中堅企業向け'}, growth: {n: 'グロース市場', min: 50, d: '成長企業向け'}};
-const SH_OPTS = [.01, .1, 1, 10, 100]; /* shares at founding (millions): 1万株〜1億株 */
+const SH_OPTS = [.01, .1, 1, 10, 100];
+const r3 = x => Math.round(x * 1000) / 1000; /* shares are counted in millions: 0.001 = 1,000株 */
+const foundShOk = x => finite(x) && x >= .001 - 1e-12 && x <= 100 + 1e-9; /* rev66: founding with any number of shares from 1,000 to 100,000,000 */ /* shares at founding (millions): 1万株〜1億株 */
 const SPLITS = [2, 3, 5, 10];
 const selfSplitWhy = k => !S.founded && !S.player.sh0 ? '会社がありません' : !SPLITS.includes(k) ? '分割の比率が正しくありません' : (S.player.sh0 || 100) * k > 1e5 ? '発行済み株式が多すぎます（あなたの持株1,000億株まで）' : S.player.splitW != null && S.player.splitW > S.week - 4 ? '前回の分割から4週間たっていません' : '';
 function selfSplit(k){ const why = selfSplitWhy(k); if (why) return why; const px0 = selfPx(), sh0 = S.player.sh0 || 100; S.player.sh0 = sh0 * k; S.player.splitW = S.week; /* every share becomes k shares: the company's value and everyone's percentage stay the same */
@@ -5460,14 +5470,14 @@ function renderTasks(){
 }
 function renderTop(){
   renderTasks(); renderLegend();
-  const p = S.player, nw = myWorth();
+  const p = S.player, nw = myWorth(), shownNW = preCo() ? nw : netWorth('P'); /* rev66: with a company, the top shows the company's net assets; your own assets are on the president's screen (the goal and the ranking still use your total) */
   const rank = 1 + S.rivals.filter(r => netWorth(r.id) > nw).length;
   $('#date').innerHTML = `${saveFailed ? '<button class="unsaved" data-act="unsaved">⚠ 未保存：タップして書き出す</button>' : ''}<b>${logoSVG(S.logo, OWNHEX.P, 18)} ${esc(S.company)}</b>${p.ipoPlan ? `<span class="${holdWhy() ? 'down' : 'up'}">${p.outside ? '公募増資' : '上場'}準備中・予定 ${dateOf(p.ipoPlan.end)}${holdWhy() ? `・このままだと見送り（${holdWhy()}）` : ''}</span>` : ''}<span>${preCo() ? '' : '社長 '}${esc(S.pname)}（${title()}）</span><span>${DIFF[S.diff].n}${S.scen !== 'std' ? '・' + SCEN[S.scen].n : ''} · ${dateOf(S.week)}</span>`;
   $('#stats').innerHTML = [
     [preCo() ? '現金' : '会社の現金', fm(p.cash) + (shortLiab() > 1e-9 ? `<small class="sub">うち空売りの担保 ${fm(shortLiab() * .5)}</small>` : ''), '', 'cash'], ['信用借入', fm(p.loan), '', 'loan'], ['空売り残高', fm(shortLiab()), '', 'short'], ['買付余力', fm(buyingPower()), '', 'bp'],
-    [(S.player.outside || 0) > 1e-6 ? `純資産（あなたの持株${pc(1 - S.player.outside, 1)}分）` : '純資産', fm(ui.nwShown == null ? nw : ui.nwShown), 'nw', 'nw'], [S.won ? '次の目標' : '順位', S.won ? ((S.goalIdx || 1) >= GOALS.length ? '全制覇' : nextGoal()[1]) : rank + '位 / 4'],
+    [preCo() ? '純資産' : (S.player.outside || 0) > 1e-6 ? `会社の純資産（あなたの持株${pc(1 - S.player.outside, 1)}分）` : '会社の純資産', fm(ui.nwShown == null ? shownNW : ui.nwShown), 'nw', 'nw'], [S.won ? '次の目標' : '順位', S.won ? ((S.goalIdx || 1) >= GOALS.length ? '全制覇' : nextGoal()[1]) : rank + '位 / 4'],
   ].map(([l, v, c, w]) => w ? `<button class="stat tap ${c || ''}" data-act="why" data-v="${w}" aria-label="${l}の内訳"><span>${l}</span><b${w === 'nw' ? ' id="nwv"' : ''}>${v}</b></button>` : `<div class="stat ${c || ''}"><span>${l}</span><b>${v}</b></div>`).join('');
-  countNW(nw);
+  countNW(shownNW);
   document.querySelectorAll('#speed [data-act=speed], #dock [data-act=speed]').forEach(b => b.classList.toggle('on', +b.dataset.v === ui.speed));
 }
 function renderTicker(){
@@ -7896,9 +7906,10 @@ function act0(a, el){ LTAG = '';
     case 'bvote': { const f = ui.board || {div: S.board.div || 0, pay: S.pres.salary || 0}; if (holdBoard(f.div, f.pay)) { ui.board = null; toast('取締役会で議決しました'); } } break;
     case 'vcopen': showVC(el.dataset.id); return;
     case 'nlstart': if (nlStart()) toast('投資レポートを創刊しました'); else toast(S.nl ? 'すでに創刊しています' : trWeeks() < NL_WEEKS ? `運用実績${NL_WEEKS}週から創刊できます` : `使える現金が足りません（必要${fm(NL_START)}・使える現金${fm(freeCash())}）`, true); break;
-    case 'incorp': if (incorporate(ui.foundName || S.coName, foundRange().keep, foundBrand(), ui.foundSh || 100)) { ui.fcol = ui.flogo = null; ui.tab = 'pres'; ui.hqTab = 'floor'; toast(`${S.company}を設立しました`); } else toast('設立の条件を満たしていません', true); break;
+    case 'incorp': if (incorporate(ui.foundName || S.coName, foundRange().keep, foundBrand(), ui.foundSh || 100, ui.incCity || office().city)) { ui.fcol = ui.flogo = null; ui.tab = 'pres'; ui.hqTab = 'floor'; toast(`${S.company}を設立しました`); } else toast('設立の条件を満たしていません', true); break;
     case 'foundkeep': ui.foundKeep = clamp(r2((ui.foundKeep || 0) + +v), 0, Math.max(0, S.player.cash - FOUND_FEE)); break;
     case 'foundsh': if (SH_OPTS.includes(+v)) ui.foundSh = +v; break;
+case 'foundsh2': if (finite(+v)) ui.foundSh = clamp(r3((ui.foundSh || 100) + +v), .001, 100); break; /* rev66: free choice of the share count */
     case 'fcapd': { const R = fcapRange(); ui.fCap = clamp(Math.round(((ui.fCap == null ? R.def : ui.fCap) + +v) * 100) / 100, R.lo, Math.max(R.lo, R.hi)); } break;
     case 'fsh': ui.fSh = SH_OPTS.includes(+v) ? +v : null; break;
     case 'foundcap': { const F = foundRange(); ui.foundCap = clamp(F.cap + +v, F.lo, Math.max(F.lo, F.hi)); } break;
@@ -8062,7 +8073,7 @@ function act0(a, el){ LTAG = '';
 document.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (!el || el.disabled) return; act(el.dataset.act, el); });
 document.addEventListener('input', e => {
   const el = e.target, k = el.dataset && el.dataset.actInput; if (!k) return;
-  if (k === 'cname' || k === 'pname' || k === 'foundName' || k === 'ytrTk') { ui[k] = el.value; return; }
+  if (k === 'cname' || k === 'pname' || k === 'foundName' || k === 'ytrTk') { ui[k] = el.value; return; } if (k === 'incCity') { if (CITY[el.value]) ui.incCity = el.value; renderPanel(true); return; }
   if (k === 'hqbcity') { ui.hqbCity = el.value; renderPanel(true); return; }
   if (k === 'devcity') { if (CITY[el.value]) ui.devCity = el.value; renderPanel(true); return; }
   if (k === 'selln') { const c = ui.sel && coById(ui.sel), mine = c && (c.own[ui.actor] || 0), v = +el.value; if (mine > 0) ui.sellF = el.value === '' || !(v > 0) ? 0 : clamp(v / 100 / mine, 0, 1); return; }
@@ -8294,7 +8305,7 @@ const STBY = Object.fromEntries(STORIES.map(s => [s.id, s]));
 function storyStep(){
   if (S.week < 8 || S.week % 5 !== 2 || S.inbox.some(i => i.kind === 'story') || preCo()) return; /* magazines and charities write to companies, not to an unknown individual */
   const h = hashStr(S.seed + ':story:' + S.week); if (h % 100 >= 45) return;
-  const list = STORIES.filter(s => s.ok()); if (!list.length) return;
+  const list = STORIES.filter(s => s.id !== 'truce' && s.ok()); if (!list.length) return; /* rev66 (owner): no more truce offers from rivals */
   const s = list[(h >>> 8) % list.length], it = {kind: 'story', sid: s.id, exp: S.week + 6};
   if (s.pick) it.cid = s.pick(h >>> 4); if (s.rid) it.rid = s.rid(h >>> 4);
   addInbox(it);
@@ -8421,11 +8432,12 @@ function traderView(){ /* before the company: the individual trader's desk */
     <p class="lbl">ロゴ</p><div class="filters" role="radiogroup" aria-label="ロゴ">${LOGOS.map((x, i) => `<button class="lgbtn ${foundBrand().logo === i ? 'on' : ''}" data-act="flogo" data-v="${i}" role="radio" aria-checked="${foundBrand().logo === i}" aria-label="ロゴ${i + 1}">${logoSVG(i, BRAND_COL[foundBrand().col], 26)}</button>`).join('')}</div>
     <p class="note">カラーとロゴは「会社を設立する」を押したときに決まります。設立しなければ何も変わりません。</p>
     <p class="lbl">会社の資本金（口座の株と借入を含む。${fm(F.lo)}〜${fm(F.hi)}）</p>${ladder('foundcap', fm(cap), [.01, .1], fm, '', `個人の手元に残る現金 ${fm(keep)}`, [F.lo, F.hi, cap])}
-    <p class="lbl">発行する株式の数（すべてあなたが持ちます）</p><div class="seg">${SH_OPTS.map(x => `<button class="${(ui.foundSh || 100) === x ? 'on' : ''}" data-act="foundsh" data-v="${x}">${fsh(x)}</button>`).join('')}</div>
+    <p class="lbl">本社を置く都市（最初は自宅兼事務所）</p><select data-act-input="incCity" aria-label="本社の都市">${Object.values(REGION).map(g => `<optgroup label="${g.n}">${g.c.split(' ').map(ct => `<option value="${ct}" ${(ui.incCity || office().city || 'tyo') === ct ? 'selected' : ''}>${CITY[ct].n}</option>`).join('')}</optgroup>`).join('')}</select>
+    <p class="lbl">発行する株式の数（1,000〜100,000,000株・すべてあなたが持ちます）</p>${ladder('foundsh2', fsh(ui.foundSh || 100), [.001, .1], fsh, '', '−＋は1,000株ずつ。下のボタンで桁を選べます')}<div class="seg">${SH_OPTS.map(x => `<button class="${(ui.foundSh || 100) === x ? 'on' : ''}" data-act="foundsh" data-v="${x}">${fsh(x)}</button>`).join('')}</div>
     <p class="note">1株の価値 約${fp(cap / (ui.foundSh || 100))}（資本金 ${fm(cap)} ÷ ${fsh(ui.foundSh || 100)}）。株数は会社の価値を変えません。あとから株式分割で増やせます。</p>
-    <div class="kv"><div><span>会社へ移る現金</span><b>${fm(Math.max(0, S.player.cash - keep - FOUND_FEE))}</b></div><div><span>会社へ移る株（時価）</span><b>${fm(holdingsMkt('P'))}（${S.cos.filter(c => (c.own.P || 0) > 0).length}銘柄）</b></div>
-      <div><span>会社へ移る借入</span><b class="${S.player.loan > 0 ? 'down' : ''}">${fm(S.player.loan + shortLiab())}</b></div><div><span>設立費</span><b class="down">${fm(FOUND_FEE)}</b></div>
-      <div><span>設立後の個人の現金</span><b>${fm(S.pres.cash + keep)}</b></div><div><span>設立後のあなたの純資産</span><b class="up">${fm(nw - FOUND_FEE)}</b></div>
+    <div class="kv"><div><span>会社へ移る現金</span><b>${fm(Math.max(0, S.player.cash - keep - FOUND_FEE - foundTax()))}</b></div><div><span>会社へ移る株（時価）</span><b>${fm(holdingsMkt('P'))}（${S.cos.filter(c => (c.own.P || 0) > 0).length}銘柄）</b></div>
+      <div><span>会社へ移る借入</span><b class="${S.player.loan > 0 ? 'down' : ''}">${fm(S.player.loan + shortLiab())}</b></div><div><span>設立費</span><b class="down">${fm(FOUND_FEE)}</b></div>${foundTax() > 1e-6 ? `<div><span>設立前の所得税等（個人で納付）</span><b class="down">${fm(foundTax())}</b></div>` : ''}
+      <div><span>設立後の個人の現金</span><b>${fm(S.pres.cash + keep)}</b></div><div><span>設立後のあなたの純資産</span><b class="up">${fm(nw - FOUND_FEE - foundTax())}</b></div>
       <div><span>設立直後の維持費</span><b>0円（自宅兼事務所）</b></div><div><span>設立後に開く機能</span><b>部門・人材・銀行・不動産など</b></div></div>
     <div class="btnrow"><button class="btn gold" data-act="incorp" ${cap >= CAP_MIN - 1e-9 ? '' : 'disabled'}>会社を設立する</button></div>` : `<p class="note">あと${fm(FOUND_MIN - nw)}で設立できます。</p>`}</section>`;
 }
