@@ -3204,6 +3204,49 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testPE55(b) {
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(() => { try { return (() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S; A.importText(txt); return ok1 && A.S !== S0 && A.econCheck(A.S) === ''; };
+    const click = (act, id, v) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; A.act(act, el); };
+    let S; const fresh = (seed, diff) => { A.closeModal(); A.newGame(seed, diff || 'normal', 'B', 'b', 'std', true); S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.confirm = false; A.hqInit(); Object.assign(S.dept.inv, {on: true, staff: Math.max(1, S.dept.inv.staff)}); return S; };
+    const snap = c => JSON.stringify([c.cash, c.assets, c.debt, c.fixed, (A.ceoOf(c) || {}).id || null, c.pe.p100 == null ? null : c.pe.p100, c.cult, S.player.cash]);
+    /* 1-5: near-natural — weeks played normally until an AI firm offers a company (pesec); free cash brought down by a real share purchase; bought through the inbox button */
+    { fresh(100, 'easy'); let it = null; for (let w = 0; w < 400 && !it; w++) { A.step(); S = A.S; it = S.inbox.find(i => i.kind === 'pesec'); if (!it) S.inbox = S.inbox.filter(i => i.kind === 'pesec'); }
+      if (!it) { out['01'] = 'BLOCKED: 400週以内にセカンダリー提案が出ず'; }
+      else { const c = A.coById(it.cid); S.player.loan = 0; info.eq = it.eq; info.free0 = A.freeCash(); const tgt = Math.max(it.eq * .1, it.eq * 1.03 - info.free0); info.tgt = tgt; /* buying power ≈ free cash + net worth in shares: keep enough to pay, with less than half paid in cash */ for (const big of S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0).sort((a, b) => b.price * b.shares - a.price * a.shares).slice(0, 6)) { const want = A.freeCash() - tgt; if (want <= .01) break; A.execBuy('P', big, A.sharesForMoney(big, want), want); } /* free cash ≈ 30% of the price, by real purchases of listed shares (several, as one company's float is limited) */
+        info.wk = S.week; info.cid = c.id; const bpOK = A.buyingPower() >= it.eq * 1.01; click('pesecbuy', it.id, 'P'); const bought = c.pe.owner === 'P';
+        out['01'] = !bpOK ? 'BLOCKED: 買付余力不足' : bought && c.ctrl !== 'P' && A.gfrac(c, 'P') < .5; info['01'] = {week: S.week, votes: A.gfrac(c, 'P'), ctrl: c.ctrl, free: A.freeCash()};
+        if (bought && c.ctrl !== 'P') {
+          const el = document.createElement('div'); el.innerHTML = A.peHoldingCard(c); const btn = el.querySelector('[data-act="pe100"]'); out['02'] = !!btn && btn.disabled && /経営権がないため実行できません/.test(el.textContent);
+          const s0 = snap(c); const r1 = A.pe100(c); const s1 = snap(c); const co0 = JSON.stringify(JSON.parse(s1).slice(0, 7)); click('pe100', c.id); /* the button goes through act(), whose usual after-step (the margin sweep) may move the player's own cash: the company and the plan must not move */ out['03'] = r1 === false && s1 === s0 && JSON.stringify(JSON.parse(snap(c)).slice(0, 7)) === co0;
+          S.player.cash = 1e4; A.mgSettle(c); A.recomputeCtrl(); const okNow = c.ctrl === 'P' && S.week - c.pe.w0 <= 15; const r2 = A.pe100(c); out['04'] = okNow ? r2 === true && c.pe.p100 != null : 'N/A: 期限外'; const r3 = A.pe100(c); out['05'] = r3 === false;
+          info['04'] = {okNow, w: S.week - c.pe.w0}; } } }
+    /* 6-8: a buyout with control works as before */
+    const deal = () => { let d = (S.pe.deals || []).find(x => !x.bid); if (!d) d = A.peDealGen({}); d.ai = 0; d.n = 0; d.dd = 2; return d; };
+    const settle = d => { d.bid.end = S.week; return A.peResolve(d); };
+    const findCo = d => S.cos.find(c => c.name === d.name && c.pe && !c.pe.closed);
+    { fresh(5801); const d = deal(), v = A.peVoteQuote(d, A.dealAsk(d), .5, 0); S.player.cash = v.own * 1.5; A.peBid(d, 0, .5, false, 'P'); settle(d); const c = findCo(d); out['06'] = !!c && c.ctrl === 'P' && A.pe100(c) === true; }
+    { fresh(5802); const d = deal(), v0 = A.peVoteQuote(d, A.dealAsk(d), .65, 0); const h = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0).sort((a, b) => b.price * b.shares - a.price * a.shares)[0]; S.player.cash = v0.own * 2; A.execBuy('P', h, A.sharesForMoney(h, v0.own)); S.player.loan = 0; S.player.mg = {}; S.player.mgB = {}; S.player.cash = v0.shareCash * .75 + v0.feeCash;
+      const ok = A.peBid(d, 0, .65, false, 'P'); settle(d); const c = findCo(d); out['07'] = ok && !!c && c.ctrl === 'P' && (S.player.mgB || {})[c.id] > 0 && A.pe100(c) === true; }
+    { fresh(5803); const d = deal(), part = A.coPartner(d, .25), v = A.peVoteQuote(d, A.dealAsk(d), .5, .25, part && part.id); S.player.cash = v.own * 1.5; A.peBid(d, 0, .5, false, 'P', .25); settle(d); const c = findCo(d); out['08'] = !!c && c.ctrl === 'P' && A.pe100(c) === true; }
+    /* 9-11: no control — recap and culture refused, holding, partial 現引き and selling allowed; with control they work */
+    const secFix = seed => { fresh(seed); const qf = S.pe.firms[0]; const c = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[2]; const eq = c.price * c.shares; c.priv = true; c.own = {[qf.id]: c.shares}; c.pe = {type: 'buy', owner: qf.id, w0: S.week, ev0: A.peEV(c), e0: A.ebitda(c), rev0: c.rev, m0: A.opMargin(c), inv: eq, flows: [[S.week, -eq]], mq: 55, dd: true, risk: null, promise: 0}; A.recomputeCtrl(); /* artificial fixture: an AI firm's company */
+      const h = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0 && x !== c).sort((a, b) => b.price * b.shares - a.price * a.shares)[0]; S.player.cash = eq * 2; A.execBuy('P', h, A.sharesForMoney(h, eq)); S.player.loan = 0; S.player.mg = {}; S.player.mgB = {}; S.player.cash = eq * .3; A.peBuySecondary(c, 'P', eq); c.pe.cultQ = true; return c; };
+    { const c = secFix(5804); const s0 = JSON.stringify([c.debt, c.cash, c.cult, S.player.cash, c.pe.cultQ]); const rc = A.peRecap(c), cu = A.peCulture(c, true); out['09'] = c.ctrl !== 'P' && rc === 0 && cu === false && JSON.stringify([c.debt, c.cash, c.cult, S.player.cash, c.pe.cultQ]) === s0; }
+    { const c = secFix(5807); S.player.cash = 1e4; A.mgSettle(c); A.recomputeCtrl(); const ctrl = c.ctrl === 'P'; const d0 = c.debt; const rc2 = A.peRecap(c); const cu2 = A.peCulture(c, false); out['10'] = ctrl && cu2 === true && (rc2 > 0 ? c.debt > d0 : A.ebitda(c) * 4 - d0 < .2); info['10'] = {rc2}; }
+    { const c = secFix(5808); const R = S.rivals[0]; R.cash = 1e6; const v0 = A.gfrac(c, 'P'); S.player.cash = 1; A.mgSettle(c); const partSettle = A.gfrac(c, 'P') > v0; const got = A.transferShares('P', R.id, c, c.own.P * .5, c.price); out['11'] = c.ctrl !== 'P' && partSettle && got > 0; }
+    { fresh(5805); const d = deal(), v = A.peVoteQuote(d, A.dealAsk(d), .5, 0); S.player.cash = v.own * 1.5; A.peBid(d, 0, .5, false, 'P'); settle(d); const c = findCo(d); const before = JSON.stringify([c.ctrl, c.pe.p100, S.player.mg]); const ok = loads(); S = A.S; const c2 = S.cos.find(x => x.id === c.id); out['12'] = ok && JSON.stringify([c2.ctrl, c2.pe.p100, S.player.mg]) === before; }
+    { fresh(5806); const d = deal(), v0 = A.peVoteQuote(d, A.dealAsk(d), .5, 0); const h = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0).sort((a, b) => b.price * b.shares - a.price * a.shares)[0]; S.player.cash = v0.own * 3; A.execBuy('P', h, A.sharesForMoney(h, v0.own * 1.5)); S.player.loan = 0; S.player.mg = {}; S.player.mgB = {}; S.player.cash = v0.shareCash * .3; const v = A.peVoteQuote(d, A.dealAsk(d), .5, 0);
+      const ok = A.peBid(d, 0, .5, false, 'P'); out['13'] = v.ok && !v.ctrl && !ok; info['13'] = {ok: v.ok, votes: v.votes}; } /* refused for the votes alone (the money is there) */
+    return {out, info}; })(); } catch (e) { return {out: {threw: false}, info: {err: String(e.stack).slice(0, 600)}}; } });
+  console.log('rev55 PE', JSON.stringify(r.info).slice(0, 2000));
+  for (const [k, v] of Object.entries(r.out)) { if (typeof v === 'string') console.log(`SKIP  rev55 PE: ${k} — ${v}`); else ok('rev55 PE: ' + k, v); }
+  /* 14: the PE screen at 390px */
+  const w = await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1); ok('rev55 PE: 14 no sideways overflow at 390px', w);
+  ok('rev55 PE: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+}
 async function testPE54(b) {
   const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
   const r = await p.evaluate(() => { try { return (() => {
@@ -5117,6 +5160,7 @@ async function balance(b) {
     await testFunds52(b);
     await testFunds53(b);
     await testPE54(b);
+    await testPE55(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
