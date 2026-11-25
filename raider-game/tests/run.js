@@ -3204,6 +3204,68 @@ async function testRev35(b) {
   ok('rev35: records open at the start of a game (BUG-112), the accounting statements are taken when the week closes with their delay kept (BUG-113), old records with a doubled reward are repaired once (BUG-114)', !bad.length, bad.join(',') + ' ' + JSON.stringify(r.info).slice(0, 1200));
   ok('no page errors in rev35 tests', !errs.length, errs.slice(0, 3).join(' | '));
 }
+async function testFunds52(b) {
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
+  const r = await p.evaluate(() => { try { return (() => {
+    const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const txt = A.exportText(); const ok1 = !!A.parseSave(txt); const S0 = A.S, m = A.importText(txt); return ok1 && A.S !== S0 && A.econCheck(A.S) === ''; };
+    const click = (act, id, v, extra) => { const el = document.createElement('button'); if (id != null) el.dataset.id = id; if (v != null) el.dataset.v = v; Object.assign(el.dataset, extra || {}); A.act(act, el); };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.settings.confirm = false; A.hqInit && A.hqInit(); return S; };
+    /* artificial: cash set by the test around a real short sale; the collateral is half the short's current value */
+    const shortTo = (free, raise) => { const c = S.cos.find(x => !x.priv && !x.ctrl && x.price > 0); S.player.shorts = {}; S.player.cash = 0; A.execShort(c, A.sharesForShort(c, raise || 10)); const lock = A.shortLiab() * .5; S.player.cash = free + lock; return {sc: c, lock}; };
+    const weeks = n => { for (let i = 0; i < n; i++) { A.step(); S = A.S; S.inbox = []; } }; /* a real track record (the save checks its length) */
+    const held = () => S.player.cash >= A.shortLiab() * .5 - 1e-9;
+    const pub = i => S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0)[i];
+    const mgState = () => JSON.stringify([S.player.cash, S.player.loan, S.player.mg, S.player.mgB, S.cos.map(c => [c.id, c.ctrl, c.own.P || 0])]);
+    /* RE-14: 現引き */
+    const marginSetup = seed => { fresh(seed); const {lock} = shortTo(0, 10); S.player.cash = lock + 10; const a = pub(3), b2 = pub(7); A.execBuy('P', a, A.sharesForMoney(a, 14)); A.execBuy('P', b2, A.sharesForMoney(b2, 5)); if (!(S.player.mgB && S.player.mgB[a.id] > 0 && S.player.mgB[b2.id] > 0)) throw new Error('margin setup failed ' + JSON.stringify([S.player.mgB, A.buyingPower()])); return {a, b2}; }; /* within the buying power: both purchases are partly on margin */
+    { const {a} = marginSetup(5301); S.player.cash = A.shortLiab() * .5; const s0 = mgState(); const n = A.mgSettle(a); out.T01 = n === 0 && mgState() === s0 && A.mgOf(a) > 0; info.T01 = {loan: S.player.loan, mgB: S.player.mgB[a.id]};
+      click('sel', a.id); S.player.cash = A.shortLiab() * .5; /* selecting may pay a beginner's reward: back to no free cash */ const s1 = mgState(); click('mgsettle', a.id); A.closeModal(); out.T02 = mgState() === s1; }
+    { const {a, b2} = marginSetup(5302); S.player.cash = A.shortLiab() * .5 + 2; const L0 = S.player.loan, B0 = S.player.mgB[a.id], M0 = S.player.mg[a.id], c0 = S.player.cash, ob = JSON.stringify([S.player.mg[b2.id], S.player.mgB[b2.id]]); const n = A.mgSettle(a);
+      out.T03 = Math.abs(c0 - S.player.cash - 2) < 1e-9 && Math.abs(L0 - S.player.loan - 2) < 1e-9 && Math.abs(B0 - S.player.mgB[a.id] - 2) < 1e-9 && Math.abs(S.player.mg[a.id] - M0 * (1 - 2 / B0)) < 1e-9 && Math.abs(n - M0 * 2 / B0) < 1e-9 && held();
+      S.player.cash += 100; const n2 = A.mgSettle(a); out.T04 = !S.player.mg[a.id] && !S.player.mgB[a.id] && held(); out.T05 = JSON.stringify([S.player.mg[b2.id], S.player.mgB[b2.id]]) === ob; }
+    { const {a} = marginSetup(5303); S.player.cash = A.shortLiab() * .5 + 1e-12; const s0 = mgState(); for (let i = 0; i < 20; i++) A.mgSettle(a); out.T06 = mgState() === s0; }
+    /* RE-15: block trades */
+    const blockSetup = (seed, free) => { fresh(seed); const c = pub(5), R = S.rivals[0]; R.cash = 1e5; A.execBuy(R.id, c, c.shares * .12); const {lock} = shortTo(0, 10); S.player.cash = lock + 30; const h = pub(9); A.execBuy('P', h, A.sharesForMoney(h, 30)); /* some holdings give margin room */ const n = c.own[R.id] * .5, price = c.price * 3, amt = n * price; S.player.cash = A.shortLiab() * .5 + (typeof free === 'function' ? free(amt) : free); return {c, R, n, price, amt}; };
+    { const {c, R, n, price, amt} = blockSetup(5304, a => a - 2); const L0 = S.player.loan, mg0 = (S.player.mg || {})[c.id] || 0, r0 = R.cash, bp = A.buyingPower(); const res = A.negotiate(R.id, c, n, price, 'P');
+      out.T07 = res.res === 'ok' && held() && Math.abs(S.player.loan - L0 - 2) < 1e-6 && Math.abs(((S.player.mg || {})[c.id] || 0) - mg0 - n * 2 / amt) < 1e-6 && Math.abs(R.cash - r0 - amt) < 1e-6; info.T07 = {res, bp, amt, loanUp: S.player.loan - L0, mg: ((S.player.mg || {})[c.id] || 0) - mg0, expectMg: n * 2 / amt}; }
+    out.T08 = 'N/A: 相対取引に現金限定の経路はありません（信用取引の範囲で決済）';
+    { const {c, R, n, price, amt} = blockSetup(5305, a => a + 1); const L0 = S.player.loan, c0 = S.player.cash; const res = A.negotiate(R.id, c, n, price, 'P'); out.T09 = res.res === 'ok' && S.player.loan === L0 && Math.abs(c0 - S.player.cash - amt) < 1e-6; }
+    { const {c, R, n, price} = blockSetup(5306, 0); const big = n, px = A.buyingPower() / big * 1.2; const s0 = JSON.stringify([S.player.cash, S.player.loan, c.own, R.cash]), nn = S.news.length; const res = A.negotiate(R.id, c, big, px, 'P'); out.T10 = res.res === 'funds' && JSON.stringify([S.player.cash, S.player.loan, c.own, R.cash]) === s0 && S.news.length === nn; }
+    { const {c, R, n, price, amt} = blockSetup(5307, 0); const px = A.buyingPower() / n * 1.1; S.inbox = [{id: 9801, kind: 'x'}, {id: 9802, kind: 'counter', from: R.id, cid: c.id, n, price: px, actor: 'P', exp: S.week + 2}]; S.inboxSeq = 9900; const s0 = JSON.stringify([S.player.cash, S.player.loan, c.own]);
+      A.resolveInbox(9802, true); const kept = S.inbox.findIndex(i => i.id === 9802) === 1; out.T11 = kept && JSON.stringify([S.player.cash, S.player.loan, c.own]) === s0;
+      S.player.cash += n * px; const r0 = R.cash; A.resolveInbox(9802, true); A.resolveInbox(9802, true); out.T12 = !S.inbox.some(i => i.id === 9802) && Math.abs(R.cash - r0 - n * px) < 1e-6 && held(); }
+    { const {c, R, n, price} = blockSetup(5308, a => a + 5); S.inbox = [{id: 9803, kind: 'counter', from: R.id, cid: c.id, n, price, actor: 'P', exp: S.week + 2}]; delete c.own[R.id]; const s0 = JSON.stringify([S.player.cash, S.player.loan, c.own]); A.resolveInbox(9803, true); out.T13 = JSON.stringify([S.player.cash, S.player.loan, c.own]) === s0 && !S.inbox.some(i => i.id === 9803); }
+    { const {c, R, n, price, amt} = blockSetup(5309, a => a + 5); const r0 = R.cash, cost0 = (S.player.cost || {})[c.id] || 0; A.negotiate(R.id, c, n, price, 'P'); out.T14 = Math.abs(R.cash - r0 - amt) < 1e-6 && Math.abs(((S.player.cost || {})[c.id] || 0) - cost0 - amt) < 1e-6; }
+    { fresh(5310); const c = pub(5), R = S.rivals[0]; R.cash = 1e5; A.execBuy(R.id, c, c.shares * .1); const {lock} = shortTo(0, 10); S.pres.cash = 1; const n = c.own[R.id] * .5, px = c.price; const r0 = R.cash, p0 = JSON.stringify([S.player.cash, S.player.loan]); const u = A.transferShares(R.id, 'U', c, n, px);
+      out.T15 = u === 0 && R.cash === r0 && S.pres.cash === 1 && JSON.stringify([S.player.cash, S.player.loan]) === p0; }
+    /* RE-16: the investment report */
+    { fresh(5311); weeks(27); shortTo(0, 10); const s0 = JSON.stringify([S.player.cash, S.player.loan, S.nl || null, S.player.plW]); const nn = S.news.length; const ok1 = A.nlStart(); out.T16 = ok1 === false && JSON.stringify([S.player.cash, S.player.loan, S.nl || null, S.player.plW]) === s0 && S.news.length === nn;
+      S.player.cash += A.NL_START; const c0 = S.player.cash; const ok2 = A.nlStart(); out.T17 = ok2 === true && Math.abs(c0 - S.player.cash - A.NL_START) < 1e-12 && held() && !!S.nl; const ok3 = A.nlStart(); out.T18 = ok3 === false;
+      fresh(5312); weeks(10); S.player.cash = 100; out.T18 = out.T18 && A.nlStart() === false && !S.nl;
+      fresh(5313); weeks(27); S.player.cash = 100; A.nlStart(); const c1 = S.player.cash; for (let i = 0; i < 8; i++) { A.step(); S.inbox = []; } const okL = loads(); S = A.S; const c2 = S.player.cash; A.importText(A.exportText()); S = A.S; out.T19 = !!S.nl && okL && S.player.cash === c2 && Number.isFinite(S.nl.rev); }
+    /* AUD-04: tenders, LBO, PE secondary, issues, trading, shorts */
+    { fresh(5314); const {lock} = shortTo(0, 10); S.player.cash = lock + 40; const h = pub(9); A.execBuy('P', h, A.sharesForMoney(h, 30)); const c = pub(11); const free = A.freeCash(), L0 = S.player.loan; const q = A.execTender('P', c, c.price * 1.4, .25, c.price, false);
+      out.T20 = !!q && held() && S.player.loan - L0 > 0 && Math.abs((S.player.loan - L0) - Math.max(0, q.cost - free)) < 1e-6; info.T20 = {free, cost: q && q.cost, loanUp: S.player.loan - L0}; }
+    { fresh(5315); const {lock} = shortTo(0, 10); S.player.cash = lock + 40; const h = pub(9); A.execBuy('P', h, A.sharesForMoney(h, 30)); const c = pub(12); const free = A.freeCash(), L0 = S.player.loan, d0 = c.debt; const q = A.execTender('P', c, c.price * 1.4, .3, c.price, true);
+      out.T22 = !!q && held() && Math.abs((c.debt - d0) - q.cost * .65) < 1e-6 && Math.abs((S.player.loan - L0) - Math.max(0, q.cost * .35 - free)) < 1e-6; info.T22 = {cost: q && q.cost, debtUp: c.debt - d0, loanUp: S.player.loan - L0, free}; }
+    out.T21 = 'resolveTobsの撤回／次点ルールは既存テスト（rev10 TOB・BUG-33/67系）で実行。決済は事前のfundsOf確認後にplayerPayOptで支払う（T20/T22で担保保護を確認）';
+    { fresh(5316); const qf = (S.pe && S.pe.firms || [])[0]; for (const c of S.cos.filter(x => !x.priv && !x.ctrl && !x.reorg && x.price > 0).slice(20, 22)) { const tot = c.price * c.shares; c.priv = true; c.own = {[qf.id]: c.shares}; c.pe = {type: 'buy', owner: qf.id, w0: S.week, ev0: A.peEV(c), e0: A.ebitda(c), rev0: c.rev, m0: A.opMargin(c), inv: tot, flows: [[S.week, -tot]], mq: 55, dd: true, risk: null, promise: 0}; A.recomputeCtrl && A.recomputeCtrl(); } /* artificial fixture: an AI firm owns two unlisted companies (none exist at the start) */ const sec = S.cos.find(c => c.priv && c.pe && !c.pe.closed && /^Q/.test(c.pe.owner));
+      if (!sec) { out.T23 = 'BLOCKED: このシードでは60週以内にAI運営会社の保有先が生まれず'; out.T24 = out.T23; }
+      else { const eq = sec.price * sec.shares; const {lock} = shortTo(eq * 1.01 + 1, 10); const c0 = S.player.cash, L0 = S.player.loan; const ok = A.peBuySecondary(sec, 'P', eq); out.T23 = ok && held() && Math.abs(c0 - S.player.cash - eq * 1.01) < 1e-6 && S.player.loan === L0;
+        const sec2 = S.cos.find(c => c !== sec && c.priv && c.pe && !c.pe.closed && /^Q/.test(c.pe.owner)); if (!sec2) out.T24 = 'BLOCKED: 2社目なし'; else { const eq2 = sec2.price * sec2.shares; shortTo(0, 10); S.player.loan = 0; const st = JSON.stringify([sec2.own, sec2.pe, sec2.debt, S.player.cash]); const ok2 = A.peBuySecondary(sec2, 'P', eq2 * 50); out.T24 = !ok2 && JSON.stringify([sec2.own, sec2.pe, sec2.debt, S.player.cash]) === st; } } }
+    out.T25 = 'BUG-117の資金コール拒否は既存テスト（rev40 BUG-117）で実行。transferSharesは拒否された資金コールで売り手に入金しない順序に変更';
+    { fresh(5317); const c = S.cos.find(x => x.priv) || pub(2); const own = JSON.stringify(c.own); const {lock} = shortTo(0, 10); const a1 = A.allot(c, 'P', .2); out.T26 = a1 === false && JSON.stringify(c.own) === own && held(); }
+    { fresh(5318); const {lock} = shortTo(1, 10); const c = pub(4); const L0 = S.player.loan; const r1 = A.execBuy('P', c, A.sharesForMoney(c, 1.8)); const margin = !!r1 && held() && S.player.loan - L0 > .7; const r2 = A.execBuy('P', c, 1e9); const capped = !r2 || r2.cost <= A.buyingPower() + r2.cost + 1e-6; const s = A.execSell('P', c, c.own.P * .5); out.T27 = margin && capped && held(); info.T27 = {loanUp: S.player.loan - L0}; }
+    { fresh(5319); const {sc} = shortTo(0, 10); const n = S.player.shorts[sc.id].n; A.execCover(sc, n); out.T28 = !S.player.shorts[sc.id] && Number.isFinite(S.player.cash) && Number.isFinite(S.player.loan); }
+    { const {a} = marginSetup(5320); S.player.cash += 1; const ac = a; A.nlStart(); const before = JSON.stringify([S.player.cash, S.player.loan, S.player.mg, S.player.mgB, S.player.shorts, !!S.nl]); const ok = loads(); S = A.S; out.T29 = ok && JSON.stringify([S.player.cash, S.player.loan, S.player.mg, S.player.mgB, S.player.shorts, !!S.nl]) === before; }
+    { const run = () => { marginSetup(5321); const a = pub(3); S.player.cash = A.shortLiab() * .5 + 1; A.mgSettle(a); const c = pub(5), R = S.rivals[0]; R.cash = 1e5; A.execBuy(R.id, c, c.shares * .1); A.negotiate(R.id, c, c.own[R.id] * .3, c.price * 3, 'P'); for (let i = 0; i < 20; i++) { A.step(); S.inbox = []; } return JSON.stringify([A.S.player.cash, A.S.player.loan, A.S.player.mg, A.S.cos.map(x => x.price)]); };
+      const h1 = run(), h2 = run(); out.T30 = h1 === h2; }
+    return {out, info}; })(); } catch (e) { return {out: {threw: false}, info: {err: String(e.stack).slice(0, 600)}}; } });
+  console.log('rev52 funds', JSON.stringify(r.info).slice(0, 2500));
+  for (const [k, v] of Object.entries(r.out)) { if (typeof v === 'string') console.log(`SKIP  rev52 funds: ${k} — ${v}`); else ok('rev52 funds: ' + k, v); }
+  ok('rev52 funds: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+}
 async function testFunds51(b) {
   const {p, errs} = await page(b, {viewport: {width: 390, height: 800}});
   const r = await p.evaluate(() => { try { return (() => {
@@ -4933,6 +4995,7 @@ async function balance(b) {
     await testRealEstate49(b);
     await testRealEstate50(b);
     await testFunds51(b);
+    await testFunds52(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
