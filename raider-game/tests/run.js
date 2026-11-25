@@ -3775,6 +3775,38 @@ async function testRealEstate47(b) {
   await p.close();
 }
 
+async function testHandover58(b) {
+  /* rev58 hand-over rules for the ATLAS3D section (owner's instruction): the section is not edited, moved or removed; the four game-side buttons stay; no Google Fonts or other external fetches.
+     A3D_SHA is the section as handed over (Muse rev56-3d + the rev57 VIS-03 port the owner allowed once). A new section from Muse means a new hash here — never edit the section to match. */
+  const A3D_SHA = '12988121065fdc9231050205038b99faa9ab7b1812dd601db7f58420f4dde6ab';
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), out = {};
+  const a = html.indexOf('<!-- ATLAS3D BEGIN'), e0 = html.indexOf('<!-- ATLAS3D END'), e = html.indexOf('-->', e0) + 3;
+  out.oneSection = a > 0 && e0 > a && html.indexOf('<!-- ATLAS3D BEGIN', a + 1) < 0 && html.indexOf('<!-- ATLAS3D END', e0 + 1) < 0;
+  out.beforeBody = /^\s*<\/body>/.test(html.slice(e));
+  const blk = html.slice(a, e), body = html.slice(0, a) + html.slice(e);
+  out.sectionUnchanged = require('crypto').createHash('sha256').update(blk, 'utf8').digest('hex') === A3D_SHA;
+  out.globeBtn = /<div class="mapctl">[\s\S]{0,600}<button type="button" id="a3d-globebtn"[^>]*>地球儀<\/button>/.test(body);
+  const fnSrc = n => { const i = body.indexOf('function ' + n + '('); return i < 0 ? '' : body.slice(i, body.indexOf('\nfunction ', i + 10)); };
+  out.propBtn = /class="[^"]*\ba3d-propbtn\b[^"]*" data-a3d-prop="\$\{p\.id\}"/.test(fnSrc('showProp'));
+  out.devBtn = /class="[^"]*\ba3d-devbtn\b[^"]*" data-a3d-dev="\$\{p\.id\}">建設の様子を見る/.test(fnSrc('devBox'));
+  out.luxBtn = /class="[^"]*\ba3d-luxbtn\b[^"]*">ショールーム/.test(fnSrc('renderPres'));
+  out.noDataAct = !/data-act="[^"]*"[^>]*(a3d-globebtn|a3d-propbtn|a3d-devbtn|a3d-luxbtn)|(a3d-globebtn|a3d-propbtn|a3d-devbtn|a3d-luxbtn)[^>]*data-act=/.test(body);
+  out.noGoogleFonts = !/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(html);
+  out.noExternalFetch = !/<(link|script|img|iframe)\b[^>]*\b(href|src)=["']?(https?:)?\/\//i.test(html);
+  /* in the page: the buttons are really there and the 3D side only reads the game */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(async () => { const A = window.__atlas; A.closeModal(); A.newGame(5801, 'normal', 'B', 'b', 'std', true); const S = A.S; S.won = S.lost = true; for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; }
+    const before = A.exportText(), rs = JSON.stringify(A.S.rs), o = {};
+    o.globeInDom = !!document.querySelector('.mapctl #a3d-globebtn');
+    A.showProp(S.props[0]); o.propInDom = !!document.querySelector('#modal .a3d-propbtn'); A.closeModal();
+    for (const m of [{mode: 'globe'}, {mode: 'city', city: 'tyo'}, {mode: 'dev'}, {mode: 'lux'}]) { window.ATLAS3D.open(m); await new Promise(f => setTimeout(f, 500)); window.ATLAS3D.close(); }
+    o.readOnly = A.exportText() === before && JSON.stringify(A.S.rs) === rs; return o; });
+  Object.assign(out, r);
+  for (const [k, v] of Object.entries(out)) ok('rev58 handover: ' + k, v);
+  ok('rev58 handover: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testVis57(b) {
   /* rev57 VIS-03: the 3D construction progress is the building cost paid (spent / cost), not the weeks elapsed; halts freeze it; the slider is a labelled preview */
   const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
@@ -5267,6 +5299,7 @@ async function balance(b) {
     await testPE55(b);
     await test3D56(b);
     await testVis57(b);
+    await testHandover58(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
