@@ -3961,8 +3961,8 @@ async function testPlay59(b) {
 
 async function testHandover58(b) {
   /* rev58 hand-over rules for the ATLAS3D section (owner's instruction): the section is not edited, moved or removed; the four game-side buttons stay; no Google Fonts or other external fetches.
-     A3D_SHA is the section as handed over (rev58: Muse rev56-3d + the rev57 VIS-03 port the owner allowed once; rev63: Muse rev61-3d; rev64: Muse rev63-3d). A new section from Muse means a new hash here — never edit the section to match. */
-  const A3D_SHA = '993c2d59925accb7d795a148bf8e59993e24e0ce0fd3ccb3a5ed95a75e98b5ad'; /* rev64: Muse's rev63-3d section (focused building always visible, open-top muted scaffolding) */
+     A3D_SHA is the section as handed over (rev58: Muse rev56-3d + the rev57 VIS-03 port the owner allowed once; rev63: Muse rev61-3d; rev64: Muse rev63-3d; rev67: Muse rev66-3d corrected). A new section from Muse means a new hash here — never edit the section to match. */
+  const A3D_SHA = '58fd569c4c055d3e8d762fe9742169aacb2dfbfc9e3b57606e56e99dd1043bfc'; /* rev67: Muse's rev66-3d section, corrected (player's office/HQ with marker, apartment and condominium models, Japanese development kinds) */
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), out = {};
   const a = html.indexOf('<!-- ATLAS3D BEGIN'), e0 = html.indexOf('<!-- ATLAS3D END'), e = html.indexOf('-->', e0) + 3;
   out.oneSection = a > 0 && e0 > a && html.indexOf('<!-- ATLAS3D BEGIN', a + 1) < 0 && html.indexOf('<!-- ATLAS3D END', e0 + 1) < 0;

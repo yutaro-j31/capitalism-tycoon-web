@@ -8691,6 +8691,7 @@ html.a3d-nogl .a3d-propbtn, html.a3d-nogl .a3d-devbtn, html.a3d-nogl .a3d-luxbtn
 .a3d-chips{display:flex;gap:6px;overflow-x:auto;padding:8px 10px;background:#0a1828;flex:0 0 auto;-webkit-overflow-scrolling:touch}
 .a3d-chip{appearance:none;border:1px solid #3d5a7d;background:#10233a;color:#cfe0f2;border-radius:999px;padding:7px 12px;font-size:12.5px;white-space:nowrap;min-height:36px;cursor:pointer}
 .a3d-chip.on{background:#d4af37;border-color:#d4af37;color:#1a1405;font-weight:700}
+.a3d-chip.hq{border-color:#d4af37;color:#ffe9a8;background:#3a2f10;font-weight:700}
 .a3d-panel{position:absolute;left:10px;right:10px;bottom:10px;max-height:46%;overflow-y:auto;background:rgba(8,20,38,.94);border:1px solid #3d5a7d;border-radius:12px;padding:12px 14px;z-index:5;box-shadow:0 8px 30px rgba(0,0,0,.5)}
 .a3d-root .a3d-panel{position:relative;left:auto;right:auto;bottom:auto;max-height:38%;flex:0 0 auto;margin:0 10px 10px}
 .a3d-panel h4{margin:0 0 8px;font-size:15px;color:#f0d98c}
@@ -8699,7 +8700,7 @@ html.a3d-nogl .a3d-propbtn, html.a3d-nogl .a3d-devbtn, html.a3d-nogl .a3d-luxbtn
 .a3d-kv span{color:#9db4cc;font-size:12.5px}
 .a3d-kv b{font-size:13px;text-align:right}
 .a3d-btnrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-.a3d-pill{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(8,20,38,.92);border:1px solid #d4af37;color:#ffe9a8;border-radius:999px;padding:7px 14px;font-size:13px;z-index:6;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis}
+.a3d-pill{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(8,20,38,.92);border:1px solid #d4af37;color:#ffe9a8;border-radius:999px;padding:7px 14px;font-size:13px;z-index:6;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .a3d-settings{position:absolute;top:56px;right:10px;width:min(320px,calc(100vw - 20px));background:rgba(8,20,38,.97);border:1px solid #d4af37;border-radius:12px;padding:12px 14px;z-index:7}
 .a3d-settings h4{margin:0 0 8px;color:#f0d98c;font-size:14px}
 .a3d-setrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed rgba(120,150,190,.25);font-size:13px}
@@ -14586,6 +14587,11 @@ var A3D_LUX=[["car","スーパーカー",1,2,.9],["condo","湾岸タワーマン
 function gCITIES(){ try{ if(typeof CITIES!=='undefined' && CITIES && CITIES.length) return CITIES; }catch(e){} try{ var a=window.__atlas; if(a && a.CITIES && a.CITIES.length) return a.CITIES; }catch(e){} return A3D_CITIES; }
 function gLUX(){ try{ var a=window.__atlas; if(a && a.LUX && a.LUX.length) return a.LUX; }catch(e){} try{ if(typeof LUX!=='undefined' && LUX && LUX.length) return LUX; }catch(e){} return A3D_LUX; }
 function gPROP(){ try{ var a=window.__atlas; if(a && a.PROPDEF) return a.PROPDEF; }catch(e){} try{ return (typeof PROP!=='undefined' && PROP)? PROP : {}; }catch(e){ return {}; } }
+/* rev66fix: development kinds live in the game's DEVK table, not in PROPDEF — 'condo' has no PROPDEF
+   entry, so the dev screens printed the raw English kind. Names below mirror DEVK (display only). */
+var DEV_KIND_NAMES={office:'オフィスビル', retail:'商業施設', logi:'物流倉庫', resi:'賃貸マンション', apt:'一棟アパート', condo:'分譲マンション', hotel:'ホテル', tower:'タワーマンション', mixed:'複合施設（都市再開発）', house:'戸建て住宅', factory:'工場', lab:'研究開発施設', dc:'データセンター', parking:'駐車場', medical:'医療施設', care:'高齢者住宅', solar:'太陽光発電所', arena:'アリーナ・スタジアム'};
+function devKindName(kind){ if(DEV_KIND_NAMES[kind]) return DEV_KIND_NAMES[kind]; var P=gPROP(); return (P[kind]||{}).n || kind; }
+function kindName(kind){ var P=gPROP(); if(P[kind] && P[kind].n) return P[kind].n; return devKindName(kind); }
 function cityName(id){ var cs=gCITIES(); for(var i=0;i<cs.length;i++) if(cs[i].id===id) return cs[i].n; return id; }
 function webglOK(){ try{ var c=document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl')||c.getContext('experimental-webgl'))); }catch(e){ return false; } }
 var GL_OK = webglOK();
@@ -14669,7 +14675,7 @@ function windowTexture(base, cols, rows, litRatio, seed, litColor, type){
       g.fillRect(wx,wy,ww,wh);
       g.fillStyle='rgba(160,190,230,0.10)'; g.fillRect(wx,wy,ww,wh*0.4);
     }
-    if(type==='resi'){ g.fillStyle='rgba(0,0,0,0.28)'; g.fillRect(wx-2, wy+wh+3, ww+4, 3); g.fillStyle='rgba(255,255,255,0.10)'; g.fillRect(wx-2, wy+wh+6, ww+4, 1); }
+    if(type==='resi'||type==='apt'||type==='condo'){ g.fillStyle='rgba(0,0,0,0.28)'; g.fillRect(wx-2, wy+wh+3, ww+4, 3); g.fillStyle='rgba(255,255,255,0.10)'; g.fillRect(wx-2, wy+wh+6, ww+4, 1); }
   }
   facadeGroundFloor(g, rnd, type, true, litColor);
   g.fillStyle='rgba(0,0,0,0.28)'; g.fillRect(0,0,512,20); g.fillStyle='rgba(255,255,255,0.13)'; g.fillRect(0,20,512,3);
@@ -14698,7 +14704,7 @@ function dayWindowTexture(base, cols, rows, seed, type){
     if(rnd()<0.4){ g.fillStyle='rgba(255,255,255,0.20)'; g.beginPath(); g.moveTo(wx,wy+wh); g.lineTo(wx+ww*0.55,wy); g.lineTo(wx+ww,wy); g.lineTo(wx+ww,wy+wh*0.45); g.closePath(); g.fill(); }
     g.fillStyle='rgba(255,255,255,0.35)'; g.fillRect(wx,wy,ww,wh*0.34);
     g.fillStyle='rgba(70,95,120,0.25)'; g.fillRect(wx,wy+wh*0.72,ww,wh*0.28);
-    if(type==='resi'){ g.fillStyle='rgba(30,40,50,0.25)'; g.fillRect(wx-2, wy+wh+3, ww+4, 3); }
+    if(type==='resi'||type==='apt'||type==='condo'){ g.fillStyle='rgba(30,40,50,0.25)'; g.fillRect(wx-2, wy+wh+3, ww+4, 3); }
   }
   facadeGroundFloor(g, rnd, type, false, null);
   g.fillStyle='rgba(0,0,0,0.20)'; g.fillRect(0,0,512,20); g.fillStyle='rgba(255,255,255,0.16)'; g.fillRect(0,20,512,3);
@@ -14748,7 +14754,9 @@ var TYPE_STYLE={
   logi:    {base:'#5b6167', cols:10, rows:2,  lit:0.22, roof:0x2e3339},
   resi:    {base:'#6e6a63', cols:7,  rows:12, lit:0.55, roof:0x2c3138, litColor:'#ffca7a'},
   hotel:   {base:'#77683f', cols:9,  rows:16, lit:0.62, roof:0x333026, litColor:'#ffe2a0'},
-  factory: {base:'#5d646c', cols:8,  rows:3,  lit:0.28, roof:0x33383f}
+  factory: {base:'#5d646c', cols:8,  rows:3,  lit:0.28, roof:0x33383f},
+  apt:     {base:'#7d766c', cols:6,  rows:3,  lit:0.5,  roof:0x3a3f45, litColor:'#ffca7a'},
+  condo:   {base:'#8d8272', cols:8,  rows:16, lit:0.52, roof:0x2e2a24, litColor:'#ffdca8'}
 };
 function typeTexture(type, variant){
   var key=type+'_'+variant;
@@ -15432,7 +15440,7 @@ function buildShell(){
   ui.stage=el('div','a3d-stage',root);
   ui.chips=el('div','a3d-chips',root);
   ui.panel=el('div','a3d-panel',root); ui.panel.hidden=true;
-  ui.pill=el('div','a3d-pill',root); ui.pill.hidden=true;
+  ui.pill=el('div','a3d-pill',ui.stage); ui.pill.hidden=true; /* rev66fix: the pill lives inside the stage (below the button bar) and ignores pointer events, so it can never cover or swallow taps meant for the top buttons (day / settings / close) at narrow widths */
   var settings=el('div','a3d-settings',root); settings.hidden=true; ui.settings=settings;
   settings.innerHTML='<button type="button" class="a3d-pclose" aria-label="設定を閉じる">✕</button><h4>3D設定</h4>'; /* rev56: a close button */
   function row(label, node){ var r=el('div','a3d-setrow',settings); el('span','',r,label); r.appendChild(node); return r; }
@@ -15501,7 +15509,7 @@ function buildKind(kind, w, d, h, opts){
   var g=new THREE.Group();
   var cat=kindCat(kind);
   var mat=new THREE.MeshLambertMaterial({color:opts.tint||0xffffff});
-  regFacade(mat, cat==='resi'?'resi':(cat==='retail'?'retail':'office'), hashStr2(kind)%4);
+  regFacade(mat, TYPE_STYLE[kind]? kind : (cat==='resi'?'resi':(cat==='retail'?'retail':'office')), hashStr2(kind)%4);
   function box(bw,bh,bd,x,y,z,m){
     var mm=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), m||mat);
     mm.position.set(x||0,(y||0)+bh/2,z||0); g.add(mm); return mm;
@@ -15526,7 +15534,60 @@ function buildKind(kind, w, d, h, opts){
     case 'arena': { var am=new THREE.Mesh(new THREE.CylinderGeometry(Math.max(w,d)*0.55,Math.max(w,d)*0.6,h,18), mat); am.position.y=h/2; g.add(am); var dome=new THREE.Mesh(new THREE.SphereGeometry(Math.max(w,d)*0.55,18,8,0,Math.PI*2,0,Math.PI/2), new THREE.MeshLambertMaterial({color:0xb9c2cc})); dome.scale.y=0.35; dome.position.y=h; g.add(dome); break; }
     case 'house': box(w,h,d); roofPyramid(w*1.1,d*1.1,Math.max(1.6,h*0.4),h); break;
     case 'unit': box(w,h,d); roofPyramid(w*1.08,d*1.08,Math.max(1.3,h*0.35),h, new THREE.MeshLambertMaterial({color:0x44586e})); break;
-    case 'apt': box(w,h,d); box(w*0.92,0.7,d*0.92,0,h); break;
+    case 'apt': {
+      /* rev66: dedicated low-rise apartment — open-air corridors, an external staircase,
+         a door per unit and small rear balconies (was a plain resi box). */
+      box(w,h,d);
+      var aFl=clamp(Math.round(h/2.9),2,3), aFh=h/aFl;
+      var aSlab=new THREE.MeshLambertMaterial({color:0x9aa0a4});
+      var aRail=new THREE.MeshLambertMaterial({color:0x646b73});
+      var aDoor=new THREE.MeshLambertMaterial({color:0x39434e});
+      for(var af=1; af<aFl; af++){
+        var ay=af*aFh;
+        box(w, 0.26, 1.5, 0, ay-0.26, d/2+0.75, aSlab);
+        box(w, 0.65, 0.07, 0, ay, d/2+1.46, aRail);
+        box(w*0.92, 0.22, 1.05, 0, ay-0.22, -d/2-0.5, aSlab);
+      }
+      var aUnits=Math.max(2, Math.round(w/3.4));
+      for(var au=0; au<aUnits; au++){
+        var ax=-w/2+(au+0.5)*(w/aUnits);
+        for(var af2=0; af2<aFl; af2++) box(0.95, 2.0, 0.1, ax, af2*aFh+0.12, d/2+0.05, aDoor);
+      }
+      var aRun=d*0.52, aL=Math.sqrt(aFh*aFh+aRun*aRun), aAng=Math.atan2(aFh, aRun);
+      for(var af3=1; af3<aFl; af3++){
+        var fl3=new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.24, aL), aSlab);
+        fl3.position.set(w/2+1.05, (af3-0.5)*aFh+aFh/2, d/2+0.75-aRun/2); fl3.rotation.x=aAng; g.add(fl3);
+        var ld3=new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.24, 1.6), aSlab);
+        ld3.position.set(w/2+1.05, af3*aFh-0.12, d/2+0.6); g.add(ld3);
+      }
+      box(w*1.04, 0.35, d*1.04, 0, h, aRail);
+      break;
+    }
+    case 'condo': {
+      /* rev66: dedicated condominium — continuous balconies with glass rails, a porte-cochere
+         entrance and planters (was the generic default box). */
+      box(w,h,d);
+      var cFl=clamp(Math.round(h/2.9),4,20), cFh=h/cFl;
+      var cGlass=new THREE.MeshPhongMaterial({color:0xa9c8de, shininess:100, specular:0xaaccee});
+      var cSlab=new THREE.MeshLambertMaterial({color:0xd9d3c5});
+      for(var cf=1; cf<cFl; cf++){
+        var cy=cf*cFh;
+        box(w, 0.2, 1.15, 0, cy-0.2, d/2+0.55, cSlab);
+        box(w, 0.2, 1.15, 0, cy-0.2, -d/2-0.55, cSlab);
+        box(w*0.98, 0.8, 0.06, 0, cy, d/2+1.1, cGlass);
+        box(w*0.98, 0.8, 0.06, 0, cy, -d/2-1.1, cGlass);
+      }
+      box(Math.min(w*0.52,11), 0.45, 4.8, 0, 3.15, d/2+2.3, cSlab);
+      box(0.35, 3.15, 0.35, -Math.min(w*0.23,4.8), 0, d/2+4.4, cSlab);
+      box(0.35, 3.15, 0.35, Math.min(w*0.23,4.8), 0, d/2+4.4, cSlab);
+      var cGrn=new THREE.MeshLambertMaterial({color:0x2f6b3a, flatShading:true});
+      [-1,1].forEach(function(sg){
+        box(3.4, 0.75, 1.15, sg*(w/2-2.3), 0, d/2+1.3, new THREE.MeshLambertMaterial({color:0x8a8378}));
+        var tr=new THREE.Mesh(new THREE.IcosahedronGeometry(1.05,0), cGrn); tr.position.set(sg*(w/2-2.3), 1.6, d/2+1.3); g.add(tr);
+      });
+      box(w*1.03, 0.45, d*1.03, 0, h, cSlab);
+      break;
+    }
     case 'care': box(w,h,d); roofPyramid(w*1.05,d*1.05,Math.max(1.2,h*0.3),h, new THREE.MeshLambertMaterial({color:0x7a6a52})); break;
     case 'resi': box(w,h,d); box(w*0.8,h*0.08,d*0.8,0,h); break;
     default: box(w,h,d);
@@ -15727,12 +15788,14 @@ function openGlobe(container){
 function showCityPanel(cid, silent){
   globe.sel=cid;
   var st=cityStats(cid);
+  var ofcP=officeInfo(getS());
+  var hqRow=(ofcP && ofcP.city===cid)? '<div><span>あなたの本社</span><b>'+OFFICE_LVLS[ofcP.lvl]+'</b></div>' : '';
   var html='<button type="button" class="a3d-pclose" aria-label="閉じる">✕</button><h4>'+cityName(cid)+'</h4>'+
     '<div class="a3d-kv"><div><span>上場企業</span><b>'+st.cos+'社</b></div>'+
     '<div><span>物件数</span><b>'+st.props+'件</b></div>'+
     '<div><span>自社保有</span><b>'+st.own+'件</b></div>'+
     '<div><span>自社評価額合計</span><b>'+fmtOk(st.ownVal)+'</b></div>'+
-    '<div><span>開発中の案件</span><b>'+st.dev+'件</b></div></div>'+
+    '<div><span>開発中の案件</span><b>'+st.dev+'件</b></div>'+hqRow+'</div>'+
     '<div class="a3d-btnrow"><button type="button" class="a3d-btn gold" id="a3d-gocity">この都市を3Dで見る</button>'+
     '<button type="button" class="a3d-btn" id="a3d-goflight">✈ ここへ移動</button></div>';
   if(ui.mapMode){ ui.mapPanel.innerHTML=html; ui.mapPanel.hidden=false; }
@@ -15970,6 +16033,55 @@ function makeBuilding(type, w, d, h, variant){
     var can=new THREE.Mesh(new THREE.BoxGeometry(Math.min(w*0.44,5.6), 0.22, 1.7), new THREE.MeshLambertMaterial({color:0x8a6d1d}));
     can.position.set(0, 2.75, frontD+0.8); grp.add(can);
   }
+  if(type==='apt'){
+    /* rev66: low-rise apartment dressing — open-air corridors with rails, a door per unit,
+       rear balconies and an external staircase on the right side. */
+    var aFl2=clamp(Math.round(h/2.9),2,3), aFh2=h/aFl2;
+    var aSlabM=new THREE.MeshLambertMaterial({color:0x9aa0a4});
+    var aRailM=new THREE.MeshLambertMaterial({color:0x646b73});
+    var aDoorM=new THREE.MeshLambertMaterial({color:0x39434e});
+    for(var af6=1; af6<aFl2; af6++){
+      var ay6=af6*aFh2;
+      var cs6=new THREE.Mesh(new THREE.BoxGeometry(w,0.26,1.5), aSlabM); cs6.position.set(0, ay6-0.13, d/2+0.75); grp.add(cs6);
+      var cr6=new THREE.Mesh(new THREE.BoxGeometry(w,0.65,0.07), aRailM); cr6.position.set(0, ay6+0.32, d/2+1.46); grp.add(cr6);
+      var bs6=new THREE.Mesh(new THREE.BoxGeometry(w*0.92,0.22,1.05), aSlabM); bs6.position.set(0, ay6-0.11, -d/2-0.5); grp.add(bs6);
+    }
+    var aUnits3=Math.max(2, Math.round(w/3.4));
+    for(var au3=0; au3<aUnits3; au3++){
+      var ax3=-w/2+(au3+0.5)*(w/aUnits3);
+      for(var af7=0; af7<aFl2; af7++){
+        var dr7=new THREE.Mesh(new THREE.BoxGeometry(0.95,2.0,0.09), aDoorM); dr7.position.set(ax3, af7*aFh2+1.12, d/2+0.05); grp.add(dr7);
+      }
+    }
+    var aRun2=d*0.52, aL2=Math.sqrt(aFh2*aFh2+aRun2*aRun2), aAng2=Math.atan2(aFh2, aRun2);
+    for(var af8=1; af8<aFl2; af8++){
+      var fl8=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.24,aL2), aSlabM);
+      fl8.position.set(w/2+1.05, (af8-0.5)*aFh2+aFh2/2, d/2+0.75-aRun2/2); fl8.rotation.x=aAng2; grp.add(fl8);
+      var ld8=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.24,1.6), aSlabM); ld8.position.set(w/2+1.05, af8*aFh2-0.12, d/2+0.6); grp.add(ld8);
+    }
+  }
+  if(type==='condo'){
+    /* rev66: condominium dressing — continuous balconies with glass rails on both faces,
+       a porte-cochere entrance, planters and a crown slab. */
+    var cFl3=clamp(Math.round(h/2.9),6,20), cFh3=h/cFl3;
+    var cGlassM=new THREE.MeshPhongMaterial({color:0xa9c8de, shininess:100, specular:0xaaccee, transparent:true, opacity:0.55});
+    var cSlabM=new THREE.MeshLambertMaterial({color:0xd9d3c5});
+    for(var cf9=1; cf9<cFl3; cf9++){
+      var cy9=cf9*cFh3;
+      [1,-1].forEach(function(sg9){
+        var bs9=new THREE.Mesh(new THREE.BoxGeometry(w,0.2,1.15), cSlabM); bs9.position.set(0, cy9-0.1, sg9*(d/2+0.55)); grp.add(bs9);
+        var gr9=new THREE.Mesh(new THREE.BoxGeometry(w*0.98,0.8,0.06), cGlassM); gr9.position.set(0, cy9+0.4, sg9*(d/2+1.1)); grp.add(gr9);
+      });
+    }
+    var pc9=new THREE.Mesh(new THREE.BoxGeometry(Math.min(w*0.52,11),0.45,4.8), cSlabM); pc9.position.set(0,3.15,d/2+2.3); grp.add(pc9);
+    [-1,1].forEach(function(sgp){ var pl9=new THREE.Mesh(new THREE.BoxGeometry(0.35,3.15,0.35), cSlabM); pl9.position.set(sgp*Math.min(w*0.23,4.8), 1.57, d/2+4.4); grp.add(pl9); });
+    var cGrnM=new THREE.MeshLambertMaterial({color:0x2f6b3a, flatShading:true});
+    [-1,1].forEach(function(sgt){
+      var pb9=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.75,1.15), new THREE.MeshLambertMaterial({color:0x8a8378})); pb9.position.set(sgt*(w/2-2.3), 0.37, d/2+1.3); grp.add(pb9);
+      var tr9=new THREE.Mesh(new THREE.IcosahedronGeometry(1.05,0), cGrnM); tr9.position.set(sgt*(w/2-2.3), 1.6, d/2+1.3); grp.add(tr9);
+    });
+    var crn9=new THREE.Mesh(new THREE.BoxGeometry(w*1.03,0.45,d*1.03), cSlabM); crn9.position.y=h+0.85; grp.add(crn9);
+  }
   grp.userData.type=type;
   shadowify(grp);
   return grp;
@@ -16083,10 +16195,11 @@ function propDims(p){
   var area=info.area||p.area||p.gfa||900;
   var map={office:['office',26,40],tower:['tower',40,58],hotel:['hotel',26,40],mixed:['office',20,34],lab:['office',14,24],medical:['office',16,26],
     retail:['retail',8,12],logi:['logi',7,11],dc:['logi',8,12],factory:['factory',7,11],parking:['logi',6,9],
-    resi:['resi',18,30],apt:['resi',14,26],unit:['resi',8,14],house:['resi',5,8],care:['resi',10,16],solar:['factory',4,6],arena:['retail',10,15]};
+    resi:['resi',18,30],apt:['apt',6.5,9.5],unit:['resi',8,14],house:['resi',5,8],care:['resi',10,16],solar:['factory',4,6],arena:['retail',10,15]};
   var m=map[p.kind]||['office',16,30];
   var t=clamp((Math.log10(Math.max(60,area))-1.8)/1.6,0,1);
   var h=m[1]+(m[2]-m[1])*t+(hashStr2(p.id)%5);
+  if(p.kind==='apt') h=clamp(h, 6.5, 10); /* rev66: a whole-building apartment is 2-3 storeys, however large the plot */
   var w=clamp(9+Math.sqrt(Math.max(30,area))*0.35, 10, 22);
   if(p.kind==='logi'||p.kind==='arena') w=clamp(w*1.5,14,26);
   return {type:m[0], w:w, d:w*0.8, h:h};
@@ -16148,6 +16261,13 @@ function buildPropGroup(p){
 }
 function buildDevSite(d, S){
   var ph=devPhase(d, S);
+  if(ph.key==='paid'){
+    /* rev66: the building cost is fully paid, so the finished form already stands on the city
+       site (the opening itself is still a weekly-step formality in the 2D game). This is also
+       where a finished condominium / apartment first appears inside the city map. */
+    var pFl=clamp(Math.round((d.gfa||6000)/1400),3,26);
+    return buildKind(d.kind||'office', 20, 16, pFl*2.9, {});
+  }
   if(ph.key==='land' || ph.r<=0.001){
     var g0=new THREE.Group();
     var sl=new THREE.Mesh(new THREE.BoxGeometry(22,0.5,18), new THREE.MeshLambertMaterial({map:texClone(getGravel(),3,3), color:0xa39c8d}));
@@ -16303,6 +16423,129 @@ function addCityCars(grp, R){
   }
 }
 
+/* ---------------- rev66: the player's office / HQ in the city map (read-only) ---------------- */
+var OFFICE_LVLS=['自宅兼事務所','小規模オフィス','本社ビルのフロア','本社ビル（一棟）','自社ビル'];
+var A3D_BRAND=['#f2b632','#48c48c','#3a8ee6','#e05a8a','#9b6cf0','#f07a3a','#e8eef2','#2bb3a8'];
+function officeInfo(S){
+  if(!S) return null;
+  if(S.scen==='trader' && !S.founded) return null; /* a pre-founding personal trader has no office */
+  if(!S.company && !S.founded) return null;
+  var o=S.office||{lvl:0, city:'tyo', staff:0}; /* the 2D game creates S.office lazily; its default is a home office in Tokyo */
+  return {lvl:o.lvl||0, city:o.city||'tyo', staff:o.staff||0};
+}
+function hqPropOf(S){
+  if(!S || !S.props) return null;
+  for(var i=0;i<S.props.length;i++){ var p=S.props[i]; if(p.hqb===true && p.own==='P') return p; }
+  return null;
+}
+function companyColorCss(S){
+  var c=S && S.color;
+  if(typeof c==='string' && c.charAt(0)==='#') return c;
+  if(typeof c==='number' && c>=0 && c<A3D_BRAND.length) return A3D_BRAND[c|0];
+  return '#d4af37';
+}
+function gLOGOS(){ try{ if(typeof LOGOS!=='undefined' && LOGOS && LOGOS.length) return LOGOS; }catch(e){} try{ var a=window.__atlas; if(a && a.LOGOS && a.LOGOS.length) return a.LOGOS; }catch(e){} return null; }
+function signTexture(text, colorCss, withLogo){
+  var cv=cnv(512,128), g=cv.getContext('2d');
+  g.fillStyle='#0d1420'; g.fillRect(0,0,512,128);
+  g.strokeStyle=colorCss; g.lineWidth=5; g.strokeRect(5,5,502,118);
+  var tx=256;
+  if(withLogo){
+    var LG=gLOGOS(), S0=getS(), d=(LG && S0)? (LG[S0.logo||0]||null) : null;
+    if(d){ try{ var pd=new Path2D(d); g.save(); g.translate(28,26); g.scale(76/24,76/24); g.fillStyle=colorCss; g.fill(pd,'evenodd'); g.restore(); tx=290; }catch(e){} }
+  }
+  g.fillStyle='#f5eeda'; g.textAlign='center'; g.textBaseline='middle';
+  var fs=52; g.font='700 '+fs+'px sans-serif';
+  while(g.measureText(text).width>(withLogo? 372:452) && fs>20){ fs-=4; g.font='700 '+fs+'px sans-serif'; }
+  g.fillText(text, tx, 68);
+  var t=new THREE.CanvasTexture(cv); t.encoding=THREE.sRGBEncoding; t.anisotropy=8;
+  return regTex(t);
+}
+function buildOfficeModel(S, lvl){
+  var colCss=companyColorCss(S), col=parseInt(colCss.slice(1),16);
+  var grp=new THREE.Group();
+  var name=S.company||'あなたの会社';
+  function sign(w2, h2, logo){
+    return new THREE.Mesh(new THREE.PlaneGeometry(w2,h2), new THREE.MeshBasicMaterial({map:signTexture(name, colCss, logo), side:THREE.DoubleSide}));
+  }
+  var dims;
+  if(lvl<=0){
+    /* a house in a residential block; one warm window is the whole statement */
+    grp.add(buildKind('house', 9, 7.5, 4.6, {}));
+    var winM=new THREE.MeshBasicMaterial({color:SET.day?0x8fa9bd:0xffc478});
+    if(SES) SES.themeMats.push({k:'basic', mat:winM, day:0x8fa9bd, dusk:0xffc478});
+    var win=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.1), winM); win.position.set(-1.7,1.7,3.81); grp.add(win);
+    var win2=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.1), winM); win2.position.set(1.9,1.7,3.81); grp.add(win2);
+    dims={w:9, d:7.5, h:6.5};
+  } else if(lvl===1){
+    /* one floor of a small mixed-use building, banded in the company colour */
+    grp.add(makeBuilding('retail', 11, 9, 11, 2));
+    var bandM=new THREE.MeshLambertMaterial({color:col, emissive:col, emissiveIntensity:0.35});
+    var band=new THREE.Mesh(new THREE.BoxGeometry(11.3,1.5,9.3), bandM); band.position.y=4.6; grp.add(band);
+    var sg=sign(7.5,1.9,false); sg.position.set(0,4.6,4.72); grp.add(sg);
+    dims={w:11, d:9, h:11};
+  } else if(lvl===2){
+    /* one or two floors of an office tower, banded in the company colour */
+    grp.add(makeBuilding('office', 16, 13, 30, 0));
+    var bandM2=new THREE.MeshLambertMaterial({color:col, emissive:col, emissiveIntensity:0.4});
+    [0.66,0.76].forEach(function(fk){ var bd=new THREE.Mesh(new THREE.BoxGeometry(16.35,1.7,13.35), bandM2); bd.position.y=30*fk; grp.add(bd); });
+    var sg2=sign(10,2.5,false); sg2.position.set(0,30*0.71,6.76); grp.add(sg2);
+    dims={w:16, d:13, h:30};
+  } else {
+    /* a whole rented tower: company tint, a crown band and a rooftop name board with the logo */
+    var b3=makeBuilding('office', 17, 14, 38, 3); grp.add(b3);
+    b3.traverse(function(o){ if(o.isMesh && o.material && o.material.map && o.material.color){ o.material.color.setHex(col); o.material.color.lerp(new THREE.Color(0xffffff), 0.5); } });
+    var crownM=new THREE.MeshLambertMaterial({color:col, emissive:col, emissiveIntensity:0.25});
+    var crown=new THREE.Mesh(new THREE.BoxGeometry(17.35,1.6,14.35), crownM); crown.position.y=30.9; grp.add(crown);
+    var board=new THREE.Mesh(new THREE.BoxGeometry(11.5,2.9,0.5), new THREE.MeshLambertMaterial({color:0x0d1420})); board.position.set(0,40.1,0); grp.add(board);
+    var sg3=sign(11,2.75,true); sg3.position.set(0,40.1,0.28); grp.add(sg3);
+    var sg4=sign(11,2.75,true); sg4.position.set(0,40.1,-0.28); sg4.rotation.y=Math.PI; grp.add(sg4);
+    dims={w:17, d:14, h:41.6};
+  }
+  grp.userData.dims=dims;
+  shadowify(grp);
+  return grp;
+}
+function styleHqBuilding(holder, S){
+  /* rev66: the player's own HQ tower — company tint, crown band and a rooftop name/logo board */
+  var dims=holder.userData.dims||{w:16, d:13, h:30};
+  var colCss=companyColorCss(S), col=parseInt(colCss.slice(1),16);
+  holder.traverse(function(o){ if(o.isMesh && o.material && o.material.map && o.material.color){ o.material.color.setHex(col); o.material.color.lerp(new THREE.Color(0xffffff), 0.5); } });
+  var crownM=new THREE.MeshLambertMaterial({color:col, emissive:col, emissiveIntensity:0.25});
+  var crown=new THREE.Mesh(new THREE.BoxGeometry(dims.w*1.03,1.5,dims.d*1.03), crownM); crown.position.y=dims.h*0.97; holder.add(crown);
+  var bw=Math.min(dims.w*0.72,13);
+  var board=new THREE.Mesh(new THREE.BoxGeometry(bw,2.9,0.5), new THREE.MeshLambertMaterial({color:0x0d1420})); board.position.set(0,dims.h+2.3,0); holder.add(board);
+  var sgA=new THREE.Mesh(new THREE.PlaneGeometry(bw*0.95,2.75), new THREE.MeshBasicMaterial({map:signTexture(S.company||'本社', colCss, true), side:THREE.DoubleSide}));
+  sgA.position.set(0,dims.h+2.3,0.28); holder.add(sgA);
+  var sgB=sgA.clone(); sgB.position.z=-0.28; sgB.rotation.y=Math.PI; holder.add(sgB);
+  shadowify(holder);
+}
+function showOfficePanel(){
+  var S=getS(), ofc=officeInfo(S); if(!S || !ofc) return;
+  var html='<h4>'+(S.company||'あなたの会社')+'</h4><div class="a3d-kv">'+
+    '<div><span>本社</span><b>'+OFFICE_LVLS[ofc.lvl]+'</b></div>'+
+    '<div><span>都市</span><b>'+cityName(ofc.city)+'</b></div>'+
+    '<div><span>社員数</span><b>'+Number(ofc.staff||0).toLocaleString('ja-JP')+'人</b></div></div>'+
+    (ofc.lvl>=4? '<p class="a3d-note">自社ビルが本社です。</p>':'');
+  showPanel(html);
+}
+
+/* rev66fix: the player's HQ must be findable in the whole-city view — a pulsing ring in the company
+   colour around the plot plus a company-colour flag on a pole beside the building (animated in the
+   city tick via s.hqMark). Display only; nothing here touches game state. */
+function addHqMarker(grp, x, z, baseR, topH, S, s){
+  var col=parseInt(companyColorCss(S).slice(1),16);
+  var ring=new THREE.Mesh(new THREE.RingGeometry(baseR, baseR+1.5, 40), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false}));
+  ring.rotation.x=-Math.PI/2; ring.position.set(x, 0.18, z); grp.add(ring);
+  var px=x+baseR+1.4, poleH=topH+11;
+  var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,poleH,6), new THREE.MeshLambertMaterial({color:0x2c3540}));
+  pole.position.set(px, poleH/2, z); grp.add(pole);
+  var flag=new THREE.Mesh(new THREE.BoxGeometry(5.2,2.8,0.14), new THREE.MeshBasicMaterial({color:col}));
+  flag.position.set(px+2.7, poleH-1.6, z); grp.add(flag);
+  var tip=new THREE.Mesh(new THREE.SphereGeometry(0.45,8,6), new THREE.MeshBasicMaterial({color:0xffd968}));
+  tip.position.set(px, poleH+0.35, z); grp.add(tip);
+  if(s) s.hqMark={ring:ring, flag:flag};
+}
 function openCity(container, cityId, focusPropId){
   var s=setupSession(container, {mode:'city'});
   var scene=s.scene;
@@ -16411,6 +16654,51 @@ function openCity(container, cityId, focusPropId){
     occlRoots.push(site);
     if(site.userData.crane && !site.userData.halt) s.cranes.push(site.userData.crane);
   });
+  /* rev66: the player's office / HQ stands in its own city (read at open time, so a move or a
+     finished HQ tower is reflected the next time the city is opened). */
+  var ofc=officeInfo(S);
+  s.officeMesh=null;
+  if(ofc && ofc.lvl>=4){
+    var hqp=hqPropOf(S);
+    if(hqp && hqp.city===cityId){
+      var hqHolder=null;
+      s.propMeshes.forEach(function(hm){ if(hm.userData.propId===hqp.id) hqHolder=hm; });
+      if(hqHolder){
+        hqHolder.userData.office=true; s.officeMesh=hqHolder;
+        if(hqp.uc!=null && S.week!=null && hqp.uc>S.week){
+          /* still being built: the site shows, not the finished tower */
+          hqHolder.visible=false;
+          var hqDims=hqHolder.userData.dims||{w:16,d:13,h:30};
+          var hqFloors=clamp(Math.round(hqDims.h/3.2),3,26);
+          var hqSite=makeConstructionSite(hqDims.w, hqDims.d, hqFloors, 3.2);
+          hqSite.position.copy(hqHolder.position); hqSite.rotation.y=hqHolder.rotation.y;
+          grp.add(hqSite);
+          occl.push({root:hqSite, x:hqSite.position.x, z:hqSite.position.z, r:Math.max(hqDims.w,hqDims.d)*0.62, h:hqFloors*3.2});
+          occlRoots.push(hqSite);
+          if(hqSite.userData.crane) s.cranes.push(hqSite.userData.crane);
+          addHqMarker(grp, hqSite.position.x, hqSite.position.z, Math.max(hqDims.w,hqDims.d)*0.85, hqFloors*3.2, S, s);
+        } else {
+          styleHqBuilding(hqHolder, S);
+          var hqDims2=hqHolder.userData.dims||{w:16,d:13,h:30};
+          addHqMarker(grp, hqHolder.position.x, hqHolder.position.z, Math.max(hqDims2.w,hqDims2.d)*0.85, hqDims2.h, S, s);
+        }
+      }
+    }
+  } else if(ofc && ofc.city===cityId){
+    var oi=props.length+devs.length;
+    if(oi<slots.length){
+      var om=buildOfficeModel(S, ofc.lvl);
+      om.position.set(slots[oi][0], 0, slots[oi][1]);
+      om.rotation.y=(hashStr2('office:'+cityId)%4)*Math.PI/2;
+      om.userData.office=true;
+      grp.add(om); s.propMeshes.push(om); s.officeMesh=om;
+      usedSlots.push(slots[oi]);
+      var od=om.userData.dims||{w:12,d:10,h:12};
+      occl.push({root:om, x:slots[oi][0], z:slots[oi][1], r:Math.max(od.w,od.d)*0.62, h:od.h});
+      occlRoots.push(om);
+      addHqMarker(grp, slots[oi][0], slots[oi][1], Math.max(od.w,od.d)*0.8, od.h, S, s);
+    }
+  }
   if(s.focusProp){
     var fp=s.focusProp.position, fd=s.focusProp.userData.dims||{w:14,d:12,h:20};
     var fr=Math.max(fd.w, fd.d)*0.85;
@@ -16454,6 +16742,39 @@ function openCity(container, cityId, focusPropId){
     s.controls.target.set(fp.x, fTy, fp.z);
     s.camera.position.set(best.x, best.y, best.z);
     fadeOccluders();
+  }
+  /* rev66fix: fly the camera to the player's own office (the HQ chip in the chips row). The azimuth
+     is chosen with the same sight-corridor test as focusView(), so a tall neighbour does not hide
+     a small home office. */
+  function flyToOffice(){
+    var om=s.officeMesh; if(!om || !s.controls) return;
+    var dm=om.userData.dims||{w:14,d:12,h:16}, hh=dm.h||16;
+    var ty=Math.max(3, Math.min(26, hh*0.45));
+    var dist=Math.max(62, Math.min(200, hh*2.0+34));
+    var el=50*Math.PI/180, hd=dist*Math.cos(el), dy=dist*Math.sin(el);
+    var baseAz=Math.atan2(0.731, 0.568);
+    var offs=[0, Math.PI/4, -Math.PI/4, Math.PI/2, -Math.PI/2, 3*Math.PI/4, -3*Math.PI/4, Math.PI];
+    var best=null, bestScore=Infinity;
+    offs.forEach(function(off){
+      var az=baseAz+off;
+      var cx=om.position.x+Math.cos(az)*hd, cz=om.position.z+Math.sin(az)*hd, cy=ty+dy;
+      var score=0;
+      occl.forEach(function(o){
+        if(Math.abs(o.x-om.position.x)<0.01 && Math.abs(o.z-om.position.z)<0.01) return;
+        var px=o.x-om.position.x, pz=o.z-om.position.z;
+        var t=(px*(cx-om.position.x)+pz*(cz-om.position.z))/hd;
+        if(t<1 || t>hd-1) return;
+        var qx=px-(cx-om.position.x)/hd*t, qz=pz-(cz-om.position.z)/hd*t;
+        var dd=Math.sqrt(qx*qx+qz*qz);
+        if(dd>o.r+1.5) return;
+        var hLine=ty+dy*(t/hd);
+        if(hLine<o.h+1) score+=1+(o.h+1-hLine)/25;
+      });
+      if(score<bestScore){ bestScore=score; best={x:cx, y:cy, z:cz}; }
+    });
+    s.controls.target.set(om.position.x, ty, om.position.z);
+    s.camera.position.set(best.x, best.y, best.z);
+    if(s.controls.update) s.controls.update();
   }
   function fadeRoot(root){
     if(root.userData._faded) return;
@@ -16521,7 +16842,8 @@ function openCity(container, cityId, focusPropId){
     ray.setFromCamera(ptr, s.camera);
     var hits=ray.intersectObjects(s.propMeshes, true);
     if(hits.length){
-      var o=hits[0].object; while(o && !o.userData.propId) o=o.parent;
+      var o=hits[0].object; while(o && !o.userData.propId && !o.userData.office) o=o.parent;
+      if(o && o.userData.office){ showOfficePanel(); return; }
       if(o){ var pr=props.filter(function(p){return p.id===o.userData.propId;})[0]; if(pr) showPropPanel(pr); }
     }
   };
@@ -16544,9 +16866,16 @@ function openCity(container, cityId, focusPropId){
       if(g.userData.gondola){ var gd=g.userData.gondola; gd.position.y=gd.userData.baseY+Math.sin(t*0.5+gd.userData.ph)*gd.userData.amp; }
     });
     if(s.focusRing){ var sc2=1+Math.sin(t*4)*0.05; s.focusRing.scale.set(sc2,sc2,1); s.focusRing.material.opacity=0.6+Math.sin(t*4)*0.3; }
+    if(s.hqMark){ var hp=1+Math.sin(t*3)*0.05; s.hqMark.ring.scale.set(hp,hp,1); s.hqMark.ring.material.opacity=0.7+Math.sin(t*3)*0.25; if(s.hqMark.flag) s.hqMark.flag.rotation.y=Math.sin(t*2.2)*0.3; }
   };
   ui.title.textContent='都市マップ3D — '+cityName(cityId);
+  if(ofc && ofc.city===cityId) setPill('🏢 あなたの本社：'+OFFICE_LVLS[ofc.lvl]);
   setChips(gCITIES().map(function(c){ return {id:c.id, label:c.n}; }), cityId, function(id){ open3D({mode:'city', city:id}); });
+  if(ofc && ofc.city===cityId && s.officeMesh){ /* rev66fix: the pill is pointer-events:none by design, so the way back to your HQ is this chip instead */
+    var hqChip=el('button','a3d-chip hq',ui.chips,'🏢 本社へ移動'); hqChip.type='button';
+    hqChip.addEventListener('click', function(){ flyToOffice(); });
+    ui.chips.insertBefore(hqChip, ui.chips.firstChild);
+  }
   applyTheme();
   startLoop();
 }
@@ -16555,7 +16884,7 @@ function showPropPanel(p){
   var info=propInfoSafe(p);
   var PROP=gPROP();
   var html='<h4>'+p.name+'</h4><div class="a3d-kv">'+
-    '<div><span>種類</span><b>'+((PROP[p.kind]||{}).n||p.kind)+'</b></div>'+
+    '<div><span>種類</span><b>'+kindName(p.kind)+'</b></div>'+
     '<div><span>評価額</span><b>'+fmtOk(propValue(p))+'</b></div>'+
     '<div><span>所有者</span><b>'+ownerLabel(p.own)+'</b></div>'+
     '<div><span>'+(info.areaLbl||'面積')+'</span><b>'+(info.area!=null? Number(info.area).toLocaleString('ja-JP')+'m²':'—')+'</b></div>'+
@@ -16645,7 +16974,7 @@ function openDev(container, devId, propId){
   sgn.fillStyle='#f5eeda'; sgn.font='700 44px sans-serif'; sgn.textAlign='center';
   sgn.fillText(d? (d.site? d.site.n : '開発案件') : '開発プレビュー', 256, 58);
   sgn.font='28px sans-serif'; sgn.fillStyle='#bcd2ee';
-  sgn.fillText((gPROP()[kind]||{}).n||kind, 256, 100);
+  sgn.fillText(devKindName(kind), 256, 100);
   var signTex=new THREE.CanvasTexture(signC); signTex.encoding=THREE.sRGBEncoding;
   var sign=new THREE.Mesh(new THREE.PlaneGeometry(30,7.5), new THREE.MeshBasicMaterial({map:signTex, side:THREE.DoubleSide}));
   sign.position.set(0,5.2,47.5); scene.add(sign);
@@ -16757,7 +17086,7 @@ function openDev(container, devId, propId){
   // UI: slider + info
   var name= d? (d.site? d.site.n : '開発案件') : '開発プレビュー';
   var infoHtml='<h4>'+name+'（'+cityName(cityId)+'）</h4><div class="a3d-kv">'+
-    '<div><span>種類</span><b>'+((gPROP()[kind]||{}).n||kind)+'</b></div>'+
+    '<div><span>種類</span><b>'+devKindName(kind)+'</b></div>'+
     '<div><span>フェーズ</span><b id="a3d-devphase">'+phase.label+'</b></div>'+
     '<div><span>延床</span><b>'+Number(gfa).toLocaleString('ja-JP')+'m²</b></div>'+
     (d && d.done? '<div><span>竣工予定</span><b>第'+d.done+'週</b></div>':'')+
