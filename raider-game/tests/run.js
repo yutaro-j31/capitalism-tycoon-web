@@ -3792,8 +3792,8 @@ async function testRaid68(b) {
     /* A1 player side */
     { fresh(6801); const c = pick(6); info.f = +stake(c, .2).toFixed(3); const pr = A.gmPrem(c); out.a1Prem = pr >= .15 - 1e-9 && pr <= .4 + 1e-9 && A.gmCan(c);
       const c2 = pick(7); stake(c2, .08); out.a1Below = !A.gmCan(c2) && A.gmAsk(c2, 'mid') === null;
-      let res = null, g = 0; const cash0 = S.player.cash, n0 = c.own.P, sh0 = c.shares, cg0 = S.player.cg || 0, px0 = c.price;
-      while (g++ < 1) res = A.gmAsk(c, 'low');
+      let res = null, g = 0; const cash0 = S.player.cash, n0 = c.own.P, sh0 = c.shares, cg0 = S.player.cg || 0, px0 = c.price, md0 = c.mood;
+      while (g++ < 1) res = A.gmAsk(c, 'low'); out.a1NoHeat = c.mood === md0; /* owner: no 'heat' — the company's mood is not moved by greenmail */
       info.a1 = res && res.res;
       if (res.res === 'accept') out.a1Settle = !c.own.P && Math.abs(c.shares - (sh0 - n0)) < 1e-9 && S.player.cash > cash0 + n0 * px0 - 1e-6 && (S.player.cg || 0) !== cg0 && c.gmCool > S.week;
       else if (res.res === 'counter') { const o = c.gmOffer; const got = A.gmCounter(c, true); out.a1Settle = got > 0 && !c.own.P && Math.abs(got - n0 * o.px) < 1e-6 && c.gmCool > S.week; }

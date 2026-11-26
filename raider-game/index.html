@@ -3554,14 +3554,14 @@ function gmAsk(c, lvl){ /* you name a price; the board accepts, counters with le
   if (!gmCan(c)) return null; const base = gmPrem(c), ask = base * ({low: .8, mid: 1, high: 1.3}[lvl] || 1), n = c.own.P || 0, pxA = c.price * (1 + ask);
   if (gmPay(c) < n * pxA - 1e-9) { c.gmCool = S.week + GM_COOL; news(`【撤退交渉】${c.name}は買い戻しの資金がないとして交渉を拒否（再交渉は${shortDate(c.gmCool)}以降）`, 'warn', c.city); return {res: 'reject', why: 'cash'}; }
   const pAcc = clamp(1.15 - ask / Math.max(.01, base) * .75 + gmThreat(c) * .3, .05, .95), x = rnd();
-  if (x < pAcc) { const amt = gmSettle(c, pxA); repAdd(-.02); c.mood = (c.mood || 0) - .05; c.gmCool = S.week + GM_COOL;
+  if (x < pAcc) { const amt = gmSettle(c, pxA); repAdd(-.02); c.gmCool = S.week + GM_COOL;
     news(`【グリーンメール成立】${c.name}があなたの持分を1株${fp(pxA)}（市場価格+${pc(ask, 0)}）で買い戻し、${fm(amt)}を受け取りました`, 'you', c.city); return {res: 'accept', amt, prem: ask}; }
   if (x < pAcc + .45) { const prem = Math.max(.05, ask * .65); c.gmOffer = {px: c.price * (1 + prem), prem, exp: S.week + 2}; news(`【撤退交渉】${c.name}が対案：1株${fp(c.gmOffer.px)}（+${pc(prem, 0)}）なら買い戻す（${shortDate(c.gmOffer.exp)}まで）`, 'deal', c.city); return {res: 'counter', prem}; }
-  c.gmCool = S.week + GM_COOL; c.mood = (c.mood || 0) + .03; news(`【撤退交渉】${c.name}の取締役会は買い戻しを拒否。注目が集まり株価に思惑（再交渉は${shortDate(c.gmCool)}以降）`, 'warn', c.city); return {res: 'reject'};
+  c.gmCool = S.week + GM_COOL; news(`【撤退交渉】${c.name}の取締役会は買い戻しを拒否（再交渉は${shortDate(c.gmCool)}以降）`, 'warn', c.city); return {res: 'reject'};
 }
 function gmCounter(c, yes){ const o = c && c.gmOffer; if (!o) return null; delete c.gmOffer; c.gmCool = S.week + GM_COOL;
   if (!yes || o.exp < S.week) { news(`【撤退交渉】${c.name}の対案を見送り（再交渉は${shortDate(c.gmCool)}以降）`, 'deal', c.city); return 0; }
-  const n = c.own.P || 0; if (gmPay(c) < n * o.px - 1e-9) return 0; const amt = gmSettle(c, o.px); repAdd(-.02); c.mood = (c.mood || 0) - .05;
+  const n = c.own.P || 0; if (gmPay(c) < n * o.px - 1e-9) return 0; const amt = gmSettle(c, o.px); repAdd(-.02);
   news(`【グリーンメール成立】${c.name}があなたの持分を1株${fp(o.px)}で買い戻し、${fm(amt)}を受け取りました`, 'you', c.city); return amt; }
 function gmBox(c){
   if (c.priv || c.ctrl || !(frac(c, 'P') > 0) || !has('activist')) return '';
@@ -3669,7 +3669,7 @@ function cpAct(c, k, frac0){ if (!c) return null; const full = cpFull(c), seat =
   if (k === 'red') { const amt = Math.min(c.debt, money); if (!(amt > .001)) return null; const prem = .02, pay = amt * (1 + prem); if (c.cash < pay - 1e-9) return null; c.cash -= pay; c.debt -= amt; cpSet(c, k); news(`${c.name}が社債・借入${fm(amt)}を繰上償還（プレミアム${pc(prem, 0)}・今後の利払いが減ります）`, 'you', c.city); return amt; }
   return null; }
 function cpRename(c, name){ if (!c || !cpFull(c) || !cpReady(c, 'name')) return false; name = String(name || '').trim().slice(0, 24); if (!name || S.cos.some(x => x !== c && x.name === name)) return false;
-  const cost = Math.max(.05, c.rev * .002); if (c.cash < cost - 1e-9) return false; const old = c.name; c.cash -= cost; c.name = name; c.mood = (c.mood || 0) + .04; if (c.ops) c.ops.brand = Math.min(1.5, (c.ops.brand || 1) * 1.03); cpSet(c, 'name');
+  const cost = Math.max(.05, c.rev * .002); if (c.cash < cost - 1e-9) return false; const old = c.name; c.cash -= cost; c.name = name; if (c.ops) c.ops.brand = Math.min(1.5, (c.ops.brand || 1) * 1.03); cpSet(c, 'name');
   news(`【社名変更】${old}は社名を「${name}」に変更（費用${fm(cost)}）。新しいブランドで知名度が上がりました`, 'you', c.city); return true; }
 function capPolicyBox(c){ const full = cpFull(c), seat = cpSeat(c); if (!full && !seat) return ''; const f = ui.cpF || .1, P = cpPreviewBB(c, Math.max(0, c.cash) * Math.min(f, seat ? .25 : 1)), mine = frac(c, 'P'), sd = Math.max(0, c.cash) * Math.min(f, seat ? .25 : 1), red = Math.min(c.debt, Math.max(0, c.cash) * f);
   const cd = k => cpReady(c, k) ? '' : `<small>（${shortDate(cpCoolOf(c, k))}以降）</small>`;
@@ -3684,7 +3684,7 @@ const coProps = c => (S.props || []).filter(p => p.own === c.id);
 function liqQuote(c){ const pv = coProps(c).reduce((a, p) => a + propVal(p), 0), gross = Math.max(0, c.cash) + Math.max(0, c.assets) * .6 + pv * .95, cost = gross * .03, net0 = gross - cost - c.debt, book = equity(c), tax = Math.max(0, net0 - book) * .3, net = Math.max(0, net0 - tax);
   return {pv, gross, cost, tax, net, px: net / c.shares, mine: net * frac(c, 'P'), mc: mcap(c)}; }
 function stripBacklash(c){ if (rnd() < .35) { repAdd(-.02); for (const id in (c.ex || {})) { const q = S.hr.people[c.ex[id]]; if (q) q.mood = Math.max(0, q.mood - .1); } news(`【反発】${c.name}の資産売却に従業員と地元が反発。評判が下がりました`, 'warn', c.city); }
-  if (gfrac(c, 'P') < .9 && rnd() < .25) { c.mood = (c.mood || 0) - .03; news(`【少数株主】${c.name}の少数株主が資産の切り売りに反対を表明`, 'warn', c.city); } }
+  if (gfrac(c, 'P') < .9 && rnd() < .25) { news(`【少数株主】${c.name}の少数株主が資産の切り売りに反対を表明`, 'warn', c.city); } }
 function stripSell(c){ if (!stripOk(c) || !(c.assets > .05)) return 0; const part = c.assets * .2, got = part * .7; c.assets -= part; c.cash += got; c.rev *= .8; c.fixed = (c.fixed || 0) * .85; if (c.vol) c.vol *= .8; stripBacklash(c);
   news(`【資産売却】${c.name}が事業資産の20%を売却し${fm(got)}を回収（簿価${fm(part)}・売上も約20%減少）`, 'you', c.city); return got; }
 function stripProps(c){ if (!stripOk(c)) return 0; let got = 0; for (const p of coProps(c)) { const v = propVal(p) * .97 - (p.mort || 0); got += v; c.cash += v; p.own = null; p.mort = 0; } if (got > 0) { stripBacklash(c); news(`【不動産売却】${c.name}が保有不動産を売却し${fm(got)}を回収`, 'you', c.city); } return got; }
