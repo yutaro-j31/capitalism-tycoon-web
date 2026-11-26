@@ -3852,6 +3852,37 @@ async function testRaid68(b) {
   await p.close();
 }
 
+async function testMap69(b) {
+  /* rev69 (owner's report): the ownership map had no way to close it (with no holdings yet there was no way out at all), and names were cut at 7 characters */
+  for (const w of [320, 390]) {
+    const {p, errs} = await page(b, {viewport: {width: w, height: 760}});
+    await p.evaluate(() => { const A = window.__atlas; A.closeModal(); A.newGame(6901, 'normal', 'B', 'b', 'std', true); A.closeModal(); });
+    await p.click('[data-act=tab][data-v=market]'); await p.click('[data-act=ownmap]'); await p.waitForTimeout(100);
+    const empty = await p.evaluate(() => /まだありません/.test(document.getElementById('modal').innerText) && !!document.querySelector('#modal [data-act=close]'));
+    await p.click('#modal [data-act=close]'); const emptyClosed = await p.evaluate(() => document.getElementById('modal').hidden);
+    const r = await p.evaluate(() => { const A = window.__atlas, S = A.S; S.won = S.lost = true; S.player.cash = 3000; for (let i = 0; i < 120; i++) { A.step(); S.inbox = []; }
+      const L = S.cos.filter(c => !c.priv && !c.ctrl && !['air', 'telecom', 'bank'].includes(c.ind)).sort((a, b) => a.price * a.shares - b.price * b.shares);
+      for (const [i, f] of [[2, .6], [5, .2], [8, .12]]) { const c = L[i]; let g = 0; while ((c.own.P || 0) / c.shares < f && g++ < 30) A.execBuy('P', c, c.shares * (f - (c.own.P || 0) / c.shares) * 1.02); } A.recomputeCtrl(); A.ui.sel = null; A.closeModal();
+      document.querySelector('[data-act=tab][data-v=market]').click(); document.querySelector('[data-act=ownmap]').click();
+      const svg = document.querySelector('#modal svg'), vb = svg.viewBox.baseVal, gs = [...svg.querySelectorAll('g[data-act=ownsel]')], bad = [], boxes = [];
+      for (const g of gs) { const name = g.querySelector('title').textContent, t = g.querySelector('text'), shown = [...t.querySelectorAll('tspan')].map(x => x.textContent).join('');
+        const flat = name.replace(/[\s・]/g, ''), sh = shown.replace(/[\s・]/g, '');
+        if (!(sh === flat || (sh.endsWith('…') && flat.startsWith(sh.slice(0, -1))))) bad.push([name, shown]);
+        const bb = t.getBBox(); if (bb.x < vb.x - .5 || bb.y < vb.y - .5 || bb.x + bb.width > vb.x + vb.width + .5 || bb.y + bb.height > vb.y + vb.height + .5) bad.push(['outside', name]); boxes.push([name, bb]); }
+      let overlap = 0; for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) { const a = boxes[i][1], c = boxes[j][1]; if (a.x < c.x + c.width && c.x < a.x + a.width && a.y < c.y + c.height && c.y < a.y + a.height) overlap++; }
+      const full = gs.filter(g => !/…/.test(g.querySelector('text').textContent)).length;
+      const mapClose = !!document.querySelector('#modal [data-act=close]'); document.querySelector('[data-act=ownmode][data-v=list]').click(); const listClose = !!document.querySelector('#modal [data-act=close]');
+      return {n: gs.length, full, bad: bad.slice(0, 4), overlap, mapClose, listClose, wide: document.documentElement.scrollWidth <= innerWidth}; });
+    await p.click('#modal [data-act=close]'); const listClosed = await p.evaluate(() => document.getElementById('modal').hidden);
+    console.log(`rev69 map ${w}px`, JSON.stringify(r));
+    ok(`rev69 (${w}px): the empty ownership map has a close button and it closes`, empty && emptyClosed);
+    ok(`rev69 (${w}px): the map and the list views both have a close button`, r.mapClose && r.listClose && listClosed);
+    ok(`rev69 (${w}px): node names are whole (or end in … only when longer than two lines), inside the map, not overlapping`, r.n >= 6 && !r.bad.length && r.overlap === 0 && r.full >= r.n - 1, JSON.stringify(r));
+    ok(`rev69 (${w}px): no horizontal overflow and no page errors`, r.wide && !errs.length, errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
+}
+
 async function testFound66(b) {
   /* rev66 (owner's report): an individual's tax was charged to the new company as corporate tax (and could bankrupt it, which then looked like the company "vanishing" and being founded again);
      the head-office city and the share count are chosen at founding; the top shows the company's net assets once there is a company; no truce offers; open call < agency < headhunt */
@@ -5562,6 +5593,7 @@ async function balance(b) {
     await testDemo65(b);
     await testFound66(b);
     await testRaid68(b);
+    await testMap69(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
