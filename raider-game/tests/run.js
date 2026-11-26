@@ -2369,7 +2369,7 @@ async function testFeedback16(b) {
     S = std(6603); const L = S.cos.filter(x => !x.priv && !x.ctrl); const c = L[5]; A.execBuy('P', c, A.roundSh(c.shares * .12)); A.trClose();
     out.letter = A.sendLetter(c, 'div') && !!c.letter && !A.sendLetter(c, 'buyback'); out.letterLoads = loads();
     for (let i = 0; i < 5; i++) A.step(); out.letterAnswered = !c.letter && S.news.some(n => n.t.includes('【書簡に回答】') && n.t.includes(c.name));
-    out.seat = A.startSeatFight(c) && c.proxy && c.proxy.seat; out.seatLoads = loads(); for (let i = 0; i < 9; i++) A.step(); out.seatDone = !c.proxy && (A.seatsOn(c) || c.proxyCool > S.week);
+    out.seat = A.startSeatFight(c) && c.proxy && c.proxy.seat; out.seatLoads = loads(); { const e = c.proxy ? c.proxy.end : S.week + 9; while (S.week <= e) A.step(); } /* rev68 A2: the campaign runs to the next AGM (8〜13 weeks) */ out.seatDone = !c.proxy && (A.seatsOn(c) || c.proxyCool > S.week);
     /* defences: your subsidiary under attack */
     S = std(6604); const sub = S.cos.filter(x => !x.priv && !x.ctrl).sort((u, w) => u.price * u.shares - w.price * w.shares)[3]; S.player.cash = Math.max(S.player.cash, sub.price * sub.shares * 1.2); /* paid in cash (rev20 BUG-68: credit-paid shares carry no votes) */ A.execTender('P', sub, sub.price * 1.6, .45, undefined, false); A.recomputeCtrl();
     if (sub.ctrl !== 'P') { sub.own.P = sub.shares * .45; A.recomputeCtrl(); } info.subCtrl = sub.ctrl; const rv = S.rivals[0]; sub.own[rv.id] = (sub.own[rv.id] || 0) + sub.shares * .05; rv.cash += 1e4; A.trClose();
@@ -3778,6 +3778,77 @@ async function testRealEstate47(b) {
   console.log('rev47 real estate', JSON.stringify(r.info).slice(0, 2500));
   for (const [k, v] of Object.entries(r.out)) ok('rev47 real estate: ' + k, v);
   ok('rev47 real estate: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
+async function testRaid68(b) {
+  /* rev68: A1 greenmail (both ways), A2 proxy campaigns (attack and defence), A3 who owns what, A4 capital policy, A5 asset stripping and liquidation, B2 investors and dilution, A9 bank layer */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(() => { const A = window.__atlas, out = {}, info = {};
+    const loads = () => { const t = A.exportText(); const S0 = A.S; A.importText(t); return A.S !== S0 && A.econCheck(A.S) === ''; };
+    let S; const fresh = seed => { A.closeModal(); A.newGame(seed, 'normal', 'B', 'b', 'std', true); S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); S.player.cash = 3000; S.inbox = []; return S; };
+    const stake = (c, f) => { let g = 0; while ((c.own.P || 0) / c.shares < f && g++ < 40) { A.execBuy('P', c, Math.max(.001, c.shares * (f - (c.own.P || 0) / c.shares) * 1.02)); } A.recomputeCtrl(); return (c.own.P || 0) / c.shares; };
+    const pick = (i) => S.cos.filter(c => !c.priv && !c.ctrl && c.price > 0).sort((a, b) => a.price * a.shares - b.price * b.shares)[i];
+    /* A1 player side */
+    { fresh(6801); const c = pick(6); info.f = +stake(c, .2).toFixed(3); const pr = A.gmPrem(c); out.a1Prem = pr >= .15 - 1e-9 && pr <= .4 + 1e-9 && A.gmCan(c);
+      const c2 = pick(7); stake(c2, .08); out.a1Below = !A.gmCan(c2) && A.gmAsk(c2, 'mid') === null;
+      let res = null, g = 0; const cash0 = S.player.cash, n0 = c.own.P, sh0 = c.shares, cg0 = S.player.cg || 0, px0 = c.price;
+      while (g++ < 1) res = A.gmAsk(c, 'low');
+      info.a1 = res && res.res;
+      if (res.res === 'accept') out.a1Settle = !c.own.P && Math.abs(c.shares - (sh0 - n0)) < 1e-9 && S.player.cash > cash0 + n0 * px0 - 1e-6 && (S.player.cg || 0) !== cg0 && c.gmCool > S.week;
+      else if (res.res === 'counter') { const o = c.gmOffer; const got = A.gmCounter(c, true); out.a1Settle = got > 0 && !c.own.P && Math.abs(got - n0 * o.px) < 1e-6 && c.gmCool > S.week; }
+      else out.a1Settle = c.gmCool > S.week && !A.gmCan(c) && c.own.P === n0;
+      out.a1Cool = !A.gmCan(c); out.a1Loads = loads(); }
+    /* A1 defence: a rival in your listed company */
+    { fresh(6802); S.player.listed = true; S.player.ipoW = S.week - 60; S.player.outside = .4; S.player.raider = {rid: 'R1', f: .16, w: S.week}; A.raidStep();
+      const it = S.inbox.find(i => i.kind === 'gmself'); const o0 = S.player.outside, c0 = S.player.cash; if (it) A.ibxChoose(it.id, 'pay');
+      out.a1Self = !!it && !S.player.raider && S.player.outside < o0 - .1 && S.player.cash < c0 && loads(); info.selfOut = [o0, +A.S.player.outside.toFixed(3)]; }
+    /* A2 campaign */
+    { fresh(6803); const c = pick(9); stake(c, .2); const ok = A.startSeatFight(c), C = c.proxy && c.proxy.camp, len = c.proxy ? c.proxy.end - S.week : 0;
+      out.a2Start = ok && !!C && len >= 8 && len <= 13; const s0 = A.campSupport(c); C.spent = A.S.cos.find(x => x === c) ? c.price * c.shares * .05 : 0; const s1 = A.campSupport(c); C.spent = 0; out.a2Spend = s1 > s0;
+      C.bud = .05; const cash0 = S.player.cash; for (let i = 0; i <= len; i++) A.step(); info.a2 = {seats: !!c.seats, cool: (c.proxyCool || 0) > S.week, hist: (C.hist || []).length, spent: +C.spent.toFixed(3)};
+      out.a2Resolve = !c.proxy && (A.S.cos.includes(c)) && ((c.seats && c.seats.until > S.week) || c.proxyCool > S.week) && C.hist.length >= 8 && C.spent > 0; out.a2Loads = loads(); }
+    /* A2 defence */
+    { fresh(6804); S.player.listed = true; S.player.ipoW = S.week - 60; S.player.outside = .45; S.player.raider = {rid: 'R2', f: .2, w: S.week, asked: true}; A.selfCampStart(); const C = S.player.raider.camp;
+      const s0 = A.selfCampSupport(); const d = A.selfCounter('div'); const s1 = A.selfCampSupport(); out.a2Def = !!C && d && s1 < s0;
+      for (let i = 0; i < 15; i++) A.step(); out.a2DefEnd = !A.S.player.raider || !A.S.player.raider.camp; out.a2DefLoads = loads(); }
+    /* A3 */
+    { fresh(6805); const c = pick(4), d = pick(5); stake(c, .12); S.cos.filter(x => x.ctrl === 'R1').forEach(x => {}); const E = A.ownEdges(.05); A.ui.ownMode = 'map'; const h1 = A.ownMapHTML(); A.ui.ownMode = 'list'; const h2 = A.ownMapHTML();
+      out.a3 = E.some(e => e.from === 'P' && e.to === c.id) && /<svg/.test(h1) && h1.includes(`data-id="${c.id}"`) && h2.includes(c.name) && /orow/.test(h2); }
+    /* A4 capital policy on a controlled company */
+    { fresh(6806); const c = S.cos.filter(x => !x.priv && !x.ctrl && x.price > 0 && !['air', 'telecom', 'bank'].includes(x.ind)).sort((a, b) => a.price * a.shares - b.price * b.shares)[3]; stake(c, .6); /* industries with an ownership cap cannot be controlled */ c.cash = Math.max(c.cash, 5); c.debt = Math.max(c.debt, 2); const f0 = A.S.cos.includes(c) && (c.own.P / c.shares);
+      const r1 = A.cpAct(c, 'bb', .25); const f1 = c.own.P / c.shares, r1b = A.cpAct(c, 'bb', .25);
+      const pc0 = S.player.cash, r2 = A.cpAct(c, 'sdiv', .1); const d0 = c.debt, r3 = A.cpAct(c, 'red', .1);
+      const ok = A.cpRename(c, 'テスト新社名ホールディングス'); out.a4 = c.ctrl === 'P' && !!r1 && f1 > f0 && r1b === null && r2 > 0 && S.player.cash > pc0 && r3 > 0 && c.debt < d0 && ok && c.name === 'テスト新社名ホールディングス' && !A.cpRename(c, 'もう一度');
+      const e = pick(8); stake(e, .2); e.seats = {n: 1, until: S.week + 50}; e.cash = Math.max(e.cash, 3); const c0 = e.cash, rb = A.cpAct(e, 'bb', 1); out.a4Seat = !!rb && c0 - e.cash <= c0 * .25 + 1e-6 && A.cpAct(e, 'red', .1) === null; out.a4Loads = loads(); }
+    /* A5 */
+    { fresh(6807); const c = pick(10); stake(c, .7); c.cash = Math.max(c.cash, 1); const a0 = c.assets, k0 = c.cash, got = A.stripSell(c); out.a5Sell = got > 0 && c.assets < a0 && c.cash > k0;
+      const q = A.liqQuote(c), pc0 = S.player.cash, id = c.id; const mine = A.stripLiquidate(c); out.a5Liq = !S.cos.some(x => x.id === id) && Math.abs(S.player.cash - pc0 - mine) < Math.max(1e-6, mine * 1e-6) + .02 && A.econCheck(S) === '' && loads(); info.a5 = {net: +q.net.toFixed(3), mine: +mine.toFixed(3)}; }
+    /* B2 */
+    { fresh(6808); const o0 = S.player.outside || 0; const asked = A.invAsk('pp'); const offs = S.inbox.filter(i => i.kind === 'invoffer'); out.b2Offers = asked && offs.length === 3 && new Set(offs.map(o => o.type)).size === 3;
+      const o = offs.find(x => x.seat) || offs[0], c0 = S.player.cash; A.ibxChoose(o.id, 'yes'); out.b2Take = S.player.cash > c0 && Math.abs(S.player.outside - (o0 + o.pct * (1 - o0))) < 1e-9 && !S.inbox.some(i => i.kind === 'invoffer') && (S.player.ownHist || []).length >= 2 && (!o.seat || (S.player.invSeats || []).length === 1);
+      S.player.outside = .45; A.invAsk('pp'); const o2 = S.inbox.find(i => i.kind === 'invoffer'); o2.pct = .2; document.querySelector('[data-act=tab][data-v=inbox]').click(); out.b2Warn = [...document.querySelectorAll('.offer')].some(e => /過半数を割ります/.test(e.innerHTML)); out.b2Loads = loads(); }
+    /* A9 bank */
+    { fresh(6809); const c = S.cos.find(x => x.ind === 'bank' && !x.priv && !x.ctrl); stake(c, .6); A.opsInit(c); info.bank = [c.ctrl, c.ops && c.ops.type];
+      if (c.ops && c.ops.type === 'bank') { A.bankSetMix(c, 're', .2); const m = c.ops.mix; const n0 = A.bankNPL(c); S.econ.indS.realty = .6; const n1 = A.bankNPL(c); A.bankSetPol(c, 'safe');
+        out.a9 = Math.abs(m.corp + m.re + m.ret - 1) < 1e-9 && m.re > .3 && n1 > n0 && c.ops.rpol === 'safe' && c.ops.std > .5 && c.ops.pol !== 'safe';
+        const k0 = c.cash; A.bankOpsStep(); const got = A.bankSellNPL(c); out.a9Npl = got > 0 && c.cash > k0;
+        c.cash = -c.vol * 8; S.week = 13 * Math.ceil(S.week / 13); A.bankOpsStep(); const it = S.inbox.find(i => i.kind === 'bankreg' && i.cid === c.id); const pc0 = S.player.cash; if (it) A.ibxChoose(it.id, 'inject'); out.a9Reg = !!it && S.player.cash < pc0; }
+      else out.a9 = out.a9Npl = out.a9Reg = false; }
+    /* a rev66-era save: none of the rev68 fields exist; it loads, plays on and every screen draws */
+    { fresh(6809); const c = pick(6); stake(c, .2); for (let i = 0; i < 4; i++) A.step(); S = A.S;
+      for (const k of ['raider', 'ownHist', 'invSeats', 'invAsked']) delete S.player[k];
+      for (const x of S.cos) { for (const k of ['gmCool', 'gmOffer', 'cpCool']) delete x[k]; if (x.proxy) delete x.proxy.camp; if (x.ops) { delete x.ops.mix; delete x.ops.rpol; delete x.ops.npl; delete x.ops.nplCut; } }
+      S.inbox = S.inbox.filter(i => !['gmself', 'selfcamp', 'bdemand', 'invoffer', 'bankreg'].includes(i.kind));
+      let okL = loads(); S = A.S; let thrown = '';
+      try { for (let i = 0; i < 30; i++) A.step(); A.ui.sel = A.S.cos.find(x => x.own && x.own.P) ? A.S.cos.find(x => x.own && x.own.P).id : null;
+        for (const t of ['market', 'inbox', 'pres']) { const el = document.querySelector(`[data-act=tab][data-v=${t}]`); if (el) el.click(); }
+        A.openModal(A.ownMapHTML()); A.closeModal(); } catch (e) { thrown = String(e); }
+      info.old = thrown; out.oldSave = okL && !thrown && A.econCheck(A.S) === '' && loads(); }
+    return {out, info}; });
+  console.log('rev68 raid', JSON.stringify(r.info).slice(0, 600));
+  for (const [k, v] of Object.entries(r.out)) ok('rev68: ' + k, v);
+  ok('rev68: no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
   await p.close();
 }
 
@@ -5490,6 +5561,7 @@ async function balance(b) {
     await testCash62(b);
     await testDemo65(b);
     await testFound66(b);
+    await testRaid68(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
