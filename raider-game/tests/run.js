@@ -3993,6 +3993,50 @@ async function testTraderActor71(b) {
   }
 }
 
+async function testPe72(b) {
+  /* rev72: PE reputation and deal tiers (#1), the downside before investing (#18), the investment committee (#14), rescue requests (#9) */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(() => { const A = window.__atlas, out = {}, info = {};
+    A.closeModal(); A.newGame(7201, 'normal', 'B', 'b', 'std', true); A.closeModal(); let S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); S.player.cash = 3000; S.inbox = [];
+    if (S.dept && S.dept.inv) S.dept.inv.on = true; /* the investment department: PE needs a desk */
+    for (let i = 0; i < 6; i++) { A.step(); S.inbox = []; }
+    /* #1 tiers: a new house gets no big deals; a record lifts the tier */
+    out.tier1 = A.peTier() === 1; let bigD = null; for (let i = 0; i < 80 && !bigD; i++) { const d = A.peDealGen(); if (d && d.big) bigD = d; } out.noBigAtStart = !!bigD && A.peBid(bigD, 0, 0, false, 'P') === false && !bigD.bid; S.pe.deals = []; /* a big deal: a new house cannot bid */
+    S.pe.track = Array.from({length: 8}, (_, i) => ({name: 'x' + i, type: 'succ', owner: 'P', w0: 0, w1: 1, inv: 10, ret: 20, moic: 2, irr: .2, why: 't'})); info.pts = +A.peRepPts().toFixed(1); out.tier3 = A.peTier() >= 3;
+    while (S.week % 13 !== 5) S.week++; const n0 = S.pe.deals.length; A.pe72Step(); const ex = S.pe.deals.filter(d => d.excl); info.excl = ex.length;
+    out.exclusive = ex.length >= 1 && ex.every(d => d.n === 0 && !(d.bids || []).length);
+    if (ex.length) { const d = ex[0], a1 = A.dealAsk(d); d.excl = false; const a0 = A.dealAsk(d); d.excl = true; out.exclAsk = Math.abs(a1 - a0 * .95) < 1e-9; } else out.exclAsk = false;
+    /* #18 downside and #14 committee on an open deal */
+    const d = S.pe.deals[0] || A.peDealGen(); A.ui.tab = 'pe'; A.ui.deal = d.id; A.renderAll(true); let t = document.getElementById('pbody').innerText;
+    out.downShown = /投資前のシナリオ/.test(t) && /下振れ/.test(t) && /上振れ/.test(t) && /投資委員会の意見/.test(t) && /PEとしての評判/.test(t);
+    const q = A.peQuote(d, A.dealAsk(d), .5, 'P'), D = A.peDown(d, q); out.downOrder = D.cs[0].moic <= D.cs[1].moic + 1e-9 && D.cs[1].moic <= D.cs[2].moic + 1e-9;
+    out.icAbsent = /不在（本社で任命すると意見を出します）/.test(t);
+    const ids = Object.keys(S.hr.people || {}); ['CFO', 'PEH', 'HR', 'MA'].forEach((k, i) => { S.hr.hq[k] = ids[i]; }); S.hr.hq.OP = [ids[4]]; A.renderAll(true); t = document.getElementById('pbody').innerText;
+    out.icViews = ['CFO（財務）', 'CIO（投資）', 'COO（事業）', 'CHRO（人事）', 'CSO（戦略）'].every(x => t.includes(x)) && /賛成\d・条件付き\d・反対\d/.test(t) && !/不在（本社で任命/.test(t);
+    /* the TOB screen has the committee too */
+    const L = S.cos.filter(c => !c.priv && !c.ctrl && !['air', 'telecom', 'bank'].includes(c.ind)).sort((a, b) => a.price * a.shares - b.price * b.shares);
+    A.ui.tab = 'market'; A.ui.sel = L[5].id; A.ui.ctab = 'raid'; A.ui.actor = 'P'; A.renderAll(true); out.icTob = /投資委員会の意見/.test(document.getElementById('pbody').innerText);
+    /* #9 rescue: an independent listed company in a crisis asks you */
+    let c = null; for (const x of L.slice(0, 40)) { if (x.crisis) continue; x.crisis = {w: S.week, due: S.week + 8, short: Math.max(1, x.debt * .05)}; if (A.aiCrisis(x), S.inbox.some(i => i.kind === 'rescue' && i.cid === x.id)) { c = x; break; } delete x.crisis; }
+    out.rescueAsk = !!c && c.crisis && c.crisis.ask != null;
+    if (c) { A.ui.tab = 'inbox'; A.renderAll(true); out.rescueCard = /救済の相談/.test(document.getElementById('pbody').innerText);
+      const it = S.inbox.find(i => i.kind === 'rescue' && i.cid === c.id), R = A.rescueNeed(c), cash0 = S.player.cash, own0 = c.own.P || 0; A.ibxChoose(it.id, 'eq');
+      out.rescueEq = !c.crisis && (c.own.P || 0) > own0 && Math.abs(cash0 - S.player.cash - R.amt) < 1e-6 && !S.inbox.includes(it); info.rescue = +R.amt.toFixed(3); }
+    /* no answer: the banks decide once the request runs out */
+    let c2 = null; for (const x of L.slice(0, 60)) { if (x.crisis || x === c) continue; x.crisis = {w: S.week, due: S.week + 8, short: 1}; A.aiCrisis(x); if (x.crisis && x.crisis.ask != null) { c2 = x; break; } delete x.crisis; }
+    if (c2) { S.inbox = S.inbox.filter(i => i.cid !== c2.id); const w = c2.crisis.ask; S.week = w + 1; A.r72Step(); out.rescueExpire = !c2.crisis || (c2.crisis.asked && c2.crisis.ask == null); } else out.rescueExpire = false;
+    /* a friendly board (take-private request) raises the acceptance of your offer */
+    const m = L[9], px = m.price * 1.15, q0 = A.tenderQuote('P', m, px, .51); m.mbo = {w: S.week, exp: S.week + 26}; const q1 = A.tenderQuote('P', m, px, .51); out.mbo = !!q0 && !!q1 && q1.total >= q0.total - 1e-9 && (q1.total > q0.total + 1e-9 || q0.total >= m.shares * .5);
+    /* an older save without the new fields loads */
+    delete S.pe.repX; for (const x of S.cos) { delete x.mbo; delete x.rescued; } for (const x of S.pe.deals) delete x.excl;
+    const tx = A.exportText(), S0 = A.S; A.importText(tx); let thrown = ''; try { for (let i = 0; i < 14; i++) { A.step(); A.S.inbox = []; } A.ui.tab = 'pe'; A.renderAll(true); } catch (e) { thrown = String(e); } out.loads = A.S !== S0 && !thrown && A.econCheck(A.S) === ''; info.thrown = thrown;
+    return {out, info}; });
+  console.log('rev72', JSON.stringify(r.info));
+  for (const [k, v] of Object.entries(r.out)) ok('rev72: ' + k, v, JSON.stringify(r.info));
+  ok('rev72: no page errors', !errs.length, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testMap69(b) {
   /* rev69 (owner's report): the ownership map had no way to close it (with no holdings yet there was no way out at all), and names were cut at 7 characters */
   for (const w of [320, 390]) {
@@ -5738,6 +5782,7 @@ async function balance(b) {
     await testBatch70(b);
     await testTrader71(b);
     await testTraderActor71(b);
+    await testPe72(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
