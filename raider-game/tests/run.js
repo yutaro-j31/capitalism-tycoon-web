@@ -4133,6 +4133,38 @@ async function testOrg74(b) {
   await p.close();
 }
 
+async function testRev75(b) {
+  /* rev75: subsidiaries buying smaller rivals (#5), the alternative asset manager (#10), industry KPIs and the developer (#4), new fictional companies (#15) */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(() => { const A = window.__atlas, out = {}, info = {};
+    A.closeModal(); A.newGame(7501, 'normal', 'B', 'b', 'std', true); A.closeModal(); const S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); S.dept.inv.on = true; S.player.cash = 5000; S.inbox = [];
+    for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; }
+    const names = S.cos.map(c => c.name); out.names = ['三つ葉フィナンシャル', '豊永自動車', 'ソラバンク', 'ファストクロス', 'Orchard Devices', 'Voltaic Motors'].every(n => names.includes(n)) && !names.includes('みはらし百貨店') && !names.includes('Ninefold Systems');
+    /* #5 a subsidiary CEO proposes a TOB on a smaller rival in its industry, paid by the subsidiary */
+    const byInd = {}; for (const c of S.cos.filter(x => !x.priv && !x.ctrl)) (byInd[c.ind] = byInd[c.ind] || []).push(c);
+    const ind = Object.keys(byInd).find(k => byInd[k].length >= 3 && !['air', 'telecom', 'bank'].includes(k)); const L = byInd[ind].sort((a, b) => b.price * b.shares - a.price * a.shares), sub = L[1]; S.player.cash = Math.max(S.player.cash, A.mcap(sub) * 1.5); /* a mid-size company with smaller rivals */
+    let g = 0; while ((sub.own.P || 0) / sub.shares < .6 && g++ < 40) A.execBuy('P', sub, sub.shares * (.6 - (sub.own.P || 0) / sub.shares) * 1.02); A.recomputeCtrl(); sub.cash = Math.max(sub.cash, A.mcap(sub)); const ceo = A.ceoOf(sub); if (ceo) ceo.sk.deal = 80;
+    let it = null; for (let w = 0; w < 60 && !it; w++) { S.week++; if (S.week % 13 !== 3) continue; A.submaStep(); it = S.inbox.find(i => i.kind === 'subma'); }
+    out.submaAsk = !!it && it.cid === sub.id; info.ctrl = sub.ctrl;
+    if (it) { A.ui.tab = 'inbox'; A.renderAll(true); out.submaCard = /子会社のM&A提案/.test(document.getElementById('pbody').innerText); const t = A.coById(it.tid); A.ibxChoose(it.id, 'yes'); const tob = A.activeTob(t); out.submaTob = !!tob && (tob.k === sub.id || tob.boss === 'P'); info.tob = tob && {k: tob.k, boss: tob.boss}; }
+    /* #10 the asset manager: strategies counted from their size */
+    const L0 = A.altLevel(); const x = S.cos.filter(c => !c.priv && !c.ctrl && c !== sub && !A.activeTob(c))[5]; A.execBuy('P', x, x.shares * .06); const L1 = A.altLevel(); info.alt = [L0.n, L1.n, +L1.A.act.toFixed(1)];
+    out.alt = L1.A.act > L0.A.act && L1.n >= L0.n && typeof L1.name === 'string';
+    A.ui.tab = 'pres'; A.ui.hqTab = 'inv'; A.renderAll(true); out.altUI = /オルタナティブ資産運用/.test(document.getElementById('pbody').innerText);
+    A.ui.hqTab = 'me'; A.renderAll(true); out.altRoute = /オルタナティブの雄/.test(document.getElementById('pbody').innerText);
+    /* #4 industry KPIs on a subsidiary's business tab; a real-estate subsidiary develops in its own name */
+    A.ui.tab = 'market'; A.ui.sel = sub.id; A.ui.ctab = 'ops'; A.renderAll(true); out.kpi = /業種別の指標/.test(document.getElementById('pbody').innerText) && /営業利益率/.test(document.getElementById('pbody').innerText);
+    const re = S.cos.find(c => !c.priv && !c.ctrl && c.ind === 'realty'); if (re) { let h = 0; while ((re.own.P || 0) / re.shares < .6 && h++ < 40) A.execBuy('P', re, re.shares * (.6 - (re.own.P || 0) / re.shares) * 1.02); A.recomputeCtrl(); A.opsEnsure && A.opsEnsure(re); A.ui.sel = re.id; A.ui.ctab = 'ops'; A.renderAll(true); out.devNote = re.ctrl !== 'P' || /デベロッパー事業ができます/.test(document.getElementById('pbody').innerText); } else out.devNote = true;
+    /* an older save */
+    for (let i = 0; i < 2; i++) { A.step(); A.S.inbox = []; }
+    const tx = A.exportText(), S0 = A.S; A.importText(tx); let thrown = ''; try { for (let i = 0; i < 14; i++) { A.step(); A.S.inbox = []; } A.ui.tab = 'pres'; A.ui.hqTab = 'inv'; A.renderAll(true); } catch (e) { thrown = String(e); } out.loads = A.S !== S0 && !thrown && A.econCheck(A.S) === ''; info.thrown = thrown;
+    return {out, info}; });
+  console.log('rev75', JSON.stringify(r.info).slice(0, 300));
+  for (const [k, v] of Object.entries(r.out)) ok('rev75: ' + k, v === true, JSON.stringify(r.info).slice(0, 300));
+  ok('rev75: no page errors', !errs.length, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testMap69(b) {
   /* rev69 (owner's report): the ownership map had no way to close it (with no holdings yet there was no way out at all), and names were cut at 7 characters */
   for (const w of [320, 390]) {
@@ -5881,6 +5913,7 @@ async function balance(b) {
     await testPe72(b);
     await testPe73(b);
     await testOrg74(b);
+    await testRev75(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
