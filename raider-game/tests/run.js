@@ -5888,7 +5888,7 @@ async function testFix76(b) {
       A.secPkg(ps, s4.id, 'so'); const so2 = ps.secSo, sh2 = s4.shares; s4.price = so2.k * .5; S.week = so2.vest; while (S.week % 13) S.week++; A.secSoStep(); out.so23 = !ps.secSo && s4.shares === sh2 && ps.soHist[ps.soHist.length - 1].r === 'otm'; }
     A.ui.secPkg = 'so'; A.ui.secCo = s4.id; A.ui.secRole = 'CFO'; A.showSecond(ps.id); out.so24ui = /個別の株主として記録せず/.test(document.getElementById('modal').innerText); A.closeModal();
     /* ---------- CHAOS-02/03/04 (internal API) ---------- */
-    const u = L1[3], rs0 = S.rs, s25 = snap(); out.c02 = [NaN, Infinity, -1, 0].every(m => A.buyOption(u, 'call', 13, m, 'P') === null) && A.buyOption(u, 'swap', 13, 1, 'P') === null && A.buyOption(u, 'call', 14, 1, 'P') === null && snap() === s25 && S.rs === rs0;
+    const u = L1[3], rs0 = S.rs, s25 = snap(); out.c02 = [NaN, Infinity, -1, 0].every(m => A.buyOption(u, 'call', 13, m, 'P') === null) && A.buyOption(u, 'swap', 13, 1, 'P') === null && [0, -13, 1.5, NaN, 53].every(w => A.buyOption(u, 'call', w, 1, 'P') === null) && snap() === s25 && S.rs === rs0;
     const sh = A.execShort(u, .01); const sp = S.player.shorts[u.id], s27 = JSON.stringify([u.price, S.player.loan, S.player.cash, sp && sp.n]); out.c03 = !!sh && A.execCover(u, NaN) === null && A.execCover(u, -1) === null && A.execCover(u, Infinity) === null && JSON.stringify([u.price, S.player.loan, S.player.cash, sp && sp.n]) === s27;
     out.c03ok = !!A.execCover(u, sp.n / 2) && !!A.execCover(u, 1e9) && !S.player.shorts[u.id];
     S.player.cash = 1; const bp = A.buyingPower(), Lb = pick([sub, tgt, c, osub, s4, u]), v = Lb[Lb.length - 1], L0 = S.player.loan, r29 = A.execBuy('P', v, v.shares); info.c04 = [bp, A.mcap(v), r29 && r29.cost];

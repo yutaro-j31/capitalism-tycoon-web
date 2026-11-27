@@ -4617,7 +4617,7 @@ function optQuote(c, type, wks, money){
 function optLog(o, kind, amt, pnl){ if (pnl != null && (o.by || 'P') === 'P') cgAdd('P', pnl); /* a group company's option is taxed in its own figures */ const c = coById(o.cid); (S.optLog = S.optLog || []).unshift({w: S.week, cid: o.cid, name: c ? c.name : '', type: o.type, kind, n: o.n, k: o.k, amt, pnl: pnl == null ? null : pnl, by: o.by || 'P'}); if (S.optLog.length > 200) S.optLog.length = 200; } /* the option history (kept to the last 200) */
 function optLoanNote(v){ const p = S.player; return p.loan > 1e-9 ? `。信用借入${fm(p.loan)}があるため、受け取った現金は週末に借入の返済へ自動で充てられます` : ''; }
 function buyOption(c, type, wks, money, by){
-  if (!c || c.priv || (type !== 'call' && type !== 'put') || (wks !== 13 && wks !== 26) || !finite(money) || !(money > 0)) return null; /* rev76 CHAOS-02: checked before anything changes */ by = optBy(by || 'P'); if (by === c.id) return null; /* a company does not write options on itself */
+  if (!c || c.priv || (type !== 'call' && type !== 'put') || !(Number.isInteger(wks) && wks >= 1 && wks <= 52) || !finite(money) || !(money > 0)) return null; /* rev76 CHAOS-02: checked before anything changes (the screen offers 13 and 26 weeks; whole weeks up to a year are accepted inside) */ by = optBy(by || 'P'); if (by === c.id) return null; /* a company does not write options on itself */
   const cash = optCash(by); money = Math.min(money, cash); /* the premium is paid in cash: options are never bought on margin */
   const q = optQuote(c, type, wks, money); if (!q || !finite(q.n) || !finite(q.cost) || !(q.cost > 0) || q.n <= 1e-7 || q.cost > cash + 1e-9) return null;
   if (by === 'P') S.player.cash -= q.cost; else coById(by).cash -= q.cost; markInsider(c);
