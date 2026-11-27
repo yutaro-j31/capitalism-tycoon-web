@@ -3852,6 +3852,73 @@ async function testRaid68(b) {
   await p.close();
 }
 
+async function testBatch70(b) {
+  /* rev70 (owner's requests): news tabs by kind; the share of a subsidiary's profit that repays its debt; a subsidiary's share and option trades in its own figures;
+     whose money holds each position; the holding company's statements (realised vs unrealised, the chart) and aligned buttons */
+  for (const w of [390, 320]) {
+    const {p, errs} = await page(b, {viewport: {width: w, height: 800}});
+    const r = await p.evaluate(() => { const A = window.__atlas, out = {}, info = {};
+      A.closeModal(); A.newGame(7001, 'normal', 'B', 'b', 'std', true); A.closeModal(); let S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); S.player.cash = 3000; S.inbox = [];
+      for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; }
+      const L = S.cos.filter(c => !c.priv && !c.ctrl && !['air', 'telecom', 'bank'].includes(c.ind)).sort((a, b) => a.price * a.shares - b.price * b.shares);
+      const sub = L[10]; let g = 0; while ((sub.own.P || 0) / sub.shares < .6 && g++ < 30) A.execBuy('P', sub, sub.shares * (.6 - (sub.own.P || 0) / sub.shares) * 1.02); A.recomputeCtrl();
+      sub.cash = Math.max(sub.cash, 80); const tab = v => document.querySelector(`[data-act=tab][data-v=${v}]`).click();
+      /* 1. the subsidiary trades shares: the realised result is in its quarter (special items), not the holding company's tax base */
+      const tgt = L[3], cg0 = S.player.cg || 0; A.execBuy(sub.id, tgt, A.sharesForMoney(tgt, 20), sub.cash); tgt.price *= 1.3; const le = A.execSell(sub.id, tgt, tgt.own[sub.id]);
+      const x1 = (sub.xl || [])[0]; const lg = (S.ledger || []).find(x => x.k === sub.id && x.side === '売り');
+      out.subSell = !!le && !!x1 && /有価証券の売却損益/.test(x1.why) && lg && Math.abs(x1.amt - lg.pnl) < 1e-9 && Math.abs((S.player.cg || 0) - cg0) < 1e-12;
+      /* 2. a subsidiary buys an option through the trade panel with its own cash */
+      A.ui.sel = L[5].id; A.ui.ctab = 'trade'; tab('market'); A.ui.sel = L[5].id; A.ui.ctab = 'trade'; A.ui.tmode = 'opt'; A.ui.actor = sub.id; A.ui.oType = 'call'; A.ui.oWks = 13; A.ui.tf = .5; A.renderAll(true);
+      const who = (document.querySelector('.tr-who') || {}).innerText || ''; const sel = !!document.querySelector('#pbody select, #pbody [data-act=actor]');
+      const pc0 = S.player.cash, sc0 = sub.cash, go = document.getElementById('tr-go'); if (go && !go.disabled) go.click();
+      const o = S.player.opts.find(x => x.by === sub.id); out.subOptBuy = !!o && sub.cash < sc0 - 1e-6 && Math.abs(S.player.cash - pc0) < 1e-9 && /子会社/.test(who) && sel && A.optionsValue('P') < 1e-12 && A.optionsValue(sub.id) > 0;
+      A.refreshPV(); info.pv = sub.pv; out.subOptPV = sub.pv > 0;
+      if (o) { L[5].price *= 1.5; const cg1 = S.player.cg || 0, c1 = sub.cash, v = A.closeOption(o.id), x2 = sub.xl[0]; out.subOptClose = v > 0 && Math.abs(sub.cash - c1 - v) < 1e-9 && /オプションの損益/.test(x2.why) && Math.abs(x2.amt - (v - o.cost)) < 1e-9 && Math.abs((S.player.cg || 0) - cg1) < 1e-12; } else out.subOptClose = false;
+      /* the holding company's own option still works the old way */
+      const pc1 = S.player.cash, o2 = A.buyOption(L[6], 'put', 13, 2); out.pOpt = !!o2 && !o2.by && S.player.cash < pc1 && A.optionsValue('P') > 0;
+      /* 3. dividends a subsidiary receives are in its results */
+      const xn = (sub.xl || []).length, d0 = L[7]; A.execBuy(sub.id, d0, A.sharesForMoney(d0, 5), sub.cash); d0.divAcc = 1; while (A.S.week % 13 !== 12) { A.step(); A.S.inbox = []; } A.step(); A.S.inbox = [];
+      out.subDiv = (sub.xl || []).some(e => /受取配当金/.test(e.why)) || (sub.qh || []).some(q => q.xo > 0);
+      const q = sub.qh[sub.qh.length - 1]; info.q = {xo: q.xo, xg: q.xg, qt: q.qt, qni: q.qni}; out.subQuarter = q.xo > 0 && Math.abs(q.qt - q.qni - q.xo) < 1e-9;
+      /* 4. the share of profit repaying debt (set on the CEO screen) */
+      sub.debt = Math.max(sub.debt, 30); A.ui.sel = sub.id; A.ui.ctab = 'ceo'; A.renderAll(true);
+      const rb = document.querySelector('[data-act=repayf][data-v="0.5"]'); if (rb) rb.click(); const d1 = sub.debt, rp0 = sub.repaid || 0;
+      for (let i = 0; i < 13; i++) { A.step(); A.S.inbox = []; } info.repay = [sub.repay, d1, sub.debt, sub.repaid];
+      out.repay = sub.repay === .5 && (sub.repaid || 0) > rp0 && sub.debt < d1 && /利益の返済への充当/.test(document.getElementById('pbody').innerText);
+      const other = L[15], od = other.debt; other.repay = .5; A.step(); out.repayOnlyMine = !other.repaid; /* a company you do not control is not touched */
+      /* 5. whose money: holdings tab and the market list */
+      A.ui.sel = null; tab('port'); const pt = document.getElementById('pbody').innerText;
+      out.fundPort = /資金：会社（B）のお金/.test(pt) && new RegExp('資金：子会社（' + sub.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '）のお金').test(pt);
+      tab('market'); A.ui.sel = null; A.renderAll(true); out.fundMkt = /保有の資金：本体/.test(document.getElementById('pbody').innerText);
+      /* 6. news by kind */
+      tab('news'); const tabs = [...document.querySelectorAll('[data-act=newsf]')]; out.newsTabs = tabs.length === A.NEWS_CAT.length;
+      document.querySelector('[data-act=newsf][data-v=you]').click(); const youN = document.querySelectorAll('#pbody ul.news li').length;
+      document.querySelector('[data-act=newsf][data-v=stock]').click(); const stN = document.querySelectorAll('#pbody ul.news li').length;
+      out.newsFilter = youN === A.S.news.filter(n => n.k === 'you').length && stN === A.S.news.filter(n => A.newsCat(n) === 'stock').length && stN > 0 && stN < A.S.news.length;
+      document.querySelector('[data-act=newsf][data-v=all]').click(); out.newsAll = document.querySelectorAll('#pbody ul.news li').length === A.S.news.length;
+      /* 7. statements: realised gains of the period on their own line; chart drawn */
+      const S2 = A.S, c3 = L[20]; A.execBuy('P', c3, A.sharesForMoney(c3, 10)); c3.price *= 1.2; const rg0 = S2.player.pl.rg || 0, le3 = A.execSell('P', c3, c3.own.P), lg3 = S2.ledger.find(x => x.k === 'P' && x.side === '売り' && x.cid === c3.id);
+      out.rg = !!le3 && Math.abs((S2.player.pl.rg || 0) - rg0 - lg3.pnl) < 1e-9;
+      A.ui.tab = 'pres'; A.ui.hqTab = 'acc'; A.ui.fsKind = 'pl'; A.ui.fsPer = 'q'; A.renderAll(true); const at = document.getElementById('pbody').innerText;
+      out.plRows = /売却で確定した損益/.test(at) && /持っている資産の評価の増減/.test(at) && /経理部の締めは/.test(at);
+      const cv = document.getElementById('plBars'); let ink = 0; if (cv) { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; for (let i = 3; i < d.length; i += 16) if (d[i] > 0) ink++; } out.chart = ink > 50;
+      /* 8. layout: no horizontal overflow; a list row's figure stays on the right */
+      out.noOverflow = document.documentElement.scrollWidth <= innerWidth;
+      A.ui.tab = 'market'; A.ui.sel = sub.id; A.ui.ctab = 'info'; A.renderAll(true);
+      const rows = [...document.querySelectorAll('#pbody .orow')].filter(r => r.children.length === 2 && r.children[1].tagName === 'SPAN' && r.children[0].tagName === 'SPAN');
+      out.orowRight = rows.length > 0 && rows.every(r => { const a = r.getBoundingClientRect(), x = r.children[1].getBoundingClientRect(); return x.right >= a.right - 12; });
+      /* 9. a save from before rev70 (no rg, repay, option owner) loads and plays */
+      for (const k of ['pl', 'plW', 'plY']) if (A.S.player[k]) delete A.S.player[k].rg; for (const c of A.S.cos) { delete c.repay; delete c.repaid; } for (const x of A.S.player.opts) delete x.by;
+      const t = A.exportText(), S0 = A.S; A.importText(t); let thrown = ''; try { for (let i = 0; i < 14; i++) { A.step(); A.S.inbox = []; } A.ui.tab = 'pres'; A.ui.hqTab = 'acc'; A.renderAll(true); A.ui.tab = 'news'; A.renderAll(true); } catch (e) { thrown = String(e); }
+      out.oldSave = A.S !== S0 && !thrown && A.econCheck(A.S) === '';
+      return {out, info}; });
+    console.log(`rev70 batch ${w}px`, JSON.stringify(r.info).slice(0, 400));
+    for (const [k, v] of Object.entries(r.out)) ok(`rev70 (${w}px): ${k}`, v, JSON.stringify(r.info).slice(0, 300));
+    ok(`rev70 (${w}px): no page errors`, !errs.length, errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
+}
+
 async function testMap69(b) {
   /* rev69 (owner's report): the ownership map had no way to close it (with no holdings yet there was no way out at all), and names were cut at 7 characters */
   for (const w of [320, 390]) {
@@ -5594,6 +5661,7 @@ async function balance(b) {
     await testFound66(b);
     await testRaid68(b);
     await testMap69(b);
+    await testBatch70(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
