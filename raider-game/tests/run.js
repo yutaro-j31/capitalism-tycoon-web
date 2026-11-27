@@ -4165,6 +4165,26 @@ async function testRev75(b) {
   await p.close();
 }
 
+async function testUi75b(b) {
+  /* rev75b: the covenant card shows the equity-cure line only when there is something to put in; the head-office title does not break inside the company name at 320px */
+  const {p, errs} = await page(b, {viewport: {width: 320, height: 760}});
+  const r = await p.evaluate(() => { const A = window.__atlas, out = {};
+    A.closeModal(); A.newGame(7551, 'normal', 'B', 'b', 'std', true); A.closeModal(); const S = A.S; S.company = 'アトラス・キャピタル'; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); S.player.cash = 3000; S.inbox = [];
+    for (let i = 0; i < 2; i++) { A.step(); S.inbox = []; }
+    const c = S.cos.find(x => !x.priv && x.debt > 0 && A.ebitda(x) > 0); c.pe = {owner: 'P', type: 'succ', flows: [], cov: {lev: 50, cover: 99, w0: S.week, br: 1}}; /* only the interest-cover limit is broken: no cure amount */
+    S.inbox.push({id: 99751, kind: 'covbr', cid: c.id, exp: S.week + 6}); A.ui.tab = 'inbox'; A.renderAll(true); let t = document.getElementById('pbody').innerText;
+    out.noZeroCure = A.covCure(c) === 0 && /コベナンツ抵触/.test(t) && !/エクイティ・キュア/.test(t) && !document.querySelector('[data-act=ibx][data-v=cure]');
+    c.pe.cov.lev = 1; A.renderAll(true); t = document.getElementById('pbody').innerText; out.cureShown = A.covCure(c) > 0 && /エクイティ・キュア/.test(t) && !!document.querySelector('[data-act=ibx][data-v=cure]');
+    S.inbox = []; delete c.pe;
+    A.ui.tab = 'pres'; A.ui.hqTab = 'grp'; A.renderAll(true); const bEl = document.querySelector('.hqtitle b'), tn = [...bEl.childNodes].find(n => n.nodeType === 3 && n.textContent.includes('アトラス'));
+    const i0 = tn.textContent.indexOf('アトラス'), rg = document.createRange(); rg.setStart(tn, i0); rg.setEnd(tn, i0 + 'アトラス・キャピタル'.length);
+    const tops = [...rg.getClientRects()].map(x => Math.round(x.top)); out.nameOneLine = tops.length > 0 && new Set(tops).size === 1; out.noOverflow = document.documentElement.scrollWidth <= innerWidth;
+    return out; });
+  for (const [k, v] of Object.entries(r)) ok('rev75b: ' + k, v === true, JSON.stringify(r));
+  ok('rev75b: no page errors', !errs.length, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testMap69(b) {
   /* rev69 (owner's report): the ownership map had no way to close it (with no holdings yet there was no way out at all), and names were cut at 7 characters */
   for (const w of [320, 390]) {
@@ -5914,6 +5934,7 @@ async function balance(b) {
     await testPe73(b);
     await testOrg74(b);
     await testRev75(b);
+    await testUi75b(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
