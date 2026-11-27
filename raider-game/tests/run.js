@@ -5806,6 +5806,109 @@ async function balance(b) {
   await ctx.close();
 }
 
+async function testFix76(b) {
+  /* rev76: the rev75b fix list — NEW-01 a former subsidiary's M&A proposal, NEW-05 bank control stops every dividend route, CHAOS-01 a former subsidiary's options,
+     NEW-02 desks within the department's staff, NEW-03 DIP counted once, NEW-04 secondee options, CHAOS-02/03/04 input checks, UI-01 wording, UI-02 the committee's COO */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  const r = await p.evaluate(() => { const A = window.__atlas, out = {}, info = {};
+    A.closeModal(); A.newGame(7601, 'normal', 'B', 'b', 'std', true); A.closeModal(); const S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; A.hqInit(); S.dept.inv.on = true; S.player.cash = 5000; S.inbox = [];
+    for (let i = 0; i < 3; i++) { A.step(); S.inbox = []; }
+    const pick = (skip) => S.cos.filter(x => !x.priv && !x.ctrl && !A.activeTob(x) && !['air', 'telecom', 'bank'].includes(x.ind) && !skip.includes(x)).sort((a, b) => a.price * a.shares - b.price * b.shares);
+    const control = c => { S.player.cash = Math.max(S.player.cash, A.mcap(c) * 1.5); let g = 0; while ((c.own.P || 0) / c.shares < .6 && g++ < 40) A.execBuy('P', c, c.shares * (.6 - (c.own.P || 0) / c.shares) * 1.02); A.recomputeCtrl(); return c.ctrl === 'P'; };
+    const snap = (...cs) => JSON.stringify([S.player.cash, S.player.loan, S.player.opts.length, S.inbox.length, ...cs.map(c => c && [c.cash, c.debt, c.price, c.shares, c.payout, c.divAcc || 0, JSON.stringify(c.own)])]);
+    /* ---------- NEW-01 ---------- */
+    const L = pick([]), sub = L[L.length - 8]; control(sub); sub.cash = Math.max(sub.cash, A.mcap(sub)); info.subCtrl = sub.ctrl;
+    const tgt = S.cos.filter(t => t !== sub && !t.priv && !t.ctrl && !A.activeTob(t) && A.mcap(t) < A.mcap(sub) * .6).sort((a, b) => A.mcap(a) - A.mcap(b))[0];
+    const mk = (o) => { const it = Object.assign({id: S.inboxSeq++, kind: 'subma', cid: sub.id, tid: tgt.id, price: tgt.price * 1.25, cost: 1, exp: S.week + 4}, o); S.inbox.push(it); return it; };
+    /* 03: expired, vanished target, target already controlled — refused with a reason, nothing changes */
+    let it = mk({exp: S.week - 1}); out.subma03exp = A.submaOk(it) === '提案の期限が切れました'; S.inbox = [];
+    it = mk({tid: 'NOPE'}); out.subma03gone = /なくなった/.test(A.submaOk(it)); S.inbox = [];
+    /* 04: not enough money — refused, the proposal stays for a retry, no TOB */
+    const cash0 = sub.cash; sub.cash = 0; sub.debt = Math.max(sub.debt, A.maxDebt ? A.maxDebt(sub) : sub.debt); it = mk({}); const s04 = snap(sub, tgt); A.ibxChoose(it.id, 'yes');
+    out.subma04keep = !A.activeTob(tgt) && S.inbox.some(i => i.id === it.id); info.s04 = [A.submaOk(it), A.fundsOf ? A.fundsOf(sub.id) : null]; sub.cash = cash0; S.inbox = [];
+    /* 01: approved while the subsidiary is controlled — the TOB starts with the subsidiary's money */
+    it = mk({}); const pc01 = S.player.cash; A.ibxChoose(it.id, 'yes'); const tob = A.activeTob(tgt); out.subma01 = !!tob && tob.k === sub.id && Math.abs(S.player.cash - pc01) < 1e-9 && !S.inbox.some(i => i.id === it.id);
+    info.tob = tob && {k: tob.k, boss: tob.boss}; if (tob) { S.tobs = (S.tobs || []).filter(x => x !== tob); } info.tobGone = !A.activeTob(tgt);
+    /* 02: the subsidiary is sold — card shows the reason without an approve button; approving changes nothing and drops it */
+    A.execSell('P', sub, sub.own.P || 0); A.recomputeCtrl(); info.after = sub.ctrl; it = mk({}); A.ui.tab = 'inbox'; A.renderAll(true); const t02 = document.getElementById('pbody').innerText;
+    const s02 = snap(sub, tgt), tob0 = !!A.activeTob(tgt); A.ibxChoose(it.id, 'yes'); out.subma02card = /経営権を失ったため承認できません/.test(t02) && !document.querySelector(`[data-act=ibx][data-id="${it.id}"][data-v=yes]`) && !/TOBを承認する/.test(t02);
+    out.subma02 = sub.ctrl !== 'P' && !tob0 && !A.activeTob(tgt) && snap(sub, tgt).replace(/,\d+,\[/, ',X,[') === s02.replace(/,\d+,\[/, ',X,[') && !S.inbox.some(i => i.id === it.id); S.inbox = [];
+    /* ---------- NEW-05 ---------- */
+    const L5 = pick([sub, tgt]), c = L5[L5.length - 6]; control(c); c.cash = 100; c.debt = Math.max(1, A.ebitda(c) * .5); c.payout = .3; c.divAcc = 0;
+    c.pe = {owner: 'P', type: 'succ', flows: [], cov: {lev: .1, cover: 99, w0: S.week, br: 1}}; /* artificial state: an LBO'd company already one quarter in breach */
+    while (S.week % 13) S.week++; const r0 = c.lockR == null ? S.econ.rate : c.lockR; A.covStep(); out.cov05 = c.pe.cov.bank === S.week + 52 && c.payout === 0 && Math.abs(c.lockR - r0 - 1.5) < 1e-9 && A.bankLock(c);
+    A.ui.tab = 'market'; A.ui.sel = c.id; A.ui.ctab = 'ceo'; A.renderAll(true); let tc = document.getElementById('pbody').innerText;
+    out.ui05 = /銀行管理下・配当停止（解除予定/.test(tc) && !!document.querySelector('[data-act=payout][data-v="0.9"][disabled]') && !!document.querySelector('[data-act=sdiv][disabled]'); info.ui05 = /銀行管理下/.test(tc);
+    /* 06: the payout buttons and the typed value do not raise it */
+    let s5 = snap(c); const btn = document.querySelector('[data-act=payout][data-v="0.9"]'); if (btn) { btn.disabled = false; btn.click(); }
+    const inp = document.getElementById('payoutpct'); if (inp) { inp.value = '80'; inp.dispatchEvent(new Event('input', {bubbles: true})); inp.dispatchEvent(new Event('change', {bubbles: true})); }
+    out.payout06 = c.payout === 0 && snap(c).slice(snap(c).indexOf(',')) === s5.slice(s5.indexOf(',')); s5 = snap(c); /* the player's cash may move from a guide reward for the click; the company is unchanged */
+    /* 07: a special dividend from every entry point changes nothing */
+    const nd = () => S.news.filter(n => /特別配当/.test(n.t)).length, n0 = nd(); out.sdiv07 = A.specialDividend(c, 25) === 0 && A.cpAct(c, 'sdiv', .25) === null && snap(c) === s5 && nd() === n0;
+    /* 08: the dividend recap borrows nothing */
+    out.recap08 = A.peRecap(c) === 0 && snap(c) === s5;
+    /* 09: an executive's older proposal and the activist's demand */
+    A.doAction(c, {k: 'payout', v: .8}); A.doAction(c, {k: 'sdiv', amt: 20}); const msg = A.applyAct(c, 'div'); out.exec09 = c.payout === 0 && snap(c) === s5 && /銀行管理下/.test(msg);
+    /* 10: a lower payout is still allowed */
+    out.lower10 = A.payoutUp(c, 0) && !A.payoutUp(c, .1);
+    /* 11: nothing set aside each week; what was set aside before the bank waits for the date */
+    c.divAcc = 2; const cash11 = c.cash; S.week += 13 - (S.week % 13 || 13); A.coStep(c); out.accr11 = c.divAcc >= 2 - 1e-9 && c.divAcc <= 2 + 1e-9; info.accr = [c.divAcc, c.cash - cash11];
+    /* 12: after the date it works again */
+    S.week = c.pe.cov.bank; out.release12 = !A.bankLock(c) && A.payoutUp(c, .9) && A.specialDividend(c, 1) > 0; c.divAcc = 0; delete c.pe;
+    /* ---------- CHAOS-01 ---------- */
+    const L1 = pick([sub, tgt, c]), osub = L1[L1.length - 4], under = L1[2]; control(osub); osub.cash = Math.max(osub.cash, 50);
+    A.ui.actor = osub.id; const o = A.buyOption(under, 'call', 13, 5, osub.id); const oP = A.buyOption(L1[4], 'put', 26, 2, 'P') /* another company: each one has an open-interest cap */; out.opt14buy = !!o && o.by === osub.id && !!oP && !oP.by;
+    A.execSell('P', osub, osub.own.P || 0); A.recomputeCtrl(); A.ui.actor = 'P';
+    A.ui.tab = 'port'; A.renderAll(true); out.opt14ui = !!document.querySelector(`[data-act=sellopt][data-id="${oP && oP.id}"]`);
+    const s13 = snap(osub), oc = S.player.opts.length, v13 = o ? A.closeOption(o.id) : 0; out.opt13 = osub.ctrl !== 'P' && v13 === null && snap(osub) === s13 && S.player.opts.length === oc && S.player.opts.some(x => x.id === o.id) && !A.optOwnerOk(o);
+    out.opt13ui = !document.querySelector(`[data-act=sellopt][data-id="${o && o.id}"]`);
+    /* 14: the holding company's own option settles normally */
+    const pc14 = S.player.cash, v14 = A.closeOption(oP.id); out.opt14 = typeof v14 === 'number' && v14 >= 0 && S.player.cash >= pc14 + v14 - 1e-9 && !S.player.opts.some(x => x.id === oP.id);
+    /* 15: buying it back gives the right back */
+    control(osub); out.opt15 = A.optOwnerOk(o) && typeof A.closeOption(o.id) === 'number';
+    /* ---------- NEW-02 ---------- */
+    S.dept.inv.staff = 6; S.desk = {}; out.desk16set = A.deskSet('eq', 3) && A.deskSet('pe', 2) && A.deskF('eq') > 0;
+    A.ui.tab = 'pres'; A.ui.hqTab = 'inv'; A.renderAll(true); const dbtn = document.querySelector('[data-act=dstaff][data-id=inv][data-v="-1"]');
+    if (dbtn) { for (let i = 0; i < 6; i++) { const bb = document.querySelector('[data-act=dstaff][data-id=inv][data-v="-1"]'); if (bb) bb.click(); } } else { S.dept.inv.staff = 0; A.deskFix(); }
+    out.desk16 = S.dept.inv.staff === 0 && A.deskF('eq') === 0 && Object.values(S.desk).every(n => n === 0); info.desk = [S.dept.inv.staff, JSON.stringify(S.desk), !!dbtn];
+    S.dept.inv.staff = 6; S.desk = {eq: 3, bond: 2, pe: 1, re: 0}; S.dept.inv.staff = 4; const E = A.deskEff(); out.desk17 = E.eq + E.bond + E.pe + E.re === 4 && E.eq === 3 && E.pe === 1 && E.bond === 0 && A.deskF('bond') === 0;
+    S.desk = {eq: 9, bond: -2, pe: NaN, re: 1.7}; S.dept.inv.staff = 3; A.deskFix(); out.desk18 = JSON.stringify(S.desk) === JSON.stringify({eq: 3, bond: 0, pe: 0, re: 0}) /* bad values to 0, 1.7 to 1, then 7 too many taken back in the fixed order (re, bond, pe, eq) */;
+    S.dept.inv.on = false; out.desk18off = A.deskF('eq') === 0; S.dept.inv.on = true; A.deskFix();
+    A.ui.hqTab = 'inv'; A.renderAll(true); out.desk18ui = /社員3人・配属3人・未配属0人/.test(document.getElementById('pbody').innerText);
+    /* ---------- NEW-03 / UI-01 ---------- */
+    const dc = S.cos.find(x => !x.priv && !x.ctrl && x.debt > 1 && x !== c); const keepR = dc.reorg; dc.reorg = {w: S.week, dip: 10}; S.dips = [{cid: dc.id, amt: 10}];
+    const dv = A.dipsValue ? A.dipsValue() : null, cr = A.altAum().credit; out.dip19 = dv > 0 && Math.abs(cr - Math.max(0, A.bondsValue() - (A.govValue ? A.govValue() : 0))) < 1e-9; info.dip = [dv, cr];
+    S.dips = []; if (keepR) dc.reorg = keepR; else delete dc.reorg;
+    A.ui.tab = 'pres'; A.ui.hqTab = 'inv'; A.renderAll(true); const ta = document.getElementById('pbody').innerText; out.ui01 = /4戦略以上で「総合オルタナティブ運用会社」/.test(ta) && /合計1兆円以上/.test(ta) && !/1兆円を超える/.test(ta);
+    /* ---------- NEW-04 ---------- */
+    const ids = Object.keys(S.hr.people), ps = S.hr.people[ids[3]]; const L4 = pick([sub, tgt, c, osub]), s4 = L4[L4.length - 3]; control(s4);
+    A.secPkg(ps, s4.id, 'so'); const so = ps.secSo; out.so22set = !!so;
+    if (so) { const sh0 = s4.shares; s4.price = so.k * 2; S.week = so.vest; while (S.week % 13) S.week++; const own0 = JSON.stringify(s4.own); A.secSoStep(); const sh1 = s4.shares; A.secSoStep();
+      out.so22 = !ps.secSo && sh1 > sh0 && s4.shares === sh1 && (ps.soHist || []).length === 1 && ps.soHist[0].r === 'ex' && JSON.stringify(Object.keys(s4.own)) === JSON.stringify(Object.keys(JSON.parse(own0))) && S.news.some(n => /本人の株は個別に記録しません/.test(n.t));
+      A.secPkg(ps, s4.id, 'so'); const so2 = ps.secSo, sh2 = s4.shares; s4.price = so2.k * .5; S.week = so2.vest; while (S.week % 13) S.week++; A.secSoStep(); out.so23 = !ps.secSo && s4.shares === sh2 && ps.soHist[ps.soHist.length - 1].r === 'otm'; }
+    A.ui.secPkg = 'so'; A.ui.secCo = s4.id; A.ui.secRole = 'CFO'; A.showSecond(ps.id); out.so24ui = /個別の株主として記録せず/.test(document.getElementById('modal').innerText); A.closeModal();
+    /* ---------- CHAOS-02/03/04 (internal API) ---------- */
+    const u = L1[3], rs0 = S.rs, s25 = snap(); out.c02 = [NaN, Infinity, -1, 0].every(m => A.buyOption(u, 'call', 13, m, 'P') === null) && A.buyOption(u, 'swap', 13, 1, 'P') === null && A.buyOption(u, 'call', 14, 1, 'P') === null && snap() === s25 && S.rs === rs0;
+    const sh = A.execShort(u, .01); const sp = S.player.shorts[u.id], s27 = JSON.stringify([u.price, S.player.loan, S.player.cash, sp && sp.n]); out.c03 = !!sh && A.execCover(u, NaN) === null && A.execCover(u, -1) === null && A.execCover(u, Infinity) === null && JSON.stringify([u.price, S.player.loan, S.player.cash, sp && sp.n]) === s27;
+    out.c03ok = !!A.execCover(u, sp.n / 2) && !!A.execCover(u, 1e9) && !S.player.shorts[u.id];
+    S.player.cash = 1; const bp = A.buyingPower(), Lb = pick([sub, tgt, c, osub, s4, u]), v = Lb[Lb.length - 1], L0 = S.player.loan, r29 = A.execBuy('P', v, v.shares); info.c04 = [bp, A.mcap(v), r29 && r29.cost];
+    out.c04 = A.mcap(v) > bp && !!r29 && r29.cost <= bp + 1e-9 && S.player.loan - L0 <= bp + 1e-9; /* the whole company would cost more than the buying power: the purchase is cut to it */
+    const s29 = snap(v); S.player.cash = -1e7; const bp0 = A.buyingPower(), r29b = A.execBuy('P', v, v.shares * .01); out.c04zero = bp0 <= 1e-9 && r29b === null && snap(v).slice(snap(v).indexOf(',')) === s29.slice(s29.indexOf(',')); S.player.cash = 1; out.c04ok = A.econCheck(S) === '';
+    /* ---------- UI-02 ---------- */
+    const pa = S.hr.people[ids[5]], pb = S.hr.people[ids[6]]; A.hireInto(pa, 'HQ', 'COO', 'fixed', null); A.hireInto(pb, 'HQ', 'OP', 'fixed', null); info.coo = [S.hr.hq.COO === pa.id, JSON.stringify(S.hr.hq.OP)];
+    const tq = A.tenderQuote('P', L1[0], L1[0].price * 1.3, .51); const h1 = A.invcTob(L1[0], L1[0].price * 1.3, tq, false);
+    out.ui02 = A.invcWho('COO') === pa && h1.includes(pa.n) && !h1.includes(pb.n);
+    delete S.hr.hq.COO; pa.at = 'HQ'; pa.role = 'BENCH'; const h2 = A.invcTob(L1[0], L1[0].price * 1.3, tq, false); out.ui02vacant = A.invcWho('COO') === null && !h2.includes(pb.n) && !h2.includes(pa.n);
+    /* ---------- save ---------- */
+    for (let i = 0; i < 2; i++) { A.step(); S.inbox = []; }
+    const tx = A.exportText(), S0 = A.S; A.importText(tx); let thrown = ''; try { for (let i = 0; i < 6; i++) { A.step(); A.S.inbox = []; } A.ui.tab = 'pres'; A.ui.hqTab = 'inv'; A.renderAll(true); } catch (e) { thrown = String(e); } out.loads = A.S !== S0 && !thrown && A.econCheck(A.S) === ''; info.thrown = thrown + ' ' + A.econCheck(A.S);
+    return {out, info}; });
+  console.log('fix76', JSON.stringify(r.info).slice(0, 600));
+  for (const [k, v] of Object.entries(r.out)) ok('fix76: ' + k, v === true, JSON.stringify(r.info).slice(0, 400));
+  ok('fix76: no page errors', !errs.length, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 (async () => {
   const b = await chromium.launch();
   try {
@@ -5935,6 +6038,7 @@ async function balance(b) {
     await testOrg74(b);
     await testRev75(b);
     await testUi75b(b);
+    await testFix76(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
