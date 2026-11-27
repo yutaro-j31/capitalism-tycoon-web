@@ -809,7 +809,7 @@ async function testFeedback13(b) {
     /* (G) head-office costs come out of cash; negative cash is an overdraft that the bank collects after 8 weeks */
     S.player.cash = 0; S.player.loan = 0; A.hqInit(); Object.assign(S.office, {lvl: 2, city: 'tyo'}); /* set directly (rev51: a move up is optional and needs the money) */ S.dept.acc.staff = 10; const loan0 = S.player.loan;
     A.deptStep(); out.od1 = S.player.cash < 0 && S.player.loan === loan0;
-    const t = S.cos.find(x => !x.priv && !x.ctrl && x !== c); A.execBuy('P', t, A.sharesForMoney(t, 5)); S.player.cash = -2; S.player.loan = 0;
+    const t = S.cos.find(x => !x.priv && !x.ctrl && x !== c); S.player.cash = 5; A.execBuy('P', t, A.sharesForMoney(t, 5)); S.player.cash = -2; /* rev76: the purchase is paid for (CHAOS-04: no buying past the buying power) */ S.player.loan = 0;
     A.overdraftStep(); const w = S.week; out.od2 = S.player.od === w; S.week += 8; A.overdraftStep(); out.od3 = S.player.cash >= -1e-9 && S.player.od == null;
     /* (H) margin call: a deadline first, then a forced sale */
     S.player.cash = 0; const hv = A.holdingsValue('P'); S.player.loan = hv * A.callLine() * 1.03; const own0 = t.own.P;
