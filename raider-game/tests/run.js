@@ -3953,6 +3953,46 @@ async function testTrader71(b) {
   await p.close();
 }
 
+async function testTraderActor71(b) {
+  /* rev71b (owner): an individual who controls a listed company can trade in that company's name, with its money; and the screens the owner sent are drawn straight */
+  for (const w of [390, 320]) {
+    const {p, errs} = await page(b, {viewport: {width: w, height: 844}});
+    await p.evaluate(() => { const A = window.__atlas; A.closeModal(); A.newGame(7102, 'normal', 'B', 'b', 'trader', true); A.closeModal(); const S = A.S; S.won = S.lost = true; S.player.cash = 3000; S.inbox = [];
+      for (let i = 0; i < 30; i++) { A.step(); S.inbox = []; }
+      const L = S.cos.filter(c => !c.priv && !c.ctrl && !['air', 'telecom', 'bank'].includes(c.ind)).sort((a, b) => a.price * a.shares - b.price * b.shares);
+      const c = L[8]; let g = 0; while ((c.own.P || 0) / c.shares < .6 && g++ < 40) A.execBuy('P', c, c.shares * (.6 - (c.own.P || 0) / c.shares) * 1.02); A.recomputeCtrl(); c.cash = Math.max(c.cash, 50);
+      for (let i = 0; i < 2; i++) { A.step(); A.S.inbox = []; }
+      window.__c = c.id; window.__t = L[3].id; A.ui.sel = L[3].id; A.ui.tab = 'market'; A.ui.ctab = 'trade'; A.ui.tmode = 'cash'; document.querySelector('[data-act=tab][data-v=market]').click(); A.ui.sel = L[3].id; A.ui.ctab = 'trade'; A.renderAll(true); });
+    const hasSel = !!(await p.$('#actor'));
+    if (hasSel) { await p.selectOption('#actor', await p.evaluate(() => window.__c)); await p.waitForTimeout(150); }
+    const r = await p.evaluate(() => { const A = window.__atlas, S = A.S, out = {}, c = A.coById(window.__c), t = A.coById(window.__t);
+      out.preCo = A.preCo(); /* no company yet */
+      out.choice = A.ui.actor === c.id && /支配会社/.test(document.getElementById('pbody').innerText);
+      A.ui.tf = .3; A.renderAll(true); const pc0 = S.player.cash, cc0 = c.cash, go = document.getElementById('tr-go'); if (go && !go.disabled) go.click();
+      out.buy = (t.own[c.id] || 0) > 0 && c.cash < cc0 && Math.abs(S.player.cash - pc0) < 1e-9; /* the company's money, not your account */
+      A.ui.tmode = 'opt'; A.ui.oType = 'call'; A.ui.oWks = 13; A.ui.tf = .2; A.renderAll(true); const go2 = document.getElementById('tr-go'); if (go2 && !go2.disabled) go2.click();
+      out.opt = S.player.opts.some(o => o.by === c.id) && Math.abs(S.player.cash - pc0) < 1e-9;
+      for (let i = 0; i < 3; i++) { A.step(); A.S.inbox = []; } out.checks = A.econCheck(A.S) === '';
+      const x = A.exportText(), S0 = A.S; A.importText(x); out.loads = A.S !== S0 && A.econCheck(A.S) === '';
+      return out; });
+    for (const [k, v] of Object.entries(r)) ok(`rev71b (${w}px): ${k}`, v, JSON.stringify(r));
+    /* the screens from the owner's screenshots */
+    const L = await p.evaluate(() => { const A = window.__atlas, out = {};
+      A.ui.sel = null; A.ui.tab = 'rivals'; A.renderAll(true);
+      out.rank = [...document.querySelectorAll('.lead')].every(e => { const n = e.querySelector('.who'), v = e.querySelector('.val'); if (!n || !v) return false; const a = n.getBoundingClientRect(), b = v.getBoundingClientRect(); return a.right <= b.left + 1 || a.bottom <= b.top + 1; });
+      A.ui.tab = 'port'; A.renderAll(true);
+      const nums = [...document.querySelectorAll('#pbody .row.wide .rt.sub')]; out.holdRows = nums.length > 0 && nums.every(e => e.getBoundingClientRect().width > document.querySelector('#pbody').getBoundingClientRect().width * .6);
+      A.showReport && A.showReport('w'); const two = [...document.querySelectorAll('#modal .rtable.two > div > span:last-child')];
+      out.cfOneLine = two.length >= 3 && two.every(e => { const r = e.getBoundingClientRect(), lh = parseFloat(getComputedStyle(e).lineHeight) || 20; return r.height < lh * 1.6; });
+      A.closeModal(); A.ui.tab = 'news'; A.renderAll(true); const tabs = document.querySelector('.news-tabs'), note = tabs && tabs.nextElementSibling; out.newsGap = !!note && note.getBoundingClientRect().top - tabs.getBoundingClientRect().bottom >= 6;
+      out.noOverflow = document.documentElement.scrollWidth <= innerWidth;
+      return out; });
+    for (const [k, v] of Object.entries(L)) ok(`rev71b (${w}px): ${k}`, v, JSON.stringify(L));
+    ok(`rev71b (${w}px): no page errors`, !errs.length, errs.slice(0, 2).join(' | '));
+    await p.close();
+  }
+}
+
 async function testMap69(b) {
   /* rev69 (owner's report): the ownership map had no way to close it (with no holdings yet there was no way out at all), and names were cut at 7 characters */
   for (const w of [320, 390]) {
@@ -5697,6 +5737,7 @@ async function balance(b) {
     await testMap69(b);
     await testBatch70(b);
     await testTrader71(b);
+    await testTraderActor71(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
