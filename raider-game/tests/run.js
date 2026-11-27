@@ -3919,6 +3919,40 @@ async function testBatch70(b) {
   }
 }
 
+async function testTrader71(b) {
+  /* rev71 (owner's report): a renamed company keeps its old name in the records' lists; an individual (no company yet) never saw the luxury goods */
+  const {p, errs} = await page(b, {viewport: {width: 390, height: 844}});
+  await p.evaluate(() => { const A = window.__atlas; A.closeModal(); A.newGame(7101, 'normal', 'B', 'b', 'trader', true); A.closeModal(); const S = A.S; S.won = S.lost = true; S.allUnlocked = true; S.stage = 4; S.player.cash = 3000; S.inbox = [];
+    for (let i = 0; i < 30; i++) { A.step(); S.inbox = []; }
+    const L = S.cos.filter(c => !c.priv && !c.ctrl && !['air', 'telecom', 'bank'].includes(c.ind)).sort((a, b) => a.price * a.shares - b.price * b.shares);
+    const c = L[8]; let g = 0; while ((c.own.P || 0) / c.shares < .6 && g++ < 40) A.execBuy('P', c, c.shares * (.6 - (c.own.P || 0) / c.shares) * 1.02); A.recomputeCtrl(); c.cash = Math.max(c.cash, 50);
+    while (A.S.week % 13 !== 0) { A.step(); A.S.inbox = []; } A.step(); A.S.inbox = []; /* a quarterly report that lists the company */
+    window.__c = c.id; window.__old = c.name; A.ui.sel = c.id; A.ui.tab = 'market'; A.ui.ctab = 'ceo'; document.querySelector('[data-act=tab][data-v=market]').click(); A.ui.sel = c.id; A.ui.ctab = 'ceo'; A.renderAll(true); });
+  /* rename through the screen */
+  await p.fill('#cpname', ''); await p.type('#cpname', '改名テスト商事'); await p.click('[data-act=cpname]'); await p.waitForTimeout(150);
+  const r = await p.evaluate(() => { const A = window.__atlas, S = A.S, out = {}, c = A.coById(window.__c), old = window.__old;
+    out.preCo = A.preCo(); out.renamed = c.name === '改名テスト商事';
+    out.header = (document.querySelector('.cohead h2') || {}).innerText === '改名テスト商事';
+    A.ui.sel = null; A.ui.tab = 'market'; A.renderAll(true); const mk = document.getElementById('pbody').innerText; out.market = mk.includes('改名テスト商事') && !mk.includes(old);
+    A.ui.tab = 'port'; A.renderAll(true); const pt = document.getElementById('pbody').innerText;
+    out.history = pt.includes('改名テスト商事') && pt.includes(`旧社名 ${old}`); /* the trade history and the quarterly report name the company as it is called now */
+    /* luxury goods before a company */
+    A.ui.tab = 'pres'; A.ui.hqTab = 'me'; A.renderAll(true); const hq = document.getElementById('pbody').innerText;
+    out.luxShown = /ステータス資産/.test(hq) && document.querySelectorAll('#pbody [data-act=buylux]').length === A.LUX.length && !!document.querySelector('#pbody .a3d-luxbtn');
+    const k = A.LUX[0][0], price = A.LUX[0][2], w0 = A.myWorth(), cash0 = S.player.cash, fl0 = (S.tr && S.tr.flow) || 0;
+    document.querySelector(`#pbody [data-act=buylux][data-v="${k}"]`).click();
+    out.luxBuy = S.pres.assets.some(a => a.k === k) && Math.abs(cash0 - S.player.cash - price) < 1e-9 && Math.abs(A.myWorth() - w0) < 1e-6 && Math.abs(((S.tr && S.tr.flow) || 0) - fl0 + price) < 1e-9;
+    /* not with borrowed money: free cash only */
+    const big = A.LUX.slice().sort((a, b) => b[2] - a[2])[0]; S.player.cash = big[2] * .5; S.player.loan = 0; out.luxNoLoan = A.buyLux(big[0]) === null;
+    S.player.cash = 3000; const a = S.pres.assets.find(x => x.k === k), c1 = S.player.cash, v = A.sellLux(a.id); out.luxSell = v > 0 && Math.abs(S.player.cash - c1 - v) < 1e-9;
+    for (let i = 0; i < 3; i++) { A.step(); A.S.inbox = []; } out.checks = A.econCheck(A.S) === '';
+    const t = A.exportText(), S0 = A.S; A.importText(t); out.loads = A.S !== S0 && A.econCheck(A.S) === '';
+    return out; });
+  for (const [k, v] of Object.entries(r)) ok(`rev71: ${k}`, v, JSON.stringify(r));
+  ok('rev71: no page errors', !errs.length, errs.slice(0, 2).join(' | '));
+  await p.close();
+}
+
 async function testMap69(b) {
   /* rev69 (owner's report): the ownership map had no way to close it (with no holdings yet there was no way out at all), and names were cut at 7 characters */
   for (const w of [320, 390]) {
@@ -5662,6 +5696,7 @@ async function balance(b) {
     await testRaid68(b);
     await testMap69(b);
     await testBatch70(b);
+    await testTrader71(b);
     await balance(b);
   } finally { await b.close(); }
   console.log(failures ? `\n${failures} test(s) failed` : '\nall tests passed');
